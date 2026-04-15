@@ -1,0 +1,25 @@
+# Portainer-compatible stack. Build from this directory; named volume persists the SQLite file.
+#
+# Override APP_PORT in Portainer's stack environment if 8765 is taken.
+#
+# Expected reverse-proxy wiring (NPM): hours.nutello.cc -> http://<docker-host>:${APP_PORT}
+
+services:
+  kronos:
+    build:
+      context: .
+      target: runtime
+    image: kronos:latest
+    container_name: kronos
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8765}:${APP_PORT:-8765}"
+    environment:
+      TZ: "${TZ:-Europe/Madrid}"
+      APP_PORT: "${APP_PORT:-8765}"
+      KRONOS_DATA_DIR: /app/data
+    volumes:
+      - kronos-data:/app/data
+
+volumes:
+  kronos-data:

@@ -1,0 +1,362 @@
+/* Kronos — custom styles layered on top of Pico. */
+
+[x-cloak] { display: none !important; }
+
+:root {
+  --kronos-surplus: #22c55e;
+  --kronos-deficit: #ef4444;
+  --kronos-gold: #d4a017;
+  --kronos-work: var(--pico-primary);
+  --kronos-vacation: #7c3aed;
+  --kronos-sick: #f59e0b;
+  --kronos-holiday: #06b6d4;
+}
+
+/* ------------------------- header -------------------------- */
+
+.app-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--pico-muted-border-color);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.brand h1 { margin: 0; line-height: 1; }
+.subtitle { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--pico-muted-color); }
+
+/* ------------------------- tabs ---------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+.tabs a {
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.375rem;
+  color: var(--pico-color);
+  text-decoration: none;
+  border: 1px solid transparent;
+  font-weight: 500;
+}
+.tabs a:hover { background: var(--pico-muted-border-color); }
+.tabs a[aria-selected="true"] {
+  background: var(--pico-primary);
+  color: var(--pico-primary-inverse);
+}
+
+@media (min-width: 720px) {
+  .app-header { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* ------------------------- sections ------------------------ */
+
+section { margin-bottom: 2rem; }
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.section-header h2 { margin: 0; }
+
+.log-header {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 0.375rem;
+  color: var(--pico-muted-color);
+  text-decoration: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.back-btn:hover {
+  border-color: var(--pico-color);
+  color: var(--pico-color);
+}
+
+/* ------------------------- summary cards ------------------ */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.summary-card {
+  padding: 1.25rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 0.5rem;
+  background: var(--pico-card-background-color);
+  margin: 0;
+}
+.summary-card.cumulative { border-color: var(--kronos-gold); }
+.summary-card h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color); text-transform: uppercase; letter-spacing: 0.03em; }
+.summary-card .metric { font-size: 2.25rem; font-weight: 700; line-height: 1.1; }
+.summary-card.small .metric { font-size: 1.6rem; }
+.summary-card .sub { margin-top: 0.5rem; font-size: 0.85rem; color: var(--pico-muted-color); }
+
+.surplus { color: var(--kronos-surplus); }
+.deficit { color: var(--kronos-deficit); }
+.neutral { color: var(--pico-muted-color); }
+
+/* ------------------------- day pills ---------------------- */
+
+.day-pill {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: white;
+}
+.day-pill.work { background: var(--kronos-work); }
+.day-pill.vacation { background: var(--kronos-vacation); }
+.day-pill.sick { background: var(--kronos-sick); color: black; }
+.day-pill.holiday { background: var(--kronos-holiday); color: black; }
+
+/* ------------------------- tables ------------------------- */
+
+.table-wrap { overflow-x: auto; }
+table { margin-bottom: 0; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable::after { content: " ↕"; opacity: 0.4; }
+tr.non-work td { opacity: 0.72; }
+
+/* ------------------------- log form ----------------------- */
+
+.break-row {
+  padding: 0.5rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+  background: var(--pico-background-color);
+}
+.break-input-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.break-input-line input[type=number] {
+  width: 6rem;
+  margin: 0;
+}
+.break-input-line .muted { min-width: 6rem; font-size: 0.85rem; }
+.break-input-line button.compact { padding: 0.25rem 0.5rem; font-size: 0.8rem; margin: 0; }
+
+.range-calc {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: var(--pico-card-sectioning-background-color);
+  border-radius: 0.25rem;
+  flex-wrap: wrap;
+}
+.range-calc input[type=time] { width: 7rem; margin: 0; }
+.range-calc button { padding: 0.25rem 0.75rem; font-size: 0.85rem; margin: 0; }
+
+.form-footer {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* ------------------------- label helpers ------------------ */
+
+.label-with-action {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.label-action {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--pico-primary);
+  cursor: pointer;
+  text-decoration: none;
+}
+.label-action:hover { text-decoration: underline; }
+
+/* ------------------------- misc --------------------------- */
+
+.muted { color: var(--pico-muted-color); }
+
+.error-banner {
+  padding: 0.75rem 1rem;
+  background: var(--kronos-deficit);
+  color: white;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+/* ------------------------- month scorecards ---------------- */
+
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 2rem;
+}
+
+.month-card {
+  padding: 1rem 1rem 0.85rem;
+  border: 1px solid var(--pico-muted-border-color);
+  border-left-width: 3px;
+  border-radius: 0.5rem;
+  background: var(--pico-card-background-color);
+  margin: 0;
+}
+
+.month-card--surplus { border-left-color: var(--kronos-surplus); }
+.month-card--deficit { border-left-color: var(--kronos-deficit); }
+.month-card--neutral { border-left-color: var(--pico-muted-color); }
+
+.month-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pico-muted-color);
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+}
+
+.month-card-surplus {
+  font-size: 1.45rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-bottom: 0.45rem;
+}
+
+.month-card-detail {
+  font-size: 0.8rem;
+  color: var(--pico-color);
+  margin-bottom: 0.2rem;
+}
+
+.month-card-days {
+  font-size: 0.75rem;
+}
+
+/* (footer styles removed — footer element removed from template) */
+
+/* ------------------------- fun zone ----------------------- */
+
+.fun-zone {
+  margin-top: 2.5rem;
+  border: 1px solid var(--kronos-deficit);
+  border-radius: 0.5rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.fun-zone-title {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--kronos-deficit);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.fun-zone-action {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.fun-zone-action p { margin: 0.25rem 0 0; }
+
+.fun-zone-divider {
+  border-color: var(--pico-muted-border-color);
+  margin: 1.25rem 0;
+}
+
+.wipe-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 220px;
+}
+
+.wipe-confirm-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.wipe-confirm-label input { margin: 0; }
+
+.wipe-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-danger {
+  background: var(--kronos-deficit);
+  border-color: var(--kronos-deficit);
+  color: white;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+.btn-danger.outline {
+  background: transparent;
+  color: var(--kronos-deficit);
+}
+.btn-danger.outline:hover {
+  background: rgba(239,68,68,0.1);
+}
+.btn-danger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ------------------------- app footer --------------------- */
+
+@media (max-width: 480px) {
+  .summary-card .metric { font-size: 1.8rem; }
+  .brand-logo { width: 36px; height: 36px; }
+}

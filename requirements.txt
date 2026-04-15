@@ -1,0 +1,9 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0.30
+alembic>=1.13
+jinja2>=3.1
+# IANA tz database — stdlib zoneinfo falls back to this on systems without OS tzdata
+# (e.g. Windows). Linux/Docker ships tz data at the OS level, but carrying this
+# wheel costs <1 MB and makes the app work everywhere out of the box.
+tzdata>=2024.1

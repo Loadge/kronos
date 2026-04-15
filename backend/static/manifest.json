@@ -1,0 +1,19 @@
+{
+  "name": "Kronos",
+  "short_name": "Kronos",
+  "description": "Personal hours tracker",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1d22",
+  "theme_color": "#1a1d22",
+  "icons": [
+    {
+      "src": "/static/icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
