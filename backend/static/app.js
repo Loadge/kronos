@@ -4,6 +4,15 @@
  * No build step, no modules — just a function on window.
  */
 
+// ── Service Worker registration (E4) ────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(err => {
+      console.warn('[SW] registration failed:', err);
+    });
+  });
+}
+
 function app() {
   return {
     // ---------- nav + global state ---------------------------------------
@@ -38,12 +47,48 @@ function app() {
     seedConfirming: false,
     seedInput: '',
 
+    // ---------- E2 skeleton / optimistic --------------------------------
+    loading: { dashboard: false, days: false, analytics: false, settings: false },
+    saving: false,
+
+    // ---------- W1 animated metrics (tick-up) ---------------------------
+    animWeek: 0, animMonth: 0, animCumulative: 0,
+
+    // ---------- W5 save ribbon ------------------------------------------
+    toast: { msg: '', kind: 'neutral', show: false },
+    _toastTimer: null,
+
+    // ---------- W6 easter egg + streaks ---------------------------------
+    streaksUnlocked: false,
+    streaks: null,
+    eggAnimating: false,
+
     // =====================================================================
     // init
     // =====================================================================
     async init() {
-      await this.loadDashboard();
+      const TABS = ['dashboard', 'log', 'days', 'analytics', 'settings'];
+      const hash = location.hash.replace('#', '');
+      if (TABS.includes(hash)) this.tab = hash;
+
+      window.addEventListener('hashchange', () => {
+        const t = location.hash.replace('#', '');
+        if (TABS.includes(t) && t !== this.tab) this.go(t);
+      });
+
+      // W6 — "kronos" key buffer (plain var, not reactive — no re-render per keystroke)
+      let _keyBuf = '';
+      document.addEventListener('keydown', (e) => {
+        const tag = e.target?.tagName?.toUpperCase() || '';
+        if (['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target?.isContentEditable) return;
+        if (e.key?.length === 1) {
+          _keyBuf = (_keyBuf + e.key.toLowerCase()).slice(-6);
+          if (_keyBuf === 'kronos') { this.triggerEasterEgg(); _keyBuf = ''; }
+        }
+      });
+
       this.openNewEntry();
+      await this.go(this.tab);
     },
 
     // =====================================================================
@@ -51,11 +96,21 @@ function app() {
     // =====================================================================
     async go(t) {
       this.tab = t;
+      // Mirror tab to URL hash without re-triggering hashchange
+      if (location.hash.replace('#', '') !== t) location.hash = t;
       this.error = null;
       if (t === 'dashboard') await this.loadDashboard();
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
       else if (t === 'settings') await this.loadSettings();
+    },
+
+    // Roving-tabindex arrow navigation for the tab list (E3)
+    focusTab(dir, el) {
+      const tabs = [...el.closest('[role="tablist"]').querySelectorAll('[role="tab"]')];
+      const next = tabs[(tabs.indexOf(el) + dir + tabs.length) % tabs.length];
+      next.focus();
+      next.click();
     },
 
     // =====================================================================
@@ -99,6 +154,12 @@ function app() {
       return `${sign}${Math.abs(h).toFixed(2)}h`;
     },
 
+    subdialLabel(h) {
+      if (h > 0.01) return 'Surplus';
+      if (h < -0.01) return 'Deficit';
+      return 'On target';
+    },
+
     minutesToLabel(m) {
       if (m === null || m === undefined || isNaN(m) || m < 0) return '';
       m = Math.floor(m);
@@ -132,6 +193,7 @@ function app() {
     // dashboard
     // =====================================================================
     async loadDashboard() {
+      this.loading.dashboard = true;
       try {
         this.dashboard = await this.api('GET', '/api/dashboard');
         const h = this.dashboard.cumulative.surplus_hours;
@@ -139,7 +201,35 @@ function app() {
         if (h > 0.01) this.subtitle = `${abs}h ahead overall`;
         else if (h < -0.01) this.subtitle = `${abs}h behind overall`;
         else this.subtitle = 'on target';
+        this.$nextTick(() => this.tickUpDashboard()); // W1
       } catch (e) { this.error = e.message; }
+      finally { this.loading.dashboard = false; }
+    },
+
+    // W1 — animate the three metric values from 0 → real (ease-out cubic, 600ms)
+    tickUpDashboard() {
+      if (!this.dashboard) return;
+      const targets = {
+        week:       Math.abs(this.dashboard.week.surplus_hours),
+        month:      Math.abs(this.dashboard.month.surplus_hours),
+        cumulative: Math.abs(this.dashboard.cumulative.surplus_hours),
+      };
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.animWeek = targets.week; this.animMonth = targets.month; this.animCumulative = targets.cumulative;
+        return;
+      }
+      this.animWeek = 0; this.animMonth = 0; this.animCumulative = 0;
+      const start = performance.now();
+      const tick = (now) => {
+        const t = Math.min(1, (now - start) / 600);
+        const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        this.animWeek       = targets.week       * e;
+        this.animMonth      = targets.month      * e;
+        this.animCumulative = targets.cumulative * e;
+        if (t < 1) requestAnimationFrame(tick);
+        else { this.animWeek = targets.week; this.animMonth = targets.month; this.animCumulative = targets.cumulative; }
+      };
+      requestAnimationFrame(tick);
     },
 
     // =====================================================================
@@ -153,21 +243,27 @@ function app() {
         start_time: '09:00',
         end_time: '17:00',
         notes: '',
-        breaks: [],   // no break pre-filled — user adds explicitly via "+ Add break"
+        breaks: [],
       };
     },
 
-    async onDateChange() {
-      // Only fires in new-entry mode (date input is disabled while editing).
-      if (this.editingDate || !this.form.date) return;
-      // Probe for an existing entry. A 404 is normal — stay in new-entry mode.
-      const res = await fetch(`/api/entries/${this.form.date}`, {
+    // Check whether *dateStr* already has a saved entry.
+    // If yes → populate the form and switch to edit mode (Save will PUT).
+    // If no  → do nothing (form stays in new-entry mode).
+    async probeDate(dateStr) {
+      if (!dateStr) return;
+      const res = await fetch(`/api/entries/${dateStr}`, {
         headers: { Accept: 'application/json' },
       });
       if (res.status === 404) return;
       if (!res.ok) { this.error = `${res.status} ${res.statusText}`; return; }
-      // Entry found — populate the form and switch to edit mode so Save uses PUT.
       this.editEntry(await res.json());
+    },
+
+    // Fired by the date picker's native change event.
+    async onDateChange() {
+      if (this.editingDate || !this.form.date) return;
+      await this.probeDate(this.form.date);
     },
 
     editEntry(e) {
@@ -184,39 +280,137 @@ function app() {
       this.error = null;
     },
 
-    addBreak() { this.form.breaks.push({ break_minutes: 30 }); },
-    removeBreak(i) { this.form.breaks.splice(i, 1); },
+    // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
+    addBreak() {
+      this.form.breaks.push({ break_minutes: 30 });
+      this.$nextTick(() => {
+        const rows = document.querySelectorAll('.break-row');
+        const row = rows[rows.length - 1];
+        if (!row) return;
+        row.querySelector('input[type=number]')?.focus();
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          row.classList.add('entering');
+          requestAnimationFrame(() => requestAnimationFrame(() => row.classList.remove('entering')));
+        }
+      });
+    },
+    removeBreak(i) {
+      const rows = document.querySelectorAll('.break-row');
+      const row = rows[i];
+      if (!row || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.form.breaks.splice(i, 1); return;
+      }
+      row.classList.add('leaving');
+      let done = false;
+      const finish = () => { if (done) return; done = true; row.removeEventListener('transitionend', finish); this.form.breaks.splice(i, 1); };
+      row.addEventListener('transitionend', finish);
+      setTimeout(finish, 280); // safety net if transitionend misfires
+    },
 
     applyRangeToBreak(b, start, end) {
       const m = this.rangeMinutes(start, end);
       if (m > 0) b.break_minutes = m;
     },
 
+    // E2: compute a local entry object from the current form — used for
+    // optimistic insertion before the server round-trip completes.
+    _buildOptimisticEntry() {
+      const f = this.form;
+      const isWork = f.day_type === 'work';
+      let netHours = 0;
+      if (isWork) {
+        const [sh, sm] = f.start_time.split(':').map(Number);
+        const [eh, em] = f.end_time.split(':').map(Number);
+        const totalMins = (eh * 60 + em) - (sh * 60 + sm);
+        const breakMins = f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0);
+        netHours = Math.round(Math.max(0, totalMins - breakMins) / 60 * 100) / 100;
+      }
+      const target = isWork ? (this.settingsForm.daily_target_hours || 8) : 0;
+      return {
+        date: f.date,
+        day_type: f.day_type,
+        start_time: isWork ? f.start_time : null,
+        end_time: isWork ? f.end_time : null,
+        notes: f.notes || null,
+        breaks: f.breaks.filter(b => Number(b.break_minutes) > 0).map(b => ({ break_minutes: Number(b.break_minutes) })),
+        total_break_minutes: f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0),
+        net_hours: netHours,
+        target_hours: target,
+        surplus_hours: Math.round((netHours - target) * 100) / 100,
+        _saving: true, // marker stripped once server confirms
+      };
+    },
+
     async saveEntry() {
+      this.saving = true;
       this.error = null;
       const isWork = this.form.day_type === 'work';
       const body = { day_type: this.form.day_type, notes: this.form.notes || null };
       if (isWork) {
         body.start_time = this.form.start_time;
         body.end_time = this.form.end_time;
-        // Drop any break rows left empty (break_minutes falsy / 0) rather than
-        // forwarding them to the server where they'd fail the >= 1 validation.
+        // Drop any break rows left empty rather than failing the >= 1 validation.
         body.breaks = this.form.breaks
           .filter(b => Number(b.break_minutes) > 0)
           .map(b => ({ break_minutes: Number(b.break_minutes) }));
       } else {
         body.breaks = [];
       }
+
+      // ── Optimistic update ──────────────────────────────────────────────
+      const optimistic = this._buildOptimisticEntry();
+      const prevEntries = [...this.entries];
+      let editIdx = -1;
+
+      if (this.editingDate) {
+        editIdx = this.entries.findIndex(e => e.date === this.editingDate);
+        if (editIdx !== -1) this.entries[editIdx] = optimistic;
+      } else {
+        body.date = this.form.date;
+        this.entries = [optimistic, ...this.entries];
+      }
+
+      // Navigate immediately — don't await loadDays (would clobber optimistic row)
+      this.tab = 'days';
+      this.error = null;
+      if (location.hash.replace('#', '') !== 'days') location.hash = 'days';
+
       try {
+        let saved;
         if (this.editingDate) {
-          await this.api('PUT', `/api/entries/${this.editingDate}`, body);
+          saved = await this.api('PUT', `/api/entries/${this.editingDate}`, body);
         } else {
-          body.date = this.form.date;
-          await this.api('POST', '/api/entries', body);
+          saved = await this.api('POST', '/api/entries', body);
         }
-        await this.loadDashboard();
-        this.go('days');
-      } catch (e) { this.error = e.message; }
+
+        // Swap optimistic row with server-confirmed data
+        const realIdx = this.entries.findIndex(e => e._saving && e.date === (saved?.date || optimistic.date));
+        if (realIdx !== -1) {
+          this.entries[realIdx] = saved;
+        } else {
+          // User navigated away and loadDays() already ran — refresh to stay consistent
+          this.loadDays();
+        }
+
+        // Reload dashboard in background — no await, UI stays responsive
+        this.loadDashboard();
+
+        // W5 ribbon
+        if (saved) {
+          const dow = new Date(saved.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+          this.showToast(`Saved — ${dow} is ${this.formatSurplus(saved.surplus_hours)}`, this.surplusClass(saved.surplus_hours));
+        }
+
+        this.openNewEntry();
+      } catch (e) {
+        // Revert optimistic change and return the user to the log form
+        this.entries = prevEntries;
+        this.error = e.message;
+        this.tab = 'log';
+        if (location.hash.replace('#', '') !== 'log') location.hash = 'log';
+      } finally {
+        this.saving = false;
+      }
     },
 
     async deleteEntry(dateIso) {
@@ -233,8 +427,10 @@ function app() {
     // days list
     // =====================================================================
     async loadDays() {
+      this.loading.days = true;
       try { this.entries = await this.api('GET', '/api/entries'); }
       catch (e) { this.error = e.message; }
+      finally { this.loading.days = false; }
     },
 
     sortBy(k) {
@@ -257,6 +453,7 @@ function app() {
     // analytics
     // =====================================================================
     async loadAnalytics() {
+      this.loading.analytics = true;
       try {
         this.asOfDate = this.asOfDate || this.todayIso();
         const [monthly, records] = await Promise.all([
@@ -267,6 +464,7 @@ function app() {
         this.records = records;
         await this.computeAsOf();
       } catch (e) { this.error = e.message; }
+      finally { this.loading.analytics = false; }
     },
 
     async computeAsOf() {
@@ -282,16 +480,19 @@ function app() {
     // settings
     // =====================================================================
     async loadSettings() {
+      this.loading.settings = true;
       try {
         const cfg = await this.api('GET', '/api/config');
         this.settingsForm = { ...cfg };
       } catch (e) { this.error = e.message; }
+      finally { this.loading.settings = false; }
     },
 
     async saveSettings() {
       try {
         await this.api('PUT', '/api/config', this.settingsForm);
         await this.loadDashboard();
+        this.showToast('Settings saved', 'neutral');
         this.go('dashboard');
       } catch (e) { this.error = e.message; }
     },
@@ -328,6 +529,50 @@ function app() {
       this.monthly = [];
       this.records = null;
       this.asOfResult = null;
+    },
+
+    // =====================================================================
+    // W5 — save ribbon
+    // =====================================================================
+    showToast(msg, kind) {
+      if (this._toastTimer) clearTimeout(this._toastTimer);
+      this.toast = { msg, kind: kind || 'neutral', show: false };
+      this.$nextTick(() => {
+        this.toast.show = true;
+        const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 1800;
+        this._toastTimer = setTimeout(() => { this.toast.show = false; }, delay);
+      });
+    },
+
+    // =====================================================================
+    // W6 — easter egg + streaks
+    // =====================================================================
+    computeStreaks() {
+      const sorted = [...this.entries].sort((a, b) => (a.date < b.date ? -1 : 1));
+      let longestSurplus = 0, longestDeficit = 0, curS = 0, curD = 0, mostBreaks = 0;
+      for (const e of sorted) {
+        if (e.surplus_hours > 0.01)       { curS++; curD = 0; }
+        else if (e.surplus_hours < -0.01) { curD++; curS = 0; }
+        else                               { curS = 0; curD = 0; }
+        longestSurplus = Math.max(longestSurplus, curS);
+        longestDeficit = Math.max(longestDeficit, curD);
+        mostBreaks = Math.max(mostBreaks, (e.breaks || []).length);
+      }
+      return { longestSurplus, longestDeficit, mostBreaks };
+    },
+
+    triggerEasterEgg() {
+      this.streaks = this.computeStreaks();
+      this.streaksUnlocked = true;
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.eggAnimating = true;
+        setTimeout(() => { this.eggAnimating = false; }, 1300);
+      }
+      this.$nextTick(() => {
+        const panel = document.querySelector('.streaks-panel');
+        if (panel && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
     },
   };
 }

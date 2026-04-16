@@ -8,6 +8,10 @@
   <link rel="icon" href="/static/icon.png">
   <link rel="apple-touch-icon" href="/static/icon.png">
   <meta name="theme-color" content="#1a1d22">
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kronos">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/vendor/pico.min.css">
   <link rel="stylesheet" href="/static/styles.css">
   <script src="/static/app.js" defer></script>
@@ -17,6 +21,8 @@
 <main class="container" x-data="app()" x-init="init()" x-cloak>
 
   <header class="app-header">
+    <!-- W6: egg emoji rides across the header when "kronos" is typed -->
+    <span class="egg-emoji" :class="{ 'egg-go': eggAnimating }" aria-hidden="true">🎢</span>
     <div class="brand">
       <img src="/static/icon.png" alt="" class="brand-logo">
       <div>
@@ -24,418 +30,31 @@
         <p class="subtitle" x-text="subtitle">&nbsp;</p>
       </div>
     </div>
-    <nav class="tabs" role="tablist">
-      <a role="tab" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')">Dashboard</a>
-      <a role="tab" :aria-selected="tab==='log'" @click.prevent="go('log')">Log</a>
-      <a role="tab" :aria-selected="tab==='days'" @click.prevent="go('days')">Days</a>
-      <a role="tab" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')">Analytics</a>
-      <a role="tab" :aria-selected="tab==='settings'" @click.prevent="go('settings')">Settings</a>
+    <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
+      <a role="tab" :tabindex="tab==='dashboard' ? 0 : -1" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')" @keydown.enter.prevent="go('dashboard')" @keydown.space.prevent="go('dashboard')">Dashboard</a>
+      <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')">Log</a>
+      <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')">Days</a>
+      <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')">Analytics</a>
+      <a role="tab" :tabindex="tab==='settings' ? 0 : -1"  :aria-selected="tab==='settings'"  @click.prevent="go('settings')"  @keydown.enter.prevent="go('settings')"  @keydown.space.prevent="go('settings')">Settings</a>
     </nav>
   </header>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>
 
-  <!-- ========================= DASHBOARD ========================= -->
-  <section x-show="tab==='dashboard'" aria-label="Dashboard">
-    <template x-if="dashboard">
-      <div>
-        <p class="muted">
-          Today is <strong x-text="dashboard.today"></strong>.
-          Daily target <strong x-text="dashboard.daily_target_hours + 'h'"></strong>.
-          Cumulative tracking since <strong x-text="dashboard.cumulative_start_date"></strong>.
-        </p>
-        <div class="summary-grid">
-          <article class="summary-card">
-            <h3>This week</h3>
-            <div class="metric" :class="surplusClass(dashboard.week.surplus_hours)"
-                 x-text="formatSurplus(dashboard.week.surplus_hours)"></div>
-            <div class="sub">
-              <span x-text="dashboard.week.net_hours + 'h'"></span> worked /
-              <span x-text="dashboard.week.target_hours + 'h'"></span> target
-              <br>
-              <span x-text="dashboard.week.work_days"></span> work days,
-              <span x-text="dashboard.week.non_work_days"></span> off
-            </div>
-          </article>
-          <article class="summary-card">
-            <h3>This month</h3>
-            <div class="metric" :class="surplusClass(dashboard.month.surplus_hours)"
-                 x-text="formatSurplus(dashboard.month.surplus_hours)"></div>
-            <div class="sub">
-              <span x-text="dashboard.month.net_hours + 'h'"></span> worked /
-              <span x-text="dashboard.month.target_hours + 'h'"></span> target
-              <br>
-              <span x-text="dashboard.month.work_days"></span> work days,
-              <span x-text="dashboard.month.non_work_days"></span> off
-            </div>
-          </article>
-          <article class="summary-card cumulative">
-            <h3>Cumulative</h3>
-            <div class="metric" :class="surplusClass(dashboard.cumulative.surplus_hours)"
-                 x-text="formatSurplus(dashboard.cumulative.surplus_hours)"></div>
-            <div class="sub">
-              <span x-text="dashboard.cumulative.net_hours + 'h'"></span> worked /
-              <span x-text="dashboard.cumulative.target_hours + 'h'"></span> target
-              <br>
-              <span x-text="dashboard.cumulative.work_days"></span> work days,
-              <span x-text="dashboard.cumulative.non_work_days"></span> off
-            </div>
-          </article>
-        </div>
-        <p class="muted">
-          <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>
-        </p>
-      </div>
-    </template>
-  </section>
-
-  <!-- ========================= LOG ========================= -->
-  <section x-show="tab==='log'" aria-label="Log entry">
-    <header class="section-header log-header">
-      <template x-if="editingDate">
-        <a @click.prevent="openNewEntry()" class="back-btn" title="New entry">←</a>
-      </template>
-      <h2 x-text="editingDate ? ('Edit ' + editingDate) : 'New entry'"></h2>
-    </header>
-
-    <form @submit.prevent="saveEntry()">
-      <div class="grid">
-        <label>
-          <span class="label-with-action">
-            Date
-            <a class="label-action" x-show="!editingDate"
-               @click.prevent="form.date = todayIso()">Today</a>
-          </span>
-          <input type="date" x-model="form.date" :disabled="editingDate"
-                 @change="onDateChange()" required>
-        </label>
-        <label>
-          Day type
-          <select x-model="form.day_type">
-            <option value="work">Work</option>
-            <option value="vacation">Vacation</option>
-            <option value="sick">Sick</option>
-            <option value="holiday">Holiday</option>
-          </select>
-        </label>
-      </div>
-
-      <template x-if="form.day_type === 'work'">
-        <div>
-          <div class="grid">
-            <label>
-              Start time
-              <input type="time" x-model="form.start_time" required>
-            </label>
-            <label>
-              End time
-              <input type="time" x-model="form.end_time" required>
-            </label>
-          </div>
-
-          <fieldset>
-            <legend>Breaks</legend>
-            <template x-for="(b, i) in form.breaks" :key="i">
-              <div class="break-row" x-data="{ showRange: false, rangeStart: '', rangeEnd: '' }">
-                <div class="break-input-line">
-                  <input type="number" x-model.number="b.break_minutes" min="1" max="720"
-                         :aria-label="'Break ' + (i+1) + ' minutes'">
-                  <span class="muted" x-text="minutesToLabel(b.break_minutes)"></span>
-                  <button type="button" class="secondary outline compact"
-                          @click="showRange = !showRange"
-                          :aria-expanded="showRange"
-                          title="Compute minutes from a time range">
-                    <span x-text="showRange ? '✕' : '⏱ from range'"></span>
-                  </button>
-                  <button type="button" class="contrast outline compact"
-                          @click="removeBreak(i)" title="Remove break">−</button>
-                </div>
-                <div class="range-calc" x-show="showRange" x-transition>
-                  <span class="muted">From</span>
-                  <input type="time" x-model="rangeStart">
-                  <span class="muted">to</span>
-                  <input type="time" x-model="rangeEnd">
-                  <span class="muted" x-text="rangeStart && rangeEnd ? rangeMinutes(rangeStart, rangeEnd) + ' min' : ''"></span>
-                  <button type="button"
-                          @click="applyRangeToBreak(b, rangeStart, rangeEnd); showRange=false; rangeStart=''; rangeEnd=''"
-                          :disabled="!rangeStart || !rangeEnd">
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </template>
-            <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
-          </fieldset>
-        </div>
-      </template>
-
-      <label>
-        Notes (optional)
-        <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
-      </label>
-
-      <div class="form-footer">
-        <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
-        <template x-if="editingDate">
-          <button type="button" class="contrast outline"
-                  @click="deleteEntry(editingDate)">Delete</button>
-        </template>
-      </div>
-    </form>
-  </section>
-
-  <!-- ========================= DAYS ========================= -->
-  <section x-show="tab==='days'" aria-label="All logged days">
-    <header class="section-header">
-      <h2>Days</h2>
-      <span class="muted" x-text="entries.length + ' entries'"></span>
-    </header>
-    <template x-if="entries.length === 0">
-      <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
-    </template>
-    <template x-if="entries.length">
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th @click="sortBy('date')" class="sortable">Date</th>
-              <th>Type</th>
-              <th>Start</th>
-              <th>End</th>
-              <th>Breaks</th>
-              <th @click="sortBy('net_hours')" class="sortable">Net</th>
-              <th>Target</th>
-              <th>Δ</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="e in sortedEntries()" :key="e.date">
-              <tr :class="e.day_type !== 'work' ? 'non-work' : ''">
-                <td x-text="e.date"></td>
-                <td><span class="day-pill" :class="e.day_type" x-text="e.day_type"></span></td>
-                <td x-text="e.start_time || '—'"></td>
-                <td x-text="e.end_time || '—'"></td>
-                <td x-text="e.total_break_minutes ? e.total_break_minutes + 'm' : '—'"></td>
-                <td x-text="e.net_hours + 'h'"></td>
-                <td x-text="e.target_hours + 'h'"></td>
-                <td :class="surplusClass(e.surplus_hours)" x-text="formatSurplus(e.surplus_hours)"></td>
-                <td>
-                  <a @click.prevent="editEntry(e)" class="secondary">Edit</a>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </template>
-  </section>
-
-  <!-- ========================= ANALYTICS ========================= -->
-  <section x-show="tab==='analytics'" aria-label="Analytics">
-    <h2>Point-in-time</h2>
-    <div class="grid">
-      <label>
-        Show cumulative surplus/deficit as of
-        <input type="date" x-model="asOfDate" @change="computeAsOf()">
-      </label>
-      <div x-show="asOfResult">
-        <article class="summary-card">
-          <div class="metric" :class="asOfResult && surplusClass(asOfResult.surplus_hours)"
-               x-text="asOfResult && formatSurplus(asOfResult.surplus_hours)"></div>
-          <div class="sub">
-            <span x-text="asOfResult?.net_hours + 'h'"></span> worked /
-            <span x-text="asOfResult?.target_hours + 'h'"></span> target
-          </div>
-        </article>
-      </div>
+  <!-- W5: save confirmation ribbon -->
+  <div class="save-ribbon-host">
+    <div class="save-ribbon" role="status" aria-live="polite"
+         :class="[toast.kind, toast.show ? 'ribbon-show' : '']">
+      <span class="ribbon-tick"></span>
+      <span class="ribbon-msg" x-text="toast.msg"></span>
     </div>
+  </div>
 
-    <h2>Records</h2>
-    <template x-if="records">
-      <div class="summary-grid">
-        <article class="summary-card small">
-          <h3>Longest day</h3>
-          <template x-if="records.longest_work_day">
-            <div>
-              <div class="metric" x-text="records.longest_work_day.net_hours + 'h'"></div>
-              <div class="sub" x-text="records.longest_work_day.date"></div>
-            </div>
-          </template>
-          <template x-if="!records.longest_work_day"><p class="muted">—</p></template>
-        </article>
-        <article class="summary-card small">
-          <h3>Shortest day</h3>
-          <template x-if="records.shortest_work_day">
-            <div>
-              <div class="metric" x-text="records.shortest_work_day.net_hours + 'h'"></div>
-              <div class="sub" x-text="records.shortest_work_day.date"></div>
-            </div>
-          </template>
-          <template x-if="!records.shortest_work_day"><p class="muted">—</p></template>
-        </article>
-        <article class="summary-card small">
-          <h3>Longest month</h3>
-          <template x-if="records.longest_month">
-            <div>
-              <div class="metric" x-text="records.longest_month.net_hours + 'h'"></div>
-              <div class="sub" x-text="records.longest_month.label"></div>
-            </div>
-          </template>
-          <template x-if="!records.longest_month"><p class="muted">—</p></template>
-        </article>
-        <article class="summary-card small">
-          <h3>Most surplus month</h3>
-          <template x-if="records.most_surplus_month">
-            <div>
-              <div class="metric surplus"
-                   x-text="formatSurplus(records.most_surplus_month.surplus_hours)"></div>
-              <div class="sub" x-text="records.most_surplus_month.label"></div>
-            </div>
-          </template>
-          <template x-if="!records.most_surplus_month"><p class="muted">—</p></template>
-        </article>
-        <article class="summary-card small">
-          <h3>Most deficit month</h3>
-          <template x-if="records.most_deficit_month">
-            <div>
-              <div class="metric deficit"
-                   x-text="formatSurplus(records.most_deficit_month.surplus_hours)"></div>
-              <div class="sub" x-text="records.most_deficit_month.label"></div>
-            </div>
-          </template>
-          <template x-if="!records.most_deficit_month"><p class="muted">—</p></template>
-        </article>
-      </div>
-    </template>
-
-    <h2>Monthly breakdown</h2>
-    <template x-if="monthly.length === 0">
-      <p class="muted">No data yet.</p>
-    </template>
-    <div class="month-grid" x-show="monthly.length">
-      <template x-for="row in monthly" :key="row.label">
-        <article class="month-card" :class="'month-card--' + surplusClass(row.surplus_hours)">
-          <div class="month-card-label" x-text="row.label"></div>
-          <div class="month-card-surplus" :class="surplusClass(row.surplus_hours)"
-               x-text="formatSurplus(row.surplus_hours)"></div>
-          <div class="month-card-detail">
-            <span x-text="row.net_hours + 'h'"></span>
-            <span class="muted"> / </span>
-            <span x-text="row.target_hours + 'h'"></span>
-          </div>
-          <div class="month-card-days muted"
-               x-text="row.work_days + 'w · ' + row.non_work_days + ' off'"></div>
-        </article>
-      </template>
-    </div>
-
-    <h2>Export</h2>
-    <p>
-      <a href="/api/export.csv" role="button" class="secondary outline" download>Download CSV</a>
-      <a href="/api/export.json" role="button" class="secondary outline" download>Download JSON</a>
-    </p>
-  </section>
-
-  <!-- ========================= SETTINGS ========================= -->
-  <section x-show="tab==='settings'" aria-label="Settings">
-    <h2>Settings</h2>
-    <form @submit.prevent="saveSettings()">
-      <label>
-        Daily target hours
-        <input type="number" x-model.number="settingsForm.daily_target_hours"
-               min="0.1" max="24" step="0.1" required>
-        <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
-      </label>
-      <label>
-        Cumulative tracking start date
-        <input type="date" x-model="settingsForm.cumulative_start_date" required>
-        <small>Running surplus/deficit is computed from this date onward.</small>
-      </label>
-      <button type="submit">Save settings</button>
-    </form>
-
-    <!-- ---- Fun zone ---- -->
-    <div class="fun-zone">
-      <h3 class="fun-zone-title">🎢 Fun zone</h3>
-
-      <!-- Wipe -->
-      <div class="fun-zone-action">
-        <div>
-          <strong>Wipe all data</strong>
-          <p class="muted">Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
-        </div>
-
-        <template x-if="!wipeConfirming">
-          <button class="btn-danger outline" @click="wipeConfirming = true; wipeInput = ''">
-            Wipe all data…
-          </button>
-        </template>
-
-        <template x-if="wipeConfirming">
-          <div class="wipe-confirm">
-            <label class="wipe-confirm-label">
-              Type <code>wipe data</code> to confirm
-              <input type="text" x-model="wipeInput"
-                     placeholder="wipe data"
-                     autocomplete="off"
-                     spellcheck="false">
-            </label>
-            <div class="wipe-confirm-actions">
-              <button class="btn-danger"
-                      :disabled="wipeInput !== 'wipe data'"
-                      @click="wipeData()">
-                Confirm wipe
-              </button>
-              <button class="secondary outline"
-                      @click="wipeConfirming = false; wipeInput = ''">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <hr class="fun-zone-divider">
-
-      <!-- Seed -->
-      <div class="fun-zone-action">
-        <div>
-          <strong>Seed with sample data</strong>
-          <p class="muted">Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos or resetting after experiments. Settings are kept.</p>
-        </div>
-
-        <template x-if="!seedConfirming">
-          <button class="secondary outline" @click="seedConfirming = true; seedInput = ''">
-            Seed sample data…
-          </button>
-        </template>
-
-        <template x-if="seedConfirming">
-          <div class="wipe-confirm">
-            <label class="wipe-confirm-label">
-              Type <code>seed data</code> to confirm
-              <input type="text" x-model="seedInput"
-                     placeholder="seed data"
-                     autocomplete="off"
-                     spellcheck="false">
-            </label>
-            <div class="wipe-confirm-actions">
-              <button class="secondary"
-                      :disabled="seedInput !== 'seed data'"
-                      @click="seedData()">
-                Confirm seed
-              </button>
-              <button class="secondary outline"
-                      @click="seedConfirming = false; seedInput = ''">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </template>
-      </div>
-    </div>
-  </section>
+  {% include "_tab_dashboard.html" %}
+  {% include "_tab_log.html" %}
+  {% include "_tab_days.html" %}
+  {% include "_tab_analytics.html" %}
+  {% include "_tab_settings.html" %}
 
 </main>
 </body>

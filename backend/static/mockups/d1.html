@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Direction 1 mockup</title>
+<style>
+  /* ================= Design tokens ================= */
+  :root {
+    --k-bg: #fbfbf9;
+    --k-surface: #ffffff;
+    --k-border: #e5e4df;
+    --k-text: #1a1d22;
+    --k-muted: #6b7078;
+    --k-accent: #0d7373;
+    --k-accent-soft: rgba(13,115,115,0.10);
+    --k-surplus: #15803d;
+    --k-deficit: #b91c1c;
+    --k-work: #0d7373;
+    --k-vacation: #6d28d9;
+    --k-sick: #b45309;
+    --k-holiday: #0e7490;
+
+    --k-font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --k-font-num: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+    --k-r-input: 6px;
+    --k-r-card: 10px;
+  }
+  [data-theme="dark"] {
+    --k-bg: #15181c;
+    --k-surface: #1c2026;
+    --k-border: #2b3038;
+    --k-text: #e6e6e3;
+    --k-muted: #9aa0a8;
+    --k-accent: #4ab8b8;
+    --k-accent-soft: rgba(74,184,184,0.12);
+    --k-surplus: #4ade80;
+    --k-deficit: #f87171;
+    --k-work: #4ab8b8;
+    --k-vacation: #a78bfa;
+    --k-sick: #fbbf24;
+    --k-holiday: #22d3ee;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--k-bg);
+    color: var(--k-text);
+    font-family: var(--k-font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: var(--k-font-num); font-variant-numeric: tabular-nums; }
+
+  /* ================= Direction strip ================= */
+  .dir-strip {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--k-surface);
+    border-bottom: 1px solid var(--k-border);
+  }
+  .dir-strip-title { font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  .dir-strip-title small { display: block; font-size: 12px; font-weight: 400; color: var(--k-muted); margin-top: 2px; }
+  .theme-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border: 1px solid var(--k-border);
+    border-radius: var(--k-r-input); cursor: pointer;
+    background: transparent; color: var(--k-text);
+    font-family: var(--k-font-ui); font-size: 13px; font-weight: 500;
+  }
+  .theme-toggle:hover { border-color: var(--k-accent); color: var(--k-accent); }
+
+  /* ================= Container ================= */
+  .container { max-width: 1080px; margin: 0 auto; padding: 24px; }
+
+  /* ================= App header ================= */
+  .app-header {
+    display: flex; flex-direction: column; gap: 16px;
+    padding-bottom: 16px; margin-bottom: 24px;
+    border-bottom: 1px solid var(--k-border);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    width: 44px; height: 44px; border-radius: 8px;
+    background:
+      radial-gradient(circle at 30% 30%, var(--k-accent) 0%, transparent 55%),
+      linear-gradient(135deg, var(--k-accent) 0%, #d4a017 100%);
+    display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 17px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  .app-header h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .subtitle { margin: 2px 0 0; font-size: 13px; color: var(--k-muted); }
+  .subtitle .num { color: var(--k-surplus); font-weight: 700; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tabs a {
+    padding: 6px 14px; border-radius: var(--k-r-input);
+    color: var(--k-text); text-decoration: none;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .tabs a:hover { background: var(--k-accent-soft); }
+  .tabs a[aria-selected="true"] { background: var(--k-accent); color: var(--k-bg); }
+
+  @media (min-width: 760px) {
+    .app-header { flex-direction: row; align-items: center; justify-content: space-between; }
+  }
+
+  /* ================= Sections ================= */
+  section { margin-bottom: 40px; }
+  h2 { font-size: 17px; font-weight: 600; margin: 0 0 12px; letter-spacing: -0.005em; }
+  h3 { font-size: 13px; font-weight: 500; margin: 0; color: var(--k-muted);
+       text-transform: uppercase; letter-spacing: 0.05em; }
+  p.muted { color: var(--k-muted); font-size: 13px; margin: 0 0 16px; }
+
+  /* ================= Summary cards ================= */
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px; margin-bottom: 16px;
+  }
+  .summary-card {
+    padding: 20px; background: var(--k-surface);
+    border: 1px solid var(--k-border); border-radius: var(--k-r-card);
+  }
+  .summary-card.cumulative { border-left: 3px solid var(--k-accent); padding-left: 17px; }
+  .summary-card h3 { margin-bottom: 12px; }
+  .summary-card .metric {
+    font-family: var(--k-font-num); font-variant-numeric: tabular-nums;
+    font-size: 44px; font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+  }
+  .summary-card .sub {
+    margin-top: 12px; font-size: 13px; color: var(--k-muted); line-height: 1.55;
+  }
+  .summary-card .sub .num { color: var(--k-text); font-weight: 500; }
+  .surplus { color: var(--k-surplus); }
+  .deficit { color: var(--k-deficit); }
+
+  /* ================= Chart ================= */
+  .chart-card {
+    background: var(--k-surface); border: 1px solid var(--k-border);
+    border-radius: var(--k-r-card); padding: 20px; margin-bottom: 24px;
+  }
+  .chart-card-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .chart-legend { display: flex; gap: 16px; font-size: 12px; color: var(--k-muted); }
+  .chart-legend span::before {
+    content: ""; display: inline-block; width: 10px; height: 10px;
+    border-radius: 2px; margin-right: 6px; vertical-align: middle;
+  }
+  .chart-legend .lg-worked::before { background: var(--k-accent); }
+  .chart-legend .lg-target::before { background: var(--k-border); border: 1px dashed var(--k-muted); }
+
+  /* ================= Log form ================= */
+  form.card {
+    background: var(--k-surface); border: 1px solid var(--k-border);
+    border-radius: var(--k-r-card); padding: 20px;
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+  label small { display: block; font-size: 12px; font-weight: 400; color: var(--k-muted); margin-top: 4px; }
+  input, select, textarea {
+    width: 100%; padding: 8px 12px;
+    background: var(--k-bg); color: var(--k-text);
+    border: 1px solid var(--k-border); border-radius: var(--k-r-input);
+    font-family: var(--k-font-ui); font-size: 15px;
+  }
+  input.num, input[type="time"], input[type="date"], input[type="number"] {
+    font-family: var(--k-font-num); font-variant-numeric: tabular-nums;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--k-accent);
+    box-shadow: 0 0 0 3px var(--k-accent-soft);
+  }
+  fieldset { border: 1px solid var(--k-border); border-radius: var(--k-r-input);
+    padding: 12px 16px 16px; margin: 0 0 16px; }
+  legend { font-size: 13px; font-weight: 500; padding: 0 6px; color: var(--k-muted); }
+  .break-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: var(--k-bg);
+    border: 1px solid var(--k-border); border-radius: var(--k-r-input);
+    margin-bottom: 8px;
+  }
+  .break-row input[type=number] { width: 88px; }
+  .break-row .gloss { font-size: 13px; color: var(--k-muted); font-family: var(--k-font-num); }
+  .break-row .spacer { flex: 1; }
+
+  button, .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--k-r-input);
+    font-family: var(--k-font-ui); font-size: 13px; font-weight: 500;
+    cursor: pointer; border: 1px solid transparent;
+    background: var(--k-accent); color: var(--k-bg);
+  }
+  button:hover { filter: brightness(1.08); }
+  button.secondary {
+    background: transparent; color: var(--k-text); border-color: var(--k-border);
+  }
+  button.secondary:hover { border-color: var(--k-accent); color: var(--k-accent); }
+  button.danger { background: var(--k-deficit); color: #fff; }
+  button.danger.outline { background: transparent; color: var(--k-deficit); border-color: var(--k-deficit); }
+  button.compact { padding: 4px 10px; font-size: 12px; }
+  .form-footer { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* ================= Days table ================= */
+  .table-card {
+    background: var(--k-surface); border: 1px solid var(--k-border);
+    border-radius: var(--k-r-card); overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--k-border); }
+  th { font-weight: 500; color: var(--k-muted); font-size: 12px;
+       text-transform: uppercase; letter-spacing: 0.04em; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--k-accent-soft); }
+  td.num { font-family: var(--k-font-num); font-variant-numeric: tabular-nums; }
+  tr.non-work td { color: var(--k-muted); }
+
+  .day-pill {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+    color: #fff;
+  }
+  .day-pill.work { background: var(--k-work); color: #fff; }
+  .day-pill.vacation { background: var(--k-vacation); color: #fff; }
+  .day-pill.sick { background: var(--k-sick); color: #fff; }
+  .day-pill.holiday { background: var(--k-holiday); color: #fff; }
+  [data-theme="dark"] .day-pill.work,
+  [data-theme="dark"] .day-pill.sick,
+  [data-theme="dark"] .day-pill.holiday { color: #15181c; }
+
+  /* ================= Fun zone ================= */
+  .fun-zone {
+    margin-top: 32px; padding: 20px 24px;
+    border: 1px solid var(--k-deficit); border-radius: var(--k-r-card);
+    background: var(--k-surface);
+  }
+  .fun-zone-title {
+    margin: 0 0 16px; font-size: 13px; font-weight: 600;
+    color: var(--k-deficit); text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .fun-zone-action {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 24px; flex-wrap: wrap;
+  }
+  .fun-zone-action p { margin: 4px 0 0; color: var(--k-muted); font-size: 13px; max-width: 480px; }
+  .fun-zone-action strong { font-size: 15px; }
+
+  /* ================= Footnote ================= */
+  .footnote {
+    margin-top: 48px; padding: 16px 20px;
+    background: var(--k-surface); border: 1px dashed var(--k-border);
+    border-radius: var(--k-r-card);
+    font-size: 12px; color: var(--k-muted);
+  }
+  .footnote code {
+    font-family: var(--k-font-num); background: var(--k-bg);
+    padding: 1px 6px; border-radius: 4px; border: 1px solid var(--k-border);
+    color: var(--k-text);
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= Direction strip ================= -->
+<div class="dir-strip">
+  <div class="dir-strip-title">
+    Direction 1 — Refined Pico · Kronos mockup
+    <small>Static visual preview. No live data, no interactivity beyond the theme toggle.</small>
+  </div>
+  <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme">
+    <span id="themeLabel">Dark</span>
+  </button>
+</div>
+
+<main class="container">
+
+  <!-- ================= App header ================= -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">K</div>
+      <div>
+        <h1>Kronos</h1>
+        <p class="subtitle">Personal hours · <span class="num">+12.25h</span> cumulative</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <a role="tab" aria-selected="true">Dashboard</a>
+      <a role="tab" aria-selected="false">Log</a>
+      <a role="tab" aria-selected="false">Days</a>
+      <a role="tab" aria-selected="false">Analytics</a>
+      <a role="tab" aria-selected="false">Settings</a>
+    </nav>
+  </header>
+
+  <!-- ================= Dashboard ================= -->
+  <section aria-label="Dashboard">
+    <p class="muted">
+      Today is <strong class="num">2026-04-15</strong>.
+      Daily target <strong class="num">8h</strong>.
+      Cumulative tracking since <strong class="num">2026-01-06</strong>.
+    </p>
+
+    <div class="summary-grid">
+      <article class="summary-card">
+        <h3>This week</h3>
+        <div class="metric surplus">+2.75h</div>
+        <div class="sub">
+          <span class="num">42.75h</span> worked / <span class="num">40h</span> target<br>
+          <span class="num">5</span> work days, <span class="num">0</span> off
+        </div>
+      </article>
+      <article class="summary-card">
+        <h3>This month</h3>
+        <div class="metric deficit">−1.5h</div>
+        <div class="sub">
+          <span class="num">158.5h</span> worked / <span class="num">160h</span> target<br>
+          <span class="num">19</span> work days, <span class="num">3</span> off
+        </div>
+      </article>
+      <article class="summary-card cumulative">
+        <h3>Cumulative</h3>
+        <div class="metric surplus">+12.25h</div>
+        <div class="sub">
+          <span class="num">587.25h</span> worked / <span class="num">575h</span> target<br>
+          <span class="num">72</span> work days, <span class="num">11</span> off
+        </div>
+      </article>
+    </div>
+
+    <!-- ============ Static SVG bar chart ============ -->
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <h2>Last 14 days</h2>
+        <div class="chart-legend">
+          <span class="lg-worked">Worked</span>
+          <span class="lg-target">Target (8h)</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 700 220" width="100%" height="220" role="img" aria-label="Daily worked hours vs target for the last 14 days">
+        <!-- y-axis guide at 8h target -->
+        <line x1="40" y1="60" x2="680" y2="60" stroke="currentColor" stroke-opacity="0.25"
+              stroke-dasharray="4 4"/>
+        <text x="36" y="64" text-anchor="end" font-family="ui-monospace, monospace"
+              font-size="10" fill="currentColor" opacity="0.55">8h</text>
+        <text x="36" y="164" text-anchor="end" font-family="ui-monospace, monospace"
+              font-size="10" fill="currentColor" opacity="0.55">4h</text>
+        <line x1="40" y1="160" x2="680" y2="160" stroke="currentColor" stroke-opacity="0.08"/>
+        <line x1="40" y1="200" x2="680" y2="200" stroke="currentColor" stroke-opacity="0.25"/>
+
+        <!-- 14 bars. x0=50, step=45, width=30. y=200 baseline. 8h = 140px tall -->
+        <!-- Apr 02: 8.25h -->
+        <g><rect x="50"  y="55.6"  width="30" height="144.4" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 03: 7.75h -->
+        <g><rect x="95"  y="64.4"  width="30" height="135.6" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 04: 0 (Sat) -->
+        <g><rect x="140" y="198"   width="30" height="2"     fill="var(--k-border)" rx="2"/></g>
+        <!-- Apr 05: 0 (Sun) -->
+        <g><rect x="185" y="198"   width="30" height="2"     fill="var(--k-border)" rx="2"/></g>
+        <!-- Apr 06: 8.5h -->
+        <g><rect x="230" y="51.3"  width="30" height="148.7" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 07: 8h -->
+        <g><rect x="275" y="60"    width="30" height="140"   fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 08: 7.25h -->
+        <g><rect x="320" y="73.1"  width="30" height="126.9" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 09: 9h -->
+        <g><rect x="365" y="42.5"  width="30" height="157.5" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 10: 8h (holiday? work) -->
+        <g><rect x="410" y="60"    width="30" height="140"   fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 11: 0 (Sat) -->
+        <g><rect x="455" y="198"   width="30" height="2"     fill="var(--k-border)" rx="2"/></g>
+        <!-- Apr 12: 0 (Sun) -->
+        <g><rect x="500" y="198"   width="30" height="2"     fill="var(--k-border)" rx="2"/></g>
+        <!-- Apr 13: 8.75h -->
+        <g><rect x="545" y="46.9"  width="30" height="153.1" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 14: 7.5h -->
+        <g><rect x="590" y="68.8"  width="30" height="131.2" fill="var(--k-accent)" rx="2"/></g>
+        <!-- Apr 15: 8.25h (today) -->
+        <g><rect x="635" y="55.6"  width="30" height="144.4" fill="var(--k-accent)" rx="2"
+             stroke="currentColor" stroke-opacity="0.35" stroke-width="1"/></g>
+
+        <!-- x labels -->
+        <g font-family="ui-monospace, monospace" font-size="9" fill="currentColor" opacity="0.6" text-anchor="middle">
+          <text x="65"  y="214">Thu</text>
+          <text x="110" y="214">Fri</text>
+          <text x="155" y="214">Sat</text>
+          <text x="200" y="214">Sun</text>
+          <text x="245" y="214">Mon</text>
+          <text x="290" y="214">Tue</text>
+          <text x="335" y="214">Wed</text>
+          <text x="380" y="214">Thu</text>
+          <text x="425" y="214">Fri</text>
+          <text x="470" y="214">Sat</text>
+          <text x="515" y="214">Sun</text>
+          <text x="560" y="214">Mon</text>
+          <text x="605" y="214">Tue</text>
+          <text x="650" y="214">Wed</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ================= Log form preview ================= -->
+  <section aria-label="Log entry preview">
+    <h2>Log — new entry</h2>
+    <p class="muted">Form snippet shown as it appears when creating a fresh work day.</p>
+    <form class="card" onsubmit="event.preventDefault()">
+      <div class="grid2">
+        <div>
+          <label for="d">Date</label>
+          <input id="d" type="date" value="2026-04-15">
+        </div>
+        <div>
+          <label for="t">Day type</label>
+          <select id="t">
+            <option>Work</option><option>Vacation</option>
+            <option>Sick</option><option>Holiday</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div>
+          <label for="s">Start time</label>
+          <input id="s" type="time" value="09:00">
+        </div>
+        <div>
+          <label for="e">End time</label>
+          <input id="e" type="time" value="17:45">
+        </div>
+      </div>
+      <fieldset>
+        <legend>Breaks</legend>
+        <div class="break-row">
+          <input type="number" value="30" min="1" max="720" aria-label="Break 1 minutes">
+          <span class="gloss">30 min · lunch</span>
+          <span class="spacer"></span>
+          <button type="button" class="secondary compact">⏱ from range</button>
+          <button type="button" class="danger outline compact" aria-label="Remove break">−</button>
+        </div>
+        <div class="break-row">
+          <input type="number" value="15" min="1" max="720" aria-label="Break 2 minutes">
+          <span class="gloss">15 min · coffee</span>
+          <span class="spacer"></span>
+          <button type="button" class="secondary compact">⏱ from range</button>
+          <button type="button" class="danger outline compact" aria-label="Remove break">−</button>
+        </div>
+        <button type="button" class="secondary">+ Add break</button>
+      </fieldset>
+      <label for="n">Notes (optional)
+        <textarea id="n" rows="2" placeholder="anything worth remembering about this day"></textarea>
+      </label>
+      <div class="form-footer">
+        <button type="submit">Create entry</button>
+        <button type="button" class="secondary">Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ================= Days table ================= -->
+  <section aria-label="Recent days">
+    <h2>Days</h2>
+    <p class="muted">6 most-recent entries.</p>
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th><th>Type</th><th>Start</th><th>End</th>
+            <th>Breaks</th><th>Net</th><th>Target</th><th>Δ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="num">2026-04-15</td>
+            <td><span class="day-pill work">work</span></td>
+            <td class="num">09:00</td><td class="num">17:45</td>
+            <td class="num">30m</td><td class="num">8.25h</td>
+            <td class="num">8h</td><td class="num surplus">+0.25h</td>
+          </tr>
+          <tr>
+            <td class="num">2026-04-14</td>
+            <td><span class="day-pill work">work</span></td>
+            <td class="num">09:15</td><td class="num">17:30</td>
+            <td class="num">45m</td><td class="num">7.5h</td>
+            <td class="num">8h</td><td class="num deficit">−0.5h</td>
+          </tr>
+          <tr>
+            <td class="num">2026-04-13</td>
+            <td><span class="day-pill work">work</span></td>
+            <td class="num">08:45</td><td class="num">18:00</td>
+            <td class="num">30m</td><td class="num">8.75h</td>
+            <td class="num">8h</td><td class="num surplus">+0.75h</td>
+          </tr>
+          <tr class="non-work">
+            <td class="num">2026-04-10</td>
+            <td><span class="day-pill holiday">holiday</span></td>
+            <td class="num">—</td><td class="num">—</td>
+            <td class="num">—</td><td class="num">0h</td>
+            <td class="num">0h</td><td class="num">+0h</td>
+          </tr>
+          <tr>
+            <td class="num">2026-04-09</td>
+            <td><span class="day-pill work">work</span></td>
+            <td class="num">08:30</td><td class="num">18:15</td>
+            <td class="num">45m</td><td class="num">9h</td>
+            <td class="num">8h</td><td class="num surplus">+1h</td>
+          </tr>
+          <tr class="non-work">
+            <td class="num">2026-04-08</td>
+            <td><span class="day-pill vacation">vacation</span></td>
+            <td class="num">—</td><td class="num">—</td>
+            <td class="num">—</td><td class="num">0h</td>
+            <td class="num">0h</td><td class="num">+0h</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= Settings preview ================= -->
+  <section aria-label="Settings preview">
+    <h2>Settings</h2>
+    <form class="card" onsubmit="event.preventDefault()">
+      <label for="tgt">Daily target hours
+        <input id="tgt" type="number" min="0.1" max="24" step="0.1" value="8">
+        <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
+      </label>
+      <label for="cum">Cumulative tracking start date
+        <input id="cum" type="date" value="2026-01-06">
+        <small>Running surplus/deficit is computed from this date onward.</small>
+      </label>
+      <div class="form-footer">
+        <button type="submit">Save settings</button>
+      </div>
+    </form>
+
+    <div class="fun-zone">
+      <div class="fun-zone-title">Fun zone</div>
+      <div class="fun-zone-action">
+        <div>
+          <strong>Wipe all data</strong>
+          <p>Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
+        </div>
+        <button class="danger outline" type="button">Wipe all data…</button>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--k-border);margin:20px 0;">
+      <div class="fun-zone-action">
+        <div>
+          <strong>Seed with sample data</strong>
+          <p>Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos or resetting after experiments. Settings are kept.</p>
+        </div>
+        <button class="secondary" type="button">Seed sample data…</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Footnote ================= -->
+  <div class="footnote">
+    <strong>Note on typography:</strong> numerics in this mockup fall back to the
+    platform monospace stack (<code>ui-monospace</code>, <code>SF Mono</code>,
+    <code>Cascadia Mono</code>, <code>Consolas</code>). The real build will vendor
+    <code>JetBrains Mono</code> (monospace coding font) locally and prefer it above
+    the fallbacks. All numerics use <code>font-variant-numeric: tabular-nums</code>
+    so columns line up in the Days table and chart labels.
+  </div>
+
+</main>
+
+<script>
+  // Theme toggle — flips data-theme on <html>, updates label.
+  (function () {
+    var btn = document.getElementById('themeToggle');
+    var lbl = document.getElementById('themeLabel');
+    btn.addEventListener('click', function () {
+      var root = document.documentElement;
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      lbl.textContent = next === 'dark' ? 'Dark' : 'Light';
+    });
+  })();
+</script>
+</body>
+</html>

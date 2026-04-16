@@ -1,0 +1,101 @@
+<!-- ========================= SETTINGS ========================= -->
+<template x-if="tab==='settings'">
+<section aria-label="Settings">
+  <h2>Settings</h2>
+  <form @submit.prevent="saveSettings()">
+    <label>
+      Daily target hours
+      <input type="number" x-model.number="settingsForm.daily_target_hours"
+             min="0.1" max="24" step="0.1" required>
+      <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
+    </label>
+    <label>
+      Cumulative tracking start date
+      <input type="date" x-model="settingsForm.cumulative_start_date" required>
+      <small>Running surplus/deficit is computed from this date onward.</small>
+    </label>
+    <button type="submit" class="btn-action">Save settings</button>
+  </form>
+
+  <!-- ---- Fun zone ---- -->
+  <div class="fun-zone">
+    <h3 class="fun-zone-title">🎢 Fun zone</h3>
+
+    <!-- Wipe -->
+    <div class="fun-zone-action">
+      <div>
+        <strong>Wipe all data</strong>
+        <p class="muted">Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
+      </div>
+
+      <template x-if="!wipeConfirming">
+        <button class="btn-danger outline" @click="wipeConfirming = true; wipeInput = ''">
+          Wipe all data…
+        </button>
+      </template>
+
+      <template x-if="wipeConfirming">
+        <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
+          <label class="wipe-confirm-label">
+            Type <code>wipe data</code> to confirm
+            <input type="text" x-model="wipeInput"
+                   placeholder="wipe data"
+                   autocomplete="off"
+                   spellcheck="false">
+          </label>
+          <div class="wipe-confirm-actions">
+            <button class="btn-danger"
+                    :disabled="wipeInput !== 'wipe data'"
+                    @click="wipeData()">
+              Confirm wipe
+            </button>
+            <button class="secondary outline"
+                    @click="wipeConfirming = false; wipeInput = ''">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <hr class="fun-zone-divider">
+
+    <!-- Seed -->
+    <div class="fun-zone-action">
+      <div>
+        <strong>Seed with sample data</strong>
+        <p class="muted">Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos or resetting after experiments. Settings are kept.</p>
+      </div>
+
+      <template x-if="!seedConfirming">
+        <button class="secondary outline" @click="seedConfirming = true; seedInput = ''">
+          Seed sample data…
+        </button>
+      </template>
+
+      <template x-if="seedConfirming">
+        <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
+          <label class="wipe-confirm-label">
+            Type <code>seed data</code> to confirm
+            <input type="text" x-model="seedInput"
+                   placeholder="seed data"
+                   autocomplete="off"
+                   spellcheck="false">
+          </label>
+          <div class="wipe-confirm-actions">
+            <button class="secondary"
+                    :disabled="seedInput !== 'seed data'"
+                    @click="seedData()">
+              Confirm seed
+            </button>
+            <button class="secondary outline"
+                    @click="seedConfirming = false; seedInput = ''">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+</section>
+</template>

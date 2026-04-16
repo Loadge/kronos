@@ -1,0 +1,1708 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Direction 2 · Chronograph (dark primary) · Whimsy Lab</title>
+<style>
+/* =========================================================================
+   Kronos — Direction 2: Chronograph  (DARK PRIMARY) · WHIMSY LAB
+   Identical visual base to d2.html. Adds six togglable micro-interactions
+   (W1-W6) plus a sticky control panel in the chronograph aesthetic.
+   When all whimsies are off and no events fired, this should render as
+   d2.html. Self-contained. No external requests.
+   ========================================================================= */
+
+:root,
+html[data-theme="light"] {
+  --k-bg:            #f4ede1;
+  --k-surface:       #faf4e8;
+  --k-border:        #d9cfbb;
+  --k-border-strong: #1f1b15;
+  --k-text:          #1f1b15;
+  --k-muted:         #6d6353;
+  --k-brass:         #a8761a;
+  --k-ink:           #1a3a52;
+  --k-surplus:       #3d6b2e;
+  --k-deficit:       #a23826;
+  --k-chip-sick:     #b07022;
+  --k-chip-hol:      #516b77;
+  --k-grid:          rgba(31, 27, 21, 0.15);
+  --k-pill-alpha:    12%;
+}
+html[data-theme="dark"] {
+  --k-bg:            #17140f;
+  --k-surface:       #1f1c16;
+  --k-border:        #3d3a33;
+  --k-border-strong: #57524a;
+  --k-text:          #ece6d7;
+  --k-muted:         #a49b87;
+  --k-brass:         #e0b341;
+  --k-ink:           #8ab0c4;
+  --k-surplus:       #7db369;
+  --k-deficit:       #e07b63;
+  --k-chip-sick:     #d49b4a;
+  --k-chip-hol:      #8aa4b0;
+  --k-grid:          rgba(236, 230, 215, 0.12);
+  --k-pill-alpha:    18%;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: -apple-system, "Segoe UI Variable", "Segoe UI", system-ui, "Inter", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------- direction strip --------- */
+.dir-strip {
+  background: var(--k-text);
+  color: var(--k-bg);
+  padding: 8px 20px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dir-strip .strip-lead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dir-strip .brass-tick {
+  display: inline-block;
+  width: 10px; height: 10px;
+  background: var(--k-brass);
+  margin-right: 8px;
+  vertical-align: -1px;
+}
+.dir-strip .strip-sub {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-variant: small-caps;
+  color: var(--k-bg);
+  opacity: 0.75;
+}
+.theme-toggle {
+  background: transparent;
+  color: var(--k-bg);
+  border: 1px solid var(--k-bg);
+  padding: 3px 10px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+}
+.theme-toggle:hover { background: var(--k-bg); color: var(--k-text); }
+
+/* --------- layout --------- */
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 28px 64px;
+}
+
+/* --------- app header --------- */
+.app-header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--k-border);
+  margin-bottom: 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+  position: relative; /* W6: anchors easter-egg emoji trip */
+}
+.brand h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant: small-caps;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand h1::before {
+  content: "";
+  display: inline-block;
+  width: 4px; height: 28px;
+  background: var(--k-brass);
+}
+.brand .subtitle {
+  margin: 8px 0 0;
+  color: var(--k-ink);
+  font-size: 13px;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+.brand .subtitle .mono { margin-left: 6px; color: var(--k-text); }
+
+/* --------- tabs --------- */
+.tabs {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+}
+.tabs a {
+  color: var(--k-muted);
+  text-decoration: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 6px 0 10px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tabs a:hover { color: var(--k-text); }
+.tabs a[aria-selected="true"] {
+  color: var(--k-text);
+  border-bottom-color: var(--k-brass);
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* --------- section heads --------- */
+.sec-head {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 36px 0 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-top: 1px solid var(--k-border-strong);
+  padding-top: 14px;
+}
+.sec-head .count {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  font-variant: normal;
+}
+.preamble {
+  color: var(--k-muted);
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+.preamble strong { color: var(--k-text); font-weight: 600; }
+
+/* --------- summary cards (sub-dials) --------- */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 760px) { .summary-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  border-left: none;
+  border-right: none;
+  border-radius: 4px;
+  padding: 18px 20px 22px;
+  position: relative;
+}
+.card.cumulative::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 20px;
+  width: 36px;
+  height: 3px;
+  background: var(--k-brass);
+  /* subtle inset lip: gives the brass tick definition on dark without a shadow */
+  box-shadow: inset 0 1px 0 0 rgba(255, 228, 160, 0.35);
+}
+html[data-theme="light"] .card.cumulative::before {
+  box-shadow: none;
+}
+.sub-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+.card-title {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 15px;
+  color: var(--k-text);
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+.metric {
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.metric.surplus { color: var(--k-surplus); }
+.metric.deficit { color: var(--k-deficit); }
+.metric.neutral { color: var(--k-text); }
+.card .detail {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--k-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+}
+.card .detail strong {
+  color: var(--k-text);
+  font-weight: 500;
+}
+
+/* W1 — metric tick-up: the sign char is opacity-controlled inline by JS;
+   tabular-nums on .metric keeps width stable while digits roll. */
+.metric .sign {
+  display: inline-block;
+  transition: opacity 120ms ease-out;
+}
+
+/* W2 — cumulative card hue pulse on the brass tick border.
+   Drives box-shadow opacity via CSS var swapped from JS based on state.
+   Slow 9s cycle, ≤15% opacity delta, brass by default. */
+.card.cumulative {
+  --pulse-color: 224, 179, 65;       /* brass rgb */
+  --pulse-peak:  0.42;                /* peak shadow alpha */
+  --pulse-base:  0.10;
+}
+.card.cumulative.pulse-surplus {
+  --pulse-color: 125, 179, 105;       /* --k-surplus rgb */
+}
+.card.cumulative.pulse-deficit {
+  --pulse-color: 224, 123, 99;        /* --k-deficit rgb */
+}
+@keyframes k-pulse {
+  0%, 100% { box-shadow: 0 -2px 0 -1px rgba(var(--pulse-color), var(--pulse-base)); }
+  50%      { box-shadow: 0 -2px 0 -1px rgba(var(--pulse-color), var(--pulse-peak)); }
+}
+body:not(.whimsy-w2-off) .card.cumulative {
+  animation: k-pulse 9s ease-in-out infinite;
+}
+
+/* --------- log form --------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 28px;
+  padding: 8px 0 4px;
+}
+@media (max-width: 620px) { .form-grid { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; }
+.field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.input,
+.select {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--k-border);
+  color: var(--k-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 0;
+  font-size: 15px;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 120ms, border-width 120ms;
+}
+.input:focus,
+.select:focus {
+  border-bottom: 2px solid var(--k-brass);
+  padding-bottom: 5px;
+}
+.select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--k-muted) 50%),
+                    linear-gradient(135deg, var(--k-muted) 50%, transparent 50%);
+  background-position: calc(100% - 10px) 14px, calc(100% - 5px) 14px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 22px;
+}
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) sepia(0.15) saturate(1.2) hue-rotate(5deg);
+  cursor: pointer;
+}
+
+/* W4 — day-pill live preview. Sits next to the select, mirrors the value.
+   Cross-fade the bg/border/color when the select changes. */
+.day-type-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.day-type-row .select { flex: 1 1 auto; }
+.day-pill-preview {
+  /* Same recipe as the .pill stamps in the table */
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 2px;
+  border: 1px solid var(--k-border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--k-brass);
+  background: color-mix(in srgb, var(--k-brass) var(--k-pill-alpha), transparent);
+  border-color: var(--k-brass);
+  transition:
+    background-color 250ms ease,
+    border-color    250ms ease,
+    color           250ms ease;
+  white-space: nowrap;
+  align-self: flex-end;
+  margin-bottom: 8px;
+}
+.day-pill-preview[data-type="vacation"] {
+  color: var(--k-ink);
+  border-color: var(--k-ink);
+  background: color-mix(in srgb, var(--k-ink) var(--k-pill-alpha), transparent);
+}
+.day-pill-preview[data-type="sick"] {
+  color: var(--k-chip-sick);
+  border-color: var(--k-chip-sick);
+  background: color-mix(in srgb, var(--k-chip-sick) var(--k-pill-alpha), transparent);
+}
+.day-pill-preview[data-type="holiday"] {
+  color: var(--k-chip-hol);
+  border-color: var(--k-chip-hol);
+  background: color-mix(in srgb, var(--k-chip-hol) var(--k-pill-alpha), transparent);
+}
+
+.breaks-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  margin: 24px 0 10px;
+  font-weight: 500;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.break-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--k-border);
+  /* W3 — break-row stagger: animate height/opacity/translate on entering rows.
+     The .break-row collapses from h=0 to natural height, fades & slides down. */
+  overflow: hidden;
+  max-height: 200px;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    max-height 200ms ease-out,
+    opacity    180ms ease-out,
+    transform  200ms ease-out,
+    padding    200ms ease-out;
+}
+.break-row.entering {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.break-row.leaving {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-color: transparent;
+}
+.break-row:last-child { border-bottom: 1px solid var(--k-border); }
+.break-row .lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+}
+.break-row .input { padding: 4px 0; }
+.break-row .gloss {
+  font-size: 12px;
+  color: var(--k-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  background: transparent;
+  color: var(--k-text);
+  border: 1px solid var(--k-border);
+  padding: 7px 14px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.btn:hover { border-color: var(--k-text); }
+.btn-brass {
+  background: var(--k-brass);
+  color: var(--k-bg);
+  border-color: var(--k-brass);
+}
+.btn-brass:hover { background: var(--k-text); border-color: var(--k-text); color: var(--k-bg); }
+.btn-ghost { border-color: transparent; color: var(--k-muted); }
+.btn-ghost:hover { color: var(--k-text); border-color: var(--k-border); }
+.btn-sm { padding: 4px 8px; font-size: 10px; }
+.btn-danger {
+  background: transparent;
+  color: var(--k-deficit);
+  border-color: var(--k-deficit);
+}
+.btn-danger:hover { background: var(--k-deficit); color: var(--k-bg); }
+
+.form-footer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--k-border);
+  display: flex;
+  gap: 10px;
+}
+.add-break-row { padding: 10px 0; }
+
+/* --------- day-pill stamps --------- */
+.pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid var(--k-border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.pill.work     { color: var(--k-brass);    border-color: var(--k-brass);    background: color-mix(in srgb, var(--k-brass) var(--k-pill-alpha), transparent); }
+.pill.vacation { color: var(--k-ink);      border-color: var(--k-ink);      background: color-mix(in srgb, var(--k-ink) var(--k-pill-alpha), transparent); }
+.pill.sick     { color: var(--k-chip-sick);border-color: var(--k-chip-sick);background: color-mix(in srgb, var(--k-chip-sick) var(--k-pill-alpha), transparent); }
+.pill.holiday  { color: var(--k-chip-hol); border-color: var(--k-chip-hol); background: color-mix(in srgb, var(--k-chip-hol) var(--k-pill-alpha), transparent); }
+
+/* --------- days table --------- */
+.table-wrap {
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+}
+table.days {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+table.days th,
+table.days td {
+  padding: 12px 10px;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--k-border);
+  font-size: 14px;
+  vertical-align: middle;
+}
+table.days tbody tr:last-child td { border-bottom: none; }
+table.days th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--k-border-strong);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+table.days td.num { text-align: right; }
+table.days th.num { text-align: right; }
+table.days td.delta.surplus { color: var(--k-brass); font-weight: 600; }
+table.days td.delta.deficit { color: var(--k-deficit); font-weight: 600; }
+table.days td.muted { color: var(--k-muted); }
+table.days td a {
+  color: var(--k-ink);
+  text-decoration: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+table.days td a:hover { text-decoration: underline; }
+table.days tr.non-work td:not(.pill-cell):not(.action) { color: var(--k-muted); }
+
+/* --------- settings --------- */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px 28px;
+  max-width: 720px;
+}
+@media (max-width: 620px) { .settings-grid { grid-template-columns: 1fr; } }
+.field small {
+  color: var(--k-muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* --------- fun zone --------- */
+.fun-zone {
+  margin-top: 36px;
+  border: 1px solid var(--k-deficit);
+  border-radius: 4px;
+  padding: 18px 22px 20px;
+  background: color-mix(in srgb, var(--k-deficit) 5%, transparent);
+}
+.fun-zone h3 {
+  margin: 0 0 14px;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+  color: var(--k-deficit);
+  font-weight: 600;
+  border-bottom: 1px solid var(--k-deficit);
+  padding-bottom: 8px;
+}
+.fun-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+.fun-row + .fun-row { border-top: 1px solid var(--k-border); }
+.fun-row strong { display: block; margin-bottom: 4px; font-size: 14px; }
+.fun-row p { margin: 0; font-size: 12px; color: var(--k-muted); max-width: 560px; }
+
+/* --------- chart --------- */
+.chart-wrap {
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  padding: 18px 20px 14px;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.chart-head .title {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  font-weight: 600;
+}
+.chart-head .legend {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  display: flex;
+  gap: 16px;
+}
+.chart-head .legend .swatch {
+  display: inline-block;
+  width: 10px; height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.chart-head .legend .sw-brass { background: var(--k-brass); }
+.chart-head .legend .sw-target { background: var(--k-text); }
+.chart-svg { display: block; width: 100%; height: auto; }
+
+/* --------- footer note --------- */
+.foot-note {
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--k-border);
+  font-size: 11px;
+  color: var(--k-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  line-height: 1.8;
+}
+.foot-note .pal-notes {
+  display: block;
+  margin-top: 8px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-variant: small-caps;
+  font-size: 11px;
+  color: var(--k-muted);
+}
+.foot-note .pal-notes code {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  font-size: 10px;
+  color: var(--k-text);
+  background: transparent;
+  padding: 0 2px;
+}
+
+/* =========================================================================
+   W5 — Save confirmation ribbon
+   Slim ribbon slides down from the top of <main>. role=status (polite).
+   Uses .ribbon-show class to animate in, auto-hides via JS after ~1.8s.
+   ========================================================================= */
+.save-ribbon-host {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+.save-ribbon {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  background: var(--k-surface);
+  border-top: 2px solid var(--k-brass);
+  border-bottom: 1px solid var(--k-border-strong);
+  color: var(--k-text);
+  padding: 10px 22px;
+  font-size: 12px;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateY(-110%);
+  opacity: 0;
+  transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 200ms ease-out;
+  pointer-events: none;
+  z-index: 50;
+}
+.save-ribbon.surplus { border-top-color: var(--k-surplus); }
+.save-ribbon.deficit { border-top-color: var(--k-deficit); }
+.save-ribbon.neutral { border-top-color: var(--k-brass); }
+.save-ribbon .ribbon-tick {
+  display: inline-block;
+  width: 8px; height: 8px;
+  background: var(--k-brass);
+}
+.save-ribbon.surplus .ribbon-tick { background: var(--k-surplus); }
+.save-ribbon.deficit .ribbon-tick { background: var(--k-deficit); }
+.save-ribbon .ribbon-msg { font-weight: 500; }
+.save-ribbon .ribbon-msg .mono { color: var(--k-text); margin-left: 4px; }
+.save-ribbon.ribbon-show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* =========================================================================
+   W6 — Easter egg emoji + Streaks panel
+   Emoji takes a 1.2s trip across the .app-header (left -> right).
+   Streaks panel uses chronograph card styling and is hidden by default.
+   ========================================================================= */
+.egg-emoji {
+  position: absolute;
+  top: 50%;
+  left: -40px;
+  font-size: 22px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%);
+  z-index: 40;
+}
+.egg-emoji.egg-go {
+  animation: egg-trip 1200ms cubic-bezier(.45,.05,.55,.95) forwards;
+}
+@keyframes egg-trip {
+  0%   { left: -40px; opacity: 0; transform: translateY(-50%) rotate(-8deg); }
+  10%  { opacity: 1; }
+  50%  { transform: translateY(-65%) rotate(8deg); }
+  90%  { opacity: 1; }
+  100% { left: 100%; opacity: 0; transform: translateY(-50%) rotate(-8deg); }
+}
+
+.streaks-panel {
+  display: none;
+  margin-top: 16px;
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  border-radius: 4px;
+  padding: 14px 20px 16px;
+  position: relative;
+}
+.streaks-panel.unlocked { display: block; }
+.streaks-panel::before {
+  /* Mirror the cumulative card's brass tick lip — visual cousin */
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 20px;
+  width: 36px;
+  height: 3px;
+  background: var(--k-brass);
+  box-shadow: inset 0 1px 0 0 rgba(255, 228, 160, 0.35);
+}
+html[data-theme="light"] .streaks-panel::before { box-shadow: none; }
+.streaks-panel .sub-label { margin-top: 2px; }
+.streaks-panel .streak-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--k-text);
+}
+.streaks-panel .streak-row .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+.streaks-panel .streak-row strong {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--k-brass);
+}
+.streaks-panel .badge-line {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+
+/* =========================================================================
+   Whimsy Lab — sticky control panel (right edge)
+   Chronograph card aesthetic. Floats top-right, scrolls with viewport.
+   ========================================================================= */
+.whimsy-lab {
+  position: fixed;
+  top: 60px;
+  right: 18px;
+  width: 248px;
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  border-radius: 4px;
+  padding: 14px 16px 14px;
+  z-index: 100;
+  font-size: 12px;
+  /* same tick treatment as the cumulative card */
+}
+.whimsy-lab::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 16px;
+  width: 36px;
+  height: 3px;
+  background: var(--k-brass);
+  box-shadow: inset 0 1px 0 0 rgba(255, 228, 160, 0.35);
+}
+html[data-theme="light"] .whimsy-lab::before { box-shadow: none; }
+.whimsy-lab h4 {
+  margin: 0 0 10px;
+  font-variant: small-caps;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--k-brass);
+}
+.whimsy-lab .lab-section {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  margin: 12px 0 6px;
+  border-top: 1px solid var(--k-border);
+  padding-top: 8px;
+}
+.whimsy-lab .lab-section:first-of-type {
+  margin-top: 4px;
+  border-top: none;
+  padding-top: 0;
+}
+.whimsy-lab label.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--k-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.whimsy-lab label.toggle input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--k-border-strong);
+  background: transparent;
+  cursor: pointer;
+  border-radius: 2px;
+  margin: 0;
+  display: inline-grid;
+  place-content: center;
+  flex: none;
+}
+.whimsy-lab label.toggle input[type="checkbox"]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--k-brass);
+  transform: scale(0);
+  transition: transform 90ms ease-out;
+}
+.whimsy-lab label.toggle input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+.whimsy-lab label.toggle .w-num {
+  color: var(--k-brass);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.whimsy-lab .lab-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin: 4px 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--k-text);
+  background: transparent;
+  border: 1px solid var(--k-border);
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: inherit;
+  font-weight: 500;
+}
+.whimsy-lab .lab-btn:hover { border-color: var(--k-brass); color: var(--k-brass); }
+.whimsy-lab .lab-foot {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--k-border);
+  font-size: 10px;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+.whimsy-lab .lab-foot kbd {
+  font-family: ui-monospace, Consolas, monospace;
+  background: transparent;
+  border: 1px solid var(--k-border);
+  border-radius: 2px;
+  padding: 0 4px;
+  color: var(--k-text);
+  font-size: 10px;
+}
+@media (max-width: 1240px) {
+  .whimsy-lab {
+    /* Below the breakpoint, dock to the bottom-right so it stops overlapping content */
+    top: auto;
+    bottom: 12px;
+    right: 12px;
+    width: 224px;
+  }
+}
+@media (max-width: 640px) {
+  .whimsy-lab {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+}
+
+/* =========================================================================
+   Reduced motion — both OS-level and the simulated .reduce-motion class.
+   Strategy: zero-out durations everywhere we animate. End-states still apply
+   because the CSS transitions just snap. JS code paths check this flag too.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+body.reduce-motion *,
+body.reduce-motion *::before,
+body.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+</style>
+</head>
+<body>
+
+<div class="dir-strip">
+  <div class="strip-lead">
+    <span><span class="brass-tick"></span>Direction 2 — Chronograph (dark primary) · Whimsy Lab</span>
+    <span class="strip-sub">All six micro-interactions, each togglable. Try them, turn them off, find your mix.</span>
+  </div>
+  <button class="theme-toggle" id="themeBtn" type="button">Graphite · switch to parchment</button>
+</div>
+
+<main class="wrap" id="main">
+
+  <!-- W5 host: ribbon mounts here so it can slide down from the top of <main> -->
+  <div class="save-ribbon-host">
+    <div id="saveRibbon" class="save-ribbon" role="status" aria-live="polite">
+      <span class="ribbon-tick"></span>
+      <span class="ribbon-msg">Saved</span>
+    </div>
+  </div>
+
+  <!-- ============ app header ============ -->
+  <header class="app-header">
+    <div class="brand">
+      <h1>Kronos</h1>
+      <p class="subtitle">Hours tracker <span class="mono">· 12.25h ahead overall</span></p>
+    </div>
+    <nav class="tabs" role="tablist">
+      <a role="tab" aria-selected="true">Dashboard</a>
+      <a role="tab" aria-selected="false">Log</a>
+      <a role="tab" aria-selected="false">Days</a>
+      <a role="tab" aria-selected="false">Analytics</a>
+      <a role="tab" aria-selected="false">Settings</a>
+    </nav>
+    <!-- W6: easter-egg roller-coaster takes a trip across the header -->
+    <span id="eggEmoji" class="egg-emoji" aria-hidden="true">🎢</span>
+  </header>
+
+  <!-- ============ dashboard ============ -->
+  <p class="preamble">
+    Today is <strong>2026-04-15</strong>. Daily target <strong>8h</strong>. Cumulative tracking since <strong>2026-01-05</strong>.
+  </p>
+
+  <div class="summary-grid">
+    <article class="card">
+      <p class="sub-label">Surplus</p>
+      <h3 class="card-title">This week</h3>
+      <!-- W1: span.sign is fade-controlled; span.value rolls digits.
+           data-target is the truth value the tick-up animates toward. -->
+      <div class="metric surplus" data-metric data-target="2.75" data-sign="+">
+        <span class="sign">+</span><span class="value">2.75</span><span class="unit">h</span>
+      </div>
+      <div class="detail">
+        <strong>42.75h</strong> worked / <strong>40h</strong> target<br>
+        5 work days · 0 off
+      </div>
+    </article>
+
+    <article class="card">
+      <p class="sub-label">Deficit</p>
+      <h3 class="card-title">This month</h3>
+      <div class="metric deficit" data-metric data-target="1.50" data-sign="−">
+        <span class="sign">−</span><span class="value">1.50</span><span class="unit">h</span>
+      </div>
+      <div class="detail">
+        <strong>158.50h</strong> worked / <strong>160h</strong> target<br>
+        20 work days · 2 off
+      </div>
+    </article>
+
+    <article class="card cumulative pulse-surplus">
+      <p class="sub-label">Surplus</p>
+      <h3 class="card-title">Cumulative</h3>
+      <div class="metric surplus" data-metric data-target="12.25" data-sign="+">
+        <span class="sign">+</span><span class="value">12.25</span><span class="unit">h</span>
+      </div>
+      <div class="detail">
+        <strong>556.25h</strong> worked / <strong>544h</strong> target<br>
+        68 work days · 8 off
+      </div>
+    </article>
+  </div>
+
+  <!-- W6: streaks panel (revealed by konami) -->
+  <section id="streaksPanel" class="streaks-panel" aria-hidden="true">
+    <p class="sub-label">Discovered</p>
+    <h3 class="card-title">Streaks</h3>
+    <div class="streak-row">
+      <div><span class="k">Longest surplus</span><strong>9</strong> days</div>
+      <div><span class="k">Longest deficit</span><strong>4</strong> days</div>
+      <div><span class="k">Most breaks / day</span><strong>3</strong></div>
+    </div>
+    <div class="badge-line">— You found a side dial. Welcome.</div>
+  </section>
+
+  <!-- ============ 14-day chart ============ -->
+  <h2 class="sec-head">Last 14 days <span class="count">Worked vs. target</span></h2>
+  <div class="chart-wrap">
+    <div class="chart-head">
+      <div class="title">Daily hours · Apr 2 — Apr 15</div>
+      <div class="legend">
+        <span><span class="swatch sw-brass"></span>Worked</span>
+        <span><span class="swatch sw-target" style="height:2px; margin-top:4px;"></span>Target 8h</span>
+      </div>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 720 200" preserveAspectRatio="none" aria-label="14-day hours chart">
+      <g stroke="var(--k-grid)" stroke-width="1">
+        <line x1="40" y1="20"  x2="700" y2="20"/>
+        <line x1="40" y1="60"  x2="700" y2="60"/>
+        <line x1="40" y1="100" x2="700" y2="100"/>
+        <line x1="40" y1="140" x2="700" y2="140"/>
+        <line x1="40" y1="180" x2="700" y2="180"/>
+      </g>
+      <g font-family="ui-monospace, Consolas, monospace" font-size="9" fill="var(--k-muted)" text-anchor="end">
+        <text x="34" y="23">12h</text>
+        <text x="34" y="63">9h</text>
+        <text x="34" y="103">6h</text>
+        <text x="34" y="143">3h</text>
+        <text x="34" y="183">0h</text>
+      </g>
+      <g fill="var(--k-brass)">
+        <rect x="50"  y="73"  width="32" height="107"/>
+        <rect x="94"  y="65"  width="32" height="115"/>
+        <rect x="138" y="87"  width="32" height="93"/>
+        <rect x="182" y="180" width="32" height="0"/>
+        <rect x="226" y="180" width="32" height="0"/>
+        <rect x="270" y="59"  width="32" height="121"/>
+        <rect x="314" y="45"  width="32" height="135"/>
+        <rect x="358" y="80"  width="32" height="100"/>
+        <rect x="402" y="68"  width="32" height="112"/>
+        <rect x="446" y="77"  width="32" height="103"/>
+        <rect x="490" y="180" width="32" height="0"/>
+        <rect x="534" y="180" width="32" height="0"/>
+        <rect x="578" y="51"  width="32" height="129"/>
+        <rect x="622" y="73"  width="32" height="107"/>
+      </g>
+      <line x1="40" y1="73" x2="700" y2="73"
+            stroke="var(--k-text)" stroke-width="1"
+            stroke-dasharray="3 4" opacity="0.65"/>
+      <g font-family="ui-monospace, Consolas, monospace" font-size="9" fill="var(--k-muted)" text-anchor="middle">
+        <text x="66"  y="196">02</text>
+        <text x="110" y="196">03</text>
+        <text x="154" y="196">04</text>
+        <text x="198" y="196">05</text>
+        <text x="242" y="196">06</text>
+        <text x="286" y="196">07</text>
+        <text x="330" y="196">08</text>
+        <text x="374" y="196">09</text>
+        <text x="418" y="196">10</text>
+        <text x="462" y="196">11</text>
+        <text x="506" y="196">12</text>
+        <text x="550" y="196">13</text>
+        <text x="594" y="196">14</text>
+        <text x="638" y="196">15</text>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ============ log form snippet ============ -->
+  <h2 class="sec-head">New entry <span class="count">Log</span></h2>
+  <form id="entryForm" onsubmit="event.preventDefault(); window.kronosWhimsy.triggerSave();">
+    <div class="form-grid">
+      <div class="field">
+        <label for="f-date">Date</label>
+        <input id="f-date" class="input mono" type="date" value="2026-04-15">
+      </div>
+      <div class="field">
+        <label for="f-type">Day type</label>
+        <!-- W4: live day-pill preview sits next to the select -->
+        <div class="day-type-row">
+          <select id="f-type" class="select">
+            <option value="work">Work</option>
+            <option value="vacation">Vacation</option>
+            <option value="sick">Sick</option>
+            <option value="holiday">Holiday</option>
+          </select>
+          <span id="dayPillPreview" class="day-pill-preview" data-type="work">Work</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-start">Start</label>
+        <input id="f-start" class="input mono" type="time" value="09:00">
+      </div>
+      <div class="field">
+        <label for="f-end">End</label>
+        <input id="f-end" class="input mono" type="time" value="17:45">
+      </div>
+    </div>
+
+    <div class="breaks-head">
+      <span>Breaks</span>
+      <span class="mono">Total: 45 min</span>
+    </div>
+
+    <div id="breaksList">
+      <div class="break-row">
+        <span class="lbl">Break 1</span>
+        <input class="input mono" type="number" value="30" min="1" max="720">
+        <span class="gloss">30 min — mid-morning</span>
+        <button type="button" class="btn btn-sm btn-ghost" data-remove-break>Remove</button>
+      </div>
+      <div class="break-row">
+        <span class="lbl">Break 2</span>
+        <input class="input mono" type="number" value="15" min="1" max="720">
+        <span class="gloss">15 min — afternoon coffee</span>
+        <button type="button" class="btn btn-sm btn-ghost" data-remove-break>Remove</button>
+      </div>
+    </div>
+
+    <div class="add-break-row">
+      <button type="button" id="addBreakBtn" class="btn btn-sm">+ Add break</button>
+    </div>
+
+    <div class="form-footer">
+      <button type="submit" class="btn btn-brass">Save entry</button>
+      <button type="button" class="btn btn-ghost">Cancel</button>
+    </div>
+  </form>
+
+  <!-- ============ days table ============ -->
+  <h2 class="sec-head">Days <span class="count">6 of 76 entries</span></h2>
+  <div class="table-wrap">
+    <table class="days">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Start</th>
+          <th>End</th>
+          <th class="num">Breaks</th>
+          <th class="num">Net</th>
+          <th class="num">Target</th>
+          <th class="num">&Delta;</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">2026-04-15</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:00</td>
+          <td class="mono">17:45</td>
+          <td class="num mono">45m</td>
+          <td class="num mono">8.00h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-14</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">08:30</td>
+          <td class="mono">18:45</td>
+          <td class="num mono">30m</td>
+          <td class="num mono">9.75h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta surplus">+1.75h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-13</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:15</td>
+          <td class="mono">16:30</td>
+          <td class="num mono">30m</td>
+          <td class="num mono">6.75h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta deficit">−1.25h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr class="non-work">
+          <td class="mono">2026-04-10</td>
+          <td class="pill-cell"><span class="pill holiday">Holiday</span></td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="num mono">—</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr class="non-work">
+          <td class="mono">2026-04-08</td>
+          <td class="pill-cell"><span class="pill vacation">Vacation</span></td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="num mono">—</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-07</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:00</td>
+          <td class="mono">17:10</td>
+          <td class="num mono">60m</td>
+          <td class="num mono">7.17h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta deficit">−0.83h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ settings preview ============ -->
+  <h2 class="sec-head">Settings <span class="count">Configuration</span></h2>
+  <form class="settings-grid" onsubmit="event.preventDefault()">
+    <div class="field">
+      <label for="s-target">Daily target hours</label>
+      <input id="s-target" class="input mono" type="number" value="8" step="0.1" min="0.1" max="24">
+      <small>Target hours for each WORK day. Non-work days contribute 0h.</small>
+    </div>
+    <div class="field">
+      <label for="s-start">Cumulative tracking start</label>
+      <input id="s-start" class="input mono" type="date" value="2026-01-05">
+      <small>Running surplus/deficit is computed from this date onward.</small>
+    </div>
+    <div style="grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 4px;">
+      <button type="submit" class="btn btn-brass">Save settings</button>
+    </div>
+  </form>
+
+  <div class="fun-zone">
+    <h3>Fun zone</h3>
+    <div class="fun-row">
+      <div>
+        <strong>Wipe all data</strong>
+        <p>Permanently delete every logged day and break. Settings are kept. <strong style="color:var(--k-text)">This cannot be undone.</strong></p>
+      </div>
+      <button type="button" class="btn btn-danger">Wipe all data…</button>
+    </div>
+    <div class="fun-row">
+      <div>
+        <strong>Seed with sample data</strong>
+        <p>Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos.</p>
+      </div>
+      <button type="button" class="btn">Seed sample data…</button>
+    </div>
+  </div>
+
+  <div class="foot-note">
+    Mockup uses system fonts · production build vendors Inter + IBM Plex Mono locally
+    <span class="pal-notes">
+      Whimsy Lab build: visually identical to <code>d2.html</code> with all toggles off. Six W's layered as opt-in behavior.
+    </span>
+  </div>
+
+</main>
+
+<!-- ============ Whimsy Lab control panel ============ -->
+<aside class="whimsy-lab" aria-label="Whimsy Lab controls">
+  <h4>Whimsy Lab</h4>
+
+  <div class="lab-section">Effects</div>
+  <label class="toggle"><input type="checkbox" data-w="1" checked><span><span class="w-num">W1</span> · Metric tick-up</span></label>
+  <label class="toggle"><input type="checkbox" data-w="2" checked><span><span class="w-num">W2</span> · Cumulative pulse</span></label>
+  <label class="toggle"><input type="checkbox" data-w="3" checked><span><span class="w-num">W3</span> · Break-row stagger</span></label>
+  <label class="toggle"><input type="checkbox" data-w="4" checked><span><span class="w-num">W4</span> · Day-pill preview</span></label>
+  <label class="toggle"><input type="checkbox" data-w="5" checked><span><span class="w-num">W5</span> · Save ribbon</span></label>
+  <label class="toggle"><input type="checkbox" data-w="6" checked><span><span class="w-num">W6</span> · Easter egg</span></label>
+
+  <div class="lab-section">Demo triggers</div>
+  <button type="button" class="lab-btn" id="btnRetick">Re-tick metrics</button>
+  <button type="button" class="lab-btn" id="btnSaveSurplus">Trigger save (surplus)</button>
+  <button type="button" class="lab-btn" id="btnSaveDeficit">Trigger save (deficit)</button>
+  <button type="button" class="lab-btn" id="btnResetStreaks">Reset streaks panel</button>
+
+  <div class="lab-section">Accessibility</div>
+  <label class="toggle"><input type="checkbox" id="reduceMotionToggle"><span>prefers-reduced-motion (simulate)</span></label>
+
+  <div class="lab-foot">
+    Try typing <kbd>k</kbd><kbd>r</kbd><kbd>o</kbd><kbd>n</kbd><kbd>o</kbd><kbd>s</kbd> anywhere on the page.
+  </div>
+</aside>
+
+<script>
+/* =========================================================================
+   Kronos Whimsy Lab — runtime
+   - Each W has a body-class guard: whimsy-w{N}-off short-circuits behavior.
+   - All animation paths respect prefers-reduced-motion (OS) AND the
+     simulated .reduce-motion class on <body>.
+   - Public surface: window.kronosWhimsy.{tickUpMetric, triggerSave, ...}
+   ========================================================================= */
+(function () {
+  'use strict';
+
+  var body = document.body;
+  var root = document.documentElement;
+
+  function reducedMotion() {
+    return body.classList.contains('reduce-motion') ||
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function isOff(w) { return body.classList.contains('whimsy-w' + w + '-off'); }
+
+  /* -------- theme toggle (carried over from d2.html) -------- */
+  var themeBtn = document.getElementById('themeBtn');
+  themeBtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    themeBtn.textContent = next === 'light'
+      ? 'Parchment · switch to graphite'
+      : 'Graphite · switch to parchment';
+  });
+
+  /* =======================================================================
+     W1 — metric tick-up
+     - Re-runnable. No layout shift: tabular-nums + the .sign char keeps
+       its slot (we toggle opacity on it, not display).
+     ======================================================================= */
+  function tickUpMetric(el, targetValue, opts) {
+    opts = opts || {};
+    if (isOff(1)) {
+      // Effect off: snap to end-state, ensure sign visible.
+      var v = el.querySelector('.value');
+      var s = el.querySelector('.sign');
+      if (v) v.textContent = Number(targetValue).toFixed(2);
+      if (s) s.style.opacity = '1';
+      return;
+    }
+    var valueEl = el.querySelector('.value');
+    var signEl  = el.querySelector('.sign');
+    if (!valueEl) return;
+    var duration = opts.duration || 600;
+
+    if (reducedMotion()) {
+      valueEl.textContent = Number(targetValue).toFixed(2);
+      if (signEl) signEl.style.opacity = '1';
+      return;
+    }
+
+    if (signEl) signEl.style.opacity = '0';
+    var start = null;
+    function frame(ts) {
+      if (start === null) start = ts;
+      var t = Math.min(1, (ts - start) / duration);
+      // ease-out cubic
+      var eased = 1 - Math.pow(1 - t, 3);
+      var v = (Number(targetValue) * eased).toFixed(2);
+      valueEl.textContent = v;
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        valueEl.textContent = Number(targetValue).toFixed(2);
+        if (signEl) signEl.style.opacity = '1';
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function tickUpAllMetrics() {
+    document.querySelectorAll('[data-metric]').forEach(function (el) {
+      tickUpMetric(el, el.getAttribute('data-target'));
+    });
+  }
+
+  /* =======================================================================
+     W2 — pulse: choose the tint based on the cumulative card's metric.
+     The animation itself is CSS; we only swap a class.
+     ======================================================================= */
+  function refreshCumulativePulse() {
+    var card = document.querySelector('.card.cumulative');
+    if (!card) return;
+    var metric = card.querySelector('[data-metric]');
+    if (!metric) return;
+    var sign = metric.getAttribute('data-sign');
+    var value = parseFloat(metric.getAttribute('data-target')) || 0;
+    card.classList.remove('pulse-surplus', 'pulse-deficit');
+    if (value === 0) return;            // brass default
+    if (sign === '+') card.classList.add('pulse-surplus');
+    else if (sign === '−' || sign === '-') card.classList.add('pulse-deficit');
+  }
+
+  /* =======================================================================
+     W3 — break row stagger
+     - Auto-focus the new minutes input at frame 0 (per the rule).
+     - Off-mode: no animation classes, just append + focus.
+     ======================================================================= */
+  var breaksList = document.getElementById('breaksList');
+  var addBreakBtn = document.getElementById('addBreakBtn');
+  var breakCounter = breaksList.querySelectorAll('.break-row').length;
+
+  function addBreakRow() {
+    breakCounter += 1;
+    var row = document.createElement('div');
+    row.className = 'break-row';
+    row.innerHTML =
+      '<span class="lbl">Break ' + breakCounter + '</span>' +
+      '<input class="input mono" type="number" value="" min="1" max="720" placeholder="minutes">' +
+      '<span class="gloss">— add a duration</span>' +
+      '<button type="button" class="btn btn-sm btn-ghost" data-remove-break>Remove</button>';
+
+    var input = row.querySelector('input');
+
+    if (isOff(3) || reducedMotion()) {
+      breaksList.appendChild(row);
+      input.focus(); // rule: focus at frame 0
+      return;
+    }
+
+    row.classList.add('entering');
+    breaksList.appendChild(row);
+    // Frame 0 focus — do NOT wait for the animation
+    input.focus();
+    // Strip the .entering class after next paint so the transition runs
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        row.classList.remove('entering');
+      });
+    });
+  }
+
+  function removeBreakRow(row) {
+    if (isOff(3) || reducedMotion()) {
+      row.remove();
+      return;
+    }
+    row.classList.add('leaving');
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      row.removeEventListener('transitionend', finish);
+      row.remove();
+    }
+    row.addEventListener('transitionend', finish);
+    setTimeout(finish, 280); // safety
+  }
+
+  addBreakBtn.addEventListener('click', addBreakRow);
+  breaksList.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-remove-break]');
+    if (!btn) return;
+    var row = btn.closest('.break-row');
+    if (row) removeBreakRow(row);
+  });
+
+  /* =======================================================================
+     W4 — day-pill live preview
+     - The preview's data-type drives its tint via CSS.
+     - The CSS transition on background/border/color is the cross-fade.
+     - When the toggle is OFF, we still mirror the value (so it isn't stale)
+       but skip the transition by snapping inline, then restore.
+     ======================================================================= */
+  var typeSelect = document.getElementById('f-type');
+  var dayPill    = document.getElementById('dayPillPreview');
+  var TYPE_LABELS = { work: 'Work', vacation: 'Vacation', sick: 'Sick', holiday: 'Holiday' };
+
+  function updateDayPill() {
+    if (!typeSelect || !dayPill) return;
+    var v = typeSelect.value.toLowerCase();
+    if (isOff(4)) {
+      // Snap with no transition
+      var prev = dayPill.style.transition;
+      dayPill.style.transition = 'none';
+      dayPill.setAttribute('data-type', v);
+      dayPill.textContent = TYPE_LABELS[v] || v;
+      // Force reflow then restore
+      void dayPill.offsetHeight;
+      dayPill.style.transition = prev;
+      return;
+    }
+    dayPill.setAttribute('data-type', v);
+    dayPill.textContent = TYPE_LABELS[v] || v;
+  }
+  typeSelect.addEventListener('change', updateDayPill);
+  typeSelect.addEventListener('input', updateDayPill);
+
+  /* =======================================================================
+     W5 — Save confirmation ribbon
+     - role="status", polite live region.
+     - Computes the message from a chosen demo day's delta when not given.
+     ======================================================================= */
+  var ribbon = document.getElementById('saveRibbon');
+  var ribbonHideTimer = null;
+
+  // Demo days corpus (mirrors the table); used to compute live messages.
+  var DEMO_DAYS = [
+    { dow: 'Tuesday',   delta: 0.75 },
+    { dow: 'Wednesday', delta: 1.75 },
+    { dow: 'Monday',    delta: -1.25 },
+    { dow: 'Thursday',  delta: 0.00 },
+    { dow: 'Friday',    delta: -0.83 }
+  ];
+
+  function fmtDelta(n) {
+    if (n === 0) return '±0.00h';
+    var sign = n > 0 ? '+' : '−';
+    return sign + Math.abs(n).toFixed(2) + 'h';
+  }
+
+  function pickDemoDay(kind) {
+    if (kind === 'surplus') {
+      return DEMO_DAYS.filter(function (d) { return d.delta > 0; })[0] || DEMO_DAYS[0];
+    }
+    if (kind === 'deficit') {
+      return DEMO_DAYS.filter(function (d) { return d.delta < 0; })[0] || DEMO_DAYS[0];
+    }
+    // Form-driven: pick first surplus day (Tuesday +0.75 by spec)
+    return DEMO_DAYS[0];
+  }
+
+  function triggerSave(kindOpt) {
+    if (isOff(5)) return; // explicitly off: don't even show the ribbon
+    var kind = kindOpt || 'surplus';
+    var day = pickDemoDay(kind);
+    var cls = day.delta > 0 ? 'surplus' : (day.delta < 0 ? 'deficit' : 'neutral');
+    var msg = 'Saved — ' + day.dow + ' is ' + fmtDelta(day.delta);
+
+    ribbon.classList.remove('surplus', 'deficit', 'neutral', 'ribbon-show');
+    ribbon.classList.add(cls);
+    var msgEl = ribbon.querySelector('.ribbon-msg');
+    msgEl.textContent = msg;
+
+    // Force reflow so the transition re-runs if fired in quick succession
+    void ribbon.offsetWidth;
+    ribbon.classList.add('ribbon-show');
+
+    if (ribbonHideTimer) clearTimeout(ribbonHideTimer);
+    ribbonHideTimer = setTimeout(function () {
+      ribbon.classList.remove('ribbon-show');
+    }, reducedMotion() ? 1200 : 1800);
+  }
+
+  /* =======================================================================
+     W6 — Konami easter egg + Streaks panel
+     - Listen for "kronos" typed anywhere except inside form fields.
+     - Tiny 🎢 takes a CSS-only trip across the header.
+     - Streaks panel revealed via .unlocked. Not persisted.
+     ======================================================================= */
+  var streaksPanel = document.getElementById('streaksPanel');
+  var eggEmoji = document.getElementById('eggEmoji');
+  var KONAMI = 'kronos';
+  var keyBuffer = '';
+
+  function isTypingTarget(t) {
+    if (!t || !t.tagName) return false;
+    var tag = t.tagName.toUpperCase();
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (isOff(6)) return;
+    if (isTypingTarget(e.target)) return;
+    if (e.key && e.key.length === 1) {
+      keyBuffer = (keyBuffer + e.key.toLowerCase()).slice(-KONAMI.length);
+      if (keyBuffer === KONAMI) {
+        triggerEasterEgg();
+        keyBuffer = '';
+      }
+    }
+  });
+
+  function triggerEasterEgg() {
+    if (isOff(6)) return;
+    // Emoji trip
+    if (eggEmoji) {
+      eggEmoji.classList.remove('egg-go');
+      // restart the animation
+      void eggEmoji.offsetWidth;
+      if (!reducedMotion()) {
+        eggEmoji.classList.add('egg-go');
+      }
+    }
+    // Reveal streaks
+    streaksPanel.classList.add('unlocked');
+    streaksPanel.setAttribute('aria-hidden', 'false');
+    // Smooth scroll only when motion allowed
+    if (!reducedMotion()) {
+      streaksPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function resetStreaksPanel() {
+    streaksPanel.classList.remove('unlocked');
+    streaksPanel.setAttribute('aria-hidden', 'true');
+    if (eggEmoji) eggEmoji.classList.remove('egg-go');
+  }
+
+  /* =======================================================================
+     Whimsy Lab control panel wiring
+     ======================================================================= */
+  document.querySelectorAll('.whimsy-lab input[data-w]').forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      var n = cb.getAttribute('data-w');
+      body.classList.toggle('whimsy-w' + n + '-off', !cb.checked);
+      // Keep the day pill mirroring even when W4 is off (just snap)
+      if (n === '4') updateDayPill();
+      // If W2 just turned back on, re-derive its tint
+      if (n === '2' && cb.checked) refreshCumulativePulse();
+    });
+  });
+
+  document.getElementById('btnRetick').addEventListener('click', tickUpAllMetrics);
+  document.getElementById('btnSaveSurplus').addEventListener('click', function () { triggerSave('surplus'); });
+  document.getElementById('btnSaveDeficit').addEventListener('click', function () { triggerSave('deficit'); });
+  document.getElementById('btnResetStreaks').addEventListener('click', resetStreaksPanel);
+
+  document.getElementById('reduceMotionToggle').addEventListener('change', function (e) {
+    body.classList.toggle('reduce-motion', e.target.checked);
+  });
+
+  /* -------- public surface -------- */
+  window.kronosWhimsy = {
+    tickUpMetric: tickUpMetric,
+    tickUpAllMetrics: tickUpAllMetrics,
+    triggerSave: triggerSave,
+    triggerEasterEgg: triggerEasterEgg,
+    resetStreaksPanel: resetStreaksPanel
+  };
+
+  /* -------- first paint: kick off W1 once on load (unless reduced) -------- */
+  refreshCumulativePulse();
+  if (!reducedMotion()) {
+    // Defer to next frame so layout settles first
+    requestAnimationFrame(tickUpAllMetrics);
+  } else {
+    // Snap to end states; ensure sign visible.
+    document.querySelectorAll('[data-metric] .sign').forEach(function (s) { s.style.opacity = '1'; });
+  }
+})();
+</script>
+
+</body>
+</html>
