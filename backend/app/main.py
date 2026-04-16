@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import STATIC_DIR, TEMPLATES_DIR
-from app.routers import admin, analytics, config as config_router, entries, export
+from app.routers import admin, analytics, backup, config as config_router, entries, export
 
 app = FastAPI(
     title="Kronos",
@@ -24,6 +24,7 @@ app.include_router(analytics.router)
 app.include_router(export.router)
 app.include_router(config_router.router)
 app.include_router(admin.router)
+app.include_router(backup.router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

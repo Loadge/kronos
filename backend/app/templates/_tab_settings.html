@@ -60,6 +60,22 @@
 
     <hr class="fun-zone-divider">
 
+    <!-- Backup / Restore -->
+    <div class="fun-zone-action">
+      <div>
+        <strong>Backup &amp; restore</strong>
+        <p class="muted">Download a full snapshot of all entries + settings as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
+      </div>
+      <div class="backup-actions">
+        <button class="secondary outline" @click="downloadBackup()">↓ Download backup</button>
+        <button class="secondary outline" @click="$refs.restoreFileInput.click()">↑ Restore from file…</button>
+        <input type="file" accept=".json,application/json" x-ref="restoreFileInput"
+               style="display:none" @change="restoreFromFile($event)">
+      </div>
+    </div>
+
+    <hr class="fun-zone-divider">
+
     <!-- Seed -->
     <div class="fun-zone-action">
       <div>

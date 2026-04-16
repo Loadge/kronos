@@ -294,14 +294,36 @@ section { margin-bottom: 2rem; }
    FORM INPUTS — border-bottom only
    ================================================================ */
 
+/* inputs + textarea: underline-only, transparent bg (page bg shows through) */
 input:not([type=checkbox]):not([type=radio]),
-select,
 textarea {
   border: none !important;
   border-bottom: 1px solid var(--k-border-strong) !important;
   border-radius: 0 !important;
   background: transparent !important;
   padding-left: 0 !important;
+}
+
+/* select: same underline-only treatment but SOLID bg so the native
+   dropdown popup inherits a dark background instead of OS white */
+select {
+  border: none !important;
+  border-bottom: 1px solid var(--k-border-strong) !important;
+  border-radius: 0 !important;
+  background-color: var(--k-bg) !important;
+  color: var(--k-text) !important;
+  padding-left: 0 !important;
+}
+
+/* style the individual options — works in Chromium & Firefox;
+   Safari uses OS native rendering regardless */
+select option {
+  background-color: var(--k-surface);
+  color: var(--k-text);
+}
+select option:checked {
+  background-color: color-mix(in srgb, var(--k-brass) 25%, var(--k-surface));
+  color: var(--k-text);
 }
 
 input:not([type=checkbox]):not([type=radio]):focus,
@@ -405,6 +427,14 @@ th.sortable::after { content: " ↕"; opacity: 0.35; }
   gap: 0.5rem;
   margin-top: 1rem;
 }
+/* backup/restore button pair */
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.backup-actions button { width: auto; }
+
 /* Override Pico's width:100% so action buttons size to their label */
 .form-footer button,
 .form-footer [role="button"],
