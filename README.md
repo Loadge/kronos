@@ -19,9 +19,9 @@ One row per day (`work` / `vacation` / `sick` / `holiday`). Work days have start
    docker compose up -d --build
    ```
    First boot runs `alembic upgrade head` automatically and seeds default settings.
-3. Point NGINX Proxy Manager: `hours.example.com` → `http://192.0.2.10:8765`.
+3. Point NGINX Proxy Manager: `kronos.example.com` → `http://192.0.2.10:8765`.
 4. Add the DNS record in PiHole.
-5. Open `https://hours.example.com`. On your Surface, "Install app" from the browser menu pins it to the taskbar (PWA, thanks to `manifest.json`).
+5. Open `https://kronos.example.com`. On your Surface, "Install app" from the browser menu pins it to the taskbar (PWA, thanks to `manifest.json`).
 
 ### If port 8765 is taken
 
@@ -45,16 +45,33 @@ make run              # uvicorn on :8765 with --reload
 Open http://localhost:8765.
 
 ## Tests
-
+🔥
 ```sh
 make test             # pytest from repo root; in-memory SQLite, no container needed
 make lint             # ruff check + format check
 ```
 
 Tests cover:
-- **Unit:** net-hours math, break-calc conversions, ISO-week and month-boundary helpers, target computation across mixed day types, leap years
-- **API:** every endpoint, including validation errors (duplicate date, end ≤ start, break > span, day-type transition rejections, malformed dates)
+- **Unit:** net-hours math, break-calc conversions, ISO-week and month-boundary helpers, target computation across mixed day types, leap years, `DayType` enum properties, `WorkEntry.total_break_minutes`, settings service read/write
+- **API:** every endpoint, including validation errors (duplicate date, end ≤ start, break > span, day-type transition rejections, malformed dates), backup/restore
 - **Integration:** full CRUD flows, dashboard recalculation after state changes, week-spanning-two-months math, export round-trips
+- **Regression:** cumulative-start-date boundary exclusion, `as_of` inclusive semantics, float precision across many fractional days, backup/restore field fidelity (notes, multiple breaks, all day-types), orphaned-break FK bug, non-work day zero-target invariant, CSV comma/quote escaping
+
+### E2E (Playwright)
+
+End-to-end tests spin up a real uvicorn server against a temporary SQLite file
+and drive a real browser via Playwright.  They are excluded from the default
+`make test` run to keep CI fast.
+
+```sh
+# One-time setup
+pip install pytest-playwright
+playwright install chromium
+
+# Run E2E suite
+pytest tests/e2e -v            # headless
+pytest tests/e2e -v --headed   # visible browser (useful for debugging)
+```
 
 Run tests inside the image (optional):
 ```sh
@@ -111,6 +128,9 @@ Alembic runs with `render_as_batch=True` so SQLite-unfriendly `ALTER TABLE` ops 
 | `GET /api/export.csv` | Download CSV |
 | `GET /api/export.json` | Download JSON |
 | `GET /api/config` / `PUT /api/config` | Read/write daily target + cumulative start date |
+| `GET /api/backup` | Download a full JSON backup (entries + settings) |
+| `POST /api/restore` | Restore from a JSON backup (wipes existing data first) |
+| `DELETE /api/data` | Wipe all entries (admin/testing) |
 | `GET /healthz` | Container healthcheck |
 
 Interactive docs at `/docs` (FastAPI's Swagger UI).
@@ -132,16 +152,19 @@ If you ever expose this outside the VPN, add an auth layer (e.g. Cloudflare Acce
 kronos/
 ├── backend/
 │   ├── app/              # FastAPI application (routers, services, models, schemas)
-│   │   ├── routers/      # entries, analytics, export, config
+│   │   ├── routers/      # entries, analytics, export, config, backup, admin
 │   │   ├── services/     # computations, settings, views
-│   │   └── templates/    # Jinja2 shell (index.html)
-│   ├── static/           # app.js, styles.css, manifest.json, icon.png, vendor/*
+│   │   └── templates/    # Jinja2 shell (index.html + partials)
+│   ├── static/           # app.js, styles.css, sw.js, manifest.json, icon.png, vendor/*
 │   └── seed.py           # sample-data generator
 ├── alembic/              # migrations + env.py
 ├── tests/
-│   ├── unit/             # pure-function tests (no DB)
-│   ├── api/              # per-router HTTP tests (in-memory SQLite)
-│   └── integration/      # end-to-end flows
+│   ├── unit/             # pure-function tests (no DB): computations, models, settings
+│   ├── api/              # per-router HTTP tests (in-memory SQLite): entries, analytics,
+│   │                     #   export, config, backup, admin
+│   ├── integration/      # cross-endpoint flows + regression suite
+│   └── e2e/              # Playwright browser tests (excluded from default run)
+├── deploy.sh             # tar-pipe sync → remote docker build + compose up
 ├── Dockerfile            # multi-stage: base, test, runtime
 ├── docker-compose.yml    # Portainer-compatible
 ├── entrypoint.sh         # alembic upgrade + uvicorn

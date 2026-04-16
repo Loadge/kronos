@@ -26,3 +26,8 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# Design artifacts (pre-production logo candidates — icon lives in backend/static/)
+first_logo.png
+second_logo.png
+third_logo.png

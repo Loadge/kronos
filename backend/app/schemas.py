@@ -134,3 +134,16 @@ class ConfigOut(BaseModel):
 class ConfigIn(BaseModel):
     daily_target_hours: float | None = Field(default=None, gt=0, le=24)
     cumulative_start_date: date_ | None = None
+
+
+class RestoreIn(BaseModel):
+    """Body for POST /api/restore.
+
+    ``entries`` are validated with the same rules as EntryIn so bad data
+    (e.g. a work day with no times) is rejected before touching the DB.
+    ``settings`` is optional — omit to keep the current target / start-date.
+    """
+
+    version: int
+    settings: ConfigOut | None = None
+    entries: list[EntryIn] = Field(default_factory=list)

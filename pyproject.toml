@@ -13,4 +13,7 @@ quote-style = "double"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["backend"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --ignore=tests/e2e"
+markers = [
+    "e2e: end-to-end tests that require a live browser (deselect with -m 'not e2e')",
+]

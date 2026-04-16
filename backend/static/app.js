@@ -500,6 +500,50 @@ function app() {
     // =====================================================================
     // fun zone
     // =====================================================================
+    // =====================================================================
+    // backup / restore
+    // =====================================================================
+    downloadBackup() {
+      // GET /api/backup returns Content-Disposition: attachment — clicking a
+      // temporary <a> triggers the browser's file-save dialog without a page nav.
+      const a = document.createElement('a');
+      a.href = '/api/backup';
+      a.download = ''; // use the server-supplied filename
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    },
+
+    async restoreFromFile(event) {
+      const file = event.target.files[0];
+      event.target.value = ''; // reset so the same file can be re-selected
+      if (!file) return;
+
+      let payload;
+      try {
+        payload = JSON.parse(await file.text());
+      } catch {
+        this.error = 'Could not parse the selected file as JSON.';
+        return;
+      }
+
+      const count = payload.entries?.length ?? 0;
+      const msg = `Restore ${count} entr${count === 1 ? 'y' : 'ies'} from "${file.name}"?\n\nAll current entries will be wiped first. This cannot be undone.`;
+      if (!confirm(msg)) return;
+
+      this.error = null;
+      try {
+        const result = await this.api('POST', '/api/restore', payload);
+        this._resetCachedViews();
+        await this.loadSettings();
+        await this.loadDashboard();
+        this.showToast(`Restored ${result.restored_entries} entries`, 'neutral');
+        this.go('dashboard');
+      } catch (e) {
+        this.error = `Restore failed: ${e.message}`;
+      }
+    },
+
     async wipeData() {
       this.error = null;
       try {
