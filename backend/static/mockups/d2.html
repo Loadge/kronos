@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Direction 2 · Chronograph (dark primary)</title>
+<style>
+/* =========================================================================
+   Kronos — Direction 2: Chronograph  (DARK PRIMARY)
+   Warm graphite dial, aged-brass accents, small-caps engraving, hairline
+   surfaces, no shadows. Parchment remains as a secondary toggle.
+   Single-file mockup. No external requests.
+
+   Palette tweaks for dark-primary (from the original dark-secondary set):
+     --k-bg       #141414 -> #17140f   (warmer graphite, picks up dial patina)
+     --k-surface  #1e1d1b -> #1f1c16   (keeps warm differential vs bg)
+     --k-border   #33312c -> #3d3a33   (hairlines were vanishing on warm bg)
+     --k-border-strong NEW  #57524a    (sub-dial rims & table edges)
+     --k-ink      #6fa8d0 -> #8ab0c4   (cooler-blue was clashing with brass;
+                                        desaturated steel-blue unifies)
+     --k-brass    #d4a017 -> #e0b341   (slight luminance bump so brass leads
+                                        confidently as the headline accent)
+     --k-chip-sick #c88c3a -> #d49b4a  (matches brass bump so sick pill reads)
+     pill tint alpha 12% -> 18%        (tinted fills were washing out on dark)
+   Light mode retained verbatim for the toggle-to-parchment path.
+   ========================================================================= */
+
+:root,
+html[data-theme="light"] {
+  --k-bg:            #f4ede1;
+  --k-surface:       #faf4e8;
+  --k-border:        #d9cfbb;
+  --k-border-strong: #1f1b15;
+  --k-text:          #1f1b15;
+  --k-muted:         #6d6353;
+  --k-brass:         #a8761a;
+  --k-ink:           #1a3a52;
+  --k-surplus:       #3d6b2e;
+  --k-deficit:       #a23826;
+  --k-chip-sick:     #b07022;
+  --k-chip-hol:      #516b77;
+  --k-grid:          rgba(31, 27, 21, 0.15);
+  --k-pill-alpha:    12%;
+}
+html[data-theme="dark"] {
+  --k-bg:            #17140f;
+  --k-surface:       #1f1c16;
+  --k-border:        #3d3a33;
+  --k-border-strong: #57524a;
+  --k-text:          #ece6d7;
+  --k-muted:         #a49b87;
+  --k-brass:         #e0b341;
+  --k-ink:           #8ab0c4;
+  --k-surplus:       #7db369;
+  --k-deficit:       #e07b63;
+  --k-chip-sick:     #d49b4a;
+  --k-chip-hol:      #8aa4b0;
+  --k-grid:          rgba(236, 230, 215, 0.12);
+  --k-pill-alpha:    18%;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--k-bg);
+  color: var(--k-text);
+  font-family: -apple-system, "Segoe UI Variable", "Segoe UI", system-ui, "Inter", sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+
+.mono {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------- direction strip --------- */
+.dir-strip {
+  background: var(--k-text);
+  color: var(--k-bg);
+  padding: 8px 20px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dir-strip .strip-lead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dir-strip .brass-tick {
+  display: inline-block;
+  width: 10px; height: 10px;
+  background: var(--k-brass);
+  margin-right: 8px;
+  vertical-align: -1px;
+}
+.dir-strip .strip-sub {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  font-variant: small-caps;
+  color: var(--k-bg);
+  opacity: 0.75;
+}
+.theme-toggle {
+  background: transparent;
+  color: var(--k-bg);
+  border: 1px solid var(--k-bg);
+  padding: 3px 10px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+}
+.theme-toggle:hover { background: var(--k-bg); color: var(--k-text); }
+
+/* --------- layout --------- */
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px 28px 64px;
+}
+
+/* --------- app header --------- */
+.app-header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--k-border);
+  margin-bottom: 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-variant: small-caps;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand h1::before {
+  content: "";
+  display: inline-block;
+  width: 4px; height: 28px;
+  background: var(--k-brass);
+}
+.brand .subtitle {
+  margin: 8px 0 0;
+  color: var(--k-ink);
+  font-size: 13px;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+.brand .subtitle .mono { margin-left: 6px; color: var(--k-text); }
+
+/* --------- tabs --------- */
+.tabs {
+  display: flex;
+  gap: 24px;
+  align-items: flex-end;
+}
+.tabs a {
+  color: var(--k-muted);
+  text-decoration: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 6px 0 10px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tabs a:hover { color: var(--k-text); }
+.tabs a[aria-selected="true"] {
+  color: var(--k-text);
+  border-bottom-color: var(--k-brass);
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* --------- section heads --------- */
+.sec-head {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 36px 0 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-top: 1px solid var(--k-border-strong);
+  padding-top: 14px;
+}
+.sec-head .count {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  font-variant: normal;
+}
+.preamble {
+  color: var(--k-muted);
+  font-size: 13px;
+  margin: 0 0 18px;
+}
+.preamble strong { color: var(--k-text); font-weight: 600; }
+
+/* --------- summary cards (sub-dials) --------- */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 760px) { .summary-grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  border-left: none;
+  border-right: none;
+  border-radius: 4px;
+  padding: 18px 20px 22px;
+  position: relative;
+}
+.card.cumulative::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 20px;
+  width: 36px;
+  height: 3px;
+  background: var(--k-brass);
+  /* subtle inset lip: gives the brass tick definition on dark without a shadow */
+  box-shadow: inset 0 1px 0 0 rgba(255, 228, 160, 0.35);
+}
+html[data-theme="light"] .card.cumulative::before {
+  box-shadow: none;
+}
+.sub-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+.card-title {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 15px;
+  color: var(--k-text);
+  margin: 0 0 10px;
+  font-weight: 500;
+}
+.metric {
+  font-size: 52px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.metric.surplus { color: var(--k-surplus); }
+.metric.deficit { color: var(--k-deficit); }
+.metric.neutral { color: var(--k-text); }
+.card .detail {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--k-muted);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.7;
+}
+.card .detail strong {
+  color: var(--k-text);
+  font-weight: 500;
+}
+
+/* --------- log form --------- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 28px;
+  padding: 8px 0 4px;
+}
+@media (max-width: 620px) { .form-grid { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; }
+.field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.input,
+.select {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--k-border);
+  color: var(--k-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 0;
+  font-size: 15px;
+  border-radius: 0;
+  outline: none;
+  transition: border-color 120ms, border-width 120ms;
+}
+.input:focus,
+.select:focus {
+  border-bottom: 2px solid var(--k-brass);
+  padding-bottom: 5px;
+}
+.select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--k-muted) 50%),
+                    linear-gradient(135deg, var(--k-muted) 50%, transparent 50%);
+  background-position: calc(100% - 10px) 14px, calc(100% - 5px) 14px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 22px;
+}
+/* Dark: nudge native date/time picker icons so they're visible on graphite */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) sepia(0.15) saturate(1.2) hue-rotate(5deg);
+  cursor: pointer;
+}
+.breaks-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  margin: 24px 0 10px;
+  font-weight: 500;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.break-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--k-border);
+}
+.break-row:last-child { border-bottom: 1px solid var(--k-border); }
+.break-row .lbl {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+}
+.break-row .input { padding: 4px 0; }
+.break-row .gloss {
+  font-size: 12px;
+  color: var(--k-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  background: transparent;
+  color: var(--k-text);
+  border: 1px solid var(--k-border);
+  padding: 7px 14px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.btn:hover { border-color: var(--k-text); }
+.btn-brass {
+  background: var(--k-brass);
+  color: var(--k-bg);
+  border-color: var(--k-brass);
+}
+.btn-brass:hover { background: var(--k-text); border-color: var(--k-text); color: var(--k-bg); }
+.btn-ghost { border-color: transparent; color: var(--k-muted); }
+.btn-ghost:hover { color: var(--k-text); border-color: var(--k-border); }
+.btn-sm { padding: 4px 8px; font-size: 10px; }
+.btn-danger {
+  background: transparent;
+  color: var(--k-deficit);
+  border-color: var(--k-deficit);
+}
+.btn-danger:hover { background: var(--k-deficit); color: var(--k-bg); }
+
+.form-footer {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--k-border);
+  display: flex;
+  gap: 10px;
+}
+.add-break-row { padding: 10px 0; }
+
+/* --------- day-pill stamps --------- */
+.pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid var(--k-border);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.pill.work     { color: var(--k-brass);    border-color: var(--k-brass);    background: color-mix(in srgb, var(--k-brass) var(--k-pill-alpha), transparent); }
+.pill.vacation { color: var(--k-ink);      border-color: var(--k-ink);      background: color-mix(in srgb, var(--k-ink) var(--k-pill-alpha), transparent); }
+.pill.sick     { color: var(--k-chip-sick);border-color: var(--k-chip-sick);background: color-mix(in srgb, var(--k-chip-sick) var(--k-pill-alpha), transparent); }
+.pill.holiday  { color: var(--k-chip-hol); border-color: var(--k-chip-hol); background: color-mix(in srgb, var(--k-chip-hol) var(--k-pill-alpha), transparent); }
+
+/* --------- days table --------- */
+.table-wrap {
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+}
+table.days {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 0;
+  font-variant-numeric: tabular-nums;
+}
+table.days th,
+table.days td {
+  padding: 12px 10px;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid var(--k-border);
+  font-size: 14px;
+  vertical-align: middle;
+}
+table.days tbody tr:last-child td { border-bottom: none; }
+table.days th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--k-muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--k-border-strong);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+table.days td.num { text-align: right; }
+table.days th.num { text-align: right; }
+table.days td.delta.surplus { color: var(--k-brass); font-weight: 600; }
+table.days td.delta.deficit { color: var(--k-deficit); font-weight: 600; }
+table.days td.muted { color: var(--k-muted); }
+table.days td a {
+  color: var(--k-ink);
+  text-decoration: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+table.days td a:hover { text-decoration: underline; }
+table.days tr.non-work td:not(.pill-cell):not(.action) { color: var(--k-muted); }
+
+/* --------- settings --------- */
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 26px 28px;
+  max-width: 720px;
+}
+@media (max-width: 620px) { .settings-grid { grid-template-columns: 1fr; } }
+.field small {
+  color: var(--k-muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* --------- fun zone --------- */
+.fun-zone {
+  margin-top: 36px;
+  border: 1px solid var(--k-deficit);
+  border-radius: 4px;
+  padding: 18px 22px 20px;
+  background: color-mix(in srgb, var(--k-deficit) 5%, transparent);
+}
+.fun-zone h3 {
+  margin: 0 0 14px;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+  color: var(--k-deficit);
+  font-weight: 600;
+  border-bottom: 1px solid var(--k-deficit);
+  padding-bottom: 8px;
+}
+.fun-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 22px;
+  padding: 12px 0;
+  flex-wrap: wrap;
+}
+.fun-row + .fun-row { border-top: 1px solid var(--k-border); }
+.fun-row strong { display: block; margin-bottom: 4px; font-size: 14px; }
+.fun-row p { margin: 0; font-size: 12px; color: var(--k-muted); max-width: 560px; }
+
+/* --------- chart --------- */
+.chart-wrap {
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  padding: 18px 20px 14px;
+}
+.chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.chart-head .title {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+  font-weight: 600;
+}
+.chart-head .legend {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--k-muted);
+  display: flex;
+  gap: 16px;
+}
+.chart-head .legend .swatch {
+  display: inline-block;
+  width: 10px; height: 10px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.chart-head .legend .sw-brass { background: var(--k-brass); }
+.chart-head .legend .sw-target { background: var(--k-text); }
+.chart-svg { display: block; width: 100%; height: auto; }
+
+/* --------- footer note --------- */
+.foot-note {
+  margin-top: 56px;
+  padding-top: 16px;
+  border-top: 1px solid var(--k-border);
+  font-size: 11px;
+  color: var(--k-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  line-height: 1.8;
+}
+.foot-note .pal-notes {
+  display: block;
+  margin-top: 8px;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-variant: small-caps;
+  font-size: 11px;
+  color: var(--k-muted);
+}
+.foot-note .pal-notes code {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "IBM Plex Mono", Consolas, monospace;
+  font-size: 10px;
+  color: var(--k-text);
+  background: transparent;
+  padding: 0 2px;
+}
+</style>
+</head>
+<body>
+
+<div class="dir-strip">
+  <div class="strip-lead">
+    <span><span class="brass-tick"></span>Direction 2 — Chronograph (dark primary) · Kronos mockup</span>
+    <span class="strip-sub">Warm graphite dial · aged brass accents · parchment retained on toggle</span>
+  </div>
+  <button class="theme-toggle" id="themeBtn" type="button">Graphite · switch to parchment</button>
+</div>
+
+<div class="wrap">
+
+  <!-- ============ app header ============ -->
+  <header class="app-header">
+    <div class="brand">
+      <h1>Kronos</h1>
+      <p class="subtitle">Hours tracker <span class="mono">· 12.25h ahead overall</span></p>
+    </div>
+    <nav class="tabs" role="tablist">
+      <a role="tab" aria-selected="true">Dashboard</a>
+      <a role="tab" aria-selected="false">Log</a>
+      <a role="tab" aria-selected="false">Days</a>
+      <a role="tab" aria-selected="false">Analytics</a>
+      <a role="tab" aria-selected="false">Settings</a>
+    </nav>
+  </header>
+
+  <!-- ============ dashboard ============ -->
+  <p class="preamble">
+    Today is <strong>2026-04-15</strong>. Daily target <strong>8h</strong>. Cumulative tracking since <strong>2026-01-05</strong>.
+  </p>
+
+  <div class="summary-grid">
+    <article class="card">
+      <p class="sub-label">Surplus</p>
+      <h3 class="card-title">This week</h3>
+      <div class="metric surplus">+2.75h</div>
+      <div class="detail">
+        <strong>42.75h</strong> worked / <strong>40h</strong> target<br>
+        5 work days · 0 off
+      </div>
+    </article>
+
+    <article class="card">
+      <p class="sub-label">Deficit</p>
+      <h3 class="card-title">This month</h3>
+      <div class="metric deficit">−1.50h</div>
+      <div class="detail">
+        <strong>158.50h</strong> worked / <strong>160h</strong> target<br>
+        20 work days · 2 off
+      </div>
+    </article>
+
+    <article class="card cumulative">
+      <p class="sub-label">Surplus</p>
+      <h3 class="card-title">Cumulative</h3>
+      <div class="metric surplus">+12.25h</div>
+      <div class="detail">
+        <strong>556.25h</strong> worked / <strong>544h</strong> target<br>
+        68 work days · 8 off
+      </div>
+    </article>
+  </div>
+
+  <!-- ============ 14-day chart ============ -->
+  <h2 class="sec-head">Last 14 days <span class="count">Worked vs. target</span></h2>
+  <div class="chart-wrap">
+    <div class="chart-head">
+      <div class="title">Daily hours · Apr 2 — Apr 15</div>
+      <div class="legend">
+        <span><span class="swatch sw-brass"></span>Worked</span>
+        <span><span class="swatch sw-target" style="height:2px; margin-top:4px;"></span>Target 8h</span>
+      </div>
+    </div>
+    <svg class="chart-svg" viewBox="0 0 720 200" preserveAspectRatio="none" aria-label="14-day hours chart">
+      <!-- grid -->
+      <g stroke="var(--k-grid)" stroke-width="1">
+        <line x1="40" y1="20"  x2="700" y2="20"/>
+        <line x1="40" y1="60"  x2="700" y2="60"/>
+        <line x1="40" y1="100" x2="700" y2="100"/>
+        <line x1="40" y1="140" x2="700" y2="140"/>
+        <line x1="40" y1="180" x2="700" y2="180"/>
+      </g>
+      <!-- y labels -->
+      <g font-family="ui-monospace, Consolas, monospace" font-size="9" fill="var(--k-muted)" text-anchor="end">
+        <text x="34" y="23">12h</text>
+        <text x="34" y="63">9h</text>
+        <text x="34" y="103">6h</text>
+        <text x="34" y="143">3h</text>
+        <text x="34" y="183">0h</text>
+      </g>
+      <!-- bars: 14 days, width 32, gap 12, start x=50 -->
+      <!-- y = 180 - (h/12)*160 -->
+      <g fill="var(--k-brass)">
+        <rect x="50"  y="73"  width="32" height="107"/><!-- 8.0 -->
+        <rect x="94"  y="65"  width="32" height="115"/><!-- 8.6 -->
+        <rect x="138" y="87"  width="32" height="93"/><!-- 7.0 -->
+        <rect x="182" y="180" width="32" height="0"/><!-- vacation -->
+        <rect x="226" y="180" width="32" height="0"/><!-- weekend -->
+        <rect x="270" y="59"  width="32" height="121"/><!-- 9.05 -->
+        <rect x="314" y="45"  width="32" height="135"/><!-- 10.1 -->
+        <rect x="358" y="80"  width="32" height="100"/><!-- 7.5 -->
+        <rect x="402" y="68"  width="32" height="112"/><!-- 8.4 -->
+        <rect x="446" y="77"  width="32" height="103"/><!-- 7.7 -->
+        <rect x="490" y="180" width="32" height="0"/><!-- holiday -->
+        <rect x="534" y="180" width="32" height="0"/><!-- weekend -->
+        <rect x="578" y="51"  width="32" height="129"/><!-- 9.7 -->
+        <rect x="622" y="73"  width="32" height="107"/><!-- 8.0 -->
+      </g>
+      <!-- target line: 8h -> y = 180 - (8/12)*160 = 73.33 -->
+      <line x1="40" y1="73" x2="700" y2="73"
+            stroke="var(--k-text)" stroke-width="1"
+            stroke-dasharray="3 4" opacity="0.65"/>
+      <!-- x axis labels -->
+      <g font-family="ui-monospace, Consolas, monospace" font-size="9" fill="var(--k-muted)" text-anchor="middle">
+        <text x="66"  y="196">02</text>
+        <text x="110" y="196">03</text>
+        <text x="154" y="196">04</text>
+        <text x="198" y="196">05</text>
+        <text x="242" y="196">06</text>
+        <text x="286" y="196">07</text>
+        <text x="330" y="196">08</text>
+        <text x="374" y="196">09</text>
+        <text x="418" y="196">10</text>
+        <text x="462" y="196">11</text>
+        <text x="506" y="196">12</text>
+        <text x="550" y="196">13</text>
+        <text x="594" y="196">14</text>
+        <text x="638" y="196">15</text>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ============ log form snippet ============ -->
+  <h2 class="sec-head">New entry <span class="count">Log</span></h2>
+  <form onsubmit="event.preventDefault()">
+    <div class="form-grid">
+      <div class="field">
+        <label for="f-date">Date</label>
+        <input id="f-date" class="input mono" type="date" value="2026-04-15">
+      </div>
+      <div class="field">
+        <label for="f-type">Day type</label>
+        <select id="f-type" class="select">
+          <option>Work</option>
+          <option>Vacation</option>
+          <option>Sick</option>
+          <option>Holiday</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-start">Start</label>
+        <input id="f-start" class="input mono" type="time" value="09:00">
+      </div>
+      <div class="field">
+        <label for="f-end">End</label>
+        <input id="f-end" class="input mono" type="time" value="17:45">
+      </div>
+    </div>
+
+    <div class="breaks-head">
+      <span>Breaks</span>
+      <span class="mono">Total: 45 min</span>
+    </div>
+
+    <div class="break-row">
+      <span class="lbl">Break 1</span>
+      <input class="input mono" type="number" value="30" min="1" max="720">
+      <span class="gloss">30 min — mid-morning</span>
+      <button type="button" class="btn btn-sm btn-ghost">Remove</button>
+    </div>
+    <div class="break-row">
+      <span class="lbl">Break 2</span>
+      <input class="input mono" type="number" value="15" min="1" max="720">
+      <span class="gloss">15 min — afternoon coffee</span>
+      <button type="button" class="btn btn-sm btn-ghost">Remove</button>
+    </div>
+
+    <div class="add-break-row">
+      <button type="button" class="btn btn-sm">+ Add break</button>
+    </div>
+
+    <div class="form-footer">
+      <button type="submit" class="btn btn-brass">Save entry</button>
+      <button type="button" class="btn btn-ghost">Cancel</button>
+    </div>
+  </form>
+
+  <!-- ============ days table ============ -->
+  <h2 class="sec-head">Days <span class="count">6 of 76 entries</span></h2>
+  <div class="table-wrap">
+    <table class="days">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Start</th>
+          <th>End</th>
+          <th class="num">Breaks</th>
+          <th class="num">Net</th>
+          <th class="num">Target</th>
+          <th class="num">&Delta;</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono">2026-04-15</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:00</td>
+          <td class="mono">17:45</td>
+          <td class="num mono">45m</td>
+          <td class="num mono">8.00h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-14</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">08:30</td>
+          <td class="mono">18:45</td>
+          <td class="num mono">30m</td>
+          <td class="num mono">9.75h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta surplus">+1.75h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-13</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:15</td>
+          <td class="mono">16:30</td>
+          <td class="num mono">30m</td>
+          <td class="num mono">6.75h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta deficit">−1.25h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr class="non-work">
+          <td class="mono">2026-04-10</td>
+          <td class="pill-cell"><span class="pill holiday">Holiday</span></td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="num mono">—</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr class="non-work">
+          <td class="mono">2026-04-08</td>
+          <td class="pill-cell"><span class="pill vacation">Vacation</span></td>
+          <td class="mono">—</td>
+          <td class="mono">—</td>
+          <td class="num mono">—</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono">0.00h</td>
+          <td class="num mono delta muted">±0.00h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+        <tr>
+          <td class="mono">2026-04-07</td>
+          <td class="pill-cell"><span class="pill work">Work</span></td>
+          <td class="mono">09:00</td>
+          <td class="mono">17:10</td>
+          <td class="num mono">60m</td>
+          <td class="num mono">7.17h</td>
+          <td class="num mono muted">8.00h</td>
+          <td class="num mono delta deficit">−0.83h</td>
+          <td class="action"><a href="#">Edit</a></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============ settings preview ============ -->
+  <h2 class="sec-head">Settings <span class="count">Configuration</span></h2>
+  <form class="settings-grid" onsubmit="event.preventDefault()">
+    <div class="field">
+      <label for="s-target">Daily target hours</label>
+      <input id="s-target" class="input mono" type="number" value="8" step="0.1" min="0.1" max="24">
+      <small>Target hours for each WORK day. Non-work days contribute 0h.</small>
+    </div>
+    <div class="field">
+      <label for="s-start">Cumulative tracking start</label>
+      <input id="s-start" class="input mono" type="date" value="2026-01-05">
+      <small>Running surplus/deficit is computed from this date onward.</small>
+    </div>
+    <div style="grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 4px;">
+      <button type="submit" class="btn btn-brass">Save settings</button>
+    </div>
+  </form>
+
+  <div class="fun-zone">
+    <h3>Fun zone</h3>
+    <div class="fun-row">
+      <div>
+        <strong>Wipe all data</strong>
+        <p>Permanently delete every logged day and break. Settings are kept. <strong style="color:var(--k-text)">This cannot be undone.</strong></p>
+      </div>
+      <button type="button" class="btn btn-danger">Wipe all data…</button>
+    </div>
+    <div class="fun-row">
+      <div>
+        <strong>Seed with sample data</strong>
+        <p>Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos.</p>
+      </div>
+      <button type="button" class="btn">Seed sample data…</button>
+    </div>
+  </div>
+
+  <div class="foot-note">
+    Mockup uses system fonts · production build vendors Inter + IBM Plex Mono locally
+    <span class="pal-notes">
+      Dark-primary palette tweaks: <code>--k-bg</code> #141414 → #17140f (warmer graphite); <code>--k-border</code> #33312c → #3d3a33 (hairlines were vanishing); <code>--k-ink</code> #6fa8d0 → #8ab0c4 (desaturated steel-blue to sit beside brass); <code>--k-brass</code> #d4a017 → #e0b341 (leads confidently as headline accent); pill-fill alpha 12% → 18%.
+    </span>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('themeBtn');
+  var root = document.documentElement;
+  btn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    root.setAttribute('data-theme', next);
+    btn.textContent = next === 'light'
+      ? 'Parchment · switch to graphite'
+      : 'Graphite · switch to parchment';
+  });
+})();
+</script>
+
+</body>
+</html>

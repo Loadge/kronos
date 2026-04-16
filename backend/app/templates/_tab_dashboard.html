@@ -1,0 +1,118 @@
+<!-- ========================= DASHBOARD ========================= -->
+<template x-if="tab==='dashboard'">
+<section aria-label="Dashboard">
+
+  <!-- E2: skeleton while first load -->
+  <template x-if="!dashboard">
+    <div aria-hidden="true">
+      <p class="muted"><span class="skel-line" style="width:55%;max-width:380px"></span></p>
+      <div class="summary-grid">
+        <article class="summary-card skel-card">
+          <div class="skel-line skel-title"></div>
+          <div class="skel-metric-ph"></div>
+          <div class="skel-line skel-sub"></div>
+          <div class="skel-line skel-sub skel-sub2"></div>
+        </article>
+        <article class="summary-card skel-card">
+          <div class="skel-line skel-title"></div>
+          <div class="skel-metric-ph"></div>
+          <div class="skel-line skel-sub"></div>
+          <div class="skel-line skel-sub skel-sub2"></div>
+        </article>
+        <article class="summary-card skel-card">
+          <div class="skel-line skel-title"></div>
+          <div class="skel-metric-ph"></div>
+          <div class="skel-line skel-sub"></div>
+          <div class="skel-line skel-sub skel-sub2"></div>
+        </article>
+      </div>
+    </div>
+  </template>
+
+  <template x-if="dashboard">
+    <div>
+      <p class="muted">
+        Today is <strong x-text="dashboard.today"></strong>.
+        Daily target <strong x-text="dashboard.daily_target_hours + 'h'"></strong>.
+        Cumulative tracking since <strong x-text="dashboard.cumulative_start_date"></strong>.
+      </p>
+      <div class="summary-grid">
+        <article class="summary-card">
+          <h3>This week</h3>
+          <div class="subdial-label" :class="surplusClass(dashboard.week.surplus_hours)"
+               x-text="subdialLabel(dashboard.week.surplus_hours)"></div>
+          <!-- W1: sign always visible; value ticks up via animWeek -->
+          <div class="metric" :class="surplusClass(dashboard.week.surplus_hours)">
+            <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animWeek.toFixed(2)"></span>h
+          </div>
+          <div class="sub">
+            <span x-text="dashboard.week.net_hours + 'h'"></span> worked /
+            <span x-text="dashboard.week.target_hours + 'h'"></span> target
+            <br>
+            <span x-text="dashboard.week.work_days"></span> work days,
+            <span x-text="dashboard.week.non_work_days"></span> off
+          </div>
+        </article>
+        <article class="summary-card">
+          <h3>This month</h3>
+          <div class="subdial-label" :class="surplusClass(dashboard.month.surplus_hours)"
+               x-text="subdialLabel(dashboard.month.surplus_hours)"></div>
+          <div class="metric" :class="surplusClass(dashboard.month.surplus_hours)">
+            <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animMonth.toFixed(2)"></span>h
+          </div>
+          <div class="sub">
+            <span x-text="dashboard.month.net_hours + 'h'"></span> worked /
+            <span x-text="dashboard.month.target_hours + 'h'"></span> target
+            <br>
+            <span x-text="dashboard.month.work_days"></span> work days,
+            <span x-text="dashboard.month.non_work_days"></span> off
+          </div>
+        </article>
+        <!-- W2: pulse class drives the CSS breathing glow -->
+        <article class="summary-card cumulative"
+                 :class="surplusClass(dashboard.cumulative.surplus_hours) !== 'neutral' ? 'pulse-' + surplusClass(dashboard.cumulative.surplus_hours) : ''">
+          <h3>Cumulative</h3>
+          <div class="subdial-label" :class="surplusClass(dashboard.cumulative.surplus_hours)"
+               x-text="subdialLabel(dashboard.cumulative.surplus_hours)"></div>
+          <div class="metric" :class="surplusClass(dashboard.cumulative.surplus_hours)">
+            <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animCumulative.toFixed(2)"></span>h
+          </div>
+          <div class="sub">
+            <span x-text="dashboard.cumulative.net_hours + 'h'"></span> worked /
+            <span x-text="dashboard.cumulative.target_hours + 'h'"></span> target
+            <br>
+            <span x-text="dashboard.cumulative.work_days"></span> work days,
+            <span x-text="dashboard.cumulative.non_work_days"></span> off
+          </div>
+        </article>
+      </div>
+      <p class="muted">
+        <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>
+      </p>
+
+      <!-- W6: Streaks panel — unlocked by typing "kronos" anywhere -->
+      <template x-if="streaksUnlocked && streaks">
+        <div class="streaks-panel">
+          <h3>🎢 Streaks</h3>
+          <div class="streaks-row">
+            <div class="streak-item">
+              <span class="streak-label">Longest surplus streak</span>
+              <span class="streak-value" x-text="streaks.longestSurplus"></span>
+              <span class="streak-unit">days</span>
+            </div>
+            <div class="streak-item">
+              <span class="streak-label">Longest deficit streak</span>
+              <span class="streak-value" x-text="streaks.longestDeficit"></span>
+              <span class="streak-unit">days</span>
+            </div>
+            <div class="streak-item">
+              <span class="streak-label">Most breaks in a day</span>
+              <span class="streak-value" x-text="streaks.mostBreaks"></span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+</section>
+</template>

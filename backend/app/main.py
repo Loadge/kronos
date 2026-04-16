@@ -40,6 +40,16 @@ def manifest():
     )
 
 
+@app.get("/sw.js", include_in_schema=False)
+def service_worker():
+    # Must be served from scope root (not /static/) so it can control all pages.
+    return FileResponse(
+        STATIC_DIR / "sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
+
+
 @app.get("/healthz", include_in_schema=False)
 def healthz():
     return {"status": "ok"}

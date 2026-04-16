@@ -1,0 +1,100 @@
+<!-- ========================= LOG ========================= -->
+<template x-if="tab==='log'">
+<section aria-label="Log entry">
+  <header class="section-header log-header">
+    <template x-if="editingDate">
+      <a @click.prevent="openNewEntry()" class="back-btn" title="New entry">←</a>
+    </template>
+    <h2 x-text="editingDate ? ('Edit ' + editingDate) : 'New entry'"></h2>
+  </header>
+
+  <form @submit.prevent="saveEntry()">
+    <div class="grid">
+      <label>
+        <span class="label-with-action">
+          Date
+          <a class="label-action" x-show="!editingDate"
+             @click.prevent="form.date = todayIso(); probeDate(form.date)">Today</a>
+        </span>
+        <input type="date" x-model="form.date" :disabled="editingDate"
+               @change="onDateChange()" required>
+      </label>
+      <label>
+        <!-- W4: pill preview cross-fades colour as the select changes -->
+        <span class="label-with-action">
+          Day type
+          <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
+        </span>
+        <select x-model="form.day_type">
+          <option value="work">Work</option>
+          <option value="vacation">Vacation</option>
+          <option value="sick">Sick</option>
+          <option value="holiday">Holiday</option>
+        </select>
+      </label>
+    </div>
+
+    <template x-if="form.day_type === 'work'">
+      <div>
+        <div class="grid">
+          <label>
+            Start time
+            <input type="time" x-model="form.start_time" required>
+          </label>
+          <label>
+            End time
+            <input type="time" x-model="form.end_time" required>
+          </label>
+        </div>
+
+        <fieldset>
+          <legend>Breaks</legend>
+          <template x-for="(b, i) in form.breaks" :key="i">
+            <div class="break-row" x-data="{ showRange: false, rangeStart: '', rangeEnd: '' }">
+              <div class="break-input-line">
+                <input type="number" x-model.number="b.break_minutes" min="1" max="720"
+                       :aria-label="'Break ' + (i+1) + ' minutes'">
+                <span class="muted" x-text="minutesToLabel(b.break_minutes)"></span>
+                <button type="button" class="secondary outline compact"
+                        @click="showRange = !showRange"
+                        :aria-expanded="showRange"
+                        title="Compute minutes from a time range">
+                  <span x-text="showRange ? '✕' : '⏱ from range'"></span>
+                </button>
+                <button type="button" class="contrast outline compact"
+                        @click="removeBreak(i)" title="Remove break">−</button>
+              </div>
+              <div class="range-calc" x-show="showRange" x-transition>
+                <span class="muted">From</span>
+                <input type="time" x-model="rangeStart">
+                <span class="muted">to</span>
+                <input type="time" x-model="rangeEnd">
+                <span class="muted" x-text="rangeStart && rangeEnd ? rangeMinutes(rangeStart, rangeEnd) + ' min' : ''"></span>
+                <button type="button"
+                        @click="applyRangeToBreak(b, rangeStart, rangeEnd); showRange=false; rangeStart=''; rangeEnd=''"
+                        :disabled="!rangeStart || !rangeEnd">
+                  Apply
+                </button>
+              </div>
+            </div>
+          </template>
+          <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
+        </fieldset>
+      </div>
+    </template>
+
+    <label>
+      Notes (optional)
+      <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
+    </label>
+
+    <div class="form-footer">
+      <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
+      <template x-if="editingDate">
+        <button type="button" class="contrast outline"
+                @click="deleteEntry(editingDate)">Delete</button>
+      </template>
+    </div>
+  </form>
+</section>
+</template>

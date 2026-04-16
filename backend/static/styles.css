@@ -1,18 +1,132 @@
-/* Kronos — custom styles layered on top of Pico. */
+/* Kronos — D2 Chronograph design system layered on top of Pico. */
+
+/* ================================================================
+   UTILITY
+   ================================================================ */
 
 [x-cloak] { display: none !important; }
 
+/* ================================================================
+   D2 TOKEN SYSTEM
+   Dark values are the production defaults (app ships data-theme="dark").
+   ================================================================ */
+
 :root {
-  --kronos-surplus: #22c55e;
-  --kronos-deficit: #ef4444;
-  --kronos-gold: #d4a017;
-  --kronos-work: var(--pico-primary);
-  --kronos-vacation: #7c3aed;
-  --kronos-sick: #f59e0b;
-  --kronos-holiday: #06b6d4;
+  /* -- palette --------------------------------------------------- */
+  --k-bg:           #17140f;
+  --k-surface:      #1f1c16;
+  --k-border:       #3d3a33;
+  --k-border-strong:#57524a;
+  --k-text:         #ece6d7;
+  --k-muted:        #a49b87;
+  --k-brass:        #e0b341;
+  --k-ink:          #8ab0c4;
+  --k-surplus:      #7db369;
+  --k-deficit:      #e07b63;
+
+  /* -- chip palette ---------------------------------------------- */
+  --k-work:    #e0b341;
+  --k-vacation:#8ab0c4;
+  --k-sick:    #d49b4a;
+  --k-holiday: #516b77;
+
+  /* -- transitions ----------------------------------------------- */
+  --k-transition-fast: 150ms ease;
 }
 
-/* ------------------------- header -------------------------- */
+/* ================================================================
+   PICO OVERRIDES — dark (production default)
+   Map --pico-* → --k-* so Pico components pick up D2 colours.
+   ================================================================ */
+
+[data-theme="dark"] {
+  --pico-background-color:              var(--k-bg);
+  --pico-card-background-color:         var(--k-surface);
+  --pico-card-sectioning-background-color: color-mix(in srgb, var(--k-border) 40%, var(--k-surface));
+  --pico-color:                         var(--k-text);
+  --pico-muted-color:                   var(--k-muted);
+  --pico-muted-border-color:            var(--k-border);
+  --pico-border-color:                  var(--k-border-strong);
+  --pico-primary:                       var(--k-brass);
+  --pico-primary-inverse:               var(--k-bg);
+  --pico-form-element-border-color:     var(--k-border-strong);
+  --pico-form-element-focus-color:      var(--k-brass);
+  --pico-form-element-background-color: transparent;
+  --pico-form-element-color:            var(--k-text);
+  --pico-form-element-placeholder-color:var(--k-muted);
+  --pico-table-border-color:            var(--k-border);
+  --pico-table-row-stripped-background-color: transparent;
+}
+
+/* ================================================================
+   PICO OVERRIDES — light (parchment theme, future toggle support)
+   ================================================================ */
+
+[data-theme="light"] {
+  --k-bg:           #f4ede1;
+  --k-surface:      #faf4e8;
+  --k-border:       #d9cfbb;
+  --k-border-strong:#b5a992;
+  --k-text:         #1f1b15;
+  --k-muted:        #6d6353;
+  --k-brass:        #a8761a;
+  --k-ink:          #1a3a52;
+  --k-surplus:      #3d6b2e;
+  --k-deficit:      #a23826;
+  --k-work:         #a8761a;
+  --k-vacation:     #1a3a52;
+  --k-sick:         #b07022;
+  --k-holiday:      #516b77;
+
+  --pico-background-color:              var(--k-bg);
+  --pico-card-background-color:         var(--k-surface);
+  --pico-card-sectioning-background-color: color-mix(in srgb, var(--k-border) 30%, var(--k-surface));
+  --pico-color:                         var(--k-text);
+  --pico-muted-color:                   var(--k-muted);
+  --pico-muted-border-color:            var(--k-border);
+  --pico-border-color:                  var(--k-border-strong);
+  --pico-primary:                       var(--k-brass);
+  --pico-primary-inverse:               var(--k-surface);
+  --pico-form-element-border-color:     var(--k-border-strong);
+  --pico-form-element-focus-color:      var(--k-brass);
+  --pico-form-element-background-color: transparent;
+  --pico-form-element-color:            var(--k-text);
+  --pico-form-element-placeholder-color:var(--k-muted);
+  --pico-table-border-color:            var(--k-border);
+  --pico-table-row-stripped-background-color: transparent;
+}
+
+/* ================================================================
+   TYPOGRAPHY SYSTEM — engraved dial feel
+   ================================================================ */
+
+h1, h2, h3, h4 {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+}
+
+/* Numeric surfaces: tabular, monospace fallback */
+.metric, .month-card-surplus, td.delta {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+/* Metric scale */
+.summary-card .metric { font-size: 2.5rem; font-weight: 700; line-height: 1.1; }
+.summary-card.small .metric { font-size: 1.6rem; }
+
+/* ================================================================
+   SEMANTIC COLOUR CLASSES
+   ================================================================ */
+
+.surplus { color: var(--k-surplus); }
+.deficit { color: var(--k-deficit); }
+.neutral { color: var(--k-muted); }
+.muted   { color: var(--k-muted); }
+
+/* ================================================================
+   HEADER
+   ================================================================ */
 
 .app-header {
   display: flex;
@@ -21,7 +135,7 @@
   margin-top: 1rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid var(--pico-muted-border-color);
+  border-bottom: 1px solid var(--k-border);
 }
 
 .brand {
@@ -38,35 +152,52 @@
 }
 
 .brand h1 { margin: 0; line-height: 1; }
-.subtitle { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--pico-muted-color); }
+.subtitle  { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--k-muted); }
 
-/* ------------------------- tabs ---------------------------- */
+@media (min-width: 720px) {
+  .app-header { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* ================================================================
+   TABS — underline-only, active = 2px brass underline + small-caps
+   ================================================================ */
 
 .tabs {
   display: flex;
   gap: 0.25rem;
   flex-wrap: wrap;
 }
+
 .tabs a {
-  cursor: pointer;
   padding: 0.4rem 0.85rem;
-  border-radius: 0.375rem;
-  color: var(--pico-color);
-  text-decoration: none;
-  border: 1px solid transparent;
+  border-radius: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
   font-weight: 500;
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
 }
-.tabs a:hover { background: var(--pico-muted-border-color); }
+
+.tabs a:hover {
+  color: var(--k-text);
+  border-bottom-color: var(--k-border-strong);
+  background: transparent;
+}
+
 .tabs a[aria-selected="true"] {
-  background: var(--pico-primary);
-  color: var(--pico-primary-inverse);
+  color: var(--k-brass);
+  border-bottom-color: var(--k-brass);
+  background: transparent;
 }
 
-@media (min-width: 720px) {
-  .app-header { flex-direction: row; align-items: center; justify-content: space-between; }
-}
-
-/* ------------------------- sections ------------------------ */
+/* ================================================================
+   SECTIONS
+   ================================================================ */
 
 section { margin-bottom: 2rem; }
 
@@ -93,19 +224,21 @@ section { margin-bottom: 2rem; }
   height: 2rem;
   font-size: 1.1rem;
   line-height: 1;
-  border: 1px solid var(--pico-muted-border-color);
+  border: 1px solid var(--k-border);
   border-radius: 0.375rem;
-  color: var(--pico-muted-color);
+  color: var(--k-muted);
   text-decoration: none;
   cursor: pointer;
   flex-shrink: 0;
 }
 .back-btn:hover {
-  border-color: var(--pico-color);
-  color: var(--pico-color);
+  border-color: var(--k-text);
+  color: var(--k-text);
 }
 
-/* ------------------------- summary cards ------------------ */
+/* ================================================================
+   SUMMARY CARDS — flat surface, top+bottom 1px rules
+   ================================================================ */
 
 .summary-grid {
   display: grid;
@@ -116,54 +249,130 @@ section { margin-bottom: 2rem; }
 
 .summary-card {
   padding: 1.25rem;
-  border: 1px solid var(--pico-muted-border-color);
-  border-radius: 0.5rem;
-  background: var(--pico-card-background-color);
+  border: none;
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  border-radius: 4px;
+  background: var(--k-surface);
   margin: 0;
 }
-.summary-card.cumulative { border-color: var(--kronos-gold); }
-.summary-card h3 { margin: 0 0 0.5rem; font-size: 0.9rem; color: var(--pico-muted-color); text-transform: uppercase; letter-spacing: 0.03em; }
-.summary-card .metric { font-size: 2.25rem; font-weight: 700; line-height: 1.1; }
-.summary-card.small .metric { font-size: 1.6rem; }
-.summary-card .sub { margin-top: 0.5rem; font-size: 0.85rem; color: var(--pico-muted-color); }
 
-.surplus { color: var(--kronos-surplus); }
-.deficit { color: var(--kronos-deficit); }
-.neutral { color: var(--pico-muted-color); }
+/* Cumulative card — brass top border only; glow pulse (W2) handles the rest */
+.summary-card.cumulative {
+  border-top-color: var(--k-brass);
+}
 
-/* ------------------------- day pills ---------------------- */
+.summary-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+/* Sub-dial label — sits between h3 and .metric */
+.subdial-label {
+  font-size: 0.65rem;
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  opacity: 0.75;
+}
+.subdial-label.surplus { color: var(--k-surplus); }
+.subdial-label.deficit { color: var(--k-deficit); }
+.subdial-label.neutral { color: var(--k-muted); }
+
+.summary-card .sub {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--k-muted);
+}
+
+/* ================================================================
+   FORM INPUTS — border-bottom only
+   ================================================================ */
+
+input:not([type=checkbox]):not([type=radio]),
+select,
+textarea {
+  border: none !important;
+  border-bottom: 1px solid var(--k-border-strong) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding-left: 0 !important;
+}
+
+input:not([type=checkbox]):not([type=radio]):focus,
+select:focus,
+textarea:focus {
+  border-bottom-width: 2px !important;
+  border-bottom-color: var(--k-brass) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ================================================================
+   DAY PILLS — stamp-style (2px radius, 1px border, 18% alpha fill)
+   ================================================================ */
 
 .day-pill {
   display: inline-block;
-  padding: 0.1rem 0.55rem;
-  border-radius: 999px;
-  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 2px;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   font-weight: 600;
-  color: white;
 }
-.day-pill.work { background: var(--kronos-work); }
-.day-pill.vacation { background: var(--kronos-vacation); }
-.day-pill.sick { background: var(--kronos-sick); color: black; }
-.day-pill.holiday { background: var(--kronos-holiday); color: black; }
+.day-pill.work {
+  background: color-mix(in srgb, var(--k-work) 18%, transparent);
+  border: 1px solid var(--k-work);
+  color: var(--k-work);
+}
+.day-pill.vacation {
+  background: color-mix(in srgb, var(--k-vacation) 18%, transparent);
+  border: 1px solid var(--k-vacation);
+  color: var(--k-vacation);
+}
+.day-pill.sick {
+  background: color-mix(in srgb, var(--k-sick) 18%, transparent);
+  border: 1px solid var(--k-sick);
+  color: var(--k-sick);
+}
+.day-pill.holiday {
+  background: color-mix(in srgb, var(--k-holiday) 18%, transparent);
+  border: 1px solid var(--k-holiday);
+  color: var(--k-holiday);
+}
 
-/* ------------------------- tables ------------------------- */
+/* ================================================================
+   TABLES — top+bottom rules only, hairline row dividers, no zebra
+   ================================================================ */
 
 .table-wrap { overflow-x: auto; }
-table { margin-bottom: 0; }
-th.sortable { cursor: pointer; user-select: none; }
-th.sortable::after { content: " ↕"; opacity: 0.4; }
-tr.non-work td { opacity: 0.72; }
 
-/* ------------------------- log form ----------------------- */
+table { border-collapse: collapse; margin-bottom: 0; }
+thead tr { border-top: 1px solid var(--k-border-strong); border-bottom: 1px solid var(--k-border-strong); }
+tbody tr { border-bottom: 1px solid var(--k-border); }
+tbody tr:last-child { border-bottom: 1px solid var(--k-border-strong); }
+th, td { border: none; }
+tr.non-work td { opacity: 0.65; }
+
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable::after { content: " ↕"; opacity: 0.35; }
+
+/* ================================================================
+   LOG FORM
+   ================================================================ */
 
 .break-row {
   padding: 0.5rem;
-  border: 1px solid var(--pico-muted-border-color);
+  border: 1px solid var(--k-border);
   border-radius: 0.375rem;
   margin-bottom: 0.5rem;
-  background: var(--pico-background-color);
+  background: var(--k-bg);
 }
 .break-input-line {
   display: flex;
@@ -184,7 +393,7 @@ tr.non-work td { opacity: 0.72; }
   gap: 0.5rem;
   margin-top: 0.5rem;
   padding: 0.5rem;
-  background: var(--pico-card-sectioning-background-color);
+  background: color-mix(in srgb, var(--k-border) 40%, var(--k-surface));
   border-radius: 0.25rem;
   flex-wrap: wrap;
 }
@@ -196,8 +405,16 @@ tr.non-work td { opacity: 0.72; }
   gap: 0.5rem;
   margin-top: 1rem;
 }
+/* Override Pico's width:100% so action buttons size to their label */
+.form-footer button,
+.form-footer [role="button"],
+button.btn-action {
+  width: auto;
+}
 
-/* ------------------------- label helpers ------------------ */
+/* ================================================================
+   LABEL HELPERS
+   ================================================================ */
 
 .label-with-action {
   display: flex;
@@ -208,27 +425,30 @@ tr.non-work td { opacity: 0.72; }
 .label-action {
   font-size: 0.78rem;
   font-weight: 400;
-  color: var(--pico-primary);
+  color: var(--k-brass);
   cursor: pointer;
   text-decoration: none;
 }
 .label-action:hover { text-decoration: underline; }
 
-/* ------------------------- misc --------------------------- */
-
-.muted { color: var(--pico-muted-color); }
+/* ================================================================
+   ERROR BANNER
+   ================================================================ */
 
 .error-banner {
+  border-left: 3px solid var(--k-deficit);
+  background: color-mix(in srgb, var(--k-deficit) 12%, var(--k-surface));
+  color: var(--k-text);
   padding: 0.75rem 1rem;
-  background: var(--kronos-deficit);
-  color: white;
   border-radius: 0.375rem;
   margin-bottom: 1rem;
   cursor: pointer;
   font-size: 0.9rem;
 }
 
-/* ------------------------- month scorecards ---------------- */
+/* ================================================================
+   MONTH SCORECARDS — 3px TOP-border (D2 style, not left-border)
+   ================================================================ */
 
 .month-grid {
   display: grid;
@@ -239,22 +459,22 @@ tr.non-work td { opacity: 0.72; }
 
 .month-card {
   padding: 1rem 1rem 0.85rem;
-  border: 1px solid var(--pico-muted-border-color);
-  border-left-width: 3px;
-  border-radius: 0.5rem;
-  background: var(--pico-card-background-color);
+  border: 1px solid var(--k-border);
+  border-top-width: 3px;
+  border-radius: 4px;
+  background: var(--k-surface);
   margin: 0;
 }
 
-.month-card--surplus { border-left-color: var(--kronos-surplus); }
-.month-card--deficit { border-left-color: var(--kronos-deficit); }
-.month-card--neutral { border-left-color: var(--pico-muted-color); }
+.month-card--surplus { border-top-color: var(--k-surplus); }
+.month-card--deficit { border-top-color: var(--k-deficit); }
+.month-card--neutral { border-top-color: var(--k-muted); }
 
 .month-card-label {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: var(--pico-muted-color);
+  color: var(--k-muted);
   text-transform: uppercase;
   margin-bottom: 0.4rem;
 }
@@ -268,7 +488,7 @@ tr.non-work td { opacity: 0.72; }
 
 .month-card-detail {
   font-size: 0.8rem;
-  color: var(--pico-color);
+  color: var(--k-text);
   margin-bottom: 0.2rem;
 }
 
@@ -276,23 +496,24 @@ tr.non-work td { opacity: 0.72; }
   font-size: 0.75rem;
 }
 
-/* (footer styles removed — footer element removed from template) */
-
-/* ------------------------- fun zone ----------------------- */
+/* ================================================================
+   FUN ZONE — left-border-only rust rule
+   ================================================================ */
 
 .fun-zone {
   margin-top: 2.5rem;
-  border: 1px solid var(--kronos-deficit);
-  border-radius: 0.5rem;
+  border: none;
+  border-left: 3px solid var(--k-deficit);
   padding: 1.25rem 1.5rem;
+  background: color-mix(in srgb, var(--k-deficit) 6%, transparent);
 }
 
 .fun-zone-title {
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  color: var(--k-deficit);
+  font-size: 0.9rem;
   margin: 0 0 1rem;
-  font-size: 1rem;
-  color: var(--kronos-deficit);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .fun-zone-action {
@@ -306,9 +527,13 @@ tr.non-work td { opacity: 0.72; }
 .fun-zone-action p { margin: 0.25rem 0 0; }
 
 .fun-zone-divider {
-  border-color: var(--pico-muted-border-color);
+  border-color: var(--k-border);
   margin: 1.25rem 0;
 }
+
+/* ================================================================
+   WIPE CONFIRM
+   ================================================================ */
 
 .wipe-confirm {
   display: flex;
@@ -333,30 +558,277 @@ tr.non-work td { opacity: 0.72; }
   flex-wrap: wrap;
 }
 
+/* ================================================================
+   BUTTONS — danger button softened to muted rust
+   ================================================================ */
+
 .btn-danger {
-  background: var(--kronos-deficit);
-  border-color: var(--kronos-deficit);
-  color: white;
+  background: var(--k-deficit);
+  border-color: var(--k-deficit);
+  color: var(--k-bg);
 }
 .btn-danger:hover:not(:disabled) {
-  background: #dc2626;
-  border-color: #dc2626;
+  background: color-mix(in srgb, var(--k-deficit) 85%, black);
+  border-color: color-mix(in srgb, var(--k-deficit) 85%, black);
 }
 .btn-danger.outline {
   background: transparent;
-  color: var(--kronos-deficit);
+  color: var(--k-deficit);
 }
 .btn-danger.outline:hover {
-  background: rgba(239,68,68,0.1);
+  background: color-mix(in srgb, var(--k-deficit) 10%, transparent);
 }
 .btn-danger:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* ------------------------- app footer --------------------- */
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
 
 @media (max-width: 480px) {
   .summary-card .metric { font-size: 1.8rem; }
   .brand-logo { width: 36px; height: 36px; }
+}
+
+/* ================================================================
+   E2: SKELETON SHIMMER + OPTIMISTIC SAVE
+   ================================================================ */
+
+@keyframes skel-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.skel-line,
+.skel-metric-ph,
+.skel-pill {
+  background: linear-gradient(
+    90deg,
+    var(--k-border) 25%,
+    color-mix(in srgb, var(--k-border) 55%, var(--k-bg)) 50%,
+    var(--k-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
+  border-radius: 2px;
+  display: block;
+}
+
+/* size variants */
+.skel-line      { height: 0.85em; margin: 0.3em 0; width: 70%; }
+.skel-title     { width: 40%; height: 0.75em; margin-bottom: 0.65em; }
+.skel-metric-ph { height: 2.4rem; width: 52%; margin: 0.4rem 0 0.5rem; }
+.skel-sub       { width: 80%; height: 0.72em; }
+.skel-sub2      { width: 60%; margin-top: 0.2em; }
+.skel-short     { width: 45%; }
+.skel-pill      { height: 1.4em; width: 4rem; border-radius: 10px; }
+.skel-row td    { vertical-align: middle; padding-block: 0.55rem; }
+.skel-card      { pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel-line, .skel-metric-ph, .skel-pill { animation: none; }
+}
+
+/* ── E2: optimistic saving row ──────────────────────────────────── */
+.row-saving {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.saving-indicator {
+  font-size: 1rem;
+  opacity: 0.6;
+}
+
+/* ================================================================
+   WHIMSY LAYER  (W1-W6)
+   ================================================================ */
+
+/* ── W2: Cumulative card breathing glow ─────────────────────────── */
+.summary-card.cumulative {
+  --pulse-color: transparent;
+  --pulse-peak: transparent;
+  --pulse-base: transparent;
+}
+.summary-card.cumulative.pulse-surplus {
+  --pulse-color: var(--k-surplus);
+  --pulse-peak: color-mix(in srgb, var(--k-surplus) 22%, transparent);
+  --pulse-base: color-mix(in srgb, var(--k-surplus) 6%, transparent);
+  animation: k-pulse 9s ease-in-out infinite;
+}
+.summary-card.cumulative.pulse-deficit {
+  --pulse-color: var(--k-deficit);
+  --pulse-peak: color-mix(in srgb, var(--k-deficit) 22%, transparent);
+  --pulse-base: color-mix(in srgb, var(--k-deficit) 6%, transparent);
+  animation: k-pulse 9s ease-in-out infinite;
+}
+@keyframes k-pulse {
+  0%,100% { box-shadow: 0 0 0 0 var(--pulse-base), 0 0 8px 2px var(--pulse-base); }
+  50%      { box-shadow: 0 0 0 4px var(--pulse-peak), 0 0 20px 6px var(--pulse-peak); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .summary-card.cumulative { animation: none !important; }
+}
+
+/* ── W3: Break row add/remove stagger ───────────────────────────── */
+.break-row {
+  overflow: hidden;
+  max-height: 400px;
+  transition: max-height 280ms cubic-bezier(0.4,0,0.2,1),
+              opacity    220ms ease,
+              transform  220ms ease;
+}
+.break-row.entering {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.break-row.leaving {
+  max-height: 0 !important;
+  opacity: 0;
+  transform: translateY(-8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .break-row { transition: none !important; }
+}
+
+/* ── W4: Day-type pill live preview ─────────────────────────────── */
+.day-pill {
+  transition: background-color 250ms ease,
+              border-color     250ms ease,
+              color            250ms ease;
+}
+/* Pill sits inside .label-with-action beside the label text */
+.day-pill-preview {
+  white-space: nowrap;
+  font-size: 0.7rem;
+  padding: 0.05em 0.5em;
+  vertical-align: middle;
+}
+@media (prefers-reduced-motion: reduce) {
+  .day-pill { transition: none !important; }
+}
+
+/* ── W5: Save confirmation ribbon ───────────────────────────────── */
+.save-ribbon-host {
+  position: relative;
+  height: 0;
+  overflow: visible;
+  z-index: 10;
+}
+.save-ribbon {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-120%);
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--k-card);
+  border: 1px solid var(--k-border);
+  color: var(--k-text);
+  transition: transform 320ms cubic-bezier(0.34,1.56,0.64,1),
+              opacity   220ms ease;
+}
+.save-ribbon.ribbon-show {
+  transform: translateX(-50%) translateY(0.5rem);
+  opacity: 1;
+}
+.save-ribbon.surplus { border-color: var(--k-surplus); color: var(--k-surplus); }
+.save-ribbon.deficit { border-color: var(--k-deficit); color: var(--k-deficit); }
+.save-ribbon.neutral { border-color: var(--k-brass);   color: var(--k-brass); }
+.ribbon-tick::before {
+  content: '✓';
+  font-size: 1em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-ribbon {
+    transition: opacity 200ms ease;
+    transform: translateX(-50%) translateY(0.5rem);
+  }
+}
+
+/* ── W6: Egg emoji header trip + streaks panel ──────────────────── */
+.app-header {
+  position: relative;
+  overflow: hidden;
+}
+.egg-emoji {
+  position: absolute;
+  top: 50%;
+  left: -3rem;
+  transform: translateY(-50%);
+  font-size: 1.8rem;
+  pointer-events: none;
+  opacity: 0;
+}
+.egg-emoji.egg-go {
+  animation: egg-trip 1.2s cubic-bezier(0.4,0,0.6,1) forwards;
+}
+@keyframes egg-trip {
+  0%   { left: -3rem;   opacity: 1; }
+  85%  { opacity: 1; }
+  100% { left: calc(100% + 3rem); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .egg-emoji.egg-go { animation: none !important; }
+}
+
+.streaks-panel {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--k-card);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  position: relative;
+}
+.streaks-panel::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: var(--k-brass);
+  border-radius: 4px 0 0 4px;
+}
+.streaks-panel h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--k-muted);
+}
+.streaks-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.streak-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.streak-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--k-muted);
+}
+.streak-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--k-brass);
+  line-height: 1;
+}
+.streak-unit {
+  font-size: 0.75rem;
+  color: var(--k-muted);
 }
