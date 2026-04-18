@@ -70,6 +70,9 @@ function app() {
     // ---------- theme ---------------------------------------------------
     theme: localStorage.getItem('k-theme') || 'dark',
 
+    // ---------- command palette -----------------------------------------
+    palette: { open: false, query: '', selected: 0 },
+
     // =====================================================================
     // init
     // =====================================================================
@@ -86,11 +89,43 @@ function app() {
         if (TABS.includes(t) && t !== this.tab) this.go(t);
       });
 
-      // W6 — "kronos" key buffer (plain var, not reactive — no re-render per keystroke)
+      // Keyboard shortcuts
       let _keyBuf = '';
       document.addEventListener('keydown', (e) => {
         const tag = e.target?.tagName?.toUpperCase() || '';
-        if (['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target?.isContentEditable) return;
+        const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target?.isContentEditable;
+
+        // Ctrl+Enter — submit visible form regardless of focus
+        if (e.ctrlKey && e.key === 'Enter') {
+          if (this.tab === 'log')      { e.preventDefault(); this.saveEntry(); }
+          else if (this.tab === 'settings') { e.preventDefault(); this.saveSettings(); }
+          return;
+        }
+
+        // Escape — dismiss in priority order
+        if (e.key === 'Escape') {
+          if (this.palette.open)                    { this.closePalette(); return; }
+          if (this.tab === 'log' && this.editingDate) { this.openNewEntry(); return; }
+          if (this.tab === 'log')                   { this.go('dashboard'); return; }
+          return;
+        }
+
+        // All remaining shortcuts fire only when focus is not inside a field
+        if (inInput || e.ctrlKey || e.altKey || e.metaKey) return;
+
+        switch (e.key) {
+          case '1': e.preventDefault(); this.go('dashboard');  break;
+          case '2': e.preventDefault(); this.go('log');        break;
+          case '3': e.preventDefault(); this.go('days');       break;
+          case '4': e.preventDefault(); this.go('analytics');  break;
+          case '5': e.preventDefault(); this.go('settings');   break;
+          case 'l': case 'L': e.preventDefault(); this.go('log');       break;
+          case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
+          case 's': case 'S': e.preventDefault(); this.go('settings');  break;
+          case '.': e.preventDefault(); this.openPalette(); break;
+        }
+
+        // W6 — "kronos" easter egg key buffer
         if (e.key?.length === 1) {
           _keyBuf = (_keyBuf + e.key.toLowerCase()).slice(-6);
           if (_keyBuf === 'kronos') { this.triggerEasterEgg(); _keyBuf = ''; }
@@ -127,6 +162,50 @@ function app() {
       this.theme = this.theme === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', this.theme);
       localStorage.setItem('k-theme', this.theme);
+    },
+
+    // =====================================================================
+    // command palette
+    // =====================================================================
+    _COMMANDS: [
+      { id: 'dashboard', label: 'Dashboard',     hint: '1'     },
+      { id: 'log',       label: 'Log new entry', hint: '2 · L' },
+      { id: 'days',      label: 'Days',          hint: '3'     },
+      { id: 'analytics', label: 'Analytics',     hint: '4 · A' },
+      { id: 'settings',  label: 'Settings',      hint: '5 · S' },
+    ],
+
+    openPalette() {
+      this.palette.open = true;
+      this.palette.query = '';
+      this.palette.selected = 0;
+      this.$nextTick(() => document.getElementById('k-palette-input')?.focus());
+    },
+
+    closePalette() {
+      this.palette.open = false;
+    },
+
+    filteredCommands() {
+      const q = this.palette.query.toLowerCase().trim();
+      if (!q) return this._COMMANDS;
+      return this._COMMANDS.filter(c => c.label.toLowerCase().includes(q));
+    },
+
+    paletteNavigate(dir) {
+      const len = this.filteredCommands().length;
+      if (!len) return;
+      this.palette.selected = (this.palette.selected + dir + len) % len;
+    },
+
+    paletteRun(cmd) {
+      this.go(cmd.id);
+      this.closePalette();
+    },
+
+    paletteConfirm() {
+      const cmds = this.filteredCommands();
+      if (cmds.length) this.paletteRun(cmds[this.palette.selected] ?? cmds[0]);
     },
 
     // =====================================================================
