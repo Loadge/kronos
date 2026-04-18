@@ -14,6 +14,11 @@
       <input type="date" x-model="settingsForm.cumulative_start_date" required>
       <small>Running surplus/deficit is computed from this date onward.</small>
     </label>
+    <label>
+      <input type="checkbox" x-model="settingsForm.reset_annually" role="switch">
+      Reset cumulative on January 1st each year
+      <small>When on, the cumulative clock resets to 0 at the start of every year. Previous years remain visible in the yearly breakdown.</small>
+    </label>
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 

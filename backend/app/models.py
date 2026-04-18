@@ -16,10 +16,16 @@ class DayType(str, Enum):
     VACATION = "vacation"
     SICK = "sick"
     HOLIDAY = "holiday"
+    FLEX = "flex"
 
     @property
     def is_work(self) -> bool:
         return self is DayType.WORK
+
+    @property
+    def drains_pool(self) -> bool:
+        """True for day types that consume accrued surplus hours (flex days)."""
+        return self is DayType.FLEX
 
 
 class WorkEntry(Base):
