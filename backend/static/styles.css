@@ -29,6 +29,7 @@
   --k-vacation:#8ab0c4;
   --k-sick:    #d49b4a;
   --k-holiday: #516b77;
+  --k-flex:    #9b82c4;
 
   /* -- transitions ----------------------------------------------- */
   --k-transition-fast: 150ms ease;
@@ -77,6 +78,7 @@
   --k-vacation:     #1a3a52;
   --k-sick:         #b07022;
   --k-holiday:      #516b77;
+  --k-flex:         #5c3a8a;
 
   --pico-background-color:              var(--k-bg);
   --pico-card-background-color:         var(--k-surface);
@@ -192,6 +194,38 @@ h1, h2, h3, h4 {
 .tabs a[aria-selected="true"] {
   color: var(--k-brass);
   border-bottom-color: var(--k-brass);
+  background: transparent;
+}
+
+/* Groups nav + theme toggle so they sit together on the right */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Theme toggle button ──────────────────────────────────────── */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid var(--k-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--k-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color var(--k-transition-fast), color var(--k-transition-fast);
+}
+.theme-toggle:hover {
+  border-color: var(--k-text);
+  color: var(--k-text);
   background: transparent;
 }
 
@@ -367,6 +401,11 @@ textarea:focus {
   background: color-mix(in srgb, var(--k-holiday) 18%, transparent);
   border: 1px solid var(--k-holiday);
   color: var(--k-holiday);
+}
+.day-pill.flex {
+  background: color-mix(in srgb, var(--k-flex) 18%, transparent);
+  border: 1px solid var(--k-flex);
+  color: var(--k-flex);
 }
 
 /* ================================================================

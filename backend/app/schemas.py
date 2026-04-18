@@ -47,6 +47,7 @@ class _EntryBody(BaseModel):
                     f"total breaks ({break_sum}min) exceed work span ({span}min)"
                 )
         else:
+            # vacation / sick / holiday / flex — no time fields, no breaks
             if self.start_time is not None or self.end_time is not None:
                 raise ValueError(
                     f"{self.day_type.value} days must not have start_time or end_time"
@@ -118,22 +119,57 @@ class RecordMonth(BaseModel):
     surplus_hours: float
 
 
+class RecordYear(BaseModel):
+    year: int
+    label: str
+    net_hours: float
+    surplus_hours: float
+
+
 class RecordsOut(BaseModel):
     longest_work_day: RecordEntry | None
     shortest_work_day: RecordEntry | None
     longest_month: RecordMonth | None
     most_surplus_month: RecordMonth | None
     most_deficit_month: RecordMonth | None
+    longest_positive_streak: int
+    best_year: RecordYear | None
+    worst_year: RecordYear | None
+
+
+class YearlyBreakdownRow(BaseModel):
+    year: int
+    label: str
+    net_hours: float
+    target_hours: float
+    surplus_hours: float
+    work_days: int
+    non_work_days: int
+
+
+class YoYPeriod(BaseModel):
+    label: str
+    net_hours: float
+    target_hours: float
+    surplus_hours: float
+    work_days: int
+
+
+class YoYOut(BaseModel):
+    this_year: YoYPeriod
+    last_year: YoYPeriod
 
 
 class ConfigOut(BaseModel):
     daily_target_hours: float
     cumulative_start_date: date_
+    reset_annually: bool = False  # default keeps old backup files valid
 
 
 class ConfigIn(BaseModel):
     daily_target_hours: float | None = Field(default=None, gt=0, le=24)
     cumulative_start_date: date_ | None = None
+    reset_annually: bool | None = None
 
 
 class RestoreIn(BaseModel):

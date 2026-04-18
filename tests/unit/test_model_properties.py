@@ -17,7 +17,7 @@ class TestDayType:
     def test_work_is_work(self):
         assert DayType.WORK.is_work is True
 
-    @pytest.mark.parametrize("dt", [DayType.VACATION, DayType.SICK, DayType.HOLIDAY])
+    @pytest.mark.parametrize("dt", [DayType.VACATION, DayType.SICK, DayType.HOLIDAY, DayType.FLEX])
     def test_non_work_types_are_not_work(self, dt):
         assert dt.is_work is False
 
@@ -26,18 +26,20 @@ class TestDayType:
         assert DayType.VACATION.value == "vacation"
         assert DayType.SICK.value == "sick"
         assert DayType.HOLIDAY.value == "holiday"
+        assert DayType.FLEX.value == "flex"
 
     def test_is_str_subclass(self):
         # DayType(str, Enum) means the value IS the string
         assert DayType.WORK == "work"
         assert DayType.VACATION == "vacation"
 
-    def test_all_four_variants_exist(self):
-        assert len(DayType) == 4
+    def test_all_five_variants_exist(self):
+        assert len(DayType) == 5
 
     def test_from_string_value(self):
         assert DayType("work") is DayType.WORK
         assert DayType("vacation") is DayType.VACATION
+        assert DayType("flex") is DayType.FLEX
 
 
 # ── WorkEntry.total_break_minutes ──────────────────────────────────────────
@@ -72,7 +74,7 @@ class TestTotalBreakMinutes:
 
 
 class TestIsWorkDay:
-    @pytest.mark.parametrize("dt", [DayType.VACATION, DayType.SICK, DayType.HOLIDAY])
+    @pytest.mark.parametrize("dt", [DayType.VACATION, DayType.SICK, DayType.HOLIDAY, DayType.FLEX])
     def test_non_work_entries(self, dt):
         e = WorkEntry(date=date(2026, 4, 14), day_type=dt.value)
         assert is_work_day(e) is False

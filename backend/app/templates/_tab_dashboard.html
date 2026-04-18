@@ -85,6 +85,25 @@
             <span x-text="dashboard.cumulative.non_work_days"></span> off
           </div>
         </article>
+        <!-- YoY card — shown only once yoy data is available -->
+        <template x-if="yoy">
+          <article class="summary-card">
+            <h3>vs last year</h3>
+            <div class="subdial-label"
+                 :class="surplusClass(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"
+                 x-text="subdialLabel(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"></div>
+            <div class="metric"
+                 :class="surplusClass(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"
+                 x-text="formatSurplus(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"></div>
+            <div class="sub">
+              <span x-text="yoy.this_year.label"></span>: <span x-text="formatSurplus(yoy.this_year.surplus_hours)"></span>
+              <br>
+              <span x-text="yoy.last_year.label"></span>: <span x-text="formatSurplus(yoy.last_year.surplus_hours)"></span>
+              <br>
+              <span class="muted">Jan 1 – today, both years</span>
+            </div>
+          </article>
+        </template>
       </div>
       <p class="muted">
         <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>

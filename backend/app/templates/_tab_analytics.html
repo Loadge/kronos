@@ -1,6 +1,18 @@
 <!-- ========================= ANALYTICS ========================= -->
 <template x-if="tab==='analytics'">
 <section aria-label="Analytics">
+
+  <!-- Year filter -->
+  <div class="section-header">
+    <h2>Analytics</h2>
+    <select x-model="analyticsYear" style="width:auto">
+      <option value="all">All years</option>
+      <template x-for="y in yearsWithData()" :key="y">
+        <option :value="y" x-text="y"></option>
+      </template>
+    </select>
+  </div>
+
   <h2>Point-in-time</h2>
   <div class="grid">
     <label>
@@ -74,15 +86,44 @@
         </template>
         <template x-if="!records.most_deficit_month"><p class="muted">—</p></template>
       </article>
+      <article class="summary-card small">
+        <h3>Longest positive streak</h3>
+        <div>
+          <div class="metric surplus" x-text="records.longest_positive_streak"></div>
+          <div class="sub">consecutive days in the black</div>
+        </div>
+      </article>
+      <article class="summary-card small">
+        <h3>Best year</h3>
+        <template x-if="records.best_year">
+          <div>
+            <div class="metric surplus"
+                 x-text="formatSurplus(records.best_year.surplus_hours)"></div>
+            <div class="sub" x-text="records.best_year.label"></div>
+          </div>
+        </template>
+        <template x-if="!records.best_year"><p class="muted">—</p></template>
+      </article>
+      <article class="summary-card small">
+        <h3>Worst year</h3>
+        <template x-if="records.worst_year">
+          <div>
+            <div class="metric deficit"
+                 x-text="formatSurplus(records.worst_year.surplus_hours)"></div>
+            <div class="sub" x-text="records.worst_year.label"></div>
+          </div>
+        </template>
+        <template x-if="!records.worst_year"><p class="muted">—</p></template>
+      </article>
     </div>
   </template>
 
   <h2>Monthly breakdown</h2>
-  <template x-if="monthly.length === 0">
-    <p class="muted">No data yet.</p>
+  <template x-if="filteredMonthly().length === 0">
+    <p class="muted">No data for this period.</p>
   </template>
-  <div class="month-grid" x-show="monthly.length">
-    <template x-for="row in monthly" :key="row.label">
+  <div class="month-grid" x-show="filteredMonthly().length">
+    <template x-for="row in filteredMonthly()" :key="row.label">
       <article class="month-card" :class="'month-card--' + surplusClass(row.surplus_hours)">
         <div class="month-card-label" x-text="row.label"></div>
         <div class="month-card-surplus" :class="surplusClass(row.surplus_hours)"
@@ -96,6 +137,38 @@
              x-text="row.work_days + 'w · ' + row.non_work_days + ' off'"></div>
       </article>
     </template>
+  </div>
+
+  <h2>Yearly breakdown</h2>
+  <template x-if="yearly.length === 0">
+    <p class="muted">No data yet.</p>
+  </template>
+  <div class="table-wrap" x-show="yearly.length">
+    <table>
+      <thead>
+        <tr>
+          <th>Year</th>
+          <th>Net</th>
+          <th>Target</th>
+          <th>Δ</th>
+          <th>Work days</th>
+          <th>Off days</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="row in [...yearly].reverse()" :key="row.year">
+          <tr>
+            <td x-text="row.label"></td>
+            <td x-text="row.net_hours + 'h'"></td>
+            <td x-text="row.target_hours + 'h'"></td>
+            <td :class="surplusClass(row.surplus_hours)"
+                x-text="formatSurplus(row.surplus_hours)"></td>
+            <td x-text="row.work_days"></td>
+            <td x-text="row.non_work_days"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
   </div>
 
   <h2>Export</h2>

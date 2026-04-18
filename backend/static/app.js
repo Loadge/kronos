@@ -31,15 +31,19 @@ function app() {
     entries: [],
     sortKey: 'date',
     sortDir: 'desc',
+    daysYear: String(new Date().getFullYear()),
 
     // ---------- analytics -----------------------------------------------
     monthly: [],
+    yearly: [],
+    yoy: null,
     records: null,
     asOfDate: '',
     asOfResult: null,
+    analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '' },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false },
 
     // ---------- fun zone ------------------------------------------------
     wipeConfirming: false,
@@ -63,10 +67,16 @@ function app() {
     streaks: null,
     eggAnimating: false,
 
+    // ---------- theme ---------------------------------------------------
+    theme: localStorage.getItem('k-theme') || 'dark',
+
     // =====================================================================
     // init
     // =====================================================================
     async init() {
+      // Apply persisted theme before first render
+      document.documentElement.setAttribute('data-theme', this.theme);
+
       const TABS = ['dashboard', 'log', 'days', 'analytics', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
@@ -111,6 +121,12 @@ function app() {
       const next = tabs[(tabs.indexOf(el) + dir + tabs.length) % tabs.length];
       next.focus();
       next.click();
+    },
+
+    toggleTheme() {
+      this.theme = this.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', this.theme);
+      localStorage.setItem('k-theme', this.theme);
     },
 
     // =====================================================================
@@ -438,15 +454,39 @@ function app() {
       else { this.sortKey = k; this.sortDir = 'desc'; }
     },
 
+    yearsWithData() {
+      const years = [...new Set(this.entries.map(e => e.date.slice(0, 4)))].sort().reverse();
+      return years;
+    },
+
     sortedEntries() {
+      // Apply year filter for display (entries array is always the full unfiltered list).
+      const source = this.daysYear === 'all'
+        ? this.entries
+        : this.entries.filter(e => e.date.startsWith(this.daysYear));
+
+      // Compute running cumulative in chronological order within the filtered set.
+      const byDate = [...source].sort((a, b) => a.date < b.date ? -1 : 1);
+      let running = 0;
+      const cumMap = {};
+      for (const e of byDate) {
+        running = Math.round((running + e.surplus_hours) * 100) / 100;
+        cumMap[e.date] = running;
+      }
+      // Apply display sort, carrying cumulative as a display-only field.
       const k = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
-      return [...this.entries].sort((a, b) => {
+      return byDate.sort((a, b) => {
         const av = a[k]; const bv = b[k];
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
         return 0;
-      });
+      }).map(e => ({ ...e, _cumulative: cumMap[e.date] }));
+    },
+
+    filteredMonthly() {
+      if (this.analyticsYear === 'all') return this.monthly;
+      return this.monthly.filter(m => m.year === Number(this.analyticsYear));
     },
 
     // =====================================================================
@@ -456,12 +496,16 @@ function app() {
       this.loading.analytics = true;
       try {
         this.asOfDate = this.asOfDate || this.todayIso();
-        const [monthly, records] = await Promise.all([
+        const [monthly, yearly, records, yoy] = await Promise.all([
           this.api('GET', '/api/analytics/monthly'),
+          this.api('GET', '/api/analytics/yearly'),
           this.api('GET', '/api/analytics/records'),
+          this.api('GET', '/api/analytics/yoy'),
         ]);
         this.monthly = monthly;
+        this.yearly = yearly;
         this.records = records;
+        this.yoy = yoy;
         await this.computeAsOf();
       } catch (e) { this.error = e.message; }
       finally { this.loading.analytics = false; }
@@ -594,6 +638,7 @@ function app() {
     computeStreaks() {
       const sorted = [...this.entries].sort((a, b) => (a.date < b.date ? -1 : 1));
       let longestSurplus = 0, longestDeficit = 0, curS = 0, curD = 0, mostBreaks = 0;
+      let longestPositiveStreak = 0, curPositive = 0, running = 0;
       for (const e of sorted) {
         if (e.surplus_hours > 0.01)       { curS++; curD = 0; }
         else if (e.surplus_hours < -0.01) { curD++; curS = 0; }
@@ -601,8 +646,11 @@ function app() {
         longestSurplus = Math.max(longestSurplus, curS);
         longestDeficit = Math.max(longestDeficit, curD);
         mostBreaks = Math.max(mostBreaks, (e.breaks || []).length);
+        running = Math.round((running + e.surplus_hours) * 100) / 100;
+        if (running > 0.01) { curPositive++; } else { curPositive = 0; }
+        longestPositiveStreak = Math.max(longestPositiveStreak, curPositive);
       }
-      return { longestSurplus, longestDeficit, mostBreaks };
+      return { longestSurplus, longestDeficit, mostBreaks, longestPositiveStreak };
     },
 
     triggerEasterEgg() {

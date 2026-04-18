@@ -10,19 +10,26 @@ from app.schemas import ConfigIn, ConfigOut
 from app.services.settings import (
     get_cumulative_start_date,
     get_daily_target_hours,
+    get_reset_annually,
     set_cumulative_start_date,
     set_daily_target_hours,
+    set_reset_annually,
 )
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
 
-@router.get("", response_model=ConfigOut)
-def read_config(session: Session = Depends(get_session)) -> ConfigOut:
+def _config_out(session: Session) -> ConfigOut:
     return ConfigOut(
         daily_target_hours=get_daily_target_hours(session),
         cumulative_start_date=get_cumulative_start_date(session),
+        reset_annually=get_reset_annually(session),
     )
+
+
+@router.get("", response_model=ConfigOut)
+def read_config(session: Session = Depends(get_session)) -> ConfigOut:
+    return _config_out(session)
 
 
 @router.put("", response_model=ConfigOut)
@@ -31,8 +38,7 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_daily_target_hours(session, body.daily_target_hours)
     if body.cumulative_start_date is not None:
         set_cumulative_start_date(session, body.cumulative_start_date)
+    if body.reset_annually is not None:
+        set_reset_annually(session, body.reset_annually)
     session.commit()
-    return ConfigOut(
-        daily_target_hours=get_daily_target_hours(session),
-        cumulative_start_date=get_cumulative_start_date(session),
-    )
+    return _config_out(session)

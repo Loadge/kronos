@@ -89,7 +89,10 @@ def is_work_day(entry: WorkEntry) -> bool:
 
 
 def daily_target_for(entry: WorkEntry, daily_target_hours: float) -> float:
-    return daily_target_hours if is_work_day(entry) else 0.0
+    # Flex days charge the full daily target against the surplus pool.
+    if entry.day_type in (DayType.WORK, DayType.FLEX):
+        return daily_target_hours
+    return 0.0
 
 
 def daily_net_hours(entry: WorkEntry) -> float:
@@ -122,6 +125,10 @@ def summarize(
             work_days += 1
             target += daily_target_hours
             net += daily_net_hours(entry)
+        elif entry.day_type == DayType.FLEX:
+            # Flex day: employee rests but the daily target drains the surplus pool.
+            non_work_days += 1
+            target += daily_target_hours
         else:
             non_work_days += 1
     return PeriodSummary(

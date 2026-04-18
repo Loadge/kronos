@@ -14,6 +14,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/vendor/pico.min.css">
   <link rel="stylesheet" href="/static/styles.css">
+  <!-- Apply persisted theme before first paint to avoid flash -->
+  <script>(function(){var t=localStorage.getItem('k-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="/static/app.js" defer></script>
   <script src="/static/vendor/alpine.min.js" defer></script>
 </head>
@@ -30,13 +32,20 @@
         <p class="subtitle" x-text="subtitle">&nbsp;</p>
       </div>
     </div>
-    <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
-      <a role="tab" :tabindex="tab==='dashboard' ? 0 : -1" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')" @keydown.enter.prevent="go('dashboard')" @keydown.space.prevent="go('dashboard')">Dashboard</a>
-      <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')">Log</a>
-      <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')">Days</a>
-      <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')">Analytics</a>
-      <a role="tab" :tabindex="tab==='settings' ? 0 : -1"  :aria-selected="tab==='settings'"  @click.prevent="go('settings')"  @keydown.enter.prevent="go('settings')"  @keydown.space.prevent="go('settings')">Settings</a>
-    </nav>
+    <div class="header-right">
+      <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
+        <a role="tab" :tabindex="tab==='dashboard' ? 0 : -1" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')" @keydown.enter.prevent="go('dashboard')" @keydown.space.prevent="go('dashboard')">Dashboard</a>
+        <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')">Log</a>
+        <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')">Days</a>
+        <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')">Analytics</a>
+        <a role="tab" :tabindex="tab==='settings' ? 0 : -1"  :aria-selected="tab==='settings'"  @click.prevent="go('settings')"  @keydown.enter.prevent="go('settings')"  @keydown.space.prevent="go('settings')">Settings</a>
+      </nav>
+      <button class="theme-toggle" @click="toggleTheme()"
+              :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+              :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <span x-text="theme === 'dark' ? '☀' : '🌙'"></span>
+      </button>
+    </div>
   </header>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>

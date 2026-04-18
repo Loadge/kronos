@@ -15,6 +15,7 @@ from app.models import Setting
 
 DAILY_TARGET_HOURS = "daily_target_hours"
 CUMULATIVE_START_DATE = "cumulative_start_date"
+RESET_ANNUALLY = "reset_annually"
 
 
 def _get(session: Session, key: str, default: str) -> str:
@@ -46,3 +47,19 @@ def get_cumulative_start_date(session: Session) -> date:
 
 def set_cumulative_start_date(session: Session, d: date) -> None:
     _set(session, CUMULATIVE_START_DATE, d.isoformat())
+
+
+def get_reset_annually(session: Session) -> bool:
+    return _get(session, RESET_ANNUALLY, "false") == "true"
+
+
+def set_reset_annually(session: Session, value: bool) -> None:
+    _set(session, RESET_ANNUALLY, "true" if value else "false")
+
+
+def get_effective_cumulative_start(session: Session, today: date) -> date:
+    """Cumulative start date, auto-advanced to Jan 1 of the current year when reset_annually=True."""
+    base = get_cumulative_start_date(session)
+    if get_reset_annually(session):
+        return max(base, date(today.year, 1, 1))
+    return base

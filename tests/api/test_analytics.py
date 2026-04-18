@@ -115,7 +115,8 @@ class TestMonthlyBreakdown:
 class TestRecords:
     def test_empty(self, client):
         data = client.get("/api/analytics/records").json()
-        assert all(v is None for v in data.values())
+        assert data["longest_positive_streak"] == 0
+        assert all(v is None for k, v in data.items() if k != "longest_positive_streak")
 
     def test_longest_and_shortest_work_day(self, client, work_body):
         _post_work(client, work_body, "2026-04-13", start="09:00", end="17:00")  # 7h
