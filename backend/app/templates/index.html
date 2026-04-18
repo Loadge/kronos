@@ -65,6 +65,35 @@
   {% include "_tab_analytics.html" %}
   {% include "_tab_settings.html" %}
 
+  <!-- Command palette -->
+  <template x-if="palette.open">
+    <div class="palette-backdrop" @click.self="closePalette()" role="dialog" aria-label="Command palette" aria-modal="true">
+      <div class="palette">
+        <input id="k-palette-input" type="text"
+               x-model="palette.query"
+               @input="palette.selected = 0"
+               @keydown.escape.prevent="closePalette()"
+               @keydown.enter.prevent="paletteConfirm()"
+               @keydown.arrow-up.prevent="paletteNavigate(-1)"
+               @keydown.arrow-down.prevent="paletteNavigate(1)"
+               placeholder="Type a command…"
+               autocomplete="off" spellcheck="false">
+        <ul role="listbox">
+          <template x-for="(cmd, i) in filteredCommands()" :key="cmd.id">
+            <li role="option" :aria-selected="palette.selected === i"
+                :class="{ 'palette-selected': palette.selected === i }"
+                @click="paletteRun(cmd)"
+                @mouseenter="palette.selected = i">
+              <span x-text="cmd.label"></span>
+              <kbd x-text="cmd.hint"></kbd>
+            </li>
+          </template>
+          <li x-show="filteredCommands().length === 0" class="palette-empty">No commands match.</li>
+        </ul>
+      </div>
+    </div>
+  </template>
+
 </main>
 </body>
 </html>
