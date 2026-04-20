@@ -31,6 +31,32 @@
     </div>
   </div>
 
+  <h2>Cumulative trend</h2>
+  <template x-if="trendLine()">
+    <div class="chart-wrap">
+      <svg :viewBox="`0 0 ${trendLine().W} ${trendLine().H}`"
+           width="100%" :height="trendLine().H" class="chart-svg" aria-hidden="true" preserveAspectRatio="none">
+        <!-- zero reference line -->
+        <line x1="0" :y1="trendLine().zeroY" :x2="trendLine().W" :y2="trendLine().zeroY"
+              class="chart-zero"></line>
+        <!-- area fill -->
+        <path :d="trendLine().area" :class="`chart-area chart-area--${trendLine().cls}`"></path>
+        <!-- trend line -->
+        <polyline :points="trendLine().polyline" :class="`chart-line chart-line--${trendLine().cls}`"></polyline>
+        <!-- end dot -->
+        <circle :cx="trendLine().last.x" :cy="trendLine().last.y" r="4"
+                :class="`chart-dot chart-dot--${trendLine().cls}`"></circle>
+      </svg>
+      <p class="muted chart-caption">
+        Cumulative surplus/deficit · all months
+        (<span :class="trendLine().cls" x-text="(trendLine().last.value > 0 ? '+' : '') + trendLine().last.value + 'h'"></span> total)
+      </p>
+    </div>
+  </template>
+  <template x-if="!trendLine() && monthly.length === 0">
+    <p class="muted">No data yet.</p>
+  </template>
+
   <h2>Records</h2>
   <template x-if="records">
     <div class="summary-grid">
@@ -119,6 +145,9 @@
   </template>
 
   <h2>Monthly breakdown</h2>
+  <!-- x-for inside <svg> doesn't work in Alpine (SVG parser treats <template> differently).
+       We render the bar chart as a string via x-html instead. -->
+  <div class="chart-wrap" x-html="renderBarChart()"></div>
   <template x-if="filteredMonthly().length === 0">
     <p class="muted">No data for this period.</p>
   </template>
@@ -170,6 +199,36 @@
       </tbody>
     </table>
   </div>
+
+  <h2>Year at a glance</h2>
+  <template x-if="heatmapCells()">
+    <div>
+      <div class="heatmap-legend">
+        <span class="hm-swatch hm-surplus"></span> Surplus
+        <span class="hm-swatch hm-deficit"></span> Deficit
+        <span class="hm-swatch hm-neutral"></span> On target
+        <span class="hm-swatch hm-vacation"></span> Vacation
+        <span class="hm-swatch hm-sick"></span> Sick
+        <span class="hm-swatch hm-holiday"></span> Holiday
+        <span class="hm-swatch hm-flex"></span> Flex
+        <span class="hm-swatch hm-empty"></span> No entry
+      </div>
+      <div class="heatmap-scroll">
+        <div class="heatmap"
+             :style="`grid-template-columns: repeat(${heatmapCells().totalCols}, 13px)`">
+          <template x-for="cell in heatmapCells().cells" :key="cell.date">
+            <div class="hm-cell"
+                 :class="cell.cls"
+                 :style="`grid-row: ${cell.row}; grid-column: ${cell.col}`"
+                 :title="cell.title"></div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+  <template x-if="!heatmapCells()">
+    <p class="muted">Visit the Days tab first to load entry data.</p>
+  </template>
 
   <h2>Export</h2>
   <p>
