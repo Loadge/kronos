@@ -732,6 +732,128 @@ button.btn-action {
 .palette-empty:hover { background: transparent !important; }
 
 /* ================================================================
+   CHARTS
+   ================================================================ */
+
+.chart-wrap {
+  margin: 0.5rem 0 1.5rem;
+}
+
+.chart-svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart-caption {
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+  margin-bottom: 0;
+}
+
+/* Trend line */
+.chart-zero {
+  stroke: var(--k-border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.chart-area {
+  fill-opacity: 0.12;
+}
+.chart-area--surplus { fill: var(--k-surplus); }
+.chart-area--deficit { fill: var(--k-deficit); }
+.chart-area--neutral { fill: var(--k-muted); }
+
+.chart-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.chart-line--surplus { stroke: var(--k-surplus); }
+.chart-line--deficit { stroke: var(--k-deficit); }
+.chart-line--neutral { stroke: var(--k-muted); }
+
+.chart-dot {
+  stroke-width: 2;
+  stroke: var(--k-surface);
+}
+.chart-dot--surplus { fill: var(--k-surplus); }
+.chart-dot--deficit { fill: var(--k-deficit); }
+.chart-dot--neutral { fill: var(--k-muted); }
+
+/* Monthly bar chart */
+.chart-bar {
+  opacity: 0.85;
+}
+.chart-bar--surplus { fill: var(--k-surplus); }
+.chart-bar--deficit { fill: var(--k-deficit); }
+.chart-bar--neutral { fill: var(--k-muted); }
+
+.chart-target {
+  stroke: var(--k-brass);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+
+.chart-label {
+  fill: var(--k-muted);
+  font-size: 9px;
+  font-family: ui-monospace, monospace;
+}
+
+/* ================================================================
+   HEATMAP
+   ================================================================ */
+
+.heatmap-scroll {
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.heatmap {
+  display: grid;
+  grid-template-rows: repeat(7, 13px);
+  gap: 3px;
+  width: max-content;
+}
+
+.hm-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+}
+
+.hm-empty   { background: transparent; border: 1px solid var(--k-border); }
+.hm-surplus { background: var(--k-surplus); opacity: 0.85; }
+.hm-deficit { background: var(--k-deficit); opacity: 0.85; }
+.hm-neutral { background: var(--k-muted);   opacity: 0.6;  }
+.hm-vacation{ background: var(--k-vacation);opacity: 0.75; }
+.hm-sick    { background: var(--k-sick);    opacity: 0.75; }
+.hm-holiday { background: var(--k-holiday); opacity: 0.75; }
+.hm-flex    { background: var(--k-flex);    opacity: 0.75; }
+
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  font-size: 0.78rem;
+  color: var(--k-muted);
+  margin-bottom: 0.75rem;
+}
+
+.hm-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 0.2rem;
+}
+
+/* ================================================================
    RESPONSIVE
    ================================================================ */
 

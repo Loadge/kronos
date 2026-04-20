@@ -568,6 +568,126 @@ function app() {
       return this.monthly.filter(m => m.year === Number(this.analyticsYear));
     },
 
+    // ── Chart helpers ────────────────────────────────────────────────
+
+    // Cumulative surplus trend line from monthly data.
+    // Returns geometry for an SVG polyline (560×70 viewBox).
+    trendLine() {
+      if (!this.monthly.length) return null;
+      const rows = [...this.monthly].sort((a, b) =>
+        a.year !== b.year ? a.year - b.year : a.month - b.month
+      );
+      let cum = 0;
+      const pts = rows.map(r => {
+        cum = Math.round((cum + r.surplus_hours) * 100) / 100;
+        return { label: r.label, value: cum };
+      });
+      const values = pts.map(p => p.value);
+      const min = Math.min(0, ...values);
+      const max = Math.max(0, ...values);
+      const range = max - min || 1;
+      const W = 560, H = 70, PAD = 6;
+      const iW = W - PAD * 2, iH = H - PAD * 2;
+      const toX = i => PAD + (pts.length < 2 ? iW / 2 : (i / (pts.length - 1)) * iW);
+      const toY = v => PAD + iH - ((v - min) / range) * iH;
+      const zeroY = toY(0);
+      const coords = pts.map((p, i) => [toX(i), toY(p.value)]);
+      const polyline = coords.map(([x, y]) => `${x},${y}`).join(' ');
+      const area = pts.length > 1
+        ? `M${coords[0][0]},${zeroY}` + coords.map(([x, y]) => ` L${x},${y}`).join('') +
+          ` L${coords[coords.length - 1][0]},${zeroY}Z`
+        : '';
+      const last = { x: coords[coords.length - 1][0], y: coords[coords.length - 1][1], value: pts[pts.length - 1].value };
+      const cls = last.value > 0.01 ? 'surplus' : last.value < -0.01 ? 'deficit' : 'neutral';
+      return { W, H, polyline, area, zeroY, last, cls };
+    },
+
+    // Monthly bar chart from filteredMonthly().
+    // Returns geometry for an SVG bar chart (560×100 viewBox).
+    monthlyChartBars() {
+      const rows = this.filteredMonthly();
+      if (!rows.length) return null;
+      const W = 560, H = 100;
+      const PL = 4, PR = 4, PT = 6, PB = 22;
+      const plotW = W - PL - PR, plotH = H - PT - PB;
+      const maxVal = Math.max(...rows.map(r => Math.max(r.net_hours, r.target_hours)), 1);
+      const barW = plotW / rows.length;
+      const gap = Math.max(1, barW * 0.2);
+      const scaleH = v => (v / maxVal) * plotH;
+      return {
+        W, H,
+        targetY: PT + plotH - scaleH(rows[0].target_hours),
+        bars: rows.map((r, i) => ({
+          x: PL + i * barW + gap / 2,
+          y: PT + plotH - scaleH(r.net_hours),
+          w: barW - gap,
+          h: Math.max(scaleH(r.net_hours), 0),
+          lx: PL + i * barW + barW / 2,
+          ly: H - 6,
+          label: r.label.slice(5),
+          cls: r.surplus_hours > 0.01 ? 'surplus' : r.surplus_hours < -0.01 ? 'deficit' : 'neutral',
+          targetY: PT + plotH - scaleH(r.target_hours),
+        })),
+      };
+    },
+
+    // Renders the bar chart as an SVG string (avoids x-for-inside-svg Alpine issue).
+    renderBarChart() {
+      const d = this.monthlyChartBars();
+      if (!d) return '';
+      const bars = d.bars.map(b =>
+        `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" class="chart-bar chart-bar--${b.cls}" rx="1"></rect>` +
+        `<text x="${b.lx}" y="${b.ly}" class="chart-label" text-anchor="middle">${b.label}</text>`
+      ).join('');
+      return `<svg viewBox="0 0 ${d.W} ${d.H}" width="100%" height="${d.H}" class="chart-svg" aria-hidden="true" preserveAspectRatio="none">` +
+        `<line x1="0" y1="${d.targetY}" x2="${d.W}" y2="${d.targetY}" class="chart-target"></line>` +
+        bars +
+        `</svg>` +
+        `<p class="muted chart-caption">Net hours per month — dashed line = daily target × work days</p>`;
+    },
+
+    // Year-at-a-glance heatmap cells for the selected year.
+    // Returns { cells, totalCols } where each cell has { date, row, col, cls, title }.
+    heatmapCells() {
+      if (!this.entries.length) return null;
+      const year = parseInt(
+        this.analyticsYear === 'all' ? new Date().getFullYear() : this.analyticsYear
+      );
+      const map = {};
+      for (const e of this.entries) {
+        if (e.date.startsWith(String(year))) map[e.date] = e;
+      }
+      const cells = [];
+      const d = new Date(year, 0, 1);
+      let row = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
+      let col = 1;
+      while (d.getFullYear() === year) {
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const iso = `${year}-${mm}-${dd}`;
+        const entry = map[iso];
+        let cls;
+        if (!entry) {
+          cls = 'hm-empty';
+        } else if (entry.day_type === 'work') {
+          cls = entry.surplus_hours > 0.01 ? 'hm-surplus'
+              : entry.surplus_hours < -0.01 ? 'hm-deficit'
+              : 'hm-neutral';
+        } else {
+          cls = `hm-${entry.day_type}`;
+        }
+        const sign = entry && entry.surplus_hours > 0 ? '+' : '';
+        const title = entry
+          ? `${iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h`
+          : iso;
+        cells.push({ date: iso, row: row + 1, col, cls, title });
+        row++;
+        if (row === 7) { row = 0; col++; }
+        d.setDate(d.getDate() + 1);
+      }
+      return { cells, totalCols: col + (row > 0 ? 0 : -1) };
+    },
+
     // =====================================================================
     // analytics
     // =====================================================================
@@ -585,6 +705,8 @@ function app() {
         this.yearly = yearly;
         this.records = records;
         this.yoy = yoy;
+        // Entries needed for the heatmap; load lazily if not already in memory
+        if (!this.entries.length) await this.loadDays();
         await this.computeAsOf();
       } catch (e) { this.error = e.message; }
       finally { this.loading.analytics = false; }
