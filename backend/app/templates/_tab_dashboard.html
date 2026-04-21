@@ -120,6 +120,25 @@
         </p>
       </template>
 
+      <!-- Vacation budget -->
+      <template x-if="vacationStatus()">
+        <div class="vacation-bar-wrap">
+          <div class="vacation-bar-header">
+            <span>🏖 Vacation</span>
+            <span x-text="vacationStatus().used + ' / ' + vacationStatus().budget + ' days used'"></span>
+          </div>
+          <div class="vacation-bar-track">
+            <div class="vacation-bar-fill"
+                 :class="vacationStatus().pct >= 100 ? 'vacation-bar-over' : ''"
+                 :style="'width:' + Math.min(vacationStatus().pct, 100) + '%'"></div>
+          </div>
+          <div class="vacation-bar-footer muted">
+            <span x-text="vacationStatus().remaining + ' days remaining'"></span>
+            <span x-text="'(' + vacationStatus().pct + '%)'"></span>
+          </div>
+        </div>
+      </template>
+
       <!-- W6: Streaks panel — unlocked by typing "kronos" anywhere -->
       <template x-if="streaksUnlocked && streaks">
         <div class="streaks-panel">

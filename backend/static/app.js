@@ -43,7 +43,7 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4] },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0 },
 
     // ---------- fun zone ------------------------------------------------
     wipeConfirming: false,
@@ -594,6 +594,17 @@ function app() {
       const avgDaily = surplus_hours / work_days;
       const projected = Math.round((surplus_hours + avgDaily * workDaysLeft) * 100) / 100;
       return { projected, workDaysLeft };
+    },
+
+    // Vacation budget status: used/remaining/pct for the current year.
+    vacationStatus() {
+      if (!this.dashboard) return null;
+      const budget = this.dashboard.vacation_budget_days ?? 0;
+      if (!budget) return null;
+      const used = this.dashboard.vacation_days_used ?? 0;
+      const remaining = Math.max(budget - used, 0);
+      const pct = Math.round((used / budget) * 100);
+      return { budget, used, remaining, pct };
     },
 
     // Yearly breakdown enriched with carry-in surplus from previous years.

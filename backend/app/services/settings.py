@@ -17,6 +17,7 @@ DAILY_TARGET_HOURS = "daily_target_hours"
 CUMULATIVE_START_DATE = "cumulative_start_date"
 RESET_ANNUALLY = "reset_annually"
 WORK_WEEK_DAYS = "work_week_days"
+VACATION_BUDGET_DAYS = "vacation_budget_days"
 
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 
@@ -67,6 +68,14 @@ def get_work_week_days(session: Session) -> list[int]:
 
 def set_work_week_days(session: Session, days: list[int]) -> None:
     _set(session, WORK_WEEK_DAYS, ",".join(str(d) for d in sorted(days)))
+
+
+def get_vacation_budget_days(session: Session) -> int:
+    return int(_get(session, VACATION_BUDGET_DAYS, "0"))
+
+
+def set_vacation_budget_days(session: Session, days: int) -> None:
+    _set(session, VACATION_BUDGET_DAYS, str(days))
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:

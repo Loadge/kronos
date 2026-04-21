@@ -906,6 +906,51 @@ button.btn-action {
 }
 
 /* ================================================================
+   VACATION BUDGET BAR (Dashboard)
+   ================================================================ */
+
+.vacation-bar-wrap {
+  margin-bottom: 1.5rem;
+  background: var(--k-card-bg);
+  border: 1px solid var(--k-border);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+}
+
+.vacation-bar-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.vacation-bar-track {
+  height: 10px;
+  background: var(--k-border);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.vacation-bar-fill {
+  height: 100%;
+  background: var(--k-surplus);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.vacation-bar-fill.vacation-bar-over {
+  background: var(--k-deficit);
+}
+
+.vacation-bar-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
+
+/* ================================================================
    WEEKDAY PATTERN (Analytics)
    ================================================================ */
 
