@@ -914,6 +914,167 @@ button.btn-action {
 }
 
 /* ================================================================
+   DAY TEMPLATES — Log form picker + save row
+   ================================================================ */
+
+.template-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--k-card-bg);
+  border: 1px solid var(--k-border);
+  border-radius: 0.4rem;
+}
+
+.template-bar-label {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.template-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--k-border);
+  border-radius: 0.4rem;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.template-pill:hover {
+  border-color: var(--k-work);
+  background: color-mix(in srgb, var(--k-work) 10%, transparent);
+}
+
+.template-times {
+  font-size: 0.72rem;
+}
+
+.save-template-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.template-name-input {
+  flex: 1;
+  margin-bottom: 0 !important;
+}
+
+/* ================================================================
+   DAY TEMPLATES — Settings management list
+   ================================================================ */
+
+.templates-section {
+  margin: 1.5rem 0;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--k-border);
+}
+
+.templates-section h3 {
+  margin-bottom: 0.75rem;
+}
+
+.template-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--k-border);
+}
+
+.template-item:last-of-type {
+  border-bottom: none;
+}
+
+/* ================================================================
+   QUICK-LOG (Dashboard)
+   ================================================================ */
+
+.quick-log-section {
+  margin-bottom: 1.5rem;
+}
+
+.quick-log-label {
+  font-size: 0.78rem;
+  margin-bottom: 0.4rem;
+}
+
+.quick-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.quick-log-btn {
+  padding: 0.3rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid var(--k-border);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.quick-log-btn:hover { opacity: 0.8; }
+
+.quick-log-btn.ql-work    { border-color: var(--k-work);    color: var(--k-work); }
+.quick-log-btn.ql-vacation{ border-color: var(--k-vacation);color: var(--k-vacation); }
+.quick-log-btn.ql-sick    { border-color: var(--k-sick);    color: var(--k-sick); }
+.quick-log-btn.ql-holiday { border-color: var(--k-holiday); color: var(--k-holiday); }
+.quick-log-btn.ql-flex    { border-color: var(--k-flex);    color: var(--k-flex); }
+
+/* ================================================================
+   MARKDOWN NOTES (Days table)
+   ================================================================ */
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.notes-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  font-size: 0.85rem;
+  opacity: 0.4;
+  line-height: 1;
+  transition: opacity 0.15s;
+}
+.notes-btn:hover,
+.notes-btn.active {
+  opacity: 1;
+}
+
+.notes-row td {
+  background: color-mix(in srgb, var(--pico-background-color) 60%, var(--k-card-bg));
+  font-size: 0.88rem;
+  padding: 0.6rem 1.25rem;
+  color: var(--pico-muted-color);
+  border-top: none;
+}
+
+.notes-row code {
+  font-size: 0.82em;
+  background: var(--k-border);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25em;
+}
+
+/* ================================================================
    VACATION BUDGET BAR (Dashboard)
    ================================================================ */
 

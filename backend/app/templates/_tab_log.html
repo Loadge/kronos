@@ -9,6 +9,17 @@
   </header>
 
   <form @submit.prevent="saveEntry()">
+    <template x-if="templates.length > 0">
+      <div class="template-bar">
+        <span class="template-bar-label muted">Templates:</span>
+        <template x-for="t in templates" :key="t.id">
+          <button type="button" class="template-pill" @click="applyTemplate(t)">
+            <span x-text="t.name"></span>
+            <span class="muted template-times" x-text="t.start_time + '–' + t.end_time"></span>
+          </button>
+        </template>
+      </div>
+    </template>
     <div class="grid">
       <label>
         <span class="label-with-action">
@@ -88,6 +99,19 @@
       Notes (optional)
       <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
     </label>
+
+    <template x-if="form.day_type === 'work' && !editingDate">
+      <div class="save-template-row">
+        <input type="text" x-model="_tplName" placeholder="Save as template…"
+               class="template-name-input"
+               @keydown.enter.prevent="if (_tplName.trim()) { saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral'); }">
+        <button type="button" class="secondary outline compact"
+                :disabled="!_tplName.trim()"
+                @click="saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral')">
+          Save as template
+        </button>
+      </div>
+    </template>
 
     <div class="form-footer">
       <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
