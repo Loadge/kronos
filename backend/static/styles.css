@@ -905,6 +905,14 @@ button.btn-action {
   margin-bottom: 1.5rem;
 }
 
+.forecast-breakdown {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--k-muted);
+  margin-top: 0.15rem;
+  opacity: 0.75;
+}
+
 /* ================================================================
    VACATION BUDGET BAR (Dashboard)
    ================================================================ */

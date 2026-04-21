@@ -116,7 +116,18 @@
           <strong :class="surplusClass(forecast().projected)"
                   x-text="formatSurplus(forecast().projected)"></strong>
           by year end
-          <span class="muted" x-text="'(' + forecast().workDaysLeft + ' work days remaining)'"></span>
+          <span class="muted" x-text="'(' + forecast().adjustedWorkDays + ' effective work days remaining)'"></span>
+          <template x-if="forecast().vacationRemaining > 0 || forecast().bankedDays > 0">
+            <span class="forecast-breakdown">
+              <span x-text="forecast().workDaysLeft + ' scheduled'"></span>
+              <template x-if="forecast().vacationRemaining > 0">
+                <span x-text="' − ' + forecast().vacationRemaining + ' vacation'"></span>
+              </template>
+              <template x-if="forecast().bankedDays > 0">
+                <span x-text="' − ' + forecast().bankedDays + ' banked'"></span>
+              </template>
+            </span>
+          </template>
         </p>
       </template>
 

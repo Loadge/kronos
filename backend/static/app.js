@@ -576,14 +576,19 @@ function app() {
     },
 
     // Projected year-end surplus based on current average daily surplus.
-    // Counts actual rest days (Mon=0…Sun=6) using the configured work week.
+    // Counts actual work days (Mon=0…Sun=6) using the configured work week,
+    // then subtracts planned vacation days and surplus-banked days so the
+    // remaining count (and projection) reflects days you'll actually work.
     forecast() {
       if (!this.dashboard) return null;
       const { surplus_hours, work_days } = this.dashboard.cumulative;
       if (!work_days) return null;
+      const dailyTarget = this.dashboard.daily_target_hours || 8;
       const workWeek = new Set(this.dashboard.work_week_days ?? [0,1,2,3,4]);
       const today = new Date(this.dashboard.today + 'T12:00:00');
       const yearEnd = new Date(today.getFullYear(), 11, 31);
+
+      // 1. Raw calendar work days left
       let workDaysLeft = 0;
       const d = new Date(today);
       d.setDate(d.getDate() + 1); // start counting from tomorrow
@@ -591,9 +596,22 @@ function app() {
         if (workWeek.has((d.getDay() + 6) % 7)) workDaysLeft++; // Mon=0…Sun=6
         d.setDate(d.getDate() + 1);
       }
+
+      // 2. Vacation days still to take this year (only when a budget is set)
+      const budget = this.dashboard.vacation_budget_days ?? 0;
+      const used = this.dashboard.vacation_days_used ?? 0;
+      const vacationRemaining = budget > 0 ? Math.max(0, budget - used) : 0;
+
+      // 3. Surplus-banked days: each full daily-target of surplus = 1 day you
+      //    can take off without falling below zero.
+      const bankedDays = Math.max(0, Math.floor(surplus_hours / dailyTarget));
+
+      // 4. Effective days you'll actually work
+      const adjustedWorkDays = Math.max(0, workDaysLeft - vacationRemaining - bankedDays);
+
       const avgDaily = surplus_hours / work_days;
-      const projected = Math.round((surplus_hours + avgDaily * workDaysLeft) * 100) / 100;
-      return { projected, workDaysLeft };
+      const projected = Math.round((surplus_hours + avgDaily * adjustedWorkDays) * 100) / 100;
+      return { projected, workDaysLeft, adjustedWorkDays, vacationRemaining, bankedDays };
     },
 
     // Vacation budget status: used/remaining/pct for the current year.
