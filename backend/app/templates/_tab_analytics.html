@@ -180,18 +180,21 @@
           <th>Net</th>
           <th>Target</th>
           <th>Δ</th>
+          <th title="Accumulated surplus carried in from all prior years">Carry-in</th>
           <th>Work days</th>
           <th>Off days</th>
         </tr>
       </thead>
       <tbody>
-        <template x-for="row in [...yearly].reverse()" :key="row.year">
+        <template x-for="row in yearlyWithCarryover()" :key="row.year">
           <tr>
             <td x-text="row.label"></td>
             <td x-text="row.net_hours + 'h'"></td>
             <td x-text="row.target_hours + 'h'"></td>
             <td :class="surplusClass(row.surplus_hours)"
                 x-text="formatSurplus(row.surplus_hours)"></td>
+            <td :class="surplusClass(row.carry_in)"
+                x-text="row.carry_in !== 0 ? formatSurplus(row.carry_in) : '—'"></td>
             <td x-text="row.work_days"></td>
             <td x-text="row.non_work_days"></td>
           </tr>
@@ -228,6 +231,27 @@
   </template>
   <template x-if="!heatmapCells()">
     <p class="muted">Visit the Days tab first to load entry data.</p>
+  </template>
+
+  <h2>Weekday pattern</h2>
+  <template x-if="weekdayPattern()">
+    <div>
+      <div class="weekday-grid">
+        <template x-for="cell in weekdayPattern()" :key="cell.label">
+          <div class="weekday-cell" :title="cell.title">
+            <div class="weekday-swatch" :class="cell.cls"></div>
+            <div class="weekday-label" x-text="cell.label"></div>
+            <div class="weekday-avg muted"
+                 :class="cell.avg !== null ? cell.cls : ''"
+                 x-text="cell.avg !== null ? (cell.avg > 0 ? '+' : '') + cell.avg + 'h' : '—'"></div>
+          </div>
+        </template>
+      </div>
+      <p class="muted chart-caption">Average surplus/deficit per weekday across all logged work days</p>
+    </div>
+  </template>
+  <template x-if="!weekdayPattern()">
+    <p class="muted">No work days logged yet.</p>
   </template>
 
   <h2>Export</h2>

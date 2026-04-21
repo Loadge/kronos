@@ -568,6 +568,57 @@ function app() {
       return this.monthly.filter(m => m.year === Number(this.analyticsYear));
     },
 
+    // Projected year-end surplus based on current average daily surplus.
+    forecast() {
+      if (!this.dashboard) return null;
+      const { surplus_hours, work_days } = this.dashboard.cumulative;
+      if (!work_days) return null;
+      const today = new Date(this.dashboard.today);
+      const yearEnd = new Date(today.getFullYear(), 11, 31);
+      const daysLeft = Math.max(0, Math.ceil((yearEnd - today) / 86400000));
+      const workDaysLeft = Math.round(daysLeft * 5 / 7);
+      const avgDaily = surplus_hours / work_days;
+      const projected = Math.round((surplus_hours + avgDaily * workDaysLeft) * 100) / 100;
+      return { projected, workDaysLeft };
+    },
+
+    // Yearly breakdown enriched with carry-in surplus from previous years.
+    yearlyWithCarryover() {
+      if (!this.yearly.length) return [];
+      const sorted = [...this.yearly].sort((a, b) => a.year - b.year);
+      let cum = 0;
+      const rows = sorted.map(r => {
+        const carry_in = Math.round(cum * 100) / 100;
+        cum = Math.round((cum + r.surplus_hours) * 100) / 100;
+        return { ...r, carry_in };
+      });
+      return rows.reverse(); // newest first for display
+    },
+
+    // Average surplus per weekday (Mon–Sun) across all logged work days.
+    weekdayPattern() {
+      if (!this.entries.length) return null;
+      const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const buckets = Array.from({ length: 7 }, () => ({ sum: 0, count: 0 }));
+      for (const e of this.entries) {
+        if (e.day_type !== 'work') continue;
+        const dow = (new Date(e.date + 'T12:00:00').getDay() + 6) % 7; // Mon=0
+        buckets[dow].sum += e.surplus_hours;
+        buckets[dow].count++;
+      }
+      return labels.map((label, i) => {
+        const { sum, count } = buckets[i];
+        const avg = count ? Math.round((sum / count) * 100) / 100 : null;
+        const cls = avg === null ? 'hm-empty'
+          : avg > 0.1 ? 'hm-surplus'
+          : avg < -0.1 ? 'hm-deficit'
+          : 'hm-neutral';
+        const sign = avg !== null && avg > 0 ? '+' : '';
+        return { label, avg, cls, count,
+          title: avg === null ? `${label}: no data` : `${label}: avg ${sign}${avg}h (${count} days)` };
+      });
+    },
+
     // ── Chart helpers ────────────────────────────────────────────────
 
     // Cumulative surplus trend line from monthly data.
