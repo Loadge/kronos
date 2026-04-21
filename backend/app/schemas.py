@@ -93,6 +93,7 @@ class DashboardOut(BaseModel):
     cumulative: PeriodSummaryOut
     cumulative_start_date: date_
     daily_target_hours: float
+    work_week_days: list[int]
 
 
 class MonthlyBreakdownRow(BaseModel):
@@ -164,12 +165,14 @@ class ConfigOut(BaseModel):
     daily_target_hours: float
     cumulative_start_date: date_
     reset_annually: bool = False  # default keeps old backup files valid
+    work_week_days: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
 
 
 class ConfigIn(BaseModel):
     daily_target_hours: float | None = Field(default=None, gt=0, le=24)
     cumulative_start_date: date_ | None = None
     reset_annually: bool | None = None
+    work_week_days: list[int] | None = None
 
 
 class RestoreIn(BaseModel):

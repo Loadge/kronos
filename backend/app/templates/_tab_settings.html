@@ -21,6 +21,19 @@
         <small>When on, the cumulative clock resets to 0 at the start of every year. Previous years remain visible in the yearly breakdown.</small>
       </span>
     </label>
+    <div>
+      <label style="margin-bottom:0.4rem;display:block">Work week</label>
+      <div class="work-week-picker">
+        <template x-for="(day, i) in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']" :key="i">
+          <button type="button"
+                  :class="['work-week-day', settingsForm.work_week_days.includes(i) ? 'active' : '']"
+                  @click="toggleWorkDay(i)"
+                  :aria-pressed="settingsForm.work_week_days.includes(i)"
+                  x-text="day"></button>
+        </template>
+      </div>
+      <small>Days that count toward your work target. Used to estimate remaining work days in the forecast.</small>
+    </div>
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 

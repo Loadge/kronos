@@ -16,6 +16,9 @@ from app.models import Setting
 DAILY_TARGET_HOURS = "daily_target_hours"
 CUMULATIVE_START_DATE = "cumulative_start_date"
 RESET_ANNUALLY = "reset_annually"
+WORK_WEEK_DAYS = "work_week_days"
+
+_DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 
 
 def _get(session: Session, key: str, default: str) -> str:
@@ -55,6 +58,15 @@ def get_reset_annually(session: Session) -> bool:
 
 def set_reset_annually(session: Session, value: bool) -> None:
     _set(session, RESET_ANNUALLY, "true" if value else "false")
+
+
+def get_work_week_days(session: Session) -> list[int]:
+    raw = _get(session, WORK_WEEK_DAYS, _DEFAULT_WORK_WEEK_DAYS)
+    return [int(d) for d in raw.split(",") if d.strip()]
+
+
+def set_work_week_days(session: Session, days: list[int]) -> None:
+    _set(session, WORK_WEEK_DAYS, ",".join(str(d) for d in sorted(days)))
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:
