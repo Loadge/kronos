@@ -11,10 +11,12 @@ from app.services.settings import (
     get_cumulative_start_date,
     get_daily_target_hours,
     get_reset_annually,
+    get_vacation_budget_days,
     get_work_week_days,
     set_cumulative_start_date,
     set_daily_target_hours,
     set_reset_annually,
+    set_vacation_budget_days,
     set_work_week_days,
 )
 
@@ -27,6 +29,7 @@ def _config_out(session: Session) -> ConfigOut:
         cumulative_start_date=get_cumulative_start_date(session),
         reset_annually=get_reset_annually(session),
         work_week_days=get_work_week_days(session),
+        vacation_budget_days=get_vacation_budget_days(session),
     )
 
 
@@ -45,5 +48,7 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_reset_annually(session, body.reset_annually)
     if body.work_week_days is not None:
         set_work_week_days(session, body.work_week_days)
+    if body.vacation_budget_days is not None:
+        set_vacation_budget_days(session, body.vacation_budget_days)
     session.commit()
     return _config_out(session)

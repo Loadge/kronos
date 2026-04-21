@@ -71,6 +71,23 @@ class TestDashboard:
         assert data["week"]["target_hours"] == 7.0
         assert data["week"]["surplus_hours"] == 0.0
 
+    def test_vacation_budget_fields(self, client):
+        # Default: budget=0, used=0
+        data = client.get("/api/dashboard?today=2026-04-20").json()
+        assert data["vacation_budget_days"] == 0
+        assert data["vacation_days_used"] == 0
+
+        # Set a budget and log two vacation days in the same year
+        client.put("/api/config", json={"vacation_budget_days": 22})
+        client.post("/api/entries", json={"date": "2026-01-10", "day_type": "vacation"})
+        client.post("/api/entries", json={"date": "2026-03-05", "day_type": "vacation"})
+        # A vacation day from a prior year should not count
+        client.post("/api/entries", json={"date": "2025-12-31", "day_type": "vacation"})
+
+        data = client.get("/api/dashboard?today=2026-04-20").json()
+        assert data["vacation_budget_days"] == 22
+        assert data["vacation_days_used"] == 2
+
 
 class TestCumulativeAsOf:
     def test_requires_as_of(self, client):

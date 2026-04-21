@@ -34,6 +34,12 @@
       </div>
       <small>Days that count toward your work target. Used to estimate remaining work days in the forecast.</small>
     </div>
+    <label>
+      Vacation budget (days / year)
+      <input type="number" x-model.number="settingsForm.vacation_budget_days"
+             min="0" max="365" step="1" required>
+      <small>Annual leave allowance. Kronos counts vacation days logged this calendar year and shows remaining days on the Dashboard.</small>
+    </label>
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 

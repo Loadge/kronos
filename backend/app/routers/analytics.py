@@ -7,7 +7,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import TIMEZONE
@@ -36,6 +36,7 @@ from app.services.computations import (
 from app.services.settings import (
     get_daily_target_hours,
     get_effective_cumulative_start,
+    get_vacation_budget_days,
     get_work_week_days,
 )
 
@@ -81,6 +82,16 @@ def dashboard(
     month_start, month_end = month_bounds(today)
 
     cum_start = get_effective_cumulative_start(session, today)
+
+    year_start = date(today.year, 1, 1)
+    vacation_days_used = session.scalar(
+        select(func.count()).select_from(WorkEntry).where(
+            WorkEntry.date >= year_start,
+            WorkEntry.date <= today,
+            WorkEntry.day_type == DayType.VACATION,
+        )
+    ) or 0
+
     return DashboardOut(
         today=today,
         week=_period_out(
@@ -95,6 +106,8 @@ def dashboard(
         cumulative_start_date=cum_start,
         daily_target_hours=daily_target,
         work_week_days=get_work_week_days(session),
+        vacation_budget_days=get_vacation_budget_days(session),
+        vacation_days_used=vacation_days_used,
     )
 
 
