@@ -857,6 +857,53 @@ button.btn-action {
    RESPONSIVE
    ================================================================ */
 
+/* ================================================================
+   FORECAST LINE (Dashboard)
+   ================================================================ */
+
+.forecast-line {
+  font-size: 0.9rem;
+  color: var(--k-muted);
+  margin-top: -0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ================================================================
+   WEEKDAY PATTERN (Analytics)
+   ================================================================ */
+
+.weekday-grid {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.weekday-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.weekday-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.weekday-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--k-muted);
+}
+
+.weekday-avg {
+  font-size: 0.78rem;
+  font-family: ui-monospace, monospace;
+}
+
 @media (max-width: 480px) {
   .summary-card .metric { font-size: 1.8rem; }
   .brand-logo { width: 36px; height: 36px; }

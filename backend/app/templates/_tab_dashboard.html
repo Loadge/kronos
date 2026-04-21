@@ -109,6 +109,17 @@
         <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>
       </p>
 
+      <!-- Forecast -->
+      <template x-if="forecast()">
+        <p class="forecast-line">
+          At this rate:
+          <strong :class="surplusClass(forecast().projected)"
+                  x-text="formatSurplus(forecast().projected)"></strong>
+          by year end
+          <span class="muted" x-text="'(' + forecast().workDaysLeft + ' work days remaining)'"></span>
+        </p>
+      </template>
+
       <!-- W6: Streaks panel — unlocked by typing "kronos" anywhere -->
       <template x-if="streaksUnlocked && streaks">
         <div class="streaks-panel">
