@@ -36,6 +36,7 @@ from app.services.computations import (
 from app.services.settings import (
     get_daily_target_hours,
     get_effective_cumulative_start,
+    get_work_week_days,
 )
 
 router = APIRouter(tags=["analytics"])
@@ -93,6 +94,7 @@ def dashboard(
         ),
         cumulative_start_date=cum_start,
         daily_target_hours=daily_target,
+        work_week_days=get_work_week_days(session),
     )
 
 

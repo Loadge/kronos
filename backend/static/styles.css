@@ -858,6 +858,43 @@ button.btn-action {
    ================================================================ */
 
 /* ================================================================
+   WORK WEEK PICKER (Settings)
+   ================================================================ */
+
+.work-week-picker {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.work-week-day {
+  width: 3rem;
+  padding: 0.3rem 0;
+  font-size: 0.78rem;
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--k-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--k-muted);
+  cursor: pointer;
+  transition: background var(--k-transition-fast), color var(--k-transition-fast),
+              border-color var(--k-transition-fast);
+}
+
+.work-week-day:hover {
+  border-color: var(--k-text);
+  color: var(--k-text);
+}
+
+.work-week-day.active {
+  background: color-mix(in srgb, var(--k-brass) 15%, transparent);
+  border-color: var(--k-brass);
+  color: var(--k-brass);
+}
+
+/* ================================================================
    FORECAST LINE (Dashboard)
    ================================================================ */
 

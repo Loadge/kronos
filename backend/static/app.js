@@ -43,7 +43,7 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4] },
 
     // ---------- fun zone ------------------------------------------------
     wipeConfirming: false,
@@ -162,6 +162,13 @@ function app() {
       this.theme = this.theme === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', this.theme);
       localStorage.setItem('k-theme', this.theme);
+    },
+
+    toggleWorkDay(i) {
+      const days = this.settingsForm.work_week_days;
+      this.settingsForm.work_week_days = days.includes(i)
+        ? days.filter(d => d !== i)
+        : [...days, i].sort((a, b) => a - b);
     },
 
     // =====================================================================
@@ -569,14 +576,21 @@ function app() {
     },
 
     // Projected year-end surplus based on current average daily surplus.
+    // Counts actual rest days (Mon=0…Sun=6) using the configured work week.
     forecast() {
       if (!this.dashboard) return null;
       const { surplus_hours, work_days } = this.dashboard.cumulative;
       if (!work_days) return null;
-      const today = new Date(this.dashboard.today);
+      const workWeek = new Set(this.dashboard.work_week_days ?? [0,1,2,3,4]);
+      const today = new Date(this.dashboard.today + 'T12:00:00');
       const yearEnd = new Date(today.getFullYear(), 11, 31);
-      const daysLeft = Math.max(0, Math.ceil((yearEnd - today) / 86400000));
-      const workDaysLeft = Math.round(daysLeft * 5 / 7);
+      let workDaysLeft = 0;
+      const d = new Date(today);
+      d.setDate(d.getDate() + 1); // start counting from tomorrow
+      while (d <= yearEnd) {
+        if (workWeek.has((d.getDay() + 6) % 7)) workDaysLeft++; // Mon=0…Sun=6
+        d.setDate(d.getDate() + 1);
+      }
       const avgDaily = surplus_hours / work_days;
       const projected = Math.round((surplus_hours + avgDaily * workDaysLeft) * 100) / 100;
       return { projected, workDaysLeft };
