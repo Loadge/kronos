@@ -70,8 +70,9 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          <template x-for="e in sortedEntries()" :key="e.date">
+        <!-- One <tbody> per entry so we can inject a notes sub-row without a wrapper element -->
+        <template x-for="e in sortedEntries()" :key="e.date">
+          <tbody>
             <!-- E2: _saving flag → dim row while API call is in-flight -->
             <tr :class="[e.day_type !== 'work' ? 'non-work' : '', e._saving ? 'row-saving' : '']">
               <td x-text="e.date"></td>
@@ -84,16 +85,27 @@
               <td :class="surplusClass(e.surplus_hours)" x-text="formatSurplus(e.surplus_hours)"></td>
               <td :class="surplusClass(e._cumulative)" x-text="formatSurplus(e._cumulative)"></td>
               <td>
-                <template x-if="!e._saving">
-                  <button type="button" class="secondary outline compact" @click="editEntry(e)">Edit</button>
-                </template>
-                <template x-if="e._saving">
-                  <span class="saving-indicator" aria-label="Saving…">⏳</span>
-                </template>
+                <div class="row-actions">
+                  <template x-if="e.notes">
+                    <button type="button" class="notes-btn" :class="notesExpanded[e.date] ? 'active' : ''"
+                            @click="toggleNotes(e.date)" title="Toggle notes">📝</button>
+                  </template>
+                  <template x-if="!e._saving">
+                    <button type="button" class="secondary outline compact" @click="editEntry(e)">Edit</button>
+                  </template>
+                  <template x-if="e._saving">
+                    <span class="saving-indicator" aria-label="Saving…">⏳</span>
+                  </template>
+                </div>
               </td>
             </tr>
-          </template>
-        </tbody>
+            <template x-if="notesExpanded[e.date] && e.notes">
+              <tr class="notes-row">
+                <td colspan="10" x-html="renderMarkdown(e.notes)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </template>
       </table>
     </div>
   </template>

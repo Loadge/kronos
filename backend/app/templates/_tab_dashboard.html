@@ -131,6 +131,22 @@
         </p>
       </template>
 
+      <!-- Quick-log today -->
+      <div class="quick-log-section">
+        <div class="quick-log-label muted">Quick-log today:</div>
+        <div class="quick-log-actions">
+          <template x-for="t in templates" :key="t.id">
+            <button type="button" class="quick-log-btn ql-work" @click="quickLogTemplate(t)">
+              <span x-text="t.name"></span>
+            </button>
+          </template>
+          <button type="button" class="quick-log-btn ql-vacation" @click="quickLogNonWork('vacation')">Vacation</button>
+          <button type="button" class="quick-log-btn ql-sick" @click="quickLogNonWork('sick')">Sick</button>
+          <button type="button" class="quick-log-btn ql-holiday" @click="quickLogNonWork('holiday')">Holiday</button>
+          <button type="button" class="quick-log-btn ql-flex" @click="quickLogNonWork('flex')">Flex</button>
+        </div>
+      </div>
+
       <!-- Vacation budget -->
       <template x-if="vacationStatus()">
         <div class="vacation-bar-wrap">

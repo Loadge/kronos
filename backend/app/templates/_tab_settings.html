@@ -43,6 +43,26 @@
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 
+  <!-- ---- Day templates ---- -->
+  <div class="templates-section">
+    <h3>Day templates</h3>
+    <template x-if="templates.length === 0">
+      <p class="muted">No templates yet — go to <a @click.prevent="go('log')" role="button" class="outline compact">Log a day</a> and use "Save as template" below the form.</p>
+    </template>
+    <template x-for="t in templates" :key="t.id">
+      <div class="template-item">
+        <div>
+          <strong x-text="t.name"></strong>
+          <span class="muted" x-text="' · ' + t.start_time + '–' + t.end_time"></span>
+          <template x-if="t.breaks && t.breaks.length > 0">
+            <span class="muted" x-text="' · ' + t.breaks.reduce((s,b) => s+b.break_minutes,0) + ' min break'"></span>
+          </template>
+        </div>
+        <button type="button" class="contrast outline compact" @click="deleteTemplate(t.id)">Delete</button>
+      </div>
+    </template>
+  </div>
+
   <!-- ---- Fun zone ---- -->
   <div class="fun-zone">
     <h3 class="fun-zone-title">🎢 Fun zone</h3>

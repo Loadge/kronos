@@ -45,6 +45,13 @@ function app() {
     // ---------- settings ------------------------------------------------
     settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0 },
 
+    // ---------- day templates (localStorage) ----------------------------
+    templates: [],
+    _tplName: '',
+
+    // ---------- notes expansion (days table) ----------------------------
+    notesExpanded: {},
+
     // ---------- fun zone ------------------------------------------------
     wipeConfirming: false,
     wipeInput: '',
@@ -132,6 +139,7 @@ function app() {
         }
       });
 
+      this.loadTemplates();
       this.openNewEntry();
       await this.go(this.tab);
     },
@@ -169,6 +177,87 @@ function app() {
       this.settingsForm.work_week_days = days.includes(i)
         ? days.filter(d => d !== i)
         : [...days, i].sort((a, b) => a - b);
+    },
+
+    // =====================================================================
+    // Day templates (localStorage)
+    // =====================================================================
+    loadTemplates() {
+      try { this.templates = JSON.parse(localStorage.getItem('kronos_templates') || '[]'); }
+      catch { this.templates = []; }
+    },
+    _saveTemplates() {
+      localStorage.setItem('kronos_templates', JSON.stringify(this.templates));
+    },
+    saveCurrentAsTemplate(name) {
+      if (!name.trim() || this.form.day_type !== 'work') return;
+      this.templates = [...this.templates, {
+        id: Date.now().toString(36),
+        name: name.trim(),
+        start_time: this.form.start_time,
+        end_time: this.form.end_time,
+        breaks: this.form.breaks.map(b => ({ break_minutes: b.break_minutes })),
+      }];
+      this._saveTemplates();
+    },
+    deleteTemplate(id) {
+      this.templates = this.templates.filter(t => t.id !== id);
+      this._saveTemplates();
+    },
+    applyTemplate(t) {
+      this.form.day_type = 'work';
+      this.form.start_time = t.start_time;
+      this.form.end_time = t.end_time;
+      this.form.breaks = t.breaks.map(b => ({ break_minutes: b.break_minutes }));
+    },
+
+    // =====================================================================
+    // Quick-log from Dashboard
+    // =====================================================================
+    async quickLogTemplate(t) {
+      await this._quickLog({
+        date: this.todayIso(),
+        day_type: 'work',
+        start_time: t.start_time,
+        end_time: t.end_time,
+        breaks: t.breaks,
+      });
+    },
+    async quickLogNonWork(dayType) {
+      await this._quickLog({ date: this.todayIso(), day_type: dayType });
+    },
+    async _quickLog(body) {
+      try {
+        const saved = await this.api('POST', '/api/entries', body);
+        await this.loadDashboard();
+        if (this.entries.length) this.loadDays();
+        const dow = new Date(saved.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+        this.showToast(`Logged — ${dow} is ${this.formatSurplus(saved.surplus_hours)}`, this.surplusClass(saved.surplus_hours));
+      } catch (e) {
+        if (e.message.includes('already exists')) {
+          await this.probeDate(body.date);
+          this.go('log');
+        } else {
+          this.error = e.message;
+        }
+      }
+    },
+
+    // =====================================================================
+    // Markdown / notes
+    // =====================================================================
+    renderMarkdown(text) {
+      if (!text) return '';
+      let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+      s = s.replace(/\n/g, '<br>');
+      return s;
+    },
+    toggleNotes(date) {
+      this.notesExpanded = { ...this.notesExpanded, [date]: !this.notesExpanded[date] };
     },
 
     // =====================================================================
