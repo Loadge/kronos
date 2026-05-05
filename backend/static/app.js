@@ -208,7 +208,7 @@ function app() {
       this.form.day_type = 'work';
       this.form.start_time = t.start_time;
       this.form.end_time = t.end_time;
-      this.form.breaks = t.breaks.map(b => ({ break_minutes: b.break_minutes }));
+      this.form.breaks = t.breaks.map(b => ({ break_minutes: b.break_minutes, start_time: '', end_time: '' }));
     },
 
     // =====================================================================
@@ -465,7 +465,7 @@ function app() {
         start_time: e.start_time || '09:00',
         end_time: e.end_time || '17:00',
         notes: e.notes || '',
-        breaks: (e.breaks || []).map(b => ({ break_minutes: b.break_minutes })),
+        breaks: (e.breaks || []).map(b => ({ break_minutes: b.break_minutes, start_time: b.start_time || '', end_time: b.end_time || '' })),
       };
       this.tab = 'log';
       this.error = null;
@@ -473,7 +473,7 @@ function app() {
 
     // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
     addBreak() {
-      this.form.breaks.push({ break_minutes: 30 });
+      this.form.breaks.push({ break_minutes: 30, start_time: '', end_time: '' });
       this.$nextTick(() => {
         const rows = document.querySelectorAll('.break-row');
         const row = rows[rows.length - 1];
@@ -498,11 +498,6 @@ function app() {
       setTimeout(finish, 280); // safety net if transitionend misfires
     },
 
-    applyRangeToBreak(b, start, end) {
-      const m = this.rangeMinutes(start, end);
-      if (m > 0) b.break_minutes = m;
-    },
-
     // E2: compute a local entry object from the current form — used for
     // optimistic insertion before the server round-trip completes.
     _buildOptimisticEntry() {
@@ -523,7 +518,7 @@ function app() {
         start_time: isWork ? f.start_time : null,
         end_time: isWork ? f.end_time : null,
         notes: f.notes || null,
-        breaks: f.breaks.filter(b => Number(b.break_minutes) > 0).map(b => ({ break_minutes: Number(b.break_minutes) })),
+        breaks: f.breaks.filter(b => Number(b.break_minutes) > 0).map(b => ({ break_minutes: Number(b.break_minutes), start_time: b.start_time || null, end_time: b.end_time || null })),
         total_break_minutes: f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0),
         net_hours: netHours,
         target_hours: target,
@@ -543,7 +538,7 @@ function app() {
         // Drop any break rows left empty rather than failing the >= 1 validation.
         body.breaks = this.form.breaks
           .filter(b => Number(b.break_minutes) > 0)
-          .map(b => ({ break_minutes: Number(b.break_minutes) }));
+          .map(b => ({ break_minutes: Number(b.break_minutes), start_time: b.start_time || null, end_time: b.end_time || null }));
       } else {
         body.breaks = [];
       }
@@ -651,12 +646,30 @@ function app() {
       // Apply display sort, carrying cumulative as a display-only field.
       const k = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
+      // Anchor: most recent logged date ≤ today (auto-scroll target)
+      const today = new Date().toISOString().slice(0, 10);
+      const anchorDate = byDate.filter(e => e.date <= today).slice(-1)[0]?.date ?? null;
+
       return byDate.sort((a, b) => {
         const av = a[k]; const bv = b[k];
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
         return 0;
-      }).map(e => ({ ...e, _cumulative: cumMap[e.date] }));
+      }).map(e => ({ ...e, _cumulative: cumMap[e.date], _isAnchor: e.date === anchorDate }));
+    },
+
+    scrollToToday() {
+      const today = new Date().toISOString().slice(0, 10);
+      const source = this.daysYear === 'all'
+        ? this.entries
+        : this.entries.filter(e => e.date.startsWith(this.daysYear));
+      const anchorDate = source.filter(e => e.date <= today).map(e => e.date).sort().slice(-1)[0] ?? null;
+      if (!anchorDate) return;
+      const el = document.getElementById('day-row-' + anchorDate);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('today-flash');
+      setTimeout(() => el.classList.remove('today-flash'), 2400);
     },
 
     filteredMonthly() {
@@ -830,7 +843,8 @@ function app() {
     },
 
     // Year-at-a-glance heatmap cells for the selected year.
-    // Returns { cells, totalCols } where each cell has { date, row, col, cls, title }.
+    // Returns { cells, colTemplate } where day cells have { key, type:'day', date, row, col, cls, title, weekend }
+    // and month label cells have { key, type:'label', label, row:8, col }.
     heatmapCells() {
       if (!this.entries.length) return null;
       const year = parseInt(
@@ -840,15 +854,66 @@ function app() {
       for (const e of this.entries) {
         if (e.date.startsWith(String(year))) map[e.date] = e;
       }
+
+      const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+      // Pass 1: build raw day list with weekCol (1-based week number) and row (Mon=0…Sun=6)
+      const rawDays = [];
+      {
+        const d = new Date(year, 0, 1);
+        let row = (d.getDay() + 6) % 7;
+        let weekCol = 1;
+        while (d.getFullYear() === year) {
+          const mo = d.getMonth();
+          const mm = String(mo + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          rawDays.push({ iso: `${year}-${mm}-${dd}`, month: mo, weekCol, row });
+          row++;
+          if (row === 7) { row = 0; weekCol++; }
+          d.setDate(d.getDate() + 1);
+        }
+      }
+
+      // First month of each weekCol (used for gap detection and label placement)
+      const weekColFirstMonth = {};
+      for (const day of rawDays) {
+        if (!(day.weekCol in weekColFirstMonth)) weekColFirstMonth[day.weekCol] = day.month;
+      }
+      const maxWeekCol = rawDays[rawDays.length - 1].weekCol;
+
+      // Pass 2: assign finalCol, inserting a narrow gap column between months
+      const weekColToFinalCol = {};
+      const finalColIsGap = {};
+      let finalCol = 0;
+      let prevMonth = -1;
+      for (let wc = 1; wc <= maxWeekCol; wc++) {
+        const mo = weekColFirstMonth[wc];
+        if (prevMonth !== -1 && mo !== prevMonth) {
+          finalCol++;
+          finalColIsGap[finalCol] = true;
+        }
+        finalCol++;
+        weekColToFinalCol[wc] = finalCol;
+        prevMonth = mo;
+      }
+      const totalFinalCols = finalCol;
+
+      // Pass 3: build cells array
       const cells = [];
-      const d = new Date(year, 0, 1);
-      let row = (d.getDay() + 6) % 7; // Mon=0 … Sun=6
-      let col = 1;
-      while (d.getFullYear() === year) {
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        const iso = `${year}-${mm}-${dd}`;
-        const entry = map[iso];
+
+      // Month label cells at the first finalCol of each month
+      const labelsAdded = new Set();
+      for (let wc = 1; wc <= maxWeekCol; wc++) {
+        const mo = weekColFirstMonth[wc];
+        if (!labelsAdded.has(mo)) {
+          labelsAdded.add(mo);
+          cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: weekColToFinalCol[wc], cls: '', title: '', weekend: false });
+        }
+      }
+
+      // Day cells
+      for (const day of rawDays) {
+        const entry = map[day.iso];
         let cls;
         if (!entry) {
           cls = 'hm-empty';
@@ -860,15 +925,17 @@ function app() {
           cls = `hm-${entry.day_type}`;
         }
         const sign = entry && entry.surplus_hours > 0 ? '+' : '';
-        const title = entry
-          ? `${iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h`
-          : iso;
-        cells.push({ date: iso, row: row + 1, col, cls, title });
-        row++;
-        if (row === 7) { row = 0; col++; }
-        d.setDate(d.getDate() + 1);
+        const title = entry ? `${day.iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h` : day.iso;
+        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: weekColToFinalCol[day.weekCol], cls, title, weekend: day.row >= 5 });
       }
-      return { cells, totalCols: col + (row > 0 ? 0 : -1) };
+
+      // Build CSS grid-template-columns string
+      const parts = [];
+      for (let fc = 1; fc <= totalFinalCols; fc++) {
+        parts.push(finalColIsGap[fc] ? '5px' : '13px');
+      }
+
+      return { cells, colTemplate: parts.join(' ') };
     },
 
     // =====================================================================

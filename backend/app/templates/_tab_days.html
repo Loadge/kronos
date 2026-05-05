@@ -1,6 +1,6 @@
 <!-- ========================= DAYS ========================= -->
 <template x-if="tab==='days'">
-<section aria-label="All logged days">
+<section aria-label="All logged days" x-init="$nextTick(() => scrollToToday())">
   <header class="section-header">
     <h2>Days</h2>
     <div class="section-header-controls">
@@ -72,7 +72,7 @@
         </thead>
         <!-- One <tbody> per entry so we can inject a notes sub-row without a wrapper element -->
         <template x-for="e in sortedEntries()" :key="e.date">
-          <tbody>
+          <tbody :id="'day-row-' + e.date" :class="{ 'today-row': e._isAnchor }">
             <!-- E2: _saving flag → dim row while API call is in-flight -->
             <tr :class="[e.day_type !== 'work' ? 'non-work' : '', e._saving ? 'row-saving' : '']">
               <td x-text="e.date"></td>

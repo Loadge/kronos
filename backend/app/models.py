@@ -62,6 +62,8 @@ class Break(Base):
         index=True,
     )
     break_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    end_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
 
     entry: Mapped[WorkEntry] = relationship(back_populates="breaks")
 

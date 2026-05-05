@@ -16,12 +16,27 @@ HHMM = Annotated[
 
 
 class BreakIn(BaseModel):
-    break_minutes: int = Field(ge=1, le=12 * 60)
+    break_minutes: int | None = Field(default=None, ge=1, le=12 * 60)
+    start_time: HHMM | None = None
+    end_time: HHMM | None = None
+
+    @model_validator(mode="after")
+    def _resolve_minutes(self):
+        if self.start_time and self.end_time:
+            computed = minutes_between(self.start_time, self.end_time)
+            if computed <= 0:
+                raise ValueError("break end_time must be after start_time")
+            self.break_minutes = computed
+        elif self.break_minutes is None:
+            raise ValueError("provide break_minutes or both start_time and end_time")
+        return self
 
 
 class BreakOut(BaseModel):
     id: int
     break_minutes: int
+    start_time: str | None
+    end_time: str | None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -442,24 +442,14 @@ th.sortable::after { content: " ↕"; opacity: 0.35; }
   flex-wrap: wrap;
 }
 .break-input-line input[type=number] {
-  width: 6rem;
+  width: 5rem;
   margin: 0;
 }
-.break-input-line .muted { min-width: 6rem; font-size: 0.85rem; }
+.break-input-line input[type=time] { width: 6.5rem; margin: 0; }
+.break-input-line .muted { font-size: 0.85rem; }
+.break-input-line .break-sep { padding: 0 0.1rem; }
+.break-input-line .break-minutes-label { min-width: 4rem; }
 .break-input-line button.compact { padding: 0.25rem 0.5rem; font-size: 0.8rem; margin: 0; }
-
-.range-calc {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding: 0.5rem;
-  background: color-mix(in srgb, var(--k-border) 40%, var(--k-surface));
-  border-radius: 0.25rem;
-  flex-wrap: wrap;
-}
-.range-calc input[type=time] { width: 7rem; margin: 0; }
-.range-calc button { padding: 0.25rem 0.75rem; font-size: 0.85rem; margin: 0; }
 
 .form-footer {
   display: flex;
@@ -814,7 +804,7 @@ button.btn-action {
 
 .heatmap {
   display: grid;
-  grid-template-rows: repeat(7, 13px);
+  grid-template-rows: repeat(7, 13px) 1.1em;
   gap: 3px;
   width: max-content;
 }
@@ -833,6 +823,18 @@ button.btn-action {
 .hm-sick    { background: var(--k-sick);    opacity: 0.75; }
 .hm-holiday { background: var(--k-holiday); opacity: 0.75; }
 .hm-flex    { background: var(--k-flex);    opacity: 0.75; }
+
+.hm-month-label {
+  font-size: 0.62rem;
+  color: var(--k-muted);
+  white-space: nowrap;
+  line-height: 1;
+  align-self: center;
+}
+
+.hm-cell.hm-weekend {
+  box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+}
 
 .heatmap-legend {
   display: flex;
@@ -1212,6 +1214,28 @@ button.btn-action {
 /* ================================================================
    WHIMSY LAYER  (W1-W6)
    ================================================================ */
+
+/* ── W1: Today anchor row — auto-scroll beacon ──────────────────── */
+@keyframes today-beacon {
+  0%   { background-color: transparent; }
+  14%  { background-color: color-mix(in srgb, var(--k-brass) 28%, transparent); }
+  28%  { background-color: transparent; }
+  42%  { background-color: color-mix(in srgb, var(--k-brass) 18%, transparent); }
+  58%  { background-color: transparent; }
+  100% { background-color: transparent; }
+}
+
+tbody.today-flash > tr:first-child > td {
+  animation: today-beacon 2.4s ease-out forwards;
+}
+
+tbody.today-row > tr:first-child > td:first-child {
+  box-shadow: inset 3px 0 0 var(--k-brass);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tbody.today-flash > tr:first-child > td { animation: none; }
+}
 
 /* ── W2: Cumulative card breathing glow ─────────────────────────── */
 .summary-card.cumulative {
