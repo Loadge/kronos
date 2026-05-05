@@ -62,31 +62,22 @@
         <fieldset>
           <legend>Breaks</legend>
           <template x-for="(b, i) in form.breaks" :key="i">
-            <div class="break-row" x-data="{ showRange: false, rangeStart: '', rangeEnd: '' }">
+            <div class="break-row">
               <div class="break-input-line">
+                <input type="time" x-model="b.start_time"
+                       @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
+                       :aria-label="'Break ' + (i+1) + ' start'">
+                <span class="muted break-sep">→</span>
+                <input type="time" x-model="b.end_time"
+                       @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
+                       :aria-label="'Break ' + (i+1) + ' end'">
+                <span class="muted break-sep">or</span>
                 <input type="number" x-model.number="b.break_minutes" min="1" max="720"
+                       @input="b.start_time = ''; b.end_time = ''"
                        :aria-label="'Break ' + (i+1) + ' minutes'">
-                <span class="muted" x-text="minutesToLabel(b.break_minutes)"></span>
-                <button type="button" class="secondary outline compact"
-                        @click="showRange = !showRange"
-                        :aria-expanded="showRange"
-                        title="Compute minutes from a time range">
-                  <span x-text="showRange ? '✕' : '⏱ from range'"></span>
-                </button>
+                <span class="muted break-minutes-label" x-text="minutesToLabel(b.break_minutes)"></span>
                 <button type="button" class="contrast outline compact"
                         @click="removeBreak(i)" title="Remove break">−</button>
-              </div>
-              <div class="range-calc" x-show="showRange" x-transition>
-                <span class="muted">From</span>
-                <input type="time" x-model="rangeStart">
-                <span class="muted">to</span>
-                <input type="time" x-model="rangeEnd">
-                <span class="muted" x-text="rangeStart && rangeEnd ? rangeMinutes(rangeStart, rangeEnd) + ' min' : ''"></span>
-                <button type="button"
-                        @click="applyRangeToBreak(b, rangeStart, rangeEnd); showRange=false; rangeStart=''; rangeEnd=''"
-                        :disabled="!rangeStart || !rangeEnd">
-                  Apply
-                </button>
               </div>
             </div>
           </template>

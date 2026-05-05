@@ -31,7 +31,7 @@ def create_entry(body: EntryIn, session: Session = Depends(get_session)) -> Entr
         end_time=body.end_time,
         notes=body.notes,
     )
-    entry.breaks = [Break(break_minutes=b.break_minutes) for b in body.breaks]
+    entry.breaks = [Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time) for b in body.breaks]
     session.add(entry)
     session.commit()
     session.refresh(entry)
@@ -73,7 +73,7 @@ def update_entry(
     entry.end_time = body.end_time
     entry.notes = body.notes
     # Replace the break set atomically — cascade='all, delete-orphan' handles cleanup.
-    entry.breaks = [Break(break_minutes=b.break_minutes) for b in body.breaks]
+    entry.breaks = [Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time) for b in body.breaks]
     session.commit()
     session.refresh(entry)
     return entry_to_out(entry, get_daily_target_hours(session))
