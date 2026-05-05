@@ -926,7 +926,8 @@ function app() {
         }
         const sign = entry && entry.surplus_hours > 0 ? '+' : '';
         const title = entry ? `${day.iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h` : day.iso;
-        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: weekColToFinalCol[day.weekCol], cls, title, weekend: day.row >= 5 });
+        const today = day.iso === this.todayIso();
+        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: weekColToFinalCol[day.weekCol], cls, title, weekend: day.row >= 5, today });
       }
 
       // Build CSS grid-template-columns string

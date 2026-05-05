@@ -220,7 +220,7 @@
         <div class="heatmap"
              :style="`grid-template-columns: ${heatmapCells().colTemplate}`">
           <template x-for="cell in heatmapCells().cells" :key="cell.key">
-            <div :class="cell.type === 'label' ? 'hm-month-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '')"
+            <div :class="cell.type === 'label' ? 'hm-month-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
                  :style="`grid-row: ${cell.row}; grid-column: ${cell.col}`"
                  :title="cell.title || ''"
                  x-text="cell.type === 'label' ? cell.label : ''"></div>
