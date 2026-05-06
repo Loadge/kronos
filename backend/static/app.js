@@ -121,11 +121,6 @@ function app() {
         if (inInput || e.ctrlKey || e.altKey || e.metaKey) return;
 
         switch (e.key) {
-          case '1': e.preventDefault(); this.go('dashboard');  break;
-          case '2': e.preventDefault(); this.go('log');        break;
-          case '3': e.preventDefault(); this.go('days');       break;
-          case '4': e.preventDefault(); this.go('analytics');  break;
-          case '5': e.preventDefault(); this.go('settings');   break;
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
           case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
           case 's': case 'S': e.preventDefault(); this.go('settings');  break;
