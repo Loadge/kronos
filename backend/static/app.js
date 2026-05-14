@@ -27,6 +27,10 @@ function app() {
     form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [] },
     editingDate: null,
 
+    // ---------- log calendar --------------------------------------------
+    calYear: new Date().getFullYear(),
+    calMonth: new Date().getMonth(),
+
     // ---------- days list -----------------------------------------------
     entries: [],
     sortKey: 'date',
@@ -134,6 +138,7 @@ function app() {
         }
       });
 
+      this.loadSettings(); // pre-load so logPreview() has accurate target hours
       this.loadTemplates();
       this.openNewEntry();
       await this.go(this.tab);
@@ -148,6 +153,7 @@ function app() {
       if (location.hash.replace('#', '') !== t) location.hash = t;
       this.error = null;
       if (t === 'dashboard') await this.loadDashboard();
+      else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
       else if (t === 'settings') await this.loadSettings();
@@ -423,6 +429,9 @@ function app() {
     // =====================================================================
     openNewEntry() {
       this.editingDate = null;
+      const now = new Date();
+      this.calYear = now.getFullYear();
+      this.calMonth = now.getMonth();
       this.form = {
         date: this.todayIso(),
         day_type: 'work',
@@ -446,14 +455,84 @@ function app() {
       this.editEntry(await res.json());
     },
 
-    // Fired by the date picker's native change event.
-    async onDateChange() {
-      if (this.editingDate || !this.form.date) return;
-      await this.probeDate(this.form.date);
+    // ── Log calendar ──────────────────────────────────────────────────────────
+
+    calMonthLabel() {
+      return new Date(this.calYear, this.calMonth, 1)
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    },
+
+    calDays() {
+      const year = this.calYear;
+      const month = this.calMonth;
+      const todayStr = this.todayIso();
+      const selectedStr = this.form.date;
+      const entryMap = {};
+      for (const e of this.entries) entryMap[e.date] = e;
+      const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon-first
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) cells.push({ padded: true, key: `pad-${i}` });
+      for (let d = 1; d <= daysInMonth; d++) {
+        const mm = String(month + 1).padStart(2, '0');
+        const dd = String(d).padStart(2, '0');
+        const dateStr = `${year}-${mm}-${dd}`;
+        const entry = entryMap[dateStr] || null;
+        let cls = 'hm-empty';
+        if (entry) {
+          if (entry.day_type === 'work') {
+            cls = entry.surplus_hours > 0.01 ? 'hm-surplus'
+                : entry.surplus_hours < -0.01 ? 'hm-deficit'
+                : 'hm-neutral';
+          } else {
+            cls = `hm-${entry.day_type}`;
+          }
+        }
+        cells.push({ padded: false, key: dateStr, date: dateStr, day: d,
+          cls, isToday: dateStr === todayStr, isSelected: dateStr === selectedStr });
+      }
+      return cells;
+    },
+
+    calPrev() {
+      if (this.calMonth === 0) { this.calMonth = 11; this.calYear--; }
+      else this.calMonth--;
+    },
+
+    calNext() {
+      if (this.calMonth === 11) { this.calMonth = 0; this.calYear++; }
+      else this.calMonth++;
+    },
+
+    async calSelectDay(dateStr) {
+      this.form.date = dateStr;
+      await this.probeDate(dateStr);
+    },
+
+    // Returns {net_hours, target_hours, surplus_hours} from current form state,
+    // or null when the form isn't complete enough to preview.
+    logPreview() {
+      const f = this.form;
+      if (f.day_type !== 'work' || !f.start_time || !f.end_time) return null;
+      const [sh, sm] = f.start_time.split(':').map(Number);
+      const [eh, em] = f.end_time.split(':').map(Number);
+      const totalMins = (eh * 60 + em) - (sh * 60 + sm);
+      if (totalMins <= 0) return null;
+      const breakMins = f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0);
+      const netHours = Math.round(Math.max(0, totalMins - breakMins) / 60 * 100) / 100;
+      const target = this.settingsForm.daily_target_hours || 8;
+      return {
+        net_hours: netHours,
+        target_hours: target,
+        surplus_hours: Math.round((netHours - target) * 100) / 100,
+      };
     },
 
     editEntry(e) {
       this.editingDate = e.date;
+      const d = new Date(e.date + 'T00:00:00');
+      this.calYear = d.getFullYear();
+      this.calMonth = d.getMonth();
       this.form = {
         date: e.date,
         day_type: e.day_type,
