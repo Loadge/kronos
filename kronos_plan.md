@@ -79,10 +79,16 @@ skeleton loading states, PWA manifest.
 - On hover: custom styled tooltip listing all active shortcuts.
 - No permanent space used; zero intrusion on existing layout.
 
-### 10b — Date probe on blur, not change
-- Change `@change="onDateChange()"` → `@blur="onDateChange()"` on the Log tab date input.
-- Fixes premature edit-mode trigger when typing a day like "21" (the partial "02" was
-  being probed before the user finished typing).
+### 10b — Replace date input with calendar picker ✅ DONE
+- Removed `<input type="date">` and `onDateChange()` entirely.
+- Full-width month calendar replaces the date field: 7-col grid, Mon-first,
+  prev/next month nav (‹ ›), brass ring for today, brass fill for selected day.
+- Logged days coloured by type (reuses `hm-*` classes from analytics heatmap).
+- Clicking a cell sets `form.date` and calls `probeDate()` — no partial values,
+  premature probe issue gone.
+- Editing mode: calendar dims all non-selected cells, click is disabled.
+- `go('log')` now fire-and-forgets `loadDays()` so entries are available for
+  the calendar without requiring a Days tab visit first.
 
 ---
 

@@ -451,6 +451,32 @@ th.sortable::after { content: " ↕"; opacity: 0.35; }
 .break-input-line .break-minutes-label { min-width: 4rem; }
 .break-input-line button.compact { padding: 0.25rem 0.5rem; font-size: 0.8rem; margin: 0; }
 
+.impact-card {
+  display: flex;
+  gap: 2rem;
+  padding: 0.65rem 1rem;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  margin-top: 0.75rem;
+}
+.impact-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.impact-label {
+  font-size: 0.72rem;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+.impact-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
 .form-footer {
   display: flex;
   gap: 0.5rem;
@@ -823,6 +849,115 @@ button.btn-action {
 .hm-sick    { background: var(--k-sick);    opacity: 0.75; }
 .hm-holiday { background: var(--k-holiday); opacity: 0.75; }
 .hm-flex    { background: var(--k-flex);    opacity: 0.75; }
+
+/* ── Log tab calendar ─────────────────────────────────────────────────────── */
+
+.log-cal {
+  margin-bottom: 1.25rem;
+}
+
+.log-cal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.log-cal-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.log-cal-nav {
+  background: none;
+  border: none;
+  color: var(--k-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.1rem 0.5rem;
+  line-height: 1;
+  width: auto;
+  margin: 0;
+  transition: color var(--k-transition-fast);
+}
+.log-cal-nav:hover { color: var(--k-brass); }
+
+.log-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.log-cal-dow {
+  font-size: 0.68rem;
+  color: var(--k-muted);
+  text-align: center;
+  padding-bottom: 0.2rem;
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+
+.log-cal-day {
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 100%;
+  margin: 0;
+  /* Reset hm-* opacity so day numbers stay readable */
+  opacity: 1 !important;
+  color: var(--k-text);
+  transition: border-color var(--k-transition-fast), background var(--k-transition-fast);
+}
+
+/* Logged day: slightly dim the number for contrast on colour */
+.log-cal-day.hm-surplus,
+.log-cal-day.hm-deficit,
+.log-cal-day.hm-neutral,
+.log-cal-day.hm-vacation,
+.log-cal-day.hm-sick,
+.log-cal-day.hm-holiday,
+.log-cal-day.hm-flex   { color: var(--k-bg); }
+
+.log-cal-day.hm-empty  { background: transparent; border-color: var(--k-border); }
+
+.log-cal-day:not(:disabled):hover { border-color: var(--k-brass); }
+
+/* Today: brass ring */
+.log-cal-day.cal-today { border-color: var(--k-brass) !important; }
+
+/* Selected: brass fill */
+.log-cal-day.cal-selected {
+  background: var(--k-brass) !important;
+  border-color: var(--k-brass) !important;
+  color: var(--k-bg) !important;
+  font-weight: 700;
+}
+
+/* Padding cells: invisible but hold their grid slot */
+.log-cal-pad {
+  visibility: hidden;
+  pointer-events: none;
+  border: none !important;
+  background: none !important;
+}
+
+/* Editing mode: dim all non-selected cells */
+.log-cal--editing .log-cal-day:not(.cal-selected) {
+  opacity: 0.4 !important;
+}
+
+.log-cal-legend {
+  margin-top: 0.6rem;
+  margin-bottom: 0;
+}
+
+/* ── End log calendar ──────────────────────────────────────────────────────── */
 
 .hm-month-label {
   font-size: 0.62rem;

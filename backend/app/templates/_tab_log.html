@@ -20,31 +20,55 @@
         </template>
       </div>
     </template>
-    <div class="grid">
-      <label>
-        <span class="label-with-action">
-          Date
-          <a class="label-action" x-show="!editingDate"
-             @click.prevent="form.date = todayIso(); probeDate(form.date)">Today</a>
-        </span>
-        <input type="date" x-model="form.date" :disabled="editingDate"
-               @change="onDateChange()" required>
-      </label>
-      <label>
-        <!-- W4: pill preview cross-fades colour as the select changes -->
-        <span class="label-with-action">
-          Day type
-          <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
-        </span>
-        <select x-model="form.day_type">
-          <option value="work">Work</option>
-          <option value="vacation">Vacation</option>
-          <option value="sick">Sick</option>
-          <option value="holiday">Holiday</option>
-          <option value="flex">Flex</option>
-        </select>
-      </label>
+    <!-- Calendar date picker -->
+    <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''">
+      <div class="log-cal-header">
+        <button type="button" class="log-cal-nav" @click="calPrev()" aria-label="Previous month">‹</button>
+        <span class="log-cal-title" x-text="calMonthLabel()"></span>
+        <button type="button" class="log-cal-nav" @click="calNext()" aria-label="Next month">›</button>
+      </div>
+      <div class="log-cal-grid">
+        <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
+          <div class="log-cal-dow" x-text="h"></div>
+        </template>
+        <template x-for="cell in calDays()" :key="cell.key">
+          <button type="button"
+                  class="log-cal-day"
+                  :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '']"
+                  @click="calSelectDay(cell.date)"
+                  :disabled="cell.padded || !!editingDate"
+                  x-text="cell.padded ? '' : cell.day"
+                  :aria-label="cell.padded ? null : cell.date"
+                  :aria-pressed="cell.isSelected ? 'true' : 'false'">
+          </button>
+        </template>
+      </div>
+      <div class="heatmap-legend log-cal-legend">
+        <span class="hm-swatch hm-surplus"></span> Surplus
+        <span class="hm-swatch hm-deficit"></span> Deficit
+        <span class="hm-swatch hm-neutral"></span> On target
+        <span class="hm-swatch hm-vacation"></span> Vacation
+        <span class="hm-swatch hm-sick"></span> Sick
+        <span class="hm-swatch hm-holiday"></span> Holiday
+        <span class="hm-swatch hm-flex"></span> Flex
+      </div>
     </div>
+
+    <!-- Day type -->
+    <label>
+      <!-- W4: pill preview cross-fades colour as the select changes -->
+      <span class="label-with-action">
+        Day type
+        <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
+      </span>
+      <select x-model="form.day_type">
+        <option value="work">Work</option>
+        <option value="vacation">Vacation</option>
+        <option value="sick">Sick</option>
+        <option value="holiday">Holiday</option>
+        <option value="flex">Flex</option>
+      </select>
+    </label>
 
     <template x-if="form.day_type === 'work'">
       <div>
@@ -103,6 +127,23 @@
         </button>
       </div>
     </template>
+
+    <div class="impact-card" x-show="logPreview()" x-transition.duration.200ms>
+      <div class="impact-cell">
+        <span class="impact-label">Net</span>
+        <span class="impact-value" x-text="(logPreview()?.net_hours ?? '') + 'h'"></span>
+      </div>
+      <div class="impact-cell">
+        <span class="impact-label">Target</span>
+        <span class="impact-value" x-text="(logPreview()?.target_hours ?? '') + 'h'"></span>
+      </div>
+      <div class="impact-cell">
+        <span class="impact-label">Δ</span>
+        <span class="impact-value"
+              :class="surplusClass(logPreview()?.surplus_hours)"
+              x-text="formatSurplus(logPreview()?.surplus_hours)"></span>
+      </div>
+    </div>
 
     <div class="form-footer">
       <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
