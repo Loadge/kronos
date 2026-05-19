@@ -231,12 +231,83 @@ h1, h2, h3, h4 {
     padding: 0.4rem 0.85rem;
     font-size: inherit;
   }
-  .theme-toggle { grid-area: unset; }
+  .header-controls { grid-area: unset; }
+}
+
+/* ── Header controls (shortcut btn + theme toggle) ───────────── */
+.header-controls {
+  grid-area: toggle;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ── Shortcut hint button + tooltip ──────────────────────────── */
+.shortcut-wrap {
+  position: relative;
+}
+.shortcut-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid var(--k-border);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--k-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color var(--k-transition-fast), color var(--k-transition-fast);
+}
+.shortcut-btn:hover {
+  border-color: var(--k-text);
+  color: var(--k-text);
+  background: transparent;
+}
+.shortcut-tooltip {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  background: var(--k-surface);
+  border: 1px solid var(--k-border-strong);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  min-width: 170px;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+  white-space: nowrap;
+}
+.shortcut-wrap:hover .shortcut-tooltip {
+  display: block;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.18rem 0;
+  color: var(--k-text);
+}
+.shortcut-row kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--k-border) 60%, var(--k-surface));
+  border: 1px solid var(--k-border-strong);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  color: var(--k-brass);
+  min-width: 1.6rem;
+  text-align: center;
 }
 
 /* ── Theme toggle button ──────────────────────────────────────── */
 .theme-toggle {
-  grid-area: toggle;
   align-self: center;
   display: inline-flex;
   align-items: center;
