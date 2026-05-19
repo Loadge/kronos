@@ -39,11 +39,24 @@
       <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')">Analytics</a>
       <a role="tab" :tabindex="tab==='settings' ? 0 : -1"  :aria-selected="tab==='settings'"  @click.prevent="go('settings')"  @keydown.enter.prevent="go('settings')"  @keydown.space.prevent="go('settings')">Settings</a>
     </nav>
-    <button class="theme-toggle" @click="toggleTheme()"
-            :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
-            :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
-      <span x-text="theme === 'dark' ? '☀' : '🌙'"></span>
-    </button>
+    <div class="header-controls">
+      <div class="shortcut-wrap">
+        <button class="shortcut-btn" @click="openPalette()" aria-label="Keyboard shortcuts">⌨</button>
+        <div class="shortcut-tooltip" role="tooltip">
+          <div class="shortcut-row"><kbd>L</kbd><span>Log</span></div>
+          <div class="shortcut-row"><kbd>A</kbd><span>Analytics</span></div>
+          <div class="shortcut-row"><kbd>S</kbd><span>Settings</span></div>
+          <div class="shortcut-row"><kbd>.</kbd><span>Command palette</span></div>
+          <div class="shortcut-row"><kbd>Ctrl+↵</kbd><span>Save form</span></div>
+          <div class="shortcut-row"><kbd>Esc</kbd><span>Dismiss</span></div>
+        </div>
+      </div>
+      <button class="theme-toggle" @click="toggleTheme()"
+              :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+              :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+        <span x-text="theme === 'dark' ? '☀' : '🌙'"></span>
+      </button>
+    </div>
   </header>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>
