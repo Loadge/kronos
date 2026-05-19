@@ -72,12 +72,15 @@ skeleton loading states, PWA manifest.
 
 ---
 
-## Phase 10 — Shortcut Discoverability & Date UX fixes (next)
+## Phase 10 — Shortcut Discoverability & Date UX fixes ✅ DONE
 
-### 10a — Keyboard shortcut hint button
-- Add a `⌨` button next to the theme toggle that opens the command palette on click.
-- On hover: custom styled tooltip listing all active shortcuts.
-- No permanent space used; zero intrusion on existing layout.
+### 10a — Keyboard shortcut hint button ✅ DONE
+- `⌨` button added next to the theme toggle; grouped in `.header-controls` div.
+- Click opens the command palette.
+- Hover shows a CSS tooltip listing all active shortcuts (L, A, S, ., Ctrl+↵, Esc)
+  with styled `kbd` chips in brass.
+- Tooltip overflow fix: moved `overflow:hidden` from `.app-header` to a new
+  `.egg-clip` overlay so the egg animation still clips without cutting the tooltip.
 
 ### 10b — Replace date input with calendar picker ✅ DONE
 - Removed `<input type="date">` and `onDateChange()` entirely.
