@@ -1606,9 +1606,13 @@ tbody.today-row > tr:first-child > td:first-child {
 }
 
 /* ── W6: Egg emoji header trip + streaks panel ──────────────────── */
-.app-header {
-  position: relative;
+/* .egg-clip is a full-cover overlay that clips the sliding egg without
+   making .app-header overflow:hidden (which would cut off the shortcut tooltip). */
+.egg-clip {
+  position: absolute;
+  inset: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 .egg-emoji {
   position: absolute;
