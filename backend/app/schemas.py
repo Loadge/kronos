@@ -205,3 +205,21 @@ class RestoreIn(BaseModel):
     version: int
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
+
+
+class BatchEntryIn(BaseModel):
+    """Body for POST /api/entries/batch — log the same non-work day type across multiple dates."""
+
+    dates: list[date_] = Field(..., min_length=1)
+    day_type: DayType
+
+    @model_validator(mode="after")
+    def _no_work(self):
+        if self.day_type is DayType.WORK:
+            raise ValueError("batch logging only supports non-work day types")
+        return self
+
+
+class BatchResultOut(BaseModel):
+    created: list[date_]
+    skipped: list[date_]

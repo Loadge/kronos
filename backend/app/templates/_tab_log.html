@@ -154,5 +154,67 @@
       </template>
     </div>
   </form>
+
+  <div class="bulk-trigger">
+    <button type="button" class="secondary outline" @click="openBulkModal()" @touchend.prevent="openBulkModal()">Log multiple days…</button>
+  </div>
+
+  <!-- Bulk log modal -->
+  <template x-if="bulkModal.open">
+    <div class="bulk-backdrop"
+         @click.self="closeBulkModal()"
+         @mouseup.window="bulkMouseup()"
+         role="dialog"
+         aria-modal="true"
+         aria-label="Log multiple days">
+      <div class="bulk-modal">
+        <div class="bulk-modal-header">
+          <h3>Log multiple days</h3>
+          <button type="button" class="bulk-close" @click="closeBulkModal()" aria-label="Close">✕</button>
+        </div>
+
+        <div class="log-cal">
+          <div class="log-cal-header">
+            <button type="button" class="log-cal-nav" @click="bulkCalPrev()" aria-label="Previous month">‹</button>
+            <span class="log-cal-title" x-text="bulkCalLabel()"></span>
+            <button type="button" class="log-cal-nav" @click="bulkCalNext()" aria-label="Next month">›</button>
+          </div>
+          <div class="log-cal-grid" @mousemove="bulkGridMove($event)">
+            <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
+              <div class="log-cal-dow" x-text="h"></div>
+            </template>
+            <template x-for="cell in bulkCalDays()" :key="cell.key">
+              <button type="button"
+                      class="log-cal-day"
+                      :class="[cell.cls, cell.padded ? 'log-cal-pad' : '', cell.isToday ? 'cal-today' : '', bulkIsHighlighted(cell.date) ? 'bulk-selected' : '', cell.weekend ? 'bulk-weekend' : '']"
+                      @mousedown.prevent="bulkMousedown($event, cell.date)"
+                      :data-bdate="cell.padded ? null : cell.date"
+                      :disabled="cell.padded"
+                      x-text="cell.padded ? '' : cell.day"
+                      :aria-label="cell.padded ? null : cell.date"
+                      :aria-pressed="bulkIsHighlighted(cell.date) ? 'true' : 'false'">
+              </button>
+            </template>
+          </div>
+          <p class="muted bulk-hint">Click to select · Click+drag to select a range</p>
+        </div>
+
+        <div class="bulk-pill">
+          <span class="bulk-pill-count muted"
+                x-text="bulkModal.selected.length + ' day' + (bulkModal.selected.length !== 1 ? 's' : '') + ' selected'"></span>
+          <div class="bulk-pill-actions">
+            <button type="button" class="bulk-pill-btn vacation" @click="bulkSubmit('vacation')" :disabled="!bulkModal.selected.length || bulkModal.submitting">Vacation</button>
+            <button type="button" class="bulk-pill-btn sick"     @click="bulkSubmit('sick')"     :disabled="!bulkModal.selected.length || bulkModal.submitting">Sick</button>
+            <button type="button" class="bulk-pill-btn holiday"  @click="bulkSubmit('holiday')"  :disabled="!bulkModal.selected.length || bulkModal.submitting">Holiday</button>
+            <button type="button" class="bulk-pill-btn flex"     @click="bulkSubmit('flex')"     :disabled="!bulkModal.selected.length || bulkModal.submitting">Flex</button>
+            <button type="button" class="bulk-pill-clear" @click="bulkModal.selected = []"
+                    aria-label="Clear selection" title="Clear selection"
+                    :style="bulkModal.selected.length === 0 ? 'visibility:hidden' : ''">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
 </section>
 </template>
