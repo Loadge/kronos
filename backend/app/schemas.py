@@ -223,3 +223,32 @@ class BatchEntryIn(BaseModel):
 class BatchResultOut(BaseModel):
     created: list[date_]
     skipped: list[date_]
+
+
+class TemplateBreakOut(BaseModel):
+    break_minutes: int
+    start_time: str | None
+    end_time: str | None
+
+
+class TemplateIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    start_time: HHMM
+    end_time: HHMM
+    breaks: list[BreakIn] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_span(self):
+        span = minutes_between(self.start_time, self.end_time)
+        break_sum = sum(b.break_minutes for b in self.breaks)
+        if break_sum > span:
+            raise ValueError(f"total breaks ({break_sum}min) exceed work span ({span}min)")
+        return self
+
+
+class TemplateOut(BaseModel):
+    id: int
+    name: str
+    start_time: str
+    end_time: str
+    breaks: list[TemplateBreakOut]
