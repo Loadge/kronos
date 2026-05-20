@@ -78,6 +78,9 @@ function app() {
     streaks: null,
     eggAnimating: false,
 
+    // ---------- bulk log modal ------------------------------------------
+    bulkModal: { open: false, year: new Date().getFullYear(), month: new Date().getMonth(), selected: [], _dragging: false, _dragAnchor: null, _dragCurrent: null, submitting: false },
+
     // ---------- theme ---------------------------------------------------
     theme: localStorage.getItem('k-theme') || 'dark',
 
@@ -507,6 +510,146 @@ function app() {
     async calSelectDay(dateStr) {
       this.form.date = dateStr;
       await this.probeDate(dateStr);
+    },
+
+    // ── Bulk log modal (Phase 11) ──────────────────────────────────────────────
+
+    openBulkModal() {
+      const now = new Date();
+      this.bulkModal = { open: true, year: now.getFullYear(), month: now.getMonth(), selected: [], _dragging: false, _dragAnchor: null, _dragCurrent: null, _startX: 0, _startY: 0, submitting: false };
+    },
+
+    closeBulkModal() { this.bulkModal.open = false; },
+
+    bulkCalLabel() {
+      return new Date(this.bulkModal.year, this.bulkModal.month, 1)
+        .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    },
+
+    bulkCalPrev() {
+      if (this.bulkModal.month === 0) { this.bulkModal.month = 11; this.bulkModal.year--; }
+      else this.bulkModal.month--;
+    },
+
+    bulkCalNext() {
+      if (this.bulkModal.month === 11) { this.bulkModal.month = 0; this.bulkModal.year++; }
+      else this.bulkModal.month++;
+    },
+
+    bulkCalDays() {
+      const { year, month } = this.bulkModal;
+      const todayStr = this.todayIso();
+      const entryMap = {};
+      for (const e of this.entries) entryMap[e.date] = e;
+      const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon-first
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) cells.push({ padded: true, key: `bpad-${i}` });
+      for (let d = 1; d <= daysInMonth; d++) {
+        const mm = String(month + 1).padStart(2, '0');
+        const dd = String(d).padStart(2, '0');
+        const dateStr = `${year}-${mm}-${dd}`;
+        const entry = entryMap[dateStr] || null;
+        const dow = new Date(year, month, d).getDay();
+        const weekend = dow === 0 || dow === 6;
+        let cls = 'hm-empty';
+        if (entry) {
+          cls = entry.day_type === 'work'
+            ? (entry.surplus_hours > 0.01 ? 'hm-surplus' : entry.surplus_hours < -0.01 ? 'hm-deficit' : 'hm-neutral')
+            : `hm-${entry.day_type}`;
+        }
+        cells.push({ padded: false, key: dateStr, date: dateStr, day: d, cls, isToday: dateStr === todayStr, weekend });
+      }
+      return cells;
+    },
+
+    _bulkRange(a, b) {
+      const sa = new Date(a + 'T00:00:00'), sb = new Date(b + 'T00:00:00');
+      const [start, end] = sa <= sb ? [sa, sb] : [sb, sa];
+      const out = [];
+      const cur = new Date(start);
+      while (cur <= end) {
+        const y = cur.getFullYear();
+        const mo = String(cur.getMonth() + 1).padStart(2, '0');
+        const d = String(cur.getDate()).padStart(2, '0');
+        out.push(`${y}-${mo}-${d}`);
+        cur.setDate(cur.getDate() + 1);
+      }
+      return out;
+    },
+
+    bulkIsHighlighted(dateStr) {
+      if (!dateStr) return false;
+      if (this.bulkModal.selected.includes(dateStr)) return true;
+      if (this.bulkModal._dragging && this.bulkModal._dragAnchor && this.bulkModal._dragCurrent) {
+        return this._bulkRange(this.bulkModal._dragAnchor, this.bulkModal._dragCurrent).includes(dateStr);
+      }
+      return false;
+    },
+
+    bulkMousedown(event, dateStr) {
+      if (!dateStr) return;
+      // Record anchor + start position but don't start dragging yet.
+      // _dragging only becomes true once the pointer moves to a different cell,
+      // preventing spurious Alpine re-render mouseover events from acting as drags.
+      this.bulkModal._dragAnchor = dateStr;
+      this.bulkModal._dragCurrent = dateStr;
+      this.bulkModal._dragging = false;
+      this.bulkModal._startX = event.clientX;
+      this.bulkModal._startY = event.clientY;
+    },
+
+    bulkGridMove(event) {
+      // Only track movement after 4px threshold to avoid micro-jitter false drags
+      if (!this.bulkModal._dragAnchor) return;
+      const dx = event.clientX - this.bulkModal._startX;
+      const dy = event.clientY - this.bulkModal._startY;
+      if (Math.sqrt(dx * dx + dy * dy) < 4) return;
+
+      const btn = event.target.closest('[data-bdate]');
+      const dateStr = btn?.dataset.bdate;
+      if (!dateStr || dateStr === this.bulkModal._dragCurrent) return;
+      this.bulkModal._dragging = true;
+      this.bulkModal._dragCurrent = dateStr;
+    },
+
+    bulkMouseup() {
+      const { _dragAnchor, _dragging, _dragCurrent, selected } = this.bulkModal;
+      if (_dragAnchor) {
+        if (_dragging) {
+          // Drag ended: add full range (union with existing selection)
+          for (const d of this._bulkRange(_dragAnchor, _dragCurrent)) {
+            if (!selected.includes(d)) selected.push(d);
+          }
+        } else {
+          // Simple click: toggle the anchor cell
+          const idx = selected.indexOf(_dragAnchor);
+          if (idx === -1) selected.push(_dragAnchor);
+          else selected.splice(idx, 1);
+        }
+      }
+      this.bulkModal._dragging = false;
+      this.bulkModal._dragAnchor = null;
+      this.bulkModal._dragCurrent = null;
+    },
+
+    async bulkSubmit(dayType) {
+      if (!this.bulkModal.selected.length || this.bulkModal.submitting) return;
+      this.bulkModal.submitting = true;
+      try {
+        const result = await this.api('POST', '/api/entries/batch', { dates: this.bulkModal.selected, day_type: dayType });
+        await this.loadDays();
+        this.closeBulkModal();
+        const n = result.created.length;
+        const s = result.skipped.length;
+        this.showToast(
+          s > 0 ? `${n} logged, ${s} skipped (already existed)` : `${n} day${n !== 1 ? 's' : ''} logged`,
+          'neutral',
+        );
+      } catch (e) {
+        this.error = e.message;
+        this.bulkModal.submitting = false;
+      }
     },
 
     // Returns {net_hours, target_hours, surplus_hours} from current form state,

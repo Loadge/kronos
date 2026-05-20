@@ -307,3 +307,47 @@ class TestDeleteEntry:
 
     def test_delete_nonexistent_returns_404(self, client):
         assert client.delete("/api/entries/2026-04-14").status_code == 404
+
+
+class TestBatchCreateEntries:
+    def test_creates_multiple_entries(self, client):
+        resp = client.post("/api/entries/batch", json={
+            "dates": ["2026-05-01", "2026-05-02", "2026-05-05"],
+            "day_type": "vacation",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert sorted(data["created"]) == ["2026-05-01", "2026-05-02", "2026-05-05"]
+        assert data["skipped"] == []
+
+    def test_skips_existing_entries(self, client, work_body):
+        client.post("/api/entries", json=work_body(date="2026-05-01"))
+        resp = client.post("/api/entries/batch", json={
+            "dates": ["2026-05-01", "2026-05-02"],
+            "day_type": "vacation",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["created"] == ["2026-05-02"]
+        assert data["skipped"] == ["2026-05-01"]
+
+    def test_all_skipped_still_returns_200(self, client):
+        client.post("/api/entries/batch", json={"dates": ["2026-05-01"], "day_type": "vacation"})
+        resp = client.post("/api/entries/batch", json={"dates": ["2026-05-01"], "day_type": "sick"})
+        assert resp.status_code == 200
+        assert resp.json()["created"] == []
+        assert resp.json()["skipped"] == ["2026-05-01"]
+
+    def test_created_entries_exist_in_db(self, client):
+        dates = ["2026-06-01", "2026-06-02", "2026-06-03"]
+        client.post("/api/entries/batch", json={"dates": dates, "day_type": "holiday"})
+        for d in dates:
+            assert client.get(f"/api/entries/{d}").json()["day_type"] == "holiday"
+
+    def test_work_type_rejected(self, client):
+        resp = client.post("/api/entries/batch", json={"dates": ["2026-05-01"], "day_type": "work"})
+        assert resp.status_code == 422
+
+    def test_empty_dates_rejected(self, client):
+        resp = client.post("/api/entries/batch", json={"dates": [], "day_type": "vacation"})
+        assert resp.status_code == 422

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import Break, WorkEntry
-from app.schemas import EntryIn, EntryOut, EntryUpdate
+from app.schemas import BatchEntryIn, BatchResultOut, EntryIn, EntryOut, EntryUpdate
 from app.services.settings import get_daily_target_hours
 from app.services.views import entry_to_out
 
@@ -36,6 +36,24 @@ def create_entry(body: EntryIn, session: Session = Depends(get_session)) -> Entr
     session.commit()
     session.refresh(entry)
     return entry_to_out(entry, get_daily_target_hours(session))
+
+
+@router.post("/batch", response_model=BatchResultOut)
+def batch_create_entries(
+    body: BatchEntryIn, session: Session = Depends(get_session)
+) -> BatchResultOut:
+    """Create multiple non-work entries at once. Silently skips dates that already have an entry."""
+    created: list = []
+    skipped: list = []
+    for d in body.dates:
+        if session.get(WorkEntry, d):
+            skipped.append(d)
+            continue
+        session.add(WorkEntry(date=d, day_type=body.day_type.value))
+        created.append(d)
+    if created:
+        session.commit()
+    return BatchResultOut(created=created, skipped=skipped)
 
 
 @router.get("", response_model=list[EntryOut])

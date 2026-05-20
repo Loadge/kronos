@@ -95,17 +95,31 @@ skeleton loading states, PWA manifest.
 
 ---
 
-## Phase 11 — Bulk Date Logging
+## Phase 11 — Bulk Date Logging ✅ DONE
 
-Log multiple days in one action — motivated by vacation/holiday blocks.
-**Decided: Option C — Calendar overlay (Lorca-inspired).**
+- "Log multiple days…" button on the Log tab opens a modal calendar.
+- Calendar reuses `.log-cal-*` styles; entry colours from `hm-*` classes.
+- Click to toggle a single day; click+drag selects a range (union with
+  existing selection). `@mouseup.window` ends drag anywhere on screen.
+- Weekends visually dimmed (`.bulk-weekend`).
+- Action pill appears once ≥1 day is selected: Vacation / Sick / Holiday / Flex / clear.
+- Confirming a day type POSTs `POST /api/entries/batch` and shows a toast
+  with "X logged, Y skipped" feedback.
+- Backend skips existing entries silently; work type rejected with 422.
+- 6 new API tests (258 total). No external JS dependencies.
 
-- "Log multiple days" button on the Log tab opens a modal calendar (1–2 months visible).
-- Click selects a single day; click+drag selects a range.
-- Floating action pill: `[Vacation] [Sick] [Holiday] [Flex] [✕]`.
-- Confirming posts to a new `POST /api/entries/batch` endpoint.
-- Skips existing entries (or warns). Weekends visually distinct / skippable.
-- No external JS dependencies — pure Alpine.js + CSS calendar component.
+---
+
+## Phase 12 — Server-Side Templates (planned)
+
+Templates currently live in `localStorage` — per-origin, per-device. Saving a
+template on desktop doesn't make it appear on mobile or any other device.
+
+- Move templates to a new `templates` DB table (name, start_time, end_time, breaks JSON).
+- `GET /api/templates` · `POST /api/templates` · `DELETE /api/templates/{id}`
+- Frontend loads from API on init instead of localStorage.
+- Migration: on first load, if localStorage has templates and the API returns none,
+  offer to upload them (or do it silently).
 
 ---
 
