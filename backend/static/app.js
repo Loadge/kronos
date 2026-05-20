@@ -49,7 +49,7 @@ function app() {
     // ---------- settings ------------------------------------------------
     settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0 },
 
-    // ---------- day templates (localStorage) ----------------------------
+    // ---------- day templates (server-side) -----------------------------
     templates: [],
     _tplName: '',
 
@@ -129,6 +129,7 @@ function app() {
 
         switch (e.key) {
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
+          case 'd': case 'D': e.preventDefault(); this.go('days');      break;
           case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
           case 's': case 'S': e.preventDefault(); this.go('settings');  break;
           case '.': e.preventDefault(); this.openPalette(); break;
@@ -184,29 +185,44 @@ function app() {
     },
 
     // =====================================================================
-    // Day templates (localStorage)
+    // Day templates (server-side)
     // =====================================================================
-    loadTemplates() {
-      try { this.templates = JSON.parse(localStorage.getItem('kronos_templates') || '[]'); }
-      catch { this.templates = []; }
+    async loadTemplates() {
+      try {
+        this.templates = await this.api('GET', '/api/templates');
+        // Silent one-time migration: if the server has no templates but localStorage does,
+        // upload them and clear the local copy.
+        if (this.templates.length === 0) {
+          let local = [];
+          try { local = JSON.parse(localStorage.getItem('kronos_templates') || '[]'); } catch {}
+          if (local.length > 0) {
+            for (const t of local) {
+              try {
+                await this.api('POST', '/api/templates', {
+                  name: t.name, start_time: t.start_time, end_time: t.end_time,
+                  breaks: (t.breaks || []).map(b => ({ break_minutes: b.break_minutes })),
+                });
+              } catch { /* skip invalid entries */ }
+            }
+            localStorage.removeItem('kronos_templates');
+            this.templates = await this.api('GET', '/api/templates');
+          }
+        }
+      } catch { this.templates = []; }
     },
-    _saveTemplates() {
-      localStorage.setItem('kronos_templates', JSON.stringify(this.templates));
-    },
-    saveCurrentAsTemplate(name) {
+    async saveCurrentAsTemplate(name) {
       if (!name.trim() || this.form.day_type !== 'work') return;
-      this.templates = [...this.templates, {
-        id: Date.now().toString(36),
+      const t = await this.api('POST', '/api/templates', {
         name: name.trim(),
         start_time: this.form.start_time,
         end_time: this.form.end_time,
-        breaks: this.form.breaks.map(b => ({ break_minutes: b.break_minutes })),
-      }];
-      this._saveTemplates();
+        breaks: this.form.breaks.map(b => ({ break_minutes: b.break_minutes, start_time: b.start_time || null, end_time: b.end_time || null })),
+      });
+      this.templates = [...this.templates, t];
     },
-    deleteTemplate(id) {
+    async deleteTemplate(id) {
+      await this.api('DELETE', `/api/templates/${id}`);
       this.templates = this.templates.filter(t => t.id !== id);
-      this._saveTemplates();
     },
     applyTemplate(t) {
       this.form.day_type = 'work';

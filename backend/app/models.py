@@ -75,3 +75,15 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(String(256), nullable=False)
+
+
+class Template(Base):
+    """Named work-day template (start/end times + breaks). Stored server-side."""
+
+    __tablename__ = "templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    breaks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON

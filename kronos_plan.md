@@ -110,16 +110,14 @@ skeleton loading states, PWA manifest.
 
 ---
 
-## Phase 12 — Server-Side Templates (planned)
+## Phase 12 — Server-Side Templates ✅ DONE
 
-Templates currently live in `localStorage` — per-origin, per-device. Saving a
-template on desktop doesn't make it appear on mobile or any other device.
-
-- Move templates to a new `templates` DB table (name, start_time, end_time, breaks JSON).
+- `templates` DB table: id, name, start_time, end_time, breaks (JSON).
 - `GET /api/templates` · `POST /api/templates` · `DELETE /api/templates/{id}`
-- Frontend loads from API on init instead of localStorage.
-- Migration: on first load, if localStorage has templates and the API returns none,
-  offer to upload them (or do it silently).
+- Frontend loads from API on init; save/delete call API directly.
+- Silent one-time migration: on first load, if API returns empty and localStorage
+  has templates, they are uploaded automatically and localStorage is cleared.
+- 10 new API tests (268 total).
 
 ---
 
