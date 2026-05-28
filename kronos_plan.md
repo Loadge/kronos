@@ -121,6 +121,113 @@ skeleton loading states, PWA manifest.
 
 ---
 
+## Phase 13 — Clock In / Clock Out ✅ DONE
+
+One-tap stamp buttons on the Log tab and Dashboard. "Clock in" sets `start_time = now`;
+"Clock out" sets `end_time = now` and saves the entry. Eliminates the main friction point
+for daily use — no need to remember what time you started.
+
+- Clock-in button visible when today has no entry yet (or entry has no start_time).
+- Clock-out button visible when today has a start_time but no end_time.
+- Both buttons disappear once the day is fully logged.
+- Tapping either pre-selects today in the Log tab so the full form is accessible for edits.
+
+---
+
+## Phase 14 — Public Holidays Auto-Population (planned)
+
+Pick a country and year in Settings; Kronos pre-populates all official public holidays
+as `holiday` entries in one click.
+
+- Settings: country selector (ISO 3166-1) + year. Stored in config table.
+- `POST /api/holidays/import?country=ES&year=2026` — hits a public holidays API
+  (e.g. Nager.Date, which is free and requires no key) and batch-creates entries.
+- Skips dates that already have an entry (same logic as bulk logging).
+- Shows toast: "X holidays imported, Y skipped".
+- No external JS dependency — purely backend fetch.
+
+---
+
+## Phase 15 — End-of-Day Reminder (planned)
+
+Browser push notification (Web Push API) if no entry has been logged by a configurable
+time (default 18:00 local).
+
+- Settings: enable/disable toggle + reminder time picker.
+- Service worker handles the scheduled check and notification dispatch.
+- Notification taps open the Log tab directly.
+- Permission prompt shown only when the user enables the feature.
+
+---
+
+## Phase 16 — Notes Search (planned)
+
+Search field on the Days tab that filters the entry list by note content in real time.
+
+- Pure frontend filter — no API change needed.
+- Clears on tab switch.
+- Highlights matched text in the results.
+
+---
+
+## Phase 17 — Week View (planned)
+
+New "Week" sub-view (or tab) showing Mon–Sun at a glance: hours per day, daily surplus/
+deficit indicator, and week total. Most-used view in Toggl/Clockify.
+
+- Navigation arrows to jump between weeks; "This week" button snaps back.
+- Click any day cell to open it in the Log tab for editing.
+- Reuses `hm-*` colour classes for day-type indicators.
+
+---
+
+## Phase 18 — Streaks & Milestones (planned)
+
+Motivational counters displayed on the Dashboard.
+
+- **Logging streak**: consecutive calendar days with any entry logged.
+- **On-target streak**: consecutive work days where surplus ≥ 0.
+- **Milestones**: toast notification when hitting 30 / 100 / 365 days logged.
+- Computed server-side via `GET /api/streaks`; no new DB table needed.
+
+---
+
+## Phase 19 — CSV Import (planned)
+
+Companion to the existing CSV export. Upload a CSV file (matching the export format)
+to bulk-import historical entries.
+
+- `POST /api/import/csv` — parses uploaded file, validates each row, inserts entries.
+- Skips rows for dates that already exist (same skip logic as batch endpoint).
+- Returns `{ imported: N, skipped: M, errors: [...] }`.
+- UI: file picker in the Settings / Backup section, same area as restore.
+
+---
+
+## Phase 20 — Overtime Alerts (planned)
+
+Warn when weekly hours are heading toward or have exceeded a configurable threshold
+(e.g. 45 h/week).
+
+- Settings: weekly overtime threshold (default off).
+- Dashboard warning banner when current-week net hours exceed threshold.
+- Colour-coded: yellow = approaching (>90% of threshold), red = exceeded.
+
+---
+
+## Phase 21 — Active Timer (planned)
+
+A live running clock for users who prefer to track time in real time rather than logging
+after the fact. Bigger lift than the clock-in stamp (Phase 13) — this one ticks.
+
+- "Start timer" button → records `start_time`, begins a seconds-level counter visible
+  in the header or Dashboard.
+- "Stop timer" → fills `end_time`, prompts for breaks, saves entry.
+- Timer state persisted in `localStorage` so it survives page refreshes.
+- Conflicts gracefully with manual entries (timer disabled if today already logged).
+
+---
+
 ## Architecture Notes
 
 - All DB writes via `entries.py` router. Single `Entry` row per date (date is PK).

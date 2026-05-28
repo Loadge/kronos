@@ -53,14 +53,19 @@ class _EntryBody(BaseModel):
     @model_validator(mode="after")
     def _check_day_type_rules(self):
         if self.day_type is DayType.WORK:
-            if not self.start_time or not self.end_time:
-                raise ValueError("work days require start_time and end_time")
-            span = minutes_between(self.start_time, self.end_time)
-            break_sum = sum(b.break_minutes for b in self.breaks)
-            if break_sum > span:
-                raise ValueError(
-                    f"total breaks ({break_sum}min) exceed work span ({span}min)"
-                )
+            if not self.start_time:
+                raise ValueError("work days require start_time")
+            if self.end_time:
+                # Complete entry: validate span vs breaks.
+                span = minutes_between(self.start_time, self.end_time)
+                break_sum = sum(b.break_minutes for b in self.breaks)
+                if break_sum > span:
+                    raise ValueError(
+                        f"total breaks ({break_sum}min) exceed work span ({span}min)"
+                    )
+            elif self.breaks:
+                # In-progress entry (no end_time yet): breaks not allowed yet.
+                raise ValueError("cannot add breaks without end_time")
         else:
             # vacation / sick / holiday / flex — no time fields, no breaks
             if self.start_time is not None or self.end_time is not None:
