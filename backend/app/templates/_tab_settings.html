@@ -40,6 +40,18 @@
              min="0" max="365" step="1" required>
       <small>Annual leave allowance. Kronos counts vacation days logged this calendar year and shows remaining days on the Dashboard.</small>
     </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <label>
+        Default start time
+        <input type="time" x-model="settingsForm.default_start_time" required>
+        <small>Pre-filled in the Log form for new work entries.</small>
+      </label>
+      <label>
+        Default end time
+        <input type="time" x-model="settingsForm.default_end_time" required>
+        <small>Pre-filled in the Log form for new work entries.</small>
+      </label>
+    </div>
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 

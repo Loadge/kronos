@@ -189,6 +189,8 @@ class ConfigOut(BaseModel):
     reset_annually: bool = False  # default keeps old backup files valid
     work_week_days: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
     vacation_budget_days: int = 0
+    default_start_time: str = "09:00"
+    default_end_time: str = "17:00"
 
 
 class ConfigIn(BaseModel):
@@ -197,6 +199,8 @@ class ConfigIn(BaseModel):
     reset_annually: bool | None = None
     work_week_days: list[int] | None = None
     vacation_budget_days: int | None = Field(default=None, ge=0)
+    default_start_time: HHMM | None = None
+    default_end_time: HHMM | None = None
 
 
 class RestoreIn(BaseModel):

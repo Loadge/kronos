@@ -47,7 +47,7 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0 },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00' },
 
     // ---------- day templates (server-side) -----------------------------
     templates: [],
@@ -492,8 +492,8 @@ function app() {
       this.form = {
         date: this.todayIso(),
         day_type: 'work',
-        start_time: '09:00',
-        end_time: '17:00',
+        start_time: this.settingsForm.default_start_time || '09:00',
+        end_time: this.settingsForm.default_end_time || '17:00',
         notes: '',
         breaks: [],
       };
