@@ -18,8 +18,12 @@ CUMULATIVE_START_DATE = "cumulative_start_date"
 RESET_ANNUALLY = "reset_annually"
 WORK_WEEK_DAYS = "work_week_days"
 VACATION_BUDGET_DAYS = "vacation_budget_days"
+DEFAULT_START_TIME = "default_start_time"
+DEFAULT_END_TIME = "default_end_time"
 
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
+_DEFAULT_START_TIME = "09:00"
+_DEFAULT_END_TIME = "17:00"
 
 
 def _get(session: Session, key: str, default: str) -> str:
@@ -76,6 +80,22 @@ def get_vacation_budget_days(session: Session) -> int:
 
 def set_vacation_budget_days(session: Session, days: int) -> None:
     _set(session, VACATION_BUDGET_DAYS, str(days))
+
+
+def get_default_start_time(session: Session) -> str:
+    return _get(session, DEFAULT_START_TIME, _DEFAULT_START_TIME)
+
+
+def set_default_start_time(session: Session, value: str) -> None:
+    _set(session, DEFAULT_START_TIME, value)
+
+
+def get_default_end_time(session: Session) -> str:
+    return _get(session, DEFAULT_END_TIME, _DEFAULT_END_TIME)
+
+
+def set_default_end_time(session: Session, value: str) -> None:
+    _set(session, DEFAULT_END_TIME, value)
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:
