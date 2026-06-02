@@ -36,6 +36,7 @@ function app() {
     sortKey: 'date',
     sortDir: 'desc',
     daysYear: String(new Date().getFullYear()),
+    notesQuery: '',
 
     // ---------- analytics -----------------------------------------------
     monthly: [],
@@ -156,6 +157,7 @@ function app() {
       // Mirror tab to URL hash without re-triggering hashchange
       if (location.hash.replace('#', '') !== t) location.hash = t;
       this.error = null;
+      this.notesQuery = '';
       if (t === 'dashboard') await this.loadDashboard();
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
@@ -313,6 +315,14 @@ function app() {
       s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
       s = s.replace(/\n/g, '<br>');
       return s;
+    },
+    highlightNotes(text, query) {
+      const html = this.renderMarkdown(text);
+      const q = query.trim();
+      if (!q) return html;
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Replace only in text nodes (skip content inside HTML tags).
+      return html.replace(new RegExp(`(${escaped})(?![^<]*>)`, 'gi'), '<mark>$1</mark>');
     },
     toggleNotes(date) {
       this.notesExpanded = { ...this.notesExpanded, [date]: !this.notesExpanded[date] };
@@ -902,9 +912,13 @@ function app() {
 
     sortedEntries() {
       // Apply year filter for display (entries array is always the full unfiltered list).
-      const source = this.daysYear === 'all'
+      let source = this.daysYear === 'all'
         ? this.entries
         : this.entries.filter(e => e.date.startsWith(this.daysYear));
+
+      // Apply notes search filter.
+      const q = this.notesQuery.trim().toLowerCase();
+      if (q) source = source.filter(e => e.notes?.toLowerCase().includes(q));
 
       // Compute running cumulative in chronological order within the filtered set.
       const byDate = [...source].sort((a, b) => a.date < b.date ? -1 : 1);

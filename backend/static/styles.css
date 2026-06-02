@@ -1820,6 +1820,48 @@ tbody.today-row > tr:first-child > td:first-child {
 }
 
 /* ================================================================
+   NOTES SEARCH (Days tab)
+   ================================================================ */
+
+.notes-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.notes-search {
+  width: 11rem;
+  margin: 0;
+  padding-right: 1.8rem;
+  font-size: 0.82rem;
+  height: 2rem;
+}
+
+.notes-search-clear {
+  position: absolute;
+  right: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--k-muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0.1rem 0.2rem;
+  line-height: 1;
+  width: auto;
+  margin: 0;
+  transition: color var(--k-transition-fast);
+}
+.notes-search-clear:hover { color: var(--k-text); }
+
+/* Highlight matched text inside notes rows */
+.notes-row mark {
+  background: color-mix(in srgb, var(--k-brass) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+
+/* ================================================================
    CLOCK IN / CLOCK OUT STRIP (Dashboard + Log tab)
    ================================================================ */
 
