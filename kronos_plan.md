@@ -160,7 +160,7 @@ time (default 18:00 local).
 
 ---
 
-## Phase 16 — Notes Search (planned)
+## Phase 16 — Notes Search ✅ DONE
 
 Search field on the Days tab that filters the entry list by note content in real time.
 

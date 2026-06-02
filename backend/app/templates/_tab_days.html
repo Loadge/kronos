@@ -10,6 +10,13 @@
           <option :value="y" x-text="y"></option>
         </template>
       </select>
+      <div class="notes-search-wrap">
+        <input type="search" class="notes-search" placeholder="Search notes…"
+               x-model="notesQuery" aria-label="Filter entries by notes">
+        <template x-if="notesQuery.trim()">
+          <button type="button" class="notes-search-clear" @click="notesQuery = ''" aria-label="Clear search">✕</button>
+        </template>
+      </div>
       <span class="muted" x-text="sortedEntries().length + ' entries'"></span>
     </div>
   </header>
@@ -99,9 +106,9 @@
                 </div>
               </td>
             </tr>
-            <template x-if="notesExpanded[e.date] && e.notes">
+            <template x-if="(notesExpanded[e.date] || notesQuery.trim()) && e.notes">
               <tr class="notes-row">
-                <td colspan="10" x-html="renderMarkdown(e.notes)"></td>
+                <td colspan="10" x-html="highlightNotes(e.notes, notesQuery)"></td>
               </tr>
             </template>
           </tbody>
