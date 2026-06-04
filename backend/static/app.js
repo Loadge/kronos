@@ -37,6 +37,7 @@ function app() {
     sortDir: 'desc',
     daysYear: String(new Date().getFullYear()),
     notesQuery: '',
+    nowDisplay: '',
 
     // ---------- analytics -----------------------------------------------
     monthly: [],
@@ -143,6 +144,11 @@ function app() {
         }
       });
 
+      // Live clock for the "Now" stamp pill — synced to the minute boundary
+      const tickNow = () => { this.nowDisplay = this._nowHHMM(); };
+      tickNow();
+      setTimeout(() => { tickNow(); setInterval(tickNow, 60000); }, (60 - new Date().getSeconds()) * 1000);
+
       this.loadSettings(); // pre-load so logPreview() has accurate target hours
       this.loadTemplates();
       this.openNewEntry();
@@ -240,35 +246,8 @@ function app() {
       const now = new Date();
       return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     },
-    todayEntry() {
-      const today = this.todayIso();
-      return this.days.find(e => e.date === today) ?? null;
-    },
-    async clockIn() {
-      const today = this.todayIso();
-      const startTime = this._nowHHMM();
-      await this.api('POST', '/api/entries', { date: today, day_type: 'work', start_time: startTime });
-      await this.loadDays();
-      this.showToast(`Clocked in at ${startTime}`, 'neutral');
-      this.go('log');
-      await this.calSelectDay(today);
-    },
-    async clockOut() {
-      const today = this.todayIso();
-      const endTime = this._nowHHMM();
-      const entry = this.todayEntry();
-      if (!entry) return;
-      await this.api('PUT', `/api/entries/${today}`, {
-        day_type: entry.day_type,
-        start_time: entry.start_time,
-        end_time: endTime,
-        notes: entry.notes,
-        breaks: entry.breaks.map(b => ({ break_minutes: b.break_minutes, start_time: b.start_time || null, end_time: b.end_time || null })),
-      });
-      await this.loadDays();
-      this.showToast(`Clocked out at ${endTime}`, 'neutral');
-      this.go('log');
-      await this.calSelectDay(today);
+    stampNow(field) {
+      this.form[field] = this._nowHHMM();
     },
 
     // =====================================================================
