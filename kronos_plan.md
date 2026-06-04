@@ -170,6 +170,20 @@ Search field on the Days tab that filters the entry list by note content in real
 
 ---
 
+## Phase 22 — Log Tab UI Overhaul ✅ DONE
+
+Full visual redesign of the Log tab to a modern, cohesive desktop layout.
+
+- **Three-column structure**: sticky calendar / card-surface form / notes panel. Card wraps cols 2+3 with `var(--k-surface)` background + border + border-radius — inspired by Linear/Raycast "tool panel left, card right" pattern.
+- **Now pill relocated**: moved from mid-row (colliding with time value) to the label row above each time input, right-aligned as a compact helper affordance.
+- **Template bar collapsed**: replaced full-width bar with a dashed ghost trigger button opening an Alpine `x-data` dropdown. Recovers ~60px of vertical prime real estate.
+- **Save as template**: replaced with a `<details>` collapsible — collapsed by default, expands inline. Eliminates input truncation.
+- **Notes panel**: uppercase section header + live character count; textarea fills the card column height.
+- **Create entry CTA**: full-width, solid brass background — sole primary action, pinned to bottom of form column via `margin-top: auto`.
+- **Form hierarchy**: thin `border-top` dividers between sections, consistent group spacing.
+
+---
+
 ## Phase 17 — Week View (planned)
 
 New "Week" sub-view (or tab) showing Mon–Sun at a glance: hours per day, daily surplus/
