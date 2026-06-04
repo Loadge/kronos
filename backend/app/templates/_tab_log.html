@@ -10,7 +10,7 @@
 
   <div class="log-layout">
 
-    <!-- ── Col 1: calendar + bulk trigger ───────────────────────── -->
+    <!-- ── Col 1: sticky calendar + bulk trigger ────────────────── -->
     <div class="log-col-left">
       <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''">
         <div class="log-cal-header">
@@ -45,148 +45,176 @@
           <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
         </div>
       </div>
-
       <div class="bulk-trigger">
         <button type="button" class="secondary outline" @click="openBulkModal()" @touchend.prevent="openBulkModal()">Log multiple days…</button>
       </div>
     </div>
 
-    <!-- ── Col 2: main form fields ──────────────────────────────── -->
-    <div class="log-col-center">
-      <form @submit.prevent="saveEntry()" class="log-main-form">
-        <template x-if="templates.length > 0">
-          <div class="template-bar">
-            <span class="template-bar-label muted">Templates:</span>
-            <template x-for="t in templates" :key="t.id">
-              <button type="button" class="template-pill" @click="applyTemplate(t)">
-                <span x-text="t.name"></span>
-                <span class="muted template-times" x-text="t.start_time + '–' + t.end_time"></span>
+    <!-- ── Card surface: form (col 2) + notes (col 3) ───────────── -->
+    <div class="log-form-card">
+      <form class="log-form-grid" @submit.prevent="saveEntry()">
+
+        <!-- ── Form column ─────────────────────────────────────── -->
+        <div class="log-col-center">
+
+          <!-- Templates: collapsed ghost trigger → dropdown -->
+          <template x-if="templates.length > 0">
+            <div class="log-template-wrap" x-data="{ tplOpen: false }">
+              <button type="button" class="template-trigger"
+                      @click="tplOpen = !tplOpen"
+                      :aria-expanded="tplOpen">
+                <span>Templates</span>
+                <span x-text="tplOpen ? '▴' : '▾'" class="muted" style="font-size:0.7rem"></span>
               </button>
+              <div class="template-dropdown" x-show="tplOpen" @click.outside="tplOpen = false" x-transition>
+                <template x-for="t in templates" :key="t.id">
+                  <button type="button" class="template-pill" @click="applyTemplate(t); tplOpen = false">
+                    <span x-text="t.name"></span>
+                    <span class="muted template-times" x-text="t.start_time + '–' + t.end_time"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
+          <!-- Day type -->
+          <label class="log-form-group">
+            <span class="label-with-action">
+              Day type
+              <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
+            </span>
+            <select x-model="form.day_type">
+              <option value="work">Work</option>
+              <option value="vacation">Vacation</option>
+              <option value="sick">Sick</option>
+              <option value="holiday">Holiday</option>
+              <option value="flex">Flex</option>
+            </select>
+          </label>
+
+          <template x-if="form.day_type === 'work'">
+            <div>
+              <hr class="log-section-divider">
+
+              <!-- Start / End time — Now pill lives in the label row -->
+              <div class="grid">
+                <label>
+                  <div class="time-field-header">
+                    <span>Start time</span>
+                    <button type="button" class="now-pill"
+                            x-show="form.date === todayIso()"
+                            @click="stampNow('start_time')"
+                            :title="'Stamp current time: ' + nowDisplay"
+                            x-text="'⏱ ' + nowDisplay"></button>
+                  </div>
+                  <input type="time" x-model="form.start_time" required>
+                </label>
+                <label>
+                  <div class="time-field-header">
+                    <span>End time</span>
+                    <button type="button" class="now-pill"
+                            x-show="form.date === todayIso()"
+                            @click="stampNow('end_time')"
+                            :title="'Stamp current time: ' + nowDisplay"
+                            x-text="'⏱ ' + nowDisplay"></button>
+                  </div>
+                  <input type="time" x-model="form.end_time">
+                </label>
+              </div>
+
+              <fieldset>
+                <legend>Breaks</legend>
+                <template x-for="(b, i) in form.breaks" :key="i">
+                  <div class="break-row">
+                    <div class="break-input-line">
+                      <input type="time" x-model="b.start_time"
+                             @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
+                             :aria-label="'Break ' + (i+1) + ' start'">
+                      <span class="muted break-sep">→</span>
+                      <input type="time" x-model="b.end_time"
+                             @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
+                             :aria-label="'Break ' + (i+1) + ' end'">
+                      <span class="muted break-sep">or</span>
+                      <input type="number" x-model.number="b.break_minutes" min="1" max="720"
+                             @input="b.start_time = ''; b.end_time = ''"
+                             :aria-label="'Break ' + (i+1) + ' minutes'">
+                      <span class="muted break-minutes-label" x-text="minutesToLabel(b.break_minutes)"></span>
+                      <button type="button" class="contrast outline compact"
+                              @click="removeBreak(i)" title="Remove break">−</button>
+                    </div>
+                  </div>
+                </template>
+                <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
+              </fieldset>
+            </div>
+          </template>
+
+          <!-- Save as template — collapsible, only for new work entries -->
+          <template x-if="form.day_type === 'work' && !editingDate">
+            <details class="save-template-section">
+              <summary>Save as template</summary>
+              <div class="save-template-body">
+                <input type="text" x-model="_tplName" placeholder="Template name"
+                       class="template-name-input"
+                       @keydown.enter.prevent="if (_tplName.trim()) { saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral'); }">
+                <button type="button" class="secondary outline compact"
+                        :disabled="!_tplName.trim()"
+                        @click="saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral')">
+                  Save
+                </button>
+              </div>
+            </details>
+          </template>
+
+          <!-- Impact preview -->
+          <div class="impact-card" x-show="logPreview()" x-transition.duration.200ms>
+            <div class="impact-cell">
+              <span class="impact-label">Net</span>
+              <span class="impact-value" x-text="(logPreview()?.net_hours ?? '') + 'h'"></span>
+            </div>
+            <div class="impact-cell">
+              <span class="impact-label">Target</span>
+              <span class="impact-value" x-text="(logPreview()?.target_hours ?? '') + 'h'"></span>
+            </div>
+            <div class="impact-cell">
+              <span class="impact-label">Δ</span>
+              <span class="impact-value"
+                    :class="surplusClass(logPreview()?.surplus_hours)"
+                    x-text="formatSurplus(logPreview()?.surplus_hours)"></span>
+            </div>
+          </div>
+
+          <!-- Notes — mobile only (col-3 panel takes over on desktop) -->
+          <label class="log-notes-inline">
+            Notes <span class="muted" style="font-size:0.75em">(optional)</span>
+            <textarea x-model="form.notes" rows="3"
+                      placeholder="anything worth remembering about this day"></textarea>
+          </label>
+
+          <!-- Primary CTA — pinned to bottom of this column -->
+          <div class="form-footer">
+            <button type="submit" class="log-submit-btn"
+                    x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
+            <template x-if="editingDate">
+              <button type="button" class="contrast outline"
+                      @click="deleteEntry(editingDate)">Delete</button>
             </template>
           </div>
-        </template>
+        </div><!-- /log-col-center -->
 
-        <!-- Day type -->
-        <label>
-          <span class="label-with-action">
-            Day type
-            <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
-          </span>
-          <select x-model="form.day_type">
-            <option value="work">Work</option>
-            <option value="vacation">Vacation</option>
-            <option value="sick">Sick</option>
-            <option value="holiday">Holiday</option>
-            <option value="flex">Flex</option>
-          </select>
-        </label>
-
-        <template x-if="form.day_type === 'work'">
-          <div>
-            <div class="grid">
-              <label>
-                Start time
-                <div class="time-input-group">
-                  <input type="time" x-model="form.start_time" required>
-                  <button type="button" class="now-pill" x-show="form.date === todayIso()"
-                          @click="stampNow('start_time')"
-                          :title="'Stamp current time: ' + nowDisplay"
-                          x-text="'⏱ ' + nowDisplay"></button>
-                </div>
-              </label>
-              <label>
-                End time
-                <div class="time-input-group">
-                  <input type="time" x-model="form.end_time">
-                  <button type="button" class="now-pill" x-show="form.date === todayIso()"
-                          @click="stampNow('end_time')"
-                          :title="'Stamp current time: ' + nowDisplay"
-                          x-text="'⏱ ' + nowDisplay"></button>
-                </div>
-              </label>
-            </div>
-
-            <fieldset>
-              <legend>Breaks</legend>
-              <template x-for="(b, i) in form.breaks" :key="i">
-                <div class="break-row">
-                  <div class="break-input-line">
-                    <input type="time" x-model="b.start_time"
-                           @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
-                           :aria-label="'Break ' + (i+1) + ' start'">
-                    <span class="muted break-sep">→</span>
-                    <input type="time" x-model="b.end_time"
-                           @change="b.start_time && b.end_time && (b.break_minutes = rangeMinutes(b.start_time, b.end_time))"
-                           :aria-label="'Break ' + (i+1) + ' end'">
-                    <span class="muted break-sep">or</span>
-                    <input type="number" x-model.number="b.break_minutes" min="1" max="720"
-                           @input="b.start_time = ''; b.end_time = ''"
-                           :aria-label="'Break ' + (i+1) + ' minutes'">
-                    <span class="muted break-minutes-label" x-text="minutesToLabel(b.break_minutes)"></span>
-                    <button type="button" class="contrast outline compact"
-                            @click="removeBreak(i)" title="Remove break">−</button>
-                  </div>
-                </div>
-              </template>
-              <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
-            </fieldset>
+        <!-- ── Notes column (desktop col 3) ───────────────────── -->
+        <div class="log-col-notes">
+          <div class="notes-header">
+            <span class="notes-label-text">Notes</span>
+            <span class="char-count" x-text="(form.notes || '').length + ' chars'"></span>
           </div>
-        </template>
-
-        <template x-if="form.day_type === 'work' && !editingDate">
-          <div class="save-template-row">
-            <input type="text" x-model="_tplName" placeholder="Save as template…"
-                   class="template-name-input"
-                   @keydown.enter.prevent="if (_tplName.trim()) { saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral'); }">
-            <button type="button" class="secondary outline compact"
-                    :disabled="!_tplName.trim()"
-                    @click="saveCurrentAsTemplate(_tplName); _tplName = ''; showToast('Template saved', 'neutral')">
-              Save as template
-            </button>
-          </div>
-        </template>
-
-        <div class="impact-card" x-show="logPreview()" x-transition.duration.200ms>
-          <div class="impact-cell">
-            <span class="impact-label">Net</span>
-            <span class="impact-value" x-text="(logPreview()?.net_hours ?? '') + 'h'"></span>
-          </div>
-          <div class="impact-cell">
-            <span class="impact-label">Target</span>
-            <span class="impact-value" x-text="(logPreview()?.target_hours ?? '') + 'h'"></span>
-          </div>
-          <div class="impact-cell">
-            <span class="impact-label">Δ</span>
-            <span class="impact-value"
-                  :class="surplusClass(logPreview()?.surplus_hours)"
-                  x-text="formatSurplus(logPreview()?.surplus_hours)"></span>
-          </div>
+          <textarea x-model="form.notes"
+                    placeholder="anything worth remembering about this day…"
+                    aria-label="Notes"></textarea>
         </div>
 
-        <!-- Notes for mobile/narrow — hidden on desktop (notes panel takes over) -->
-        <label class="log-notes-inline">
-          Notes (optional)
-          <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
-        </label>
-
-        <div class="form-footer">
-          <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
-          <template x-if="editingDate">
-            <button type="button" class="contrast outline"
-                    @click="deleteEntry(editingDate)">Delete</button>
-          </template>
-        </div>
       </form>
-    </div><!-- /log-col-center -->
-
-    <!-- ── Col 3: notes (desktop only) ──────────────────────────── -->
-    <div class="log-col-notes" aria-hidden="true">
-      <label>
-        Notes (optional)
-        <textarea x-model="form.notes" rows="10"
-                  placeholder="anything worth remembering about this day…"></textarea>
-      </label>
-    </div>
+    </div><!-- /log-form-card -->
 
   </div><!-- /log-layout -->
 
@@ -203,7 +231,6 @@
           <h3>Log multiple days</h3>
           <button type="button" class="bulk-close" @click="closeBulkModal()" aria-label="Close">✕</button>
         </div>
-
         <div class="log-cal">
           <div class="log-cal-header">
             <button type="button" class="log-cal-nav" @click="bulkCalPrev()" aria-label="Previous month">‹</button>
@@ -229,7 +256,6 @@
           </div>
           <p class="muted bulk-hint">Click to select · Click+drag to select a range</p>
         </div>
-
         <div class="bulk-pill">
           <span class="bulk-pill-count muted"
                 x-text="bulkModal.selected.length + ' day' + (bulkModal.selected.length !== 1 ? 's' : '') + ' selected'"></span>

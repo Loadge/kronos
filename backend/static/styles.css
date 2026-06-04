@@ -398,6 +398,26 @@ section { margin-bottom: 2rem; }
   border-top-color: var(--k-brass);
 }
 
+/* Clickable card — navigates on click (e.g. This week → Week view) */
+.summary-card--link {
+  cursor: pointer;
+  transition: border-color var(--k-transition-fast);
+}
+/* Suppress the role=link underline Pico applies on hover */
+.summary-card--link,
+.summary-card--link:hover,
+.summary-card--link * {
+  text-decoration: none !important;
+}
+.summary-card--link:hover {
+  border-top-color: var(--k-brass);
+  border-bottom-color: var(--k-brass);
+}
+.summary-card--link:focus-visible {
+  outline: 2px solid var(--k-brass);
+  outline-offset: 2px;
+}
+
 .summary-card h3 {
   margin: 0 0 0.25rem;
   font-size: 0.78rem;
@@ -952,62 +972,330 @@ button.btn-action {
 .hm-holiday { background: var(--k-holiday); opacity: 0.75; }
 .hm-flex    { background: var(--k-flex);    opacity: 0.75; }
 
-/* ── Log tab — three-column desktop layout ───────────────────────────────── */
+/* ── Week tab (Phase 17) ─────────────────────────────────────────────────── */
 
-.log-layout {
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.week-range {
+  font-weight: 600;
+  font-size: 0.95rem;
+  min-width: 9rem;
+  text-align: center;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.6rem 0.55rem 0.75rem;
+  border: 1px solid var(--k-border);
+  border-radius: 8px;
+  background: var(--k-surface);
+  color: var(--k-text);
+  cursor: pointer;
+  width: 100%;
+  margin: 0;
+  min-height: 6.75rem;
+  text-align: left;
+  transition: border-color var(--k-transition-fast);
+}
+.week-day:hover { border-color: var(--k-brass); }
+.week-day--today { border-color: var(--k-brass); box-shadow: inset 0 0 0 1px var(--k-brass); }
+.week-day--weekend { background: color-mix(in srgb, var(--k-surface) 55%, var(--k-bg)); }
+.week-day--empty { opacity: 0.65; }
+
+.week-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.week-day-dow {
+  font-size: 0.68rem;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.05em;
+}
+.week-day-num { font-size: 1.05rem; font-weight: 600; }
+
+.week-day-bar { height: 5px; border-radius: 3px; opacity: 0.85; }
+.week-day-bar.hm-empty { border: 1px dashed var(--k-border); background: transparent; }
+
+.week-day-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+.week-day-net { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.week-day-delta { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.week-day-empty-label { color: var(--k-muted); font-size: 1.1rem; }
+
+.summary-card.week-total { max-width: 320px; }
+
+/* Mobile: stack the seven days as rows */
+@media (max-width: 640px) {
+  .week-grid { grid-template-columns: 1fr; gap: 0.4rem; }
+  .week-day {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 0;
+  }
+  .week-day-head { flex-direction: row; gap: 0.4rem; min-width: 4rem; }
+  .week-day-bar { width: 5px; height: auto; align-self: stretch; }
+  .week-day-body { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* ── Log tab — layout, card surface, form hierarchy ─────────────────────── */
+
+/* Mobile-first: single column */
+.log-layout { display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* Inline notes visible on mobile, col-3 panel hidden */
+.log-notes-inline { display: block; }
+.log-col-notes    { display: none; }
+
+/* ── 900px+: calendar | card ──────────────────────────────────────────── */
+@media (min-width: 900px) {
+  .log-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 0 1.5rem;
+    align-items: start;
+  }
+
+  .log-col-left {
+    position: sticky;
+    top: 1rem;
+  }
+  .log-col-left .log-cal { margin-bottom: 0.75rem; }
+
+  /* Card surface wraps form + notes */
+  .log-form-card {
+    background: var(--k-surface);
+    border: 1px solid var(--k-border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+  }
+}
+
+/* ── 1100px+: card splits into form | notes ───────────────────────────── */
+@media (min-width: 1100px) {
+  .log-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+
+  /* Notes column: hide inline duplicate, show panel */
+  .log-notes-inline { display: none; }
+  .log-col-notes    { display: flex; flex-direction: column; }
+
+  /* Textarea fills the available column height */
+  .log-col-notes textarea {
+    flex: 1;
+    min-height: 16rem;
+    resize: none;
+    /* Full border instead of Pico's underline — avoids a floating
+       horizontal line that never aligns with the input underlines in col 2 */
+    border: 1px solid var(--k-border);
+    border-radius: 4px;
+    padding: 0.6rem 0.75rem;
+  }
+  .log-col-notes textarea:focus {
+    border-color: var(--k-brass);
+    outline: none;
+  }
+
+  /* Day type select: no need to span the full card width */
+  .log-col-center select {
+    width: auto;
+    min-width: 10rem;
+  }
+}
+
+/* Form column: flex so footer pins to bottom */
+.log-col-center {
   display: flex;
   flex-direction: column;
   gap: 0;
 }
 
-/* Notes panel: visible only on desktop (col 3). On mobile the inline notes
-   textarea inside the form is used instead. */
-.log-col-notes       { display: none; }
-.log-notes-inline    { display: block; }
+/* Create entry CTA — full-width brass, sole primary action */
+.log-submit-btn {
+  width: 100%;
+  background: var(--k-brass);
+  color: var(--k-bg);
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  margin: 0;
+  transition: opacity 0.15s;
+}
+.log-submit-btn:hover { opacity: 0.88; }
 
-@media (min-width: 900px) {
-  .log-layout {
-    display: grid;
-    grid-template-columns: 300px minmax(260px, 360px) minmax(180px, 260px);
-    gap: 0 2rem;
-    align-items: start;
-  }
+/* Footer pushed to bottom of flex column */
+.log-col-center .form-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 
-  /* Sticky calendar — stays visible while scrolling a long form */
-  .log-col-left {
-    position: sticky;
-    top: 1rem;
-  }
+/* Section divider between form groups */
+.log-section-divider {
+  border: none;
+  border-top: 1px solid var(--k-border);
+  margin: 0.75rem 0 1rem;
+}
 
-  /* Calendar in the left col needs no bottom margin — bulk trigger provides spacing */
-  .log-col-left .log-cal {
-    margin-bottom: 0.75rem;
-  }
+/* ── Template trigger + dropdown ──────────────────────────────────────── */
 
-  /* Form fills its column height so footer pins to the bottom */
-  .log-col-center {
-    display: flex;
-    flex-direction: column;
-  }
-  .log-main-form {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  .log-main-form .form-footer {
-    margin-top: auto;
-    padding-top: 1rem;
-  }
+.log-template-wrap {
+  position: relative;
+  margin-bottom: 1rem;
+}
 
-  /* Show the col-3 notes panel; hide the inline duplicate */
-  .log-col-notes    { display: block; }
-  .log-notes-inline { display: none; }
+.template-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  border: 1px dashed var(--k-border);
+  color: var(--k-muted);
+  font-size: 0.82rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  margin: 0;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+}
+.template-trigger:hover {
+  border-color: var(--k-brass);
+  color: var(--k-brass);
+  background: transparent;
+}
 
-  /* Notes textarea fills the column generously */
-  .log-col-notes textarea {
-    min-height: 14rem;
-    resize: vertical;
-  }
+.template-dropdown {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  right: 0;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border-strong);
+  border-radius: 6px;
+  padding: 0.4rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+/* ── Time field header (label + Now pill in same row) ─────────────────── */
+
+.time-field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+.time-field-header span { font-size: 0.9rem; }
+
+/* Now pill: no longer in a flex row with the input */
+.now-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--k-brass) 40%, var(--k-border));
+  background: color-mix(in srgb, var(--k-brass) 8%, transparent);
+  color: var(--k-brass);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  width: auto;
+  margin: 0;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+.now-pill:hover {
+  background: color-mix(in srgb, var(--k-brass) 18%, transparent);
+  border-color: var(--k-brass);
+}
+.now-pill:active { transform: scale(0.95); }
+
+/* ── Save as template — <details> collapsible ─────────────────────────── */
+
+.save-template-section {
+  margin: 0.5rem 0 0.25rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.save-template-section summary {
+  font-size: 0.75rem;
+  color: var(--k-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 0.25rem 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: color 0.15s;
+}
+.save-template-section summary::before { content: '▸'; font-size: 0.65rem; }
+.save-template-section[open] summary::before { content: '▾'; }
+.save-template-section summary:hover { color: var(--k-text); }
+.save-template-section summary::-webkit-details-marker { display: none; }
+.save-template-body {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+.save-template-body .template-name-input { flex: 1; margin: 0; }
+
+/* ── Notes column header + char count ────────────────────────────────── */
+
+.notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+.notes-label-text {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--k-muted);
+  font-weight: 600;
+}
+.char-count {
+  font-size: 0.68rem;
+  color: var(--k-border-strong);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Log tab calendar ─────────────────────────────────────────────────────── */
@@ -1919,48 +2207,7 @@ tbody.today-row > tr:first-child > td:first-child {
   padding: 0 0.1em;
 }
 
-/* ================================================================
-   NOW STAMP PILL (Log tab time inputs)
-   ================================================================ */
-
-.time-input-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.time-input-group input[type="time"] {
-  flex: 1;
-  margin: 0;
-}
-
-.now-pill {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--k-brass) 40%, var(--k-border));
-  background: color-mix(in srgb, var(--k-brass) 8%, transparent);
-  color: var(--k-brass);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  width: auto;
-  margin: 0;
-  line-height: 1;
-  transition: background 0.15s, border-color 0.15s;
-}
-.now-pill:hover {
-  background: color-mix(in srgb, var(--k-brass) 18%, transparent);
-  border-color: var(--k-brass);
-}
-.now-pill:active {
-  transform: scale(0.95);
-}
+/* NOW STAMP PILL — styles now live in the Log layout section above */
 
 /* ================================================================
    CLOCK IN / CLOCK OUT STRIP (Dashboard + Log tab)

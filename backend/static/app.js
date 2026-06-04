@@ -31,6 +31,9 @@ function app() {
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
 
+    // ---------- week view -----------------------------------------------
+    weekStart: '', // ISO date of the Monday of the displayed week; set in init()
+
     // ---------- days list -----------------------------------------------
     entries: [],
     sortKey: 'date',
@@ -96,7 +99,7 @@ function app() {
       // Apply persisted theme before first render
       document.documentElement.setAttribute('data-theme', this.theme);
 
-      const TABS = ['dashboard', 'log', 'days', 'analytics', 'settings'];
+      const TABS = ['dashboard', 'week', 'log', 'days', 'analytics', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
 
@@ -130,6 +133,7 @@ function app() {
         if (inInput || e.ctrlKey || e.altKey || e.metaKey) return;
 
         switch (e.key) {
+          case 'w': case 'W': e.preventDefault(); this.go('week');      break;
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
           case 'd': case 'D': e.preventDefault(); this.go('days');      break;
           case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
@@ -149,6 +153,7 @@ function app() {
       tickNow();
       setTimeout(() => { tickNow(); setInterval(tickNow, 60000); }, (60 - new Date().getSeconds()) * 1000);
 
+      this.weekStart = this._mondayIso(new Date());
       this.loadSettings(); // pre-load so logPreview() has accurate target hours
       this.loadTemplates();
       this.openNewEntry();
@@ -165,6 +170,7 @@ function app() {
       this.error = null;
       this.notesQuery = '';
       if (t === 'dashboard') await this.loadDashboard();
+      else if (t === 'week') { this.ensureWeekStart(); await this.loadDays(); }
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
@@ -312,6 +318,7 @@ function app() {
     // =====================================================================
     _COMMANDS: [
       { id: 'dashboard', label: 'Dashboard',     hint: '1'     },
+      { id: 'week',      label: 'Week',          hint: 'W'     },
       { id: 'log',       label: 'Log new entry', hint: '2 · L' },
       { id: 'days',      label: 'Days',          hint: '3'     },
       { id: 'analytics', label: 'Analytics',     hint: '4 · A' },
@@ -553,6 +560,108 @@ function app() {
     async calSelectDay(dateStr) {
       this.form.date = dateStr;
       await this.probeDate(dateStr);
+    },
+
+    // ── Week view (Phase 17) ────────────────────────────────────────────────────
+    // All figures come straight from /api/entries — summing a week's entries
+    // reproduces the backend's `summarize()`, so this stays in lock-step with the
+    // Dashboard "This week" card without a dedicated endpoint.
+
+    // Local-date ISO (avoids the UTC drift of toISOString on date-only values).
+    _dateIso(d) {
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    },
+
+    // Monday (ISO week start) of the week containing `d`.
+    _mondayIso(d) {
+      const dow = (d.getDay() + 6) % 7; // Mon=0…Sun=6
+      return this._dateIso(new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow));
+    },
+
+    ensureWeekStart() {
+      if (!this.weekStart) this.weekStart = this._mondayIso(new Date());
+    },
+
+    weekIsCurrent() {
+      return this.weekStart === this._mondayIso(new Date());
+    },
+
+    _weekShift(deltaDays) {
+      const base = new Date(this.weekStart + 'T00:00:00');
+      this.weekStart = this._dateIso(
+        new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays)
+      );
+    },
+    weekPrev() { this.ensureWeekStart(); this._weekShift(-7); },
+    weekNext() { this.ensureWeekStart(); this._weekShift(7); },
+    weekThis() { this.weekStart = this._mondayIso(new Date()); },
+
+    // Seven day objects (Mon→Sun) for the displayed week.
+    weekDays() {
+      this.ensureWeekStart();
+      const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const todayStr = this.todayIso();
+      const entryMap = {};
+      for (const e of this.entries) entryMap[e.date] = e;
+      const base = new Date(this.weekStart + 'T00:00:00');
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+        const iso = this._dateIso(d);
+        const entry = entryMap[iso] || null;
+        let cls = 'hm-empty';
+        if (entry) {
+          cls = entry.day_type === 'work'
+            ? (entry.surplus_hours > 0.01 ? 'hm-surplus' : entry.surplus_hours < -0.01 ? 'hm-deficit' : 'hm-neutral')
+            : `hm-${entry.day_type}`;
+        }
+        days.push({
+          iso, label: DOW[i], dayNum: d.getDate(), entry, cls,
+          isToday: iso === todayStr, isWeekend: i >= 5, isFuture: iso > todayStr,
+        });
+      }
+      return days;
+    },
+
+    weekLabel() {
+      this.ensureWeekStart();
+      const base = new Date(this.weekStart + 'T00:00:00');
+      const end = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 6);
+      const sameMonth = base.getMonth() === end.getMonth();
+      const startLabel = base.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endLabel = end.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
+      return `${startLabel} – ${endLabel}, ${end.getFullYear()}`;
+    },
+
+    // Week totals — sums the logged entries only, matching the backend summary.
+    weekSummary() {
+      let net = 0, target = 0, surplus = 0, workDays = 0, offDays = 0;
+      for (const { entry } of this.weekDays()) {
+        if (!entry) continue;
+        net += entry.net_hours;
+        target += entry.target_hours;
+        surplus += entry.surplus_hours;
+        if (entry.day_type === 'work') workDays++; else offDays++;
+      }
+      return {
+        net: Math.round(net * 100) / 100,
+        target: Math.round(target * 100) / 100,
+        surplus: Math.round(surplus * 100) / 100,
+        work_days: workDays, non_work_days: offDays,
+      };
+    },
+
+    // Open a day in the Log tab — edit mode if it already has an entry, else new.
+    async weekSelectDay(iso) {
+      this.openNewEntry();
+      this.form.date = iso;
+      const d = new Date(iso + 'T00:00:00');
+      this.calYear = d.getFullYear();
+      this.calMonth = d.getMonth();
+      await this.go('log');
+      await this.probeDate(iso);
     },
 
     // ── Bulk log modal (Phase 11) ──────────────────────────────────────────────

@@ -38,7 +38,9 @@
       </p>
 
       <div class="summary-grid">
-        <article class="summary-card">
+        <article class="summary-card summary-card--link" role="link" tabindex="0"
+                 @click="go('week')" @keydown.enter.prevent="go('week')" @keydown.space.prevent="go('week')"
+                 aria-label="This week — open Week view">
           <h3>This week</h3>
           <div class="subdial-label" :class="surplusClass(dashboard.week.surplus_hours)"
                x-text="subdialLabel(dashboard.week.surplus_hours)"></div>

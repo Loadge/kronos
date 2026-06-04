@@ -1,0 +1,60 @@
+<!-- ========================= WEEK ========================= -->
+<template x-if="tab==='week'">
+<section aria-label="Week view">
+  <header class="section-header week-header">
+    <h2>Week</h2>
+    <div class="section-header-controls week-nav">
+      <button type="button" class="log-cal-nav" @click="weekPrev()" aria-label="Previous week">‹</button>
+      <span class="week-range" x-text="weekLabel()"></span>
+      <button type="button" class="log-cal-nav" @click="weekNext()" aria-label="Next week">›</button>
+      <button type="button" class="secondary outline compact" @click="weekThis()"
+              x-show="!weekIsCurrent()">This week</button>
+    </div>
+  </header>
+
+  <div class="week-grid">
+    <template x-for="d in weekDays()" :key="d.iso">
+      <button type="button" class="week-day"
+              :class="{ 'week-day--today': d.isToday, 'week-day--weekend': d.isWeekend, 'week-day--empty': !d.entry }"
+              @click="weekSelectDay(d.iso)"
+              :aria-label="d.label + ' ' + d.iso + (d.entry ? '' : ' — no entry, click to log')">
+        <span class="week-day-head">
+          <span class="week-day-dow" x-text="d.label"></span>
+          <span class="week-day-num" x-text="d.dayNum"></span>
+        </span>
+        <span class="week-day-bar" :class="d.cls"></span>
+        <template x-if="d.entry && d.entry.day_type === 'work'">
+          <span class="week-day-body">
+            <span class="week-day-net" x-text="d.entry.net_hours + 'h'"></span>
+            <span class="week-day-delta" :class="surplusClass(d.entry.surplus_hours)"
+                  x-text="formatSurplus(d.entry.surplus_hours)"></span>
+          </span>
+        </template>
+        <template x-if="d.entry && d.entry.day_type !== 'work'">
+          <span class="week-day-body">
+            <span class="day-pill" :class="d.entry.day_type" x-text="d.entry.day_type"></span>
+          </span>
+        </template>
+        <template x-if="!d.entry">
+          <span class="week-day-body week-day-empty-label" x-text="d.isFuture ? '·' : '—'"></span>
+        </template>
+      </button>
+    </template>
+  </div>
+
+  <article class="summary-card week-total">
+    <h3>Week total</h3>
+    <div class="subdial-label" :class="surplusClass(weekSummary().surplus)"
+         x-text="subdialLabel(weekSummary().surplus)"></div>
+    <div class="metric" :class="surplusClass(weekSummary().surplus)"
+         x-text="formatSurplus(weekSummary().surplus)"></div>
+    <div class="sub">
+      <span x-text="weekSummary().net + 'h'"></span> worked /
+      <span x-text="weekSummary().target + 'h'"></span> target
+      <br>
+      <span x-text="weekSummary().work_days"></span> work days,
+      <span x-text="weekSummary().non_work_days"></span> off
+    </div>
+  </article>
+</section>
+</template>
