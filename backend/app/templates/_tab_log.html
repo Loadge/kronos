@@ -8,21 +8,6 @@
     <h2 x-text="editingDate ? ('Edit ' + editingDate) : 'New entry'"></h2>
   </header>
 
-  <!-- Clock in / Clock out strip — shown only when today is selected and not fully logged -->
-  <template x-if="form.date === todayIso() && (!todayEntry() || (todayEntry().day_type === 'work' && !todayEntry().end_time))">
-    <div class="clock-strip">
-      <template x-if="!todayEntry() || !todayEntry().start_time">
-        <button type="button" class="clock-btn clock-in" @click="clockIn()">Clock in</button>
-      </template>
-      <template x-if="todayEntry() && todayEntry().start_time && !todayEntry().end_time">
-        <div class="clock-active">
-          <span class="clock-since muted">Clocked in at <strong x-text="todayEntry().start_time"></strong></span>
-          <button type="button" class="clock-btn clock-out" @click="clockOut()">Clock out</button>
-        </div>
-      </template>
-    </div>
-  </template>
-
   <form @submit.prevent="saveEntry()">
     <template x-if="templates.length > 0">
       <div class="template-bar">
@@ -91,11 +76,23 @@
         <div class="grid">
           <label>
             Start time
-            <input type="time" x-model="form.start_time" required>
+            <div class="time-input-group">
+              <input type="time" x-model="form.start_time" required>
+              <button type="button" class="now-pill" x-show="form.date === todayIso()"
+                      @click="stampNow('start_time')"
+                      :title="'Stamp current time: ' + nowDisplay"
+                      x-text="'⏱ ' + nowDisplay"></button>
+            </div>
           </label>
           <label>
             End time
-            <input type="time" x-model="form.end_time" required>
+            <div class="time-input-group">
+              <input type="time" x-model="form.end_time">
+              <button type="button" class="now-pill" x-show="form.date === todayIso()"
+                      @click="stampNow('end_time')"
+                      :title="'Stamp current time: ' + nowDisplay"
+                      x-text="'⏱ ' + nowDisplay"></button>
+            </div>
           </label>
         </div>
 

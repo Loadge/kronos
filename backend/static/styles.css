@@ -1862,6 +1862,49 @@ tbody.today-row > tr:first-child > td:first-child {
 }
 
 /* ================================================================
+   NOW STAMP PILL (Log tab time inputs)
+   ================================================================ */
+
+.time-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.time-input-group input[type="time"] {
+  flex: 1;
+  margin: 0;
+}
+
+.now-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--k-brass) 40%, var(--k-border));
+  background: color-mix(in srgb, var(--k-brass) 8%, transparent);
+  color: var(--k-brass);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  width: auto;
+  margin: 0;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+.now-pill:hover {
+  background: color-mix(in srgb, var(--k-brass) 18%, transparent);
+  border-color: var(--k-brass);
+}
+.now-pill:active {
+  transform: scale(0.95);
+}
+
+/* ================================================================
    CLOCK IN / CLOCK OUT STRIP (Dashboard + Log tab)
    ================================================================ */
 
