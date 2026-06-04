@@ -952,6 +952,40 @@ button.btn-action {
 .hm-holiday { background: var(--k-holiday); opacity: 0.75; }
 .hm-flex    { background: var(--k-flex);    opacity: 0.75; }
 
+/* ── Log tab — two-column desktop layout ─────────────────────────────────── */
+
+.log-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* On desktop: calendar pinned left, form fields on the right */
+@media (min-width: 900px) {
+  .log-layout {
+    display: grid;
+    grid-template-columns: 300px minmax(280px, 500px);
+    gap: 0 2.5rem;
+    align-items: start;
+  }
+
+  /* Sticky calendar — stays visible while scrolling a long form */
+  .log-col-left {
+    position: sticky;
+    top: 1rem;
+  }
+
+  /* Calendar in the left col needs no bottom margin — bulk trigger provides spacing */
+  .log-col-left .log-cal {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Flush the first element in the right column so it aligns with the cal header */
+  .log-col-right > form > *:first-child {
+    margin-top: 0;
+  }
+}
+
 /* ── Log tab calendar ─────────────────────────────────────────────────────── */
 
 .log-cal {
