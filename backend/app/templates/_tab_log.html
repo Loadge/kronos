@@ -10,7 +10,7 @@
 
   <div class="log-layout">
 
-    <!-- ── Left column: calendar + bulk trigger ─────────────────── -->
+    <!-- ── Col 1: calendar + bulk trigger ───────────────────────── -->
     <div class="log-col-left">
       <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''">
         <div class="log-cal-header">
@@ -51,9 +51,9 @@
       </div>
     </div>
 
-    <!-- ── Right column: form fields ────────────────────────────── -->
-    <div class="log-col-right">
-      <form @submit.prevent="saveEntry()">
+    <!-- ── Col 2: main form fields ──────────────────────────────── -->
+    <div class="log-col-center">
+      <form @submit.prevent="saveEntry()" class="log-main-form">
         <template x-if="templates.length > 0">
           <div class="template-bar">
             <span class="template-bar-label muted">Templates:</span>
@@ -68,7 +68,6 @@
 
         <!-- Day type -->
         <label>
-          <!-- W4: pill preview cross-fades colour as the select changes -->
           <span class="label-with-action">
             Day type
             <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
@@ -134,11 +133,6 @@
           </div>
         </template>
 
-        <label>
-          Notes (optional)
-          <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
-        </label>
-
         <template x-if="form.day_type === 'work' && !editingDate">
           <div class="save-template-row">
             <input type="text" x-model="_tplName" placeholder="Save as template…"
@@ -169,6 +163,12 @@
           </div>
         </div>
 
+        <!-- Notes for mobile/narrow — hidden on desktop (notes panel takes over) -->
+        <label class="log-notes-inline">
+          Notes (optional)
+          <textarea x-model="form.notes" rows="2" placeholder="anything worth remembering about this day"></textarea>
+        </label>
+
         <div class="form-footer">
           <button type="submit" x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
           <template x-if="editingDate">
@@ -177,7 +177,16 @@
           </template>
         </div>
       </form>
-    </div><!-- /log-col-right -->
+    </div><!-- /log-col-center -->
+
+    <!-- ── Col 3: notes (desktop only) ──────────────────────────── -->
+    <div class="log-col-notes" aria-hidden="true">
+      <label>
+        Notes (optional)
+        <textarea x-model="form.notes" rows="10"
+                  placeholder="anything worth remembering about this day…"></textarea>
+      </label>
+    </div>
 
   </div><!-- /log-layout -->
 

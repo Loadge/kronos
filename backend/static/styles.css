@@ -952,7 +952,7 @@ button.btn-action {
 .hm-holiday { background: var(--k-holiday); opacity: 0.75; }
 .hm-flex    { background: var(--k-flex);    opacity: 0.75; }
 
-/* ── Log tab — two-column desktop layout ─────────────────────────────────── */
+/* ── Log tab — three-column desktop layout ───────────────────────────────── */
 
 .log-layout {
   display: flex;
@@ -960,12 +960,16 @@ button.btn-action {
   gap: 0;
 }
 
-/* On desktop: calendar pinned left, form fields on the right */
+/* Notes panel: visible only on desktop (col 3). On mobile the inline notes
+   textarea inside the form is used instead. */
+.log-col-notes       { display: none; }
+.log-notes-inline    { display: block; }
+
 @media (min-width: 900px) {
   .log-layout {
     display: grid;
-    grid-template-columns: 300px minmax(280px, 500px);
-    gap: 0 2.5rem;
+    grid-template-columns: 300px minmax(260px, 360px) minmax(180px, 260px);
+    gap: 0 2rem;
     align-items: start;
   }
 
@@ -980,9 +984,29 @@ button.btn-action {
     margin-bottom: 0.75rem;
   }
 
-  /* Flush the first element in the right column so it aligns with the cal header */
-  .log-col-right > form > *:first-child {
-    margin-top: 0;
+  /* Form fills its column height so footer pins to the bottom */
+  .log-col-center {
+    display: flex;
+    flex-direction: column;
+  }
+  .log-main-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-main-form .form-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+  }
+
+  /* Show the col-3 notes panel; hide the inline duplicate */
+  .log-col-notes    { display: block; }
+  .log-notes-inline { display: none; }
+
+  /* Notes textarea fills the column generously */
+  .log-col-notes textarea {
+    min-height: 14rem;
+    resize: vertical;
   }
 }
 
