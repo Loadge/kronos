@@ -123,12 +123,16 @@
       <div>
         <strong>Backup &amp; restore</strong>
         <p class="muted">Download a full snapshot of all entries + settings as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
+        <p class="muted"><em>Import CSV</em> adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped.</p>
       </div>
       <div class="backup-actions">
         <button class="secondary outline" @click="downloadBackup()">↓ Download backup</button>
         <button class="secondary outline" @click="$refs.restoreFileInput.click()">↑ Restore from file…</button>
+        <button class="secondary outline" @click="$refs.importCsvInput.click()">⇪ Import CSV…</button>
         <input type="file" accept=".json,application/json" x-ref="restoreFileInput"
                style="display:none" @change="restoreFromFile($event)">
+        <input type="file" accept=".csv,text/csv" x-ref="importCsvInput"
+               style="display:none" @change="importCsvFromFile($event)">
       </div>
     </div>
 

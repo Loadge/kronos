@@ -60,18 +60,14 @@ class _EntryBody(BaseModel):
                 span = minutes_between(self.start_time, self.end_time)
                 break_sum = sum(b.break_minutes for b in self.breaks)
                 if break_sum > span:
-                    raise ValueError(
-                        f"total breaks ({break_sum}min) exceed work span ({span}min)"
-                    )
+                    raise ValueError(f"total breaks ({break_sum}min) exceed work span ({span}min)")
             elif self.breaks:
                 # In-progress entry (no end_time yet): breaks not allowed yet.
                 raise ValueError("cannot add breaks without end_time")
         else:
             # vacation / sick / holiday / flex — no time fields, no breaks
             if self.start_time is not None or self.end_time is not None:
-                raise ValueError(
-                    f"{self.day_type.value} days must not have start_time or end_time"
-                )
+                raise ValueError(f"{self.day_type.value} days must not have start_time or end_time")
             if self.breaks:
                 raise ValueError(f"{self.day_type.value} days must not have breaks")
         return self
@@ -214,6 +210,22 @@ class RestoreIn(BaseModel):
     version: int
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
+
+
+class CsvImportIn(BaseModel):
+    """Body for POST /api/import/csv — the raw text of a Kronos CSV export.
+
+    The file is read client-side (like restore) and posted as a string, so the
+    app needs no multipart/form-data dependency.
+    """
+
+    content: str
+
+
+class ImportResultOut(BaseModel):
+    imported: list[date_]
+    skipped: list[date_]
+    errors: list[str]
 
 
 class BatchEntryIn(BaseModel):
