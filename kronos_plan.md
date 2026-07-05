@@ -155,7 +155,13 @@ holidays for the current year as `holiday` entries in one click.
   dataset and must be logged manually. Year is current-year only (not persisted);
   `holiday_country` + `holiday_region` are persisted in the config KV table.
 - Toast: "X holidays imported, Y skipped". Network failure → 502 surfaced in the banner.
-- 8 new API tests (287 total); fetches are monkeypatched so tests never hit the network.
+- **Mini-calendar preview**: once a country (and optional region) is chosen, per-month
+  mini-calendars render the matching holidays before import — filled = will import,
+  ring = already logged (will be skipped) — with a summary line
+  ("9 national · 3 regional · 2 already logged") and a legend. Powered by a read-only
+  `GET /api/holidays/preview` sharing the same filter logic as import. The import button
+  reflects the count ("Import 3 holidays") and disables when nothing is left to import.
+- 12 new API tests (291 total); fetches are monkeypatched so tests never hit the network.
 
 ---
 

@@ -88,6 +88,41 @@ class TestImport:
         assert "holiday service" in resp.json()["detail"]
 
 
+class TestPreview:
+    def test_national_only_sorted_with_flags(self, client, mock_holidays):
+        body = client.get("/api/holidays/preview?country=ES&year=2026").json()
+        assert body == [
+            {"date": "2026-01-01", "name": "Año Nuevo", "regional": False, "exists": False},
+            {
+                "date": "2026-05-01",
+                "name": "Día del Trabajador",
+                "regional": False,
+                "exists": False,
+            },
+        ]
+
+    def test_region_included_and_marked_regional(self, client, mock_holidays):
+        body = client.get("/api/holidays/preview?country=ES&year=2026&region=ES-MD").json()
+        dates = [h["date"] for h in body]
+        assert dates == ["2026-01-01", "2026-05-01", "2026-05-02"]  # sorted, ES-AN excluded
+        madrid = next(h for h in body if h["date"] == "2026-05-02")
+        assert madrid["regional"] is True
+
+    def test_exists_flag_reflects_logged_dates(self, client, mock_holidays, work_body):
+        client.post("/api/entries", json=work_body(date="2026-01-01"))
+        body = client.get("/api/holidays/preview?country=ES&year=2026").json()
+        by_date = {h["date"]: h for h in body}
+        assert by_date["2026-01-01"]["exists"] is True
+        assert by_date["2026-05-01"]["exists"] is False
+
+    def test_network_error_returns_502(self, client, monkeypatch):
+        def boom(country, year):
+            raise urllib.error.URLError("down")
+
+        monkeypatch.setattr(holidays, "_fetch_holidays", boom)
+        assert client.get("/api/holidays/preview?country=ES&year=2026").status_code == 502
+
+
 class TestSubdivisions:
     def test_lists_distinct_sorted_counties(self, client, mock_holidays):
         resp = client.get("/api/holidays/subdivisions?country=ES&year=2026")

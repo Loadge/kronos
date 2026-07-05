@@ -226,6 +226,13 @@ class HolidayImportOut(BaseModel):
     skipped: list[date_]
 
 
+class HolidayPreviewOut(BaseModel):
+    date: date_
+    name: str
+    regional: bool  # False = national (global), True = regional (matched the region)
+    exists: bool  # a work/other entry already occupies this date → import will skip it
+
+
 class CsvImportIn(BaseModel):
     """Body for POST /api/import/csv — the raw text of a Kronos CSV export.
 

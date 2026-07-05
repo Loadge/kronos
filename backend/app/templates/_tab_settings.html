@@ -91,7 +91,7 @@
       </label>
       <label x-show="holidaySubdivisions.length > 0">
         Region <span class="muted">(optional)</span>
-        <select x-model="settingsForm.holiday_region">
+        <select x-model="settingsForm.holiday_region" @change="loadHolidayPreview()">
           <option value="">National only</option>
           <template x-for="code in holidaySubdivisions" :key="code">
             <option :value="code" x-text="code"></option>
@@ -99,11 +99,40 @@
         </select>
       </label>
     </div>
+
+    <!-- Mini-calendar preview of what will be imported -->
+    <template x-if="settingsForm.holiday_country && holidayPreview.length">
+      <div class="holiday-preview">
+        <div class="holiday-preview-head">
+          <strong x-text="holidayPreview.length + ' holidays in ' + holidayYear"></strong>
+          <span class="muted" x-text="holidayPreviewSummary()"></span>
+        </div>
+        <div class="holiday-cal-grid">
+          <template x-for="m in holidayMonths()" :key="m.key">
+            <div class="holiday-cal">
+              <div class="holiday-cal-title" x-text="m.label"></div>
+              <div class="holiday-cal-days">
+                <template x-for="d in m.dow" :key="d">
+                  <span class="holiday-cal-dow" x-text="d.slice(0,1)"></span>
+                </template>
+                <template x-for="c in m.cells" :key="c.key">
+                  <span class="holiday-cal-day" :class="c.cls" :title="c.title" x-text="c.label"></span>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="holiday-legend muted">
+          <span class="holiday-legend-item"><span class="holiday-swatch is-holiday"></span> to import</span>
+          <span class="holiday-legend-item" x-show="holidayPreview.some(h => h.exists)"><span class="holiday-swatch is-logged"></span> already logged (skipped)</span>
+        </div>
+      </div>
+    </template>
+
     <button type="button" class="secondary outline" @click="importHolidays()"
             :aria-busy="holidayImporting"
-            :disabled="holidayImporting || !settingsForm.holiday_country">
-      <span x-text="holidayImporting ? 'Importing…' : 'Import holidays'"></span>
-    </button>
+            :disabled="holidayImporting || !settingsForm.holiday_country || holidayNothingToImport()"
+            x-text="holidayImportLabel()"></button>
     <p class="muted holiday-note">National + regional holidays only. Local/municipal fiestas (e.g. a town's two local holidays) aren't in the public dataset — add those manually via the Log tab.</p>
   </div>
 
