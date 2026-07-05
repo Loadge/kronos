@@ -184,14 +184,22 @@ Full visual redesign of the Log tab to a modern, cohesive desktop layout.
 
 ---
 
-## Phase 17 — Week View (planned)
+## Phase 17 — Week View ✅ DONE
 
-New "Week" sub-view (or tab) showing Mon–Sun at a glance: hours per day, daily surplus/
-deficit indicator, and week total. Most-used view in Toggl/Clockify.
+New "Week" tab showing Mon–Sun at a glance: hours per day, daily surplus/deficit
+indicator, and week total. Most-used view in Toggl/Clockify.
 
-- Navigation arrows to jump between weeks; "This week" button snaps back.
-- Click any day cell to open it in the Log tab for editing.
-- Reuses `hm-*` colour classes for day-type indicators.
+- Pure frontend — per-day figures come straight from `/api/entries`; summing the
+  week's entries reproduces the backend `summarize()`, so the week total stays in
+  lock-step with the Dashboard "This week" card. No new endpoint.
+- Navigation arrows (‹ ›) to jump between weeks; "This week" button snaps back
+  (shown only when off the current week).
+- Click any day cell to open it in the Log tab (edit mode if logged, new otherwise).
+- Reuses `hm-*` colour classes for day-type indicators; `day-pill` for non-work days.
+- Keyboard shortcut **W**, command-palette entry, and shortcut-tooltip row added.
+- Dashboard "This week" card is now clickable → opens the Week tab (brass hover cue,
+  keyboard-activatable, no underline).
+- Responsive: 7-column grid on desktop, stacked rows under 640px.
 
 ---
 
@@ -206,15 +214,25 @@ Motivational counters displayed on the Dashboard.
 
 ---
 
-## Phase 19 — CSV Import (planned)
+## Phase 19 — CSV Import ✅ DONE
 
 Companion to the existing CSV export. Upload a CSV file (matching the export format)
 to bulk-import historical entries.
 
-- `POST /api/import/csv` — parses uploaded file, validates each row, inserts entries.
-- Skips rows for dates that already exist (same skip logic as batch endpoint).
-- Returns `{ imported: N, skipped: M, errors: [...] }`.
-- UI: file picker in the Settings / Backup section, same area as restore.
+- `POST /api/import/csv` — parses the CSV text, validates each row via `EntryIn`,
+  inserts entries. Body is `{content: "<csv>"}` (file read client-side, like restore)
+  so no `python-multipart` dependency is needed.
+- Reuses the `CSV_COLUMNS` contract from export; derived columns (net/target/surplus)
+  are ignored, and a work day's `total_break_minutes` is reconstructed as one break.
+- Skips dates that already exist **and** dates repeated within the file (same skip
+  rule as the batch endpoint). Adds to existing data — nothing is wiped.
+- Returns `{ imported: [...], skipped: [...], errors: ["row N: <msg>", ...] }`;
+  invalid rows are collected, not fatal.
+- UI: "⇪ Import CSV…" button in Settings → Backup & restore, next to Restore.
+- 7 new API tests (279 total). The round-trip test clears via the per-entry endpoint
+  rather than `DELETE /api/data`: the test engine doesn't install the production
+  `PRAGMA foreign_keys=ON` listener, so a bulk wipe orphans breaks there. Production
+  enforces FK cascade correctly, so this is a test-harness quirk only, not a bug.
 
 ---
 

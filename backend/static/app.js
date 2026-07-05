@@ -1413,6 +1413,35 @@ function app() {
       }
     },
 
+    async importCsvFromFile(event) {
+      const file = event.target.files[0];
+      event.target.value = ''; // reset so the same file can be re-selected
+      if (!file) return;
+
+      this.error = null;
+      try {
+        const content = await file.text();
+        const result = await this.api('POST', '/api/import/csv', { content });
+        this._resetCachedViews();
+        await this.loadDashboard();
+
+        const n = result.imported.length;
+        const s = result.skipped.length;
+        const e = result.errors.length;
+        let msg = `${n} imported`;
+        if (s) msg += `, ${s} skipped`;
+        if (e) msg += `, ${e} error${e !== 1 ? 's' : ''}`;
+        this.showToast(msg, e ? 'deficit' : 'neutral');
+        if (e) {
+          const shown = result.errors.slice(0, 8).join('; ');
+          this.error = `Import: ${shown}${result.errors.length > 8 ? ' …' : ''}`;
+        }
+        this.go('dashboard');
+      } catch (err) {
+        this.error = `Import failed: ${err.message}`;
+      }
+    },
+
     async wipeData() {
       this.error = null;
       try {
