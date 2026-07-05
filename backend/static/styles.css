@@ -1734,6 +1734,22 @@ button.btn-action {
   border-bottom: none;
 }
 
+/* ── Public holidays (Phase 14) ─────────────────────────────────────────── */
+.holidays-section {
+  margin: 1.5rem 0;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--k-border);
+}
+.holidays-section h3 { margin-bottom: 0.75rem; }
+.holiday-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.holiday-controls label { flex: 1 1 12rem; margin-bottom: 0; }
+.holiday-note { margin-top: 0.75rem; font-size: 0.85rem; }
+
 /* ================================================================
    QUICK-LOG (Dashboard)
    ================================================================ */

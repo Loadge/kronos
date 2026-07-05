@@ -8,7 +8,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.config import STATIC_DIR, TEMPLATES_DIR
-from app.routers import admin, analytics, backup, config as config_router, entries, export, templates as templates_router
+from app.routers import (
+    admin,
+    analytics,
+    backup,
+    config as config_router,
+    entries,
+    export,
+    holidays,
+    templates as templates_router,
+)
 
 app = FastAPI(
     title="Kronos",
@@ -25,6 +34,7 @@ app.include_router(export.router)
 app.include_router(config_router.router)
 app.include_router(admin.router)
 app.include_router(backup.router)
+app.include_router(holidays.router)
 app.include_router(templates_router.router)
 
 
@@ -37,9 +47,7 @@ def index(request: Request):
 
 @app.get("/manifest.json", include_in_schema=False)
 def manifest():
-    return FileResponse(
-        STATIC_DIR / "manifest.json", media_type="application/manifest+json"
-    )
+    return FileResponse(STATIC_DIR / "manifest.json", media_type="application/manifest+json")
 
 
 @app.get("/sw.js", include_in_schema=False)

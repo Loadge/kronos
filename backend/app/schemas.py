@@ -187,6 +187,8 @@ class ConfigOut(BaseModel):
     vacation_budget_days: int = 0
     default_start_time: str = "09:00"
     default_end_time: str = "17:00"
+    holiday_country: str = ""  # ISO 3166-1 alpha-2; "" = none chosen
+    holiday_region: str = ""  # ISO 3166-2 subdivision, e.g. "ES-MD"; "" = national only
 
 
 class ConfigIn(BaseModel):
@@ -197,6 +199,8 @@ class ConfigIn(BaseModel):
     vacation_budget_days: int | None = Field(default=None, ge=0)
     default_start_time: HHMM | None = None
     default_end_time: HHMM | None = None
+    holiday_country: str | None = None
+    holiday_region: str | None = None
 
 
 class RestoreIn(BaseModel):
@@ -210,6 +214,16 @@ class RestoreIn(BaseModel):
     version: int
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
+
+
+class CountryOut(BaseModel):
+    code: str
+    name: str
+
+
+class HolidayImportOut(BaseModel):
+    imported: list[date_]
+    skipped: list[date_]
 
 
 class CsvImportIn(BaseModel):

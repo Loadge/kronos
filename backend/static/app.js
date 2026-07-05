@@ -52,7 +52,13 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00' },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '' },
+
+    // ---------- public holidays (Phase 14) ------------------------------
+    holidayCountries: [],
+    holidaySubdivisions: [],
+    holidayYear: new Date().getFullYear(),
+    holidayImporting: false,
 
     // ---------- day templates (server-side) -----------------------------
     templates: [],
@@ -174,7 +180,7 @@ function app() {
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
-      else if (t === 'settings') await this.loadSettings();
+      else if (t === 'settings') { await this.loadSettings(); this.loadHolidayData(); }
     },
 
     // Roving-tabindex arrow navigation for the tab list (E3)
@@ -1364,6 +1370,69 @@ function app() {
         this.showToast('Settings saved', 'neutral');
         this.go('dashboard');
       } catch (e) { this.error = e.message; }
+    },
+
+    // =====================================================================
+    // public holidays (Phase 14)
+    // =====================================================================
+    // Country + region lists are proxied through the backend so the browser
+    // never calls the external holiday API directly. Loaded lazily when the
+    // Settings tab opens; the country list is cached across visits.
+    async loadHolidayData() {
+      if (!this.holidayCountries.length) {
+        try { this.holidayCountries = await this.api('GET', '/api/holidays/countries'); }
+        catch { this.holidayCountries = []; }
+      }
+      await this.loadHolidaySubdivisions();
+    },
+
+    async loadHolidaySubdivisions() {
+      const c = this.settingsForm.holiday_country;
+      if (!c) { this.holidaySubdivisions = []; return; }
+      try {
+        this.holidaySubdivisions = await this.api(
+          'GET', `/api/holidays/subdivisions?country=${c}&year=${this.holidayYear}`
+        );
+      } catch { this.holidaySubdivisions = []; }
+      // Drop a stale region that no longer appears in the list.
+      if (this.settingsForm.holiday_region && !this.holidaySubdivisions.includes(this.settingsForm.holiday_region)) {
+        this.settingsForm.holiday_region = '';
+      }
+    },
+
+    onHolidayCountryChange() {
+      this.settingsForm.holiday_region = '';
+      this.loadHolidaySubdivisions();
+    },
+
+    async importHolidays() {
+      const country = this.settingsForm.holiday_country;
+      if (!country) { this.error = 'Pick a country first.'; return; }
+      this.holidayImporting = true;
+      this.error = null;
+      try {
+        // Persist the selection so it's remembered next visit.
+        await this.api('PUT', '/api/config', {
+          holiday_country: country,
+          holiday_region: this.settingsForm.holiday_region || '',
+        });
+        const region = this.settingsForm.holiday_region;
+        const url = `/api/holidays/import?country=${country}&year=${this.holidayYear}`
+          + (region ? `&region=${encodeURIComponent(region)}` : '');
+        const result = await this.api('POST', url);
+        this._resetCachedViews();
+        await this.loadDashboard();
+        const n = result.imported.length;
+        const s = result.skipped.length;
+        this.showToast(
+          `${n} holiday${n !== 1 ? 's' : ''} imported${s ? `, ${s} skipped` : ''}`,
+          'neutral',
+        );
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.holidayImporting = false;
+      }
     },
 
     // =====================================================================
