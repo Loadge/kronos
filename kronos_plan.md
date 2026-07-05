@@ -134,17 +134,28 @@ for daily use — no need to remember what time you started.
 
 ---
 
-## Phase 14 — Public Holidays Auto-Population (planned)
+## Phase 14 — Public Holidays Auto-Population ✅ DONE
 
-Pick a country and year in Settings; Kronos pre-populates all official public holidays
-as `holiday` entries in one click.
+Pick a country (and optional region) in Settings; Kronos pre-populates official public
+holidays for the current year as `holiday` entries in one click.
 
-- Settings: country selector (ISO 3166-1) + year. Stored in config table.
-- `POST /api/holidays/import?country=ES&year=2026` — hits a public holidays API
-  (e.g. Nager.Date, which is free and requires no key) and batch-creates entries.
-- Skips dates that already have an entry (same logic as bulk logging).
-- Shows toast: "X holidays imported, Y skipped".
-- No external JS dependency — purely backend fetch.
+- Backend fetches server-side via stdlib `urllib` (no new dependency) from Nager.Date
+  (free, no key). Browser never calls the external API directly.
+- `GET /api/holidays/countries` — proxies Nager `AvailableCountries` (sorted by name).
+- `GET /api/holidays/subdivisions?country=ES&year=2026` — distinct ISO-3166-2 codes
+  derived from the year's holidays (Nager has no subdivisions endpoint); powers the
+  region dropdown, showing only regions that actually have a regional holiday.
+- `POST /api/holidays/import?country=ES&year=2026&region=ES-MD` — imports national
+  (`global`) holidays plus, when a region is given, that subdivision's holidays.
+  **Region filter is required for correctness** — without it, importing a country
+  would dump every region's holidays. `notes` is set to the holiday's local name.
+- Skips existing dates and in-response duplicates (same rule as batch/import).
+- Settings: country + optional region selectors + "Import holidays" button, with a note
+  that **local/municipal fiestas** (e.g. a town's two local holidays) aren't in the
+  dataset and must be logged manually. Year is current-year only (not persisted);
+  `holiday_country` + `holiday_region` are persisted in the config KV table.
+- Toast: "X holidays imported, Y skipped". Network failure → 502 surfaced in the banner.
+- 8 new API tests (287 total); fetches are monkeypatched so tests never hit the network.
 
 ---
 

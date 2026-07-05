@@ -75,6 +75,38 @@
     </template>
   </div>
 
+  <!-- ---- Public holidays ---- -->
+  <div class="holidays-section">
+    <h3>Public holidays</h3>
+    <p class="muted">Auto-populate official public holidays for <strong x-text="holidayYear"></strong> as <code>holiday</code> days. Existing dates are skipped — nothing is overwritten.</p>
+    <div class="holiday-controls">
+      <label>
+        Country
+        <select x-model="settingsForm.holiday_country" @change="onHolidayCountryChange()">
+          <option value="">Select a country…</option>
+          <template x-for="c in holidayCountries" :key="c.code">
+            <option :value="c.code" x-text="c.name"></option>
+          </template>
+        </select>
+      </label>
+      <label x-show="holidaySubdivisions.length > 0">
+        Region <span class="muted">(optional)</span>
+        <select x-model="settingsForm.holiday_region">
+          <option value="">National only</option>
+          <template x-for="code in holidaySubdivisions" :key="code">
+            <option :value="code" x-text="code"></option>
+          </template>
+        </select>
+      </label>
+    </div>
+    <button type="button" class="secondary outline" @click="importHolidays()"
+            :aria-busy="holidayImporting"
+            :disabled="holidayImporting || !settingsForm.holiday_country">
+      <span x-text="holidayImporting ? 'Importing…' : 'Import holidays'"></span>
+    </button>
+    <p class="muted holiday-note">National + regional holidays only. Local/municipal fiestas (e.g. a town's two local holidays) aren't in the public dataset — add those manually via the Log tab.</p>
+  </div>
+
   <!-- ---- Fun zone ---- -->
   <div class="fun-zone">
     <h3 class="fun-zone-title">🎢 Fun zone</h3>

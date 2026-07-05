@@ -12,6 +12,8 @@ from app.services.settings import (
     get_daily_target_hours,
     get_default_end_time,
     get_default_start_time,
+    get_holiday_country,
+    get_holiday_region,
     get_reset_annually,
     get_vacation_budget_days,
     get_work_week_days,
@@ -19,6 +21,8 @@ from app.services.settings import (
     set_daily_target_hours,
     set_default_end_time,
     set_default_start_time,
+    set_holiday_country,
+    set_holiday_region,
     set_reset_annually,
     set_vacation_budget_days,
     set_work_week_days,
@@ -36,6 +40,8 @@ def _config_out(session: Session) -> ConfigOut:
         vacation_budget_days=get_vacation_budget_days(session),
         default_start_time=get_default_start_time(session),
         default_end_time=get_default_end_time(session),
+        holiday_country=get_holiday_country(session),
+        holiday_region=get_holiday_region(session),
     )
 
 
@@ -60,5 +66,9 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_default_start_time(session, body.default_start_time)
     if body.default_end_time is not None:
         set_default_end_time(session, body.default_end_time)
+    if body.holiday_country is not None:
+        set_holiday_country(session, body.holiday_country)
+    if body.holiday_region is not None:
+        set_holiday_region(session, body.holiday_region)
     session.commit()
     return _config_out(session)

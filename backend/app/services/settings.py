@@ -20,6 +20,8 @@ WORK_WEEK_DAYS = "work_week_days"
 VACATION_BUDGET_DAYS = "vacation_budget_days"
 DEFAULT_START_TIME = "default_start_time"
 DEFAULT_END_TIME = "default_end_time"
+HOLIDAY_COUNTRY = "holiday_country"
+HOLIDAY_REGION = "holiday_region"
 
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 _DEFAULT_START_TIME = "09:00"
@@ -48,9 +50,7 @@ def set_daily_target_hours(session: Session, hours: float) -> None:
 
 
 def get_cumulative_start_date(session: Session) -> date:
-    return date.fromisoformat(
-        _get(session, CUMULATIVE_START_DATE, DEFAULT_CUMULATIVE_START_DATE)
-    )
+    return date.fromisoformat(_get(session, CUMULATIVE_START_DATE, DEFAULT_CUMULATIVE_START_DATE))
 
 
 def set_cumulative_start_date(session: Session, d: date) -> None:
@@ -96,6 +96,22 @@ def get_default_end_time(session: Session) -> str:
 
 def set_default_end_time(session: Session, value: str) -> None:
     _set(session, DEFAULT_END_TIME, value)
+
+
+def get_holiday_country(session: Session) -> str:
+    return _get(session, HOLIDAY_COUNTRY, "")
+
+
+def set_holiday_country(session: Session, value: str) -> None:
+    _set(session, HOLIDAY_COUNTRY, value)
+
+
+def get_holiday_region(session: Session) -> str:
+    return _get(session, HOLIDAY_REGION, "")
+
+
+def set_holiday_region(session: Session, value: str) -> None:
+    _set(session, HOLIDAY_REGION, value)
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:
