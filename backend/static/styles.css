@@ -1750,6 +1750,73 @@ button.btn-action {
 .holiday-controls label { flex: 1 1 12rem; margin-bottom: 0; }
 .holiday-note { margin-top: 0.75rem; font-size: 0.85rem; }
 
+/* Mini-calendar preview */
+.holiday-preview { margin: 1rem 0; }
+.holiday-preview-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+}
+.holiday-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1.1rem;
+}
+.holiday-cal-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--k-muted);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+.holiday-cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.holiday-cal-dow {
+  font-size: 0.55rem;
+  color: var(--k-muted);
+  text-align: center;
+  opacity: 0.7;
+}
+.holiday-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  border-radius: 3px;
+  color: var(--k-muted);
+}
+.holiday-cal-day.holiday-pad { visibility: hidden; }
+.holiday-cal-day.is-holiday {
+  background: var(--k-holiday);
+  color: var(--k-bg);
+  font-weight: 700;
+}
+/* Already logged → ring only, so it reads as "will be skipped" */
+.holiday-cal-day.is-logged {
+  box-shadow: inset 0 0 0 1.5px var(--k-holiday);
+  color: var(--k-holiday);
+  font-weight: 600;
+}
+.holiday-legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  font-size: 0.8rem;
+}
+.holiday-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.holiday-swatch { width: 0.8rem; height: 0.8rem; border-radius: 3px; display: inline-block; }
+.holiday-swatch.is-holiday { background: var(--k-holiday); }
+.holiday-swatch.is-logged { box-shadow: inset 0 0 0 1.5px var(--k-holiday); }
+
 /* ================================================================
    QUICK-LOG (Dashboard)
    ================================================================ */

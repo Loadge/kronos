@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Iterator
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import DayType, WorkEntry
-from app.schemas import CountryOut, HolidayImportOut
+from app.schemas import CountryOut, HolidayImportOut, HolidayPreviewOut
 
 router = APIRouter(prefix="/api/holidays", tags=["holidays"])
 
@@ -44,6 +45,25 @@ def _fetch_holidays(country: str, year: int) -> list[dict]:
 
 def _unreachable(exc: Exception) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, f"could not reach the holiday service: {exc}")
+
+
+def _matching_holidays(data: list[dict], region: str | None) -> Iterator[tuple[date, str, bool]]:
+    """Yield (date, name, regional) for holidays passing the national+region filter.
+
+    National (``global``) holidays always pass; a regional holiday passes only when
+    ``region`` matches one of its ``counties``. Order follows the source; callers
+    dedupe same-date entries. ``regional`` is True for non-global holidays.
+    """
+    for h in data:
+        counties = h.get("counties") or []
+        is_global = h.get("global", False)
+        if not is_global and (not region or region not in counties):
+            continue
+        try:
+            d = date.fromisoformat(h["date"])
+        except (KeyError, ValueError):
+            continue
+        yield d, (h.get("localName") or h.get("name") or ""), (not is_global)
 
 
 _CountryQ = Query(..., min_length=2, max_length=2, pattern="^[A-Za-z]{2}$")
@@ -103,31 +123,49 @@ def import_holidays(
     skipped: list[date] = []
     seen: set[date] = set()
 
-    for h in data:
-        counties = h.get("counties") or []
-        # Regional holiday (not global) is included only if it matches the chosen region.
-        if not h.get("global", False) and (not region or region not in counties):
-            continue
-
-        try:
-            d = date.fromisoformat(h["date"])
-        except (KeyError, ValueError):
-            continue
-
+    for d, name, _regional in _matching_holidays(data, region):
         if d in seen or session.get(WorkEntry, d):
             skipped.append(d)
             continue
         seen.add(d)
-
-        session.add(
-            WorkEntry(
-                date=d,
-                day_type=DayType.HOLIDAY.value,
-                notes=h.get("localName") or h.get("name"),
-            )
-        )
+        session.add(WorkEntry(date=d, day_type=DayType.HOLIDAY.value, notes=name or None))
         imported.append(d)
 
     if imported:
         session.commit()
     return HolidayImportOut(imported=imported, skipped=skipped)
+
+
+@router.get("/preview", response_model=list[HolidayPreviewOut])
+def preview_holidays(
+    country: str = _CountryQ,
+    year: int = _YearQ,
+    region: str | None = Query(None, description="ISO-3166-2 code, e.g. ES-MD"),
+    session: Session = Depends(get_session),
+) -> list[HolidayPreviewOut]:
+    """List the holidays a matching import would create, sorted by date.
+
+    Read-only: flags each with ``regional`` (national vs the chosen region) and
+    ``exists`` (a date already logged, which import would skip).
+    """
+    try:
+        data = _fetch_holidays(country.upper(), year)
+    except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
+        raise _unreachable(exc) from exc
+
+    out: list[HolidayPreviewOut] = []
+    seen: set[date] = set()
+    for d, name, regional in _matching_holidays(data, region):
+        if d in seen:
+            continue
+        seen.add(d)
+        out.append(
+            HolidayPreviewOut(
+                date=d,
+                name=name,
+                regional=regional,
+                exists=session.get(WorkEntry, d) is not None,
+            )
+        )
+    out.sort(key=lambda item: item.date)
+    return out

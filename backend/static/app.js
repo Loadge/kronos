@@ -57,6 +57,7 @@ function app() {
     // ---------- public holidays (Phase 14) ------------------------------
     holidayCountries: [],
     holidaySubdivisions: [],
+    holidayPreview: [],
     holidayYear: new Date().getFullYear(),
     holidayImporting: false,
 
@@ -1384,6 +1385,7 @@ function app() {
         catch { this.holidayCountries = []; }
       }
       await this.loadHolidaySubdivisions();
+      await this.loadHolidayPreview();
     },
 
     async loadHolidaySubdivisions() {
@@ -1400,9 +1402,73 @@ function app() {
       }
     },
 
-    onHolidayCountryChange() {
+    async loadHolidayPreview() {
+      const c = this.settingsForm.holiday_country;
+      if (!c) { this.holidayPreview = []; return; }
+      const region = this.settingsForm.holiday_region;
+      try {
+        this.holidayPreview = await this.api(
+          'GET', `/api/holidays/preview?country=${c}&year=${this.holidayYear}`
+            + (region ? `&region=${encodeURIComponent(region)}` : '')
+        );
+      } catch { this.holidayPreview = []; }
+    },
+
+    async onHolidayCountryChange() {
       this.settingsForm.holiday_region = '';
-      this.loadHolidaySubdivisions();
+      await this.loadHolidaySubdivisions();
+      await this.loadHolidayPreview();
+    },
+
+    // Summary line: "9 national · 3 regional · 2 already logged".
+    holidayPreviewSummary() {
+      const nat = this.holidayPreview.filter(h => !h.regional).length;
+      const reg = this.holidayPreview.filter(h => h.regional).length;
+      const logged = this.holidayPreview.filter(h => h.exists).length;
+      const parts = [`${nat} national`];
+      if (reg) parts.push(`${reg} regional`);
+      if (logged) parts.push(`${logged} already logged`);
+      return parts.join(' · ');
+    },
+
+    holidayImportLabel() {
+      if (this.holidayImporting) return 'Importing…';
+      if (!this.holidayPreview.length) return 'Import holidays';
+      const n = this.holidayPreview.filter(h => !h.exists).length;
+      if (!n) return 'All holidays already logged';
+      return `Import ${n} holiday${n !== 1 ? 's' : ''}`;
+    },
+
+    // Nothing left to import when every previewed holiday already exists.
+    holidayNothingToImport() {
+      return this.holidayPreview.length > 0 && this.holidayPreview.every(h => h.exists);
+    },
+
+    // Group the preview into per-month mini-calendars (Mon-first), holidays coloured.
+    holidayMonths() {
+      const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const byMonth = {};
+      for (const h of this.holidayPreview) {
+        const ym = h.date.slice(0, 7);
+        (byMonth[ym] ||= {})[h.date] = h;
+      }
+      return Object.keys(byMonth).sort().map(ym => {
+        const [y, mo] = ym.split('-').map(Number);
+        const holidayMap = byMonth[ym];
+        const firstDow = (new Date(y, mo - 1, 1).getDay() + 6) % 7; // Mon-first
+        const daysInMonth = new Date(y, mo, 0).getDate();
+        const cells = [];
+        for (let i = 0; i < firstDow; i++) cells.push({ key: `${ym}-pad${i}`, cls: 'holiday-pad', label: '', title: '' });
+        for (let d = 1; d <= daysInMonth; d++) {
+          const iso = `${ym}-${String(d).padStart(2, '0')}`;
+          const h = holidayMap[iso];
+          const cls = !h ? '' : h.exists ? 'is-logged' : 'is-holiday';
+          const title = h ? `${iso} · ${h.name}${h.regional ? ' (regional)' : ''}${h.exists ? ' — already logged' : ''}` : '';
+          cells.push({ key: iso, cls, label: String(d), title });
+        }
+        return { key: ym, label: `${MONTH_NAMES[mo - 1]} ${y}`, dow: DOW, cells };
+      });
     },
 
     async importHolidays() {
@@ -1422,6 +1488,7 @@ function app() {
         const result = await this.api('POST', url);
         this._resetCachedViews();
         await this.loadDashboard();
+        await this.loadHolidayPreview(); // refresh so imported dates now show as logged
         const n = result.imported.length;
         const s = result.skipped.length;
         this.showToast(
