@@ -220,7 +220,7 @@ indicator, and week total. Most-used view in Toggl/Clockify.
 
 ---
 
-## Phase 18 — Streaks & Milestones (planned)
+## Phase 18 — Streaks & Milestones ✅ DONE
 
 Motivational counters displayed on the Dashboard.
 
@@ -228,6 +228,17 @@ Motivational counters displayed on the Dashboard.
 - **On-target streak**: consecutive work days where surplus ≥ 0.
 - **Milestones**: toast notification when hitting 30 / 100 / 365 days logged.
 - Computed server-side via `GET /api/streaks`; no new DB table needed.
+
+- `GET /api/streaks?today=` — `logging_streak` (consecutive calendar days with any
+  entry, ending at `today`; falls back to `today - 1` as anchor if today isn't logged
+  yet so the count doesn't drop to 0 mid-day), `on_target_streak` (consecutive most
+  recent `work` entries with per-day surplus ≥ 0 — non-work days in between don't
+  break it), `total_logged_days` (all-time entry count).
+- Dashboard: new summary-card row for the two streaks, styled like the existing cards.
+- Milestone toast (30/100/365) is frontend-only: compares `total_logged_days` against
+  a `k-milestone-seen` localStorage watermark so it fires once per threshold crossed,
+  no backend state needed.
+- 7 new API tests (298 total).
 
 ---
 
