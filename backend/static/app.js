@@ -23,6 +23,10 @@ function app() {
     // ---------- dashboard -----------------------------------------------
     dashboard: null,
 
+    // ---------- streaks & milestones (Phase 18) --------------------------
+    streakStats: null,
+    MILESTONES: [30, 100, 365],
+
     // ---------- log form ------------------------------------------------
     form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [] },
     editingDate: null,
@@ -456,6 +460,24 @@ function app() {
         this.$nextTick(() => this.tickUpDashboard()); // W1
       } catch (e) { this.error = e.message; }
       finally { this.loading.dashboard = false; }
+      this.loadStreaks();
+    },
+
+    // Phase 18 — streaks & milestones
+    async loadStreaks() {
+      try {
+        this.streakStats = await this.api('GET', '/api/streaks');
+        this.checkMilestone(this.streakStats.total_logged_days);
+      } catch (e) { /* non-critical widget — don't surface dashboard errors */ }
+    },
+
+    checkMilestone(totalLoggedDays) {
+      const lastSeen = Number(localStorage.getItem('k-milestone-seen') || 0);
+      const hit = this.MILESTONES.find(m => lastSeen < m && totalLoggedDays >= m);
+      if (hit) {
+        this.showToast(`🎉 Milestone: ${hit} days logged!`, 'neutral');
+        localStorage.setItem('k-milestone-seen', String(hit));
+      }
     },
 
     // W1 — animate the three metric values from 0 → real (ease-out cubic, 600ms)

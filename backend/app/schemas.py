@@ -114,6 +114,12 @@ class DashboardOut(BaseModel):
     vacation_days_used: int
 
 
+class StreaksOut(BaseModel):
+    logging_streak: int
+    on_target_streak: int
+    total_logged_days: int
+
+
 class MonthlyBreakdownRow(BaseModel):
     year: int
     month: int

@@ -108,6 +108,23 @@
           </article>
         </template>
       </div>
+      <!-- Phase 18: streaks & milestones -->
+      <template x-if="streakStats">
+        <div class="summary-grid">
+          <article class="summary-card">
+            <h3>🔥 Logging streak</h3>
+            <div class="metric" x-text="streakStats.logging_streak + (streakStats.logging_streak === 1 ? ' day' : ' days')"></div>
+            <div class="sub muted" x-text="streakStats.total_logged_days + ' days logged all-time'"></div>
+          </article>
+          <article class="summary-card">
+            <h3>🎯 On-target streak</h3>
+            <div class="metric" :class="streakStats.on_target_streak > 0 ? 'surplus' : 'neutral'"
+                 x-text="streakStats.on_target_streak + (streakStats.on_target_streak === 1 ? ' day' : ' days')"></div>
+            <div class="sub muted">consecutive work days at/above target</div>
+          </article>
+        </div>
+      </template>
+
       <p class="muted">
         <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>
       </p>

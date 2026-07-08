@@ -4,7 +4,9 @@ from __future__ import annotations
 
 
 def _post_work(client, work_body, date, start="09:00", end="17:00", breaks=(60,)):
-    return client.post("/api/entries", json=work_body(date=date, start=start, end=end, breaks_min=breaks))
+    return client.post(
+        "/api/entries", json=work_body(date=date, start=start, end=end, breaks_min=breaks)
+    )
 
 
 def _post_nonwork(client, date, day_type):
@@ -138,7 +140,9 @@ class TestRecords:
     def test_longest_and_shortest_work_day(self, client, work_body):
         _post_work(client, work_body, "2026-04-13", start="09:00", end="17:00")  # 7h
         _post_work(client, work_body, "2026-04-14", start="08:00", end="19:00")  # 10h
-        _post_work(client, work_body, "2026-04-15", start="10:00", end="15:00", breaks=(30,))  # 4.5h
+        _post_work(
+            client, work_body, "2026-04-15", start="10:00", end="15:00", breaks=(30,)
+        )  # 4.5h
 
         data = client.get("/api/analytics/records").json()
         assert data["longest_work_day"] == {"date": "2026-04-14", "net_hours": 10.0}
@@ -155,3 +159,61 @@ class TestRecords:
         assert data["longest_month"]["label"] == "2026-03"
         assert data["most_surplus_month"]["label"] == "2026-04"
         assert data["most_deficit_month"]["label"] == "2026-03"
+
+
+class TestStreaks:
+    def test_empty(self, client):
+        data = client.get("/api/streaks?today=2026-04-14").json()
+        assert data == {"logging_streak": 0, "on_target_streak": 0, "total_logged_days": 0}
+
+    def test_logging_streak_counts_consecutive_calendar_days(self, client):
+        _post_nonwork(client, "2026-04-12", "vacation")
+        _post_nonwork(client, "2026-04-13", "sick")
+        _post_nonwork(client, "2026-04-14", "holiday")
+        # gap: 04-11 not logged
+        _post_nonwork(client, "2026-04-10", "vacation")
+
+        data = client.get("/api/streaks?today=2026-04-14").json()
+        assert data["logging_streak"] == 3
+        assert data["total_logged_days"] == 4
+
+    def test_logging_streak_has_grace_period_if_today_not_logged_yet(self, client):
+        _post_nonwork(client, "2026-04-13", "vacation")
+        _post_nonwork(client, "2026-04-14", "sick")
+        # 04-15 ("today") has no entry yet
+        data = client.get("/api/streaks?today=2026-04-15").json()
+        assert data["logging_streak"] == 2
+
+    def test_logging_streak_breaks_after_grace_day_also_missed(self, client):
+        _post_nonwork(client, "2026-04-13", "vacation")
+        # both 04-14 and 04-15 ("today") are unlogged
+        data = client.get("/api/streaks?today=2026-04-15").json()
+        assert data["logging_streak"] == 0
+
+    def test_on_target_streak_counts_recent_work_days_at_or_above_target(self, client, work_body):
+        _post_work(
+            client, work_body, "2026-04-10", start="09:00", end="17:00"
+        )  # 7h, below 8h target
+        _post_work(client, work_body, "2026-04-13", start="09:00", end="18:00", breaks=(60,))  # 8h
+        _post_work(client, work_body, "2026-04-14", start="09:00", end="19:00", breaks=(60,))  # 9h
+
+        data = client.get("/api/streaks?today=2026-04-14").json()
+        assert data["on_target_streak"] == 2
+
+    def test_on_target_streak_ignores_non_work_days_in_between(self, client, work_body):
+        _post_work(client, work_body, "2026-04-13", start="09:00", end="18:00", breaks=(60,))  # 8h
+        _post_nonwork(client, "2026-04-14", "vacation")  # doesn't break the work-day streak
+        _post_work(client, work_body, "2026-04-15", start="09:00", end="18:00", breaks=(60,))  # 8h
+
+        data = client.get("/api/streaks?today=2026-04-15").json()
+        assert data["on_target_streak"] == 2
+
+    def test_streaks_ignore_entries_after_today(self, client, work_body):
+        _post_work(client, work_body, "2026-04-14", start="09:00", end="18:00", breaks=(60,))
+        _post_work(
+            client, work_body, "2026-04-20", start="09:00", end="18:00", breaks=(60,)
+        )  # future
+
+        data = client.get("/api/streaks?today=2026-04-14").json()
+        assert data["total_logged_days"] == 1
+        assert data["on_target_streak"] == 1
