@@ -46,3 +46,37 @@ class TestConfig:
     def test_rejects_invalid(self, client, payload, reason):
         resp = client.put("/api/config", json=payload)
         assert resp.status_code == 422, reason
+
+
+class TestDashboardLayout:
+    def test_defaults(self, client):
+        resp = client.get("/api/config/dashboard-layout")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "hero": ["week", "month", "cumulative"],
+            "tiles": ["yoy", "logging_streak", "on_target_streak"],
+            "aux": ["forecast", "quick_log", "vacation"],
+        }
+
+    def test_update_persists_custom_order(self, client):
+        payload = {
+            "hero": ["cumulative", "week", "month"],
+            "tiles": ["logging_streak", "on_target_streak", "yoy"],
+            "aux": ["quick_log", "vacation", "forecast"],
+        }
+        resp = client.put("/api/config/dashboard-layout", json=payload)
+        assert resp.status_code == 200
+        assert resp.json() == payload
+        # GET reflects the update.
+        assert client.get("/api/config/dashboard-layout").json() == payload
+
+    @pytest.mark.parametrize(
+        "payload,reason",
+        [
+            ({"hero": [], "tiles": ["yoy"], "aux": ["forecast"]}, "empty hero list"),
+            ({"tiles": ["yoy"], "aux": ["forecast"]}, "missing hero key"),
+        ],
+    )
+    def test_rejects_invalid(self, client, payload, reason):
+        resp = client.put("/api/config/dashboard-layout", json=payload)
+        assert resp.status_code == 422, reason
