@@ -37,154 +37,193 @@
         Cumulative tracking since <strong x-text="dashboard.cumulative_start_date"></strong>.
       </p>
 
-      <div class="summary-grid">
-        <article class="summary-card summary-card--link" role="link" tabindex="0"
-                 @click="go('week')" @keydown.enter.prevent="go('week')" @keydown.space.prevent="go('week')"
-                 aria-label="This week — open Week view">
-          <h3>This week</h3>
-          <div class="subdial-label" :class="surplusClass(dashboard.week.surplus_hours)"
-               x-text="subdialLabel(dashboard.week.surplus_hours)"></div>
-          <!-- W1: sign always visible; value ticks up via animWeek -->
-          <div class="metric" :class="surplusClass(dashboard.week.surplus_hours)">
-            <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animWeek.toFixed(2)"></span>h
-          </div>
-          <div class="sub">
-            <span x-text="dashboard.week.net_hours + 'h'"></span> worked /
-            <span x-text="dashboard.week.target_hours + 'h'"></span> target
-            <br>
-            <span x-text="dashboard.week.work_days"></span> work days,
-            <span x-text="dashboard.week.non_work_days"></span> off
-          </div>
-        </article>
-        <article class="summary-card">
-          <h3>This month</h3>
-          <div class="subdial-label" :class="surplusClass(dashboard.month.surplus_hours)"
-               x-text="subdialLabel(dashboard.month.surplus_hours)"></div>
-          <div class="metric" :class="surplusClass(dashboard.month.surplus_hours)">
-            <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animMonth.toFixed(2)"></span>h
-          </div>
-          <div class="sub">
-            <span x-text="dashboard.month.net_hours + 'h'"></span> worked /
-            <span x-text="dashboard.month.target_hours + 'h'"></span> target
-            <br>
-            <span x-text="dashboard.month.work_days"></span> work days,
-            <span x-text="dashboard.month.non_work_days"></span> off
-          </div>
-        </article>
-        <!-- W2: pulse class drives the CSS breathing glow -->
-        <article class="summary-card cumulative"
-                 :class="surplusClass(dashboard.cumulative.surplus_hours) !== 'neutral' ? 'pulse-' + surplusClass(dashboard.cumulative.surplus_hours) : ''">
-          <h3>Cumulative</h3>
-          <div class="subdial-label" :class="surplusClass(dashboard.cumulative.surplus_hours)"
-               x-text="subdialLabel(dashboard.cumulative.surplus_hours)"></div>
-          <div class="metric" :class="surplusClass(dashboard.cumulative.surplus_hours)">
-            <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animCumulative.toFixed(2)"></span>h
-          </div>
-          <div class="sub">
-            <span x-text="dashboard.cumulative.net_hours + 'h'"></span> worked /
-            <span x-text="dashboard.cumulative.target_hours + 'h'"></span> target
-            <br>
-            <span x-text="dashboard.cumulative.work_days"></span> work days,
-            <span x-text="dashboard.cumulative.non_work_days"></span> off
-          </div>
-        </article>
-        <!-- YoY card — shown only once yoy data is available -->
-        <template x-if="yoy">
-          <article class="summary-card">
-            <h3>vs last year</h3>
-            <div class="subdial-label"
-                 :class="surplusClass(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"
-                 x-text="subdialLabel(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"></div>
-            <div class="metric"
-                 :class="surplusClass(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"
-                 x-text="formatSurplus(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"></div>
-            <div class="sub">
-              <span x-text="yoy.this_year.label"></span>: <span x-text="formatSurplus(yoy.this_year.surplus_hours)"></span>
-              <br>
-              <span x-text="yoy.last_year.label"></span>: <span x-text="formatSurplus(yoy.last_year.surplus_hours)"></span>
-              <br>
-              <span class="muted">Jan 1 – today, both years</span>
-            </div>
+      <!-- Phase 22 (redesign): hero metrics — This week / This month / Cumulative.
+           Draggable via the grip handle (SortableJS); order persists server-side. -->
+      <!-- One real <article> per iteration (not a display:contents wrapper) — SortableJS's
+           floating drag clone needs an actual box to position; `display:contents` has no
+           box, so `position` on it (or its clone) is a no-op and the clone can't follow
+           the cursor. Card-specific bits (class/role/click) are switched via ternaries on
+           this single element; only the inner content still branches per id. -->
+      <div class="hero-grid" x-ref="heroGrid">
+        <template x-for="id in visibleHero()" :key="id">
+          <article class="summary-card" :data-id="id"
+                   :class="heroCardClass(id)"
+                   :role="id === 'week' ? 'link' : null"
+                   :tabindex="id === 'week' ? 0 : null"
+                   :aria-label="id === 'week' ? 'This week — open Week view' : null"
+                   @click="id === 'week' && go('week')"
+                   @keydown.enter.prevent="id === 'week' && go('week')"
+                   @keydown.space.prevent="id === 'week' && go('week')">
+            <button type="button" class="drag-handle" aria-label="Drag to reorder" @click.stop @keydown.stop @mousedown.stop>
+              <svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.4"/><circle cx="7.5" cy="2.5" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13.5" r="1.4"/><circle cx="7.5" cy="13.5" r="1.4"/></svg>
+            </button>
+            <template x-if="id === 'week'">
+              <div>
+                <h3>This week</h3>
+                <div class="subdial-label" :class="surplusClass(dashboard.week.surplus_hours)"
+                     x-text="subdialLabel(dashboard.week.surplus_hours)"></div>
+                <!-- W1: sign always visible; value ticks up via animWeek -->
+                <div class="metric" :class="surplusClass(dashboard.week.surplus_hours)">
+                  <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animWeek.toFixed(2)"></span>h
+                </div>
+                <div class="sub">
+                  <span x-text="dashboard.week.net_hours + 'h'"></span> worked /
+                  <span x-text="dashboard.week.target_hours + 'h'"></span> target
+                  <br>
+                  <span x-text="dashboard.week.work_days"></span> work days,
+                  <span x-text="dashboard.week.non_work_days"></span> off
+                </div>
+              </div>
+            </template>
+            <template x-if="id === 'month'">
+              <div>
+                <h3>This month</h3>
+                <div class="subdial-label" :class="surplusClass(dashboard.month.surplus_hours)"
+                     x-text="subdialLabel(dashboard.month.surplus_hours)"></div>
+                <div class="metric" :class="surplusClass(dashboard.month.surplus_hours)">
+                  <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animMonth.toFixed(2)"></span>h
+                </div>
+                <div class="sub">
+                  <span x-text="dashboard.month.net_hours + 'h'"></span> worked /
+                  <span x-text="dashboard.month.target_hours + 'h'"></span> target
+                  <br>
+                  <span x-text="dashboard.month.work_days"></span> work days,
+                  <span x-text="dashboard.month.non_work_days"></span> off
+                </div>
+              </div>
+            </template>
+            <template x-if="id === 'cumulative'">
+              <!-- W2: pulse class (added by heroCardClass) drives the CSS breathing glow -->
+              <div>
+                <h3>Cumulative</h3>
+                <div class="subdial-label" :class="surplusClass(dashboard.cumulative.surplus_hours)"
+                     x-text="subdialLabel(dashboard.cumulative.surplus_hours)"></div>
+                <div class="metric" :class="surplusClass(dashboard.cumulative.surplus_hours)">
+                  <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animCumulative.toFixed(2)"></span>h
+                </div>
+                <div class="sub">
+                  <span x-text="dashboard.cumulative.net_hours + 'h'"></span> worked /
+                  <span x-text="dashboard.cumulative.target_hours + 'h'"></span> target
+                  <br>
+                  <span x-text="dashboard.cumulative.work_days"></span> work days,
+                  <span x-text="dashboard.cumulative.non_work_days"></span> off
+                </div>
+              </div>
+            </template>
           </article>
         </template>
       </div>
-      <!-- Phase 18: streaks & milestones -->
-      <template x-if="streakStats">
-        <div class="summary-grid">
-          <article class="summary-card">
-            <h3>🔥 Logging streak</h3>
-            <div class="metric" x-text="streakStats.logging_streak + (streakStats.logging_streak === 1 ? ' day' : ' days')"></div>
-            <div class="sub muted" x-text="streakStats.total_logged_days + ' days logged all-time'"></div>
-          </article>
-          <article class="summary-card">
-            <h3>🎯 On-target streak</h3>
-            <div class="metric" :class="streakStats.on_target_streak > 0 ? 'surplus' : 'neutral'"
-                 x-text="streakStats.on_target_streak + (streakStats.on_target_streak === 1 ? ' day' : ' days')"></div>
-            <div class="sub muted">consecutive work days at/above target</div>
-          </article>
-        </div>
-      </template>
+
+      <!-- Secondary tiles: vs last year / streaks — compact, one line each.
+           Draggable amongst themselves; hidden ids (e.g. yoy before it has data)
+           are simply skipped, not lost — they reappear once available. -->
+      <div class="tile-grid" x-ref="tileGrid">
+        <template x-for="id in visibleTiles()" :key="id">
+          <div class="tile" :data-id="id">
+            <button type="button" class="drag-handle" aria-label="Drag to reorder" @mousedown.stop>
+              <svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.4"/><circle cx="7.5" cy="2.5" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13.5" r="1.4"/><circle cx="7.5" cy="13.5" r="1.4"/></svg>
+            </button>
+            <template x-if="id === 'yoy'">
+              <div style="display:contents">
+                <span class="tile-metric" :class="surplusClass(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"
+                      x-text="formatSurplus(yoy.this_year.surplus_hours - yoy.last_year.surplus_hours)"></span>
+                <span class="tile-label">
+                  <strong>vs last year</strong>
+                  <span x-text="yoy.this_year.label + ': ' + formatSurplus(yoy.this_year.surplus_hours)"></span>
+                </span>
+              </div>
+            </template>
+            <template x-if="id === 'logging_streak'">
+              <div style="display:contents">
+                <span class="tile-metric" x-text="streakStats.logging_streak + 'd'"></span>
+                <span class="tile-label">
+                  <strong>🔥 Logging streak</strong>
+                  <span x-text="streakStats.total_logged_days + ' days all-time'"></span>
+                </span>
+              </div>
+            </template>
+            <template x-if="id === 'on_target_streak'">
+              <div style="display:contents">
+                <span class="tile-metric" :class="streakStats.on_target_streak > 0 ? 'surplus' : 'neutral'"
+                      x-text="streakStats.on_target_streak + 'd'"></span>
+                <span class="tile-label">
+                  <strong>🎯 On-target streak</strong>
+                  <span>work days at/above target</span>
+                </span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
 
       <p class="muted">
         <a @click.prevent="go('log')" role="button" class="outline">+ Log a day</a>
       </p>
 
-      <!-- Forecast -->
-      <template x-if="forecast()">
-        <p class="forecast-line">
-          At this rate:
-          <strong :class="surplusClass(forecast().projected)"
-                  x-text="formatSurplus(forecast().projected)"></strong>
-          by year end
-          <span class="muted" x-text="'(' + forecast().adjustedWorkDays + ' effective work days remaining)'"></span>
-          <template x-if="forecast().vacationRemaining > 0 || forecast().bankedDays > 0">
-            <span class="forecast-breakdown">
-              <span x-text="forecast().workDaysLeft + ' scheduled'"></span>
-              <template x-if="forecast().vacationRemaining > 0">
-                <span x-text="' − ' + forecast().vacationRemaining + ' vacation'"></span>
-              </template>
-              <template x-if="forecast().bankedDays > 0">
-                <span x-text="' − ' + forecast().bankedDays + ' banked'"></span>
-              </template>
-            </span>
-          </template>
-        </p>
-      </template>
-
-      <!-- Quick-log today -->
-      <div class="quick-log-section">
-        <div class="quick-log-label muted">Quick-log today:</div>
-        <div class="quick-log-actions">
-          <template x-for="t in templates" :key="t.id">
-            <button type="button" class="quick-log-btn ql-work" @click="quickLogTemplate(t)">
-              <span x-text="t.name"></span>
+      <!-- Full-width blocks: forecast / quick-log / vacation budget.
+           Draggable as a stack; each id is only rendered once it has something to show. -->
+      <div class="aux-stack" x-ref="auxStack">
+        <template x-for="id in visibleAux()" :key="id">
+          <div class="aux-block" :data-id="id">
+            <button type="button" class="drag-handle" aria-label="Drag to reorder" @mousedown.stop>
+              <svg viewBox="0 0 10 16" fill="currentColor" aria-hidden="true"><circle cx="2.5" cy="2.5" r="1.4"/><circle cx="7.5" cy="2.5" r="1.4"/><circle cx="2.5" cy="8" r="1.4"/><circle cx="7.5" cy="8" r="1.4"/><circle cx="2.5" cy="13.5" r="1.4"/><circle cx="7.5" cy="13.5" r="1.4"/></svg>
             </button>
-          </template>
-          <button type="button" class="quick-log-btn ql-vacation" @click="quickLogNonWork('vacation')">Vacation</button>
-          <button type="button" class="quick-log-btn ql-sick" @click="quickLogNonWork('sick')">Sick</button>
-          <button type="button" class="quick-log-btn ql-holiday" @click="quickLogNonWork('holiday')">Holiday</button>
-          <button type="button" class="quick-log-btn ql-flex" @click="quickLogNonWork('flex')">Flex</button>
-        </div>
+            <template x-if="id === 'forecast'">
+              <p class="forecast-line">
+                At this rate:
+                <strong :class="surplusClass(forecast().projected)"
+                        x-text="formatSurplus(forecast().projected)"></strong>
+                by year end
+                <span class="muted" x-text="'(' + forecast().adjustedWorkDays + ' effective work days remaining)'"></span>
+                <template x-if="forecast().vacationRemaining > 0 || forecast().bankedDays > 0">
+                  <span class="forecast-breakdown">
+                    <span x-text="forecast().workDaysLeft + ' scheduled'"></span>
+                    <template x-if="forecast().vacationRemaining > 0">
+                      <span x-text="' − ' + forecast().vacationRemaining + ' vacation'"></span>
+                    </template>
+                    <template x-if="forecast().bankedDays > 0">
+                      <span x-text="' − ' + forecast().bankedDays + ' banked'"></span>
+                    </template>
+                  </span>
+                </template>
+              </p>
+            </template>
+            <template x-if="id === 'quick_log'">
+              <div class="quick-log-section">
+                <div class="quick-log-label muted">Quick-log today:</div>
+                <div class="quick-log-actions">
+                  <template x-for="t in templates" :key="t.id">
+                    <button type="button" class="quick-log-btn ql-work" @click="quickLogTemplate(t)">
+                      <span x-text="t.name"></span>
+                    </button>
+                  </template>
+                  <button type="button" class="quick-log-btn ql-vacation" @click="quickLogNonWork('vacation')">Vacation</button>
+                  <button type="button" class="quick-log-btn ql-sick" @click="quickLogNonWork('sick')">Sick</button>
+                  <button type="button" class="quick-log-btn ql-holiday" @click="quickLogNonWork('holiday')">Holiday</button>
+                  <button type="button" class="quick-log-btn ql-flex" @click="quickLogNonWork('flex')">Flex</button>
+                </div>
+              </div>
+            </template>
+            <template x-if="id === 'vacation'">
+              <div class="vacation-bar-wrap">
+                <div class="vacation-bar-header">
+                  <span>🏖 Vacation</span>
+                  <span x-text="vacationStatus().used + ' / ' + vacationStatus().budget + ' days used'"></span>
+                </div>
+                <div class="vacation-bar-track">
+                  <div class="vacation-bar-fill"
+                       :class="vacationStatus().pct >= 100 ? 'vacation-bar-over' : ''"
+                       :style="'width:' + Math.min(vacationStatus().pct, 100) + '%'"></div>
+                </div>
+                <div class="vacation-bar-footer muted">
+                  <span x-text="vacationStatus().remaining + ' days remaining'"></span>
+                  <span x-text="'(' + vacationStatus().pct + '%)'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
       </div>
-
-      <!-- Vacation budget -->
-      <template x-if="vacationStatus()">
-        <div class="vacation-bar-wrap">
-          <div class="vacation-bar-header">
-            <span>🏖 Vacation</span>
-            <span x-text="vacationStatus().used + ' / ' + vacationStatus().budget + ' days used'"></span>
-          </div>
-          <div class="vacation-bar-track">
-            <div class="vacation-bar-fill"
-                 :class="vacationStatus().pct >= 100 ? 'vacation-bar-over' : ''"
-                 :style="'width:' + Math.min(vacationStatus().pct, 100) + '%'"></div>
-          </div>
-          <div class="vacation-bar-footer muted">
-            <span x-text="vacationStatus().remaining + ' days remaining'"></span>
-            <span x-text="'(' + vacationStatus().pct + '%)'"></span>
-          </div>
-        </div>
-      </template>
 
       <!-- W6: Streaks panel — unlocked by typing "kronos" anywhere -->
       <template x-if="streaksUnlocked && streaks">

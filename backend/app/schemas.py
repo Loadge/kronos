@@ -209,6 +209,18 @@ class ConfigIn(BaseModel):
     holiday_region: str | None = None
 
 
+class DashboardLayoutOut(BaseModel):
+    hero: list[str]
+    tiles: list[str]
+    aux: list[str]
+
+
+class DashboardLayoutIn(BaseModel):
+    hero: list[str] = Field(..., min_length=1)
+    tiles: list[str] = Field(..., min_length=1)
+    aux: list[str] = Field(..., min_length=1)
+
+
 class RestoreIn(BaseModel):
     """Body for POST /api/restore.
 

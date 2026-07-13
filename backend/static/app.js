@@ -27,6 +27,15 @@ function app() {
     streakStats: null,
     MILESTONES: [30, 100, 365],
 
+    // ---------- dashboard layout: draggable + persisted (redesign) -------
+    dashboardLayout: {
+      hero: ['week', 'month', 'cumulative'],
+      tiles: ['yoy', 'logging_streak', 'on_target_streak'],
+      aux: ['forecast', 'quick_log', 'vacation'],
+    },
+    _dashboardLayoutLoaded: false,
+    _dashboardSortables: [],
+
     // ---------- log form ------------------------------------------------
     form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [] },
     editingDate: null,
@@ -180,7 +189,7 @@ function app() {
       if (location.hash.replace('#', '') !== t) location.hash = t;
       this.error = null;
       this.notesQuery = '';
-      if (t === 'dashboard') await this.loadDashboard();
+      if (t === 'dashboard') { await this.loadDashboard(); this.$nextTick(() => this.initDashboardSortables()); }
       else if (t === 'week') { this.ensureWeekStart(); await this.loadDays(); }
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
@@ -461,6 +470,7 @@ function app() {
       } catch (e) { this.error = e.message; }
       finally { this.loading.dashboard = false; }
       this.loadStreaks();
+      if (!this._dashboardLayoutLoaded) this.loadDashboardLayout();
     },
 
     // Phase 18 — streaks & milestones
@@ -478,6 +488,104 @@ function app() {
         this.showToast(`🎉 Milestone: ${hit} days logged!`, 'neutral');
         localStorage.setItem('k-milestone-seen', String(hit));
       }
+    },
+
+    // =====================================================================
+    // dashboard layout — draggable cards/tiles/blocks (redesign)
+    // =====================================================================
+    async loadDashboardLayout() {
+      this._dashboardLayoutLoaded = true;
+      try {
+        this.dashboardLayout = await this.api('GET', '/api/config/dashboard-layout');
+      } catch (e) { /* keep the built-in default order */ }
+    },
+
+    async saveDashboardLayout() {
+      try {
+        await this.api('PUT', '/api/config/dashboard-layout', this.dashboardLayout);
+      } catch (e) { this.error = e.message; }
+    },
+
+    visibleHero() {
+      return this.dashboardLayout.hero;
+    },
+    heroCardClass(id) {
+      if (id === 'week') return 'summary-card summary-card--link';
+      if (id === 'cumulative') {
+        const sc = this.surplusClass(this.dashboard.cumulative.surplus_hours);
+        return 'summary-card cumulative' + (sc !== 'neutral' ? ' pulse-' + sc : '');
+      }
+      return 'summary-card';
+    },
+    visibleTiles() {
+      return this.dashboardLayout.tiles.filter(id => {
+        if (id === 'yoy') return !!this.yoy;
+        return !!this.streakStats;
+      });
+    },
+    visibleAux() {
+      return this.dashboardLayout.aux.filter(id => {
+        if (id === 'forecast') return !!this.forecast();
+        if (id === 'vacation') return !!this.vacationStatus();
+        return true;
+      });
+    },
+
+    // Re-created every time the Dashboard tab mounts (its whole subtree is
+    // torn down by x-if when navigating away, taking prior instances with it).
+    initDashboardSortables() {
+      if (!window.Sortable) return;
+      this._dashboardSortables.forEach(s => s.destroy());
+      this._dashboardSortables = [];
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const attach = (el, key) => {
+        if (!el) return;
+        // Native HTML5 drag (no forceFallback): the browser renders its own floating
+        // drag image from the source element and moves it with the cursor, so there's
+        // no DOM clone for Alpine's mutation observer to choke on (forceFallback clones
+        // the node — including its x-for/x-if directives — into document.body outside
+        // Alpine's reactive scope, which threw "id is not defined" on every clone).
+        let preDragOrder = [];
+        this._dashboardSortables.push(new Sortable(el, {
+          animation: reduceMotion ? 0 : 180,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          handle: '.drag-handle',
+          ghostClass: 'kr-drag-ghost',
+          chosenClass: 'kr-drag-chosen',
+          dragClass: 'kr-drag-dragging',
+          onStart: () => { preDragOrder = this._realChildren(el); },
+          onEnd: () => {
+            const newOrder = this._realChildren(el).map(c => c.dataset.id);
+            // Sortable just moved the real DOM nodes to reflect the drop — but Alpine's
+            // x-for has no idea that happened; it still thinks the DOM matches the
+            // order from its last render. If we leave Sortable's move in place and ALSO
+            // let Alpine reorder once we update dashboardLayout below, Alpine computes
+            // its moves against a now-stale assumption of "current" positions and can
+            // land cards anywhere — right, back where they started, or somewhere else
+            // entirely (exactly the flakiness reported). So put the DOM back exactly
+            // as Alpine last knew it first, then update state and let Alpine perform
+            // the one real, correctly-informed move.
+            preDragOrder.forEach(node => el.appendChild(node));
+            this._persistDashboardOrder(key, newOrder);
+          },
+        }));
+      };
+      attach(this.$refs.heroGrid, 'hero');
+      attach(this.$refs.tileGrid, 'tiles');
+      attach(this.$refs.auxStack, 'aux');
+    },
+
+    // Real (data-id-bearing) children of a Sortable container, in current DOM order —
+    // excludes the inert x-for <template> marker Alpine leaves behind as a sibling.
+    _realChildren(el) {
+      return Array.from(el.children).filter(c => c.dataset && c.dataset.id);
+    },
+
+    _persistDashboardOrder(key, visibleIds) {
+      const hiddenIds = this.dashboardLayout[key].filter(id => !visibleIds.includes(id));
+      this.dashboardLayout[key] = [...visibleIds, ...hiddenIds];
+      this.saveDashboardLayout();
     },
 
     // W1 — animate the three metric values from 0 → real (ease-out cubic, 600ms)
