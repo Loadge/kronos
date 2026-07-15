@@ -165,18 +165,6 @@ holidays for the current year as `holiday` entries in one click.
 
 ---
 
-## Phase 15 — End-of-Day Reminder (planned)
-
-Browser push notification (Web Push API) if no entry has been logged by a configurable
-time (default 18:00 local).
-
-- Settings: enable/disable toggle + reminder time picker.
-- Service worker handles the scheduled check and notification dispatch.
-- Notification taps open the Log tab directly.
-- Permission prompt shown only when the user enables the feature.
-
----
-
 ## Phase 16 — Notes Search ✅ DONE
 
 Search field on the Days tab that filters the entry list by note content in real time.
@@ -264,27 +252,57 @@ to bulk-import historical entries.
 
 ---
 
-## Phase 20 — Overtime Alerts (planned)
+## Phase 23 — Date-Effective Daily Target (planned)
 
-Warn when weekly hours are heading toward or have exceeded a configurable threshold
-(e.g. 45 h/week).
+Today `daily_target_hours` is a single global value, so if the contracted hours ever
+changed (e.g. 8h → 6h mid-year) every historical cumulative/surplus number is silently
+wrong. Make the target date-effective so the math is correct across a contract change.
 
-- Settings: weekly overtime threshold (default off).
-- Dashboard warning banner when current-week net hours exceed threshold.
-- Colour-coded: yellow = approaching (>90% of threshold), red = exceeded.
+- Store a list of `(effective_from, hours)` rows; the target for any date is the most
+  recent row on or before that date. Current single value becomes the first row.
+- `summarize()` / `daily_target_for()` resolve the target per-entry-date instead of
+  taking one flat number.
+- Settings UI: manage the target timeline (add a change with an effective date; edit /
+  remove rows). The common single-target case stays a one-field experience.
+- Backfill/migration: seed one row from the existing `daily_target_hours` setting so
+  nothing changes for users who never switched contracts.
 
 ---
 
-## Phase 21 — Active Timer (planned)
+## Phase 24 — Half-Day Leave (planned)
 
-A live running clock for users who prefer to track time in real time rather than logging
-after the fact. Bigger lift than the clock-in stamp (Phase 13) — this one ticks.
+Vacation / sick / holiday / flex are whole-day only. Real leave is often a half-day
+(a morning off, a half-day sick). Add 0.5-day granularity to non-work entries.
 
-- "Start timer" button → records `start_time`, begins a seconds-level counter visible
-  in the header or Dashboard.
-- "Stop timer" → fills `end_time`, prompts for breaks, saves entry.
-- Timer state persisted in `localStorage` so it survives page refreshes.
-- Conflicts gracefully with manual entries (timer disabled if today already logged).
+- Non-work entries gain a fraction (1.0 / 0.5); a half-day charges half the day's target
+  against the surplus pool and counts as 0.5 against the vacation budget.
+- Log tab + bulk logging expose the half-day option; Days/Week/dashboard reflect it.
+- Vacation-budget math and `summarize()` account for fractional non-work days.
+
+---
+
+## Phase 25 — Time-Off Planner (planned)
+
+Kronos is retrospective — you log what already happened. The planner is forward-looking:
+pencil in future vacation/holiday/flex and see the projected cumulative balance and
+remaining vacation budget **before** the days arrive. Builds on the existing vacation
+budget + forecast, the date-effective target (Phase 23), and half-day leave (Phase 24).
+
+- A planning view where future non-work days can be drafted (not yet real entries).
+- Live projection: cumulative balance and vacation budget remaining as-of year end, given
+  the drafted days.
+- "Commit" turns drafts into real entries via the existing batch endpoint.
+
+---
+
+## Phase 26 — Printable Timesheet / PDF Export (planned)
+
+A cleanly formatted monthly or annual timesheet for records, an employer, or invoicing.
+Independent of the other phases — pure output layer, no model changes.
+
+- Print-optimized HTML view (period picker → formatted table + totals) that the browser
+  can save to PDF; no server-side PDF dependency required.
+- Reuses the existing period/summary computations; shows per-day rows + period totals.
 
 ---
 
