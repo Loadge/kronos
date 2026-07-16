@@ -12,7 +12,6 @@ from datetime import date, timedelta
 
 from app.models import DayType, WorkEntry
 
-
 # ---------- time parsing ---------------------------------------------------
 
 
@@ -61,9 +60,7 @@ def minutes_to_hours_label(minutes: int) -> str:
 # ---------- net hours ------------------------------------------------------
 
 
-def net_minutes(
-    start_time: str | None, end_time: str | None, total_break_minutes: int
-) -> int:
+def net_minutes(start_time: str | None, end_time: str | None, total_break_minutes: int) -> int:
     """Net worked minutes: (end - start) - breaks. Returns 0 if start/end missing.
 
     Clamped at 0 so a pathological break sum larger than the span doesn't go negative
@@ -75,9 +72,7 @@ def net_minutes(
     return max(gross - total_break_minutes, 0)
 
 
-def net_hours(
-    start_time: str | None, end_time: str | None, total_break_minutes: int
-) -> float:
+def net_hours(start_time: str | None, end_time: str | None, total_break_minutes: int) -> float:
     return round(net_minutes(start_time, end_time, total_break_minutes) / 60.0, 4)
 
 
@@ -88,10 +83,61 @@ def is_work_day(entry: WorkEntry) -> bool:
     return entry.day_type == DayType.WORK
 
 
-def daily_target_for(entry: WorkEntry, daily_target_hours: float) -> float:
+@dataclass(frozen=True)
+class DailyTargetSchedule:
+    """The contracted daily target over time.
+
+    Real contracts change (8h → 6h on a start date), so a single flat number makes
+    every cumulative total spanning the change wrong. A schedule is a list of
+    ``(effective_from, hours)`` rows; the target for any date is the most recent row
+    on or before that date. There is always at least one row.
+    """
+
+    # Ascending by effective_from, deduped by date. Never empty.
+    rows: tuple[tuple[date, float], ...]
+
+    @classmethod
+    def constant(cls, hours: float) -> DailyTargetSchedule:
+        """A schedule that is ``hours`` for all of time — the common single-target case."""
+        return cls(((date.min, float(hours)),))
+
+    @classmethod
+    def from_rows(cls, rows: Iterable[tuple[date, float]]) -> DailyTargetSchedule:
+        """Build from arbitrary rows: sort ascending, and if two share a date keep the last."""
+        by_date: dict[date, float] = {}
+        for eff, hours in rows:
+            by_date[eff] = float(hours)
+        if not by_date:
+            raise ValueError("a daily-target schedule needs at least one row")
+        ordered = tuple(sorted(by_date.items()))
+        return cls(ordered)
+
+    def for_date(self, d: date) -> float:
+        """Target hours in effect on ``d`` — the last row whose effective_from is ≤ d.
+
+        A date earlier than the first row falls back to the first row's hours (entries
+        predating the earliest known contract use the earliest known target).
+        """
+        hours = self.rows[0][1]
+        for eff, h in self.rows:
+            if eff <= d:
+                hours = h
+            else:
+                break
+        return hours
+
+
+def _as_schedule(target: float | DailyTargetSchedule) -> DailyTargetSchedule:
+    """Coerce a bare float to a constant schedule so simple callers can pass a number."""
+    if isinstance(target, DailyTargetSchedule):
+        return target
+    return DailyTargetSchedule.constant(target)
+
+
+def daily_target_for(entry: WorkEntry, daily_target: float | DailyTargetSchedule) -> float:
     # Flex days charge the full daily target against the surplus pool.
     if entry.day_type in (DayType.WORK, DayType.FLEX):
-        return daily_target_hours
+        return _as_schedule(daily_target).for_date(entry.date)
     return 0.0
 
 
@@ -114,21 +160,24 @@ class PeriodSummary:
 
 
 def summarize(
-    entries: Iterable[WorkEntry], daily_target_hours: float
+    entries: Iterable[WorkEntry], daily_target: float | DailyTargetSchedule
 ) -> PeriodSummary:
+    schedule = _as_schedule(daily_target)
     net = 0.0
     target = 0.0
     work_days = 0
     non_work_days = 0
     for entry in entries:
+        # Target is resolved per entry-date so a range spanning a contract change
+        # (e.g. 8h → 6h) bills each day at the rate in effect that day.
         if is_work_day(entry):
             work_days += 1
-            target += daily_target_hours
+            target += schedule.for_date(entry.date)
             net += daily_net_hours(entry)
         elif entry.day_type == DayType.FLEX:
             # Flex day: employee rests but the daily target drains the surplus pool.
             non_work_days += 1
-            target += daily_target_hours
+            target += schedule.for_date(entry.date)
         else:
             non_work_days += 1
     return PeriodSummary(
@@ -150,9 +199,7 @@ def iso_week_bounds(d: date) -> tuple[date, date]:
 
 def month_bounds(d: date) -> tuple[date, date]:
     first = d.replace(day=1)
-    next_first = (
-        date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
-    )
+    next_first = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
     return first, next_first - timedelta(days=1)
 
 

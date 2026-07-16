@@ -20,8 +20,8 @@ The backup format is intentionally simple (version 1):
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from datetime import date as date_
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -30,12 +30,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import Break, WorkEntry  # Break imported for explicit pre-delete
-from app.schemas import ConfigOut, RestoreIn
+from app.schemas import ConfigOut, DailyTargetRow, RestoreIn
+from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
     get_cumulative_start_date,
     get_daily_target_hours,
+    get_daily_target_schedule,
     set_cumulative_start_date,
     set_daily_target_hours,
+    set_daily_target_schedule,
 )
 
 router = APIRouter(prefix="/api", tags=["backup"])
@@ -46,6 +49,10 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
     """Return a self-contained JSON snapshot as a file download."""
     settings = ConfigOut(
         daily_target_hours=get_daily_target_hours(session),
+        daily_target_schedule=[
+            DailyTargetRow(effective_from=eff, hours=hours)
+            for eff, hours in get_daily_target_schedule(session).rows
+        ],
         cumulative_start_date=get_cumulative_start_date(session),
     )
 
@@ -64,7 +71,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
 
     payload = {
         "version": 1,
-        "exported_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "exported_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "settings": settings.model_dump(mode="json"),
         "entries": entries,
     }
@@ -113,8 +120,18 @@ def restore_backup(
         session.add(entry)
 
     if payload.settings:
-        set_daily_target_hours(session, payload.settings.daily_target_hours)
         set_cumulative_start_date(session, payload.settings.cumulative_start_date)
+        # Prefer the full date-effective timeline; older backups without one fall back
+        # to the single value (restored non-destructively via set_daily_target_hours).
+        if payload.settings.daily_target_schedule:
+            set_daily_target_schedule(
+                session,
+                DailyTargetSchedule.from_rows(
+                    [(r.effective_from, r.hours) for r in payload.settings.daily_target_schedule]
+                ),
+            )
+        else:
+            set_daily_target_hours(session, payload.settings.daily_target_hours)
 
     session.commit()
     return {"restored_entries": len(payload.entries)}

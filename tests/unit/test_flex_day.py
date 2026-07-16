@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import MagicMock
-
-import pytest
 
 from app.models import DayType, WorkEntry
 from app.services.computations import (
@@ -14,8 +13,9 @@ from app.services.computations import (
 )
 
 
-def _entry(day_type: str) -> WorkEntry:
+def _entry(day_type: str, d: date = date(2026, 4, 14)) -> WorkEntry:
     e = MagicMock(spec=WorkEntry)
+    e.date = d  # summarize/daily_target_for resolve the target per entry date
     e.day_type = day_type
     e.start_time = None
     e.end_time = None
@@ -138,6 +138,6 @@ class TestSummarizeWithFlex:
 
         flex = _entry(DayType.FLEX)
         summary = summarize([work2] * 8 + [flex], 8.0)
-        assert summary.net_hours == 72.0   # 8 × 9h
+        assert summary.net_hours == 72.0  # 8 × 9h
         assert summary.target_hours == 72.0  # 9 × 8h
         assert summary.surplus_hours == 0.0

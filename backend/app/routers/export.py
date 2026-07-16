@@ -16,7 +16,7 @@ from app.database import get_session
 from app.models import Break, WorkEntry
 from app.schemas import CsvImportIn, EntryIn, EntryOut, ImportResultOut
 from app.services.computations import daily_net_hours, daily_target_for
-from app.services.settings import get_daily_target_hours
+from app.services.settings import get_daily_target_schedule
 from app.services.views import entry_to_out
 
 router = APIRouter(prefix="/api", tags=["export"])
@@ -36,7 +36,7 @@ CSV_COLUMNS = [
 
 @router.get("/export.csv")
 def export_csv(session: Session = Depends(get_session)) -> Response:
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     entries = list(session.scalars(select(WorkEntry).order_by(WorkEntry.date)))
 
     buf = io.StringIO()
@@ -44,7 +44,7 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
     writer.writerow(CSV_COLUMNS)
     for e in entries:
         net = daily_net_hours(e)
-        target = daily_target_for(e, daily_target)
+        target = daily_target_for(e, schedule)
         writer.writerow(
             [
                 e.date.isoformat(),
@@ -67,9 +67,9 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
 
 @router.get("/export.json", response_model=list[EntryOut])
 def export_json(session: Session = Depends(get_session)) -> list[EntryOut]:
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     entries = list(session.scalars(select(WorkEntry).order_by(WorkEntry.date)))
-    return [entry_to_out(e, daily_target) for e in entries]
+    return [entry_to_out(e, schedule) for e in entries]
 
 
 def _first_error(exc: ValidationError) -> str:

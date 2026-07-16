@@ -9,6 +9,40 @@
              min="0.1" max="24" step="0.1" required>
       <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
     </label>
+
+    <!-- Phase 23: date-effective target. Collapsed by default — the common case is one
+         target, edited via the field above. Open this only if your contract changed. -->
+    <details class="target-schedule">
+      <summary>Advanced: my contracted hours changed over time</summary>
+      <div class="target-schedule-body">
+        <small>
+          Each row sets the daily target from its date onward; the most recent row is your
+          current target. Kronos bills every logged day against the target in effect that
+          day, so cumulative totals stay correct across a contract change.
+        </small>
+        <template x-for="(row, i) in settingsForm.daily_target_schedule" :key="row._k">
+          <div class="target-schedule-row">
+            <label>
+              From
+              <input type="date" x-model="row.effective_from" required>
+            </label>
+            <label>
+              Hours / day
+              <input type="number" x-model.number="row.hours" min="0.1" max="24" step="0.1" required>
+            </label>
+            <button type="button" class="target-schedule-remove"
+                    @click="removeTargetChange(i)"
+                    :disabled="settingsForm.daily_target_schedule.length <= 1"
+                    aria-label="Remove this target change">✕</button>
+          </div>
+        </template>
+        <div class="target-schedule-actions">
+          <button type="button" class="btn-action-ghost" @click="addTargetChange()">+ Add a change</button>
+          <button type="button" class="btn-action" @click="saveDailyTargetSchedule()">Save timeline</button>
+        </div>
+      </div>
+    </details>
+
     <label>
       Cumulative tracking start date
       <input type="date" x-model="settingsForm.cumulative_start_date" required>

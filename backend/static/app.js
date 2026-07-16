@@ -65,7 +65,8 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '' },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [] },
+    _scheduleKeySeq: 0,  // stable keys for the date-effective target rows (Phase 23)
 
     // ---------- public holidays (Phase 14) ------------------------------
     holidayCountries: [],
@@ -1489,6 +1490,9 @@ function app() {
       this.loading.settings = true;
       try {
         const cfg = await this.api('GET', '/api/config');
+        // Give each timeline row a stable client key so x-for doesn't reuse/rebind
+        // the wrong <input> when a middle row is removed.
+        cfg.daily_target_schedule = this._keyedSchedule(cfg.daily_target_schedule);
         this.settingsForm = { ...cfg };
       } catch (e) { this.error = e.message; }
       finally { this.loading.settings = false; }
@@ -1500,6 +1504,45 @@ function app() {
         await this.loadDashboard();
         this.showToast('Settings saved', 'neutral');
         this.go('dashboard');
+      } catch (e) { this.error = e.message; }
+    },
+
+    // ---------- date-effective daily target (Phase 23) ------------------
+    _keyedSchedule(rows) {
+      return (rows || []).map(r => ({
+        _k: ++this._scheduleKeySeq,
+        effective_from: r.effective_from,
+        hours: r.hours,
+      }));
+    },
+    addTargetChange() {
+      const sched = this.settingsForm.daily_target_schedule || [];
+      const last = sched[sched.length - 1];
+      this.settingsForm.daily_target_schedule = [
+        ...sched,
+        {
+          _k: ++this._scheduleKeySeq,
+          effective_from: this.todayIso(),
+          hours: last ? last.hours : (this.settingsForm.daily_target_hours || 8),
+        },
+      ];
+    },
+    removeTargetChange(i) {
+      const sched = [...(this.settingsForm.daily_target_schedule || [])];
+      sched.splice(i, 1);
+      this.settingsForm.daily_target_schedule = sched;
+    },
+    async saveDailyTargetSchedule() {
+      const rows = (this.settingsForm.daily_target_schedule || []).map(r => ({
+        effective_from: r.effective_from,
+        hours: Number(r.hours),
+      }));
+      if (!rows.length) { this.error = 'Add at least one target row.'; return; }
+      try {
+        await this.api('PUT', '/api/config/daily-target-schedule', { rows });
+        await this.loadSettings();   // server sorts/dedupes; refresh the current-target field too
+        await this.loadDashboard();  // cumulative/surplus numbers may shift
+        this.showToast('Target timeline saved', 'neutral');
       } catch (e) { this.error = e.message; }
     },
 

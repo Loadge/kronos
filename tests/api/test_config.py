@@ -48,6 +48,101 @@ class TestConfig:
         assert resp.status_code == 422, reason
 
 
+class TestDailyTargetSchedule:
+    def test_default_is_one_row_from_current_target(self, client):
+        resp = client.get("/api/config/daily-target-schedule")
+        assert resp.status_code == 200
+        rows = resp.json()["rows"]
+        assert len(rows) == 1
+        assert rows[0]["hours"] == 8.0
+        # Anchored at the cumulative start so it shows a sensible date.
+        assert rows[0]["effective_from"] == "2025-01-01"
+
+    def test_put_persists_and_sorts_rows(self, client):
+        # Rows sent out of order; the API stores them ascending by date.
+        payload = {
+            "rows": [
+                {"effective_from": "2026-07-01", "hours": 6.0},
+                {"effective_from": "2025-01-01", "hours": 8.0},
+            ]
+        }
+        resp = client.put("/api/config/daily-target-schedule", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["rows"] == [
+            {"effective_from": "2025-01-01", "hours": 8.0},
+            {"effective_from": "2026-07-01", "hours": 6.0},
+        ]
+        assert client.get("/api/config/daily-target-schedule").json() == resp.json()
+
+    def test_schedule_appears_in_config(self, client):
+        client.put(
+            "/api/config/daily-target-schedule",
+            json={
+                "rows": [
+                    {"effective_from": "2025-01-01", "hours": 8.0},
+                    {"effective_from": "2026-07-01", "hours": 6.0},
+                ]
+            },
+        )
+        cfg = client.get("/api/config").json()
+        assert cfg["daily_target_hours"] == 6.0  # current = latest row
+        assert cfg["daily_target_schedule"] == [
+            {"effective_from": "2025-01-01", "hours": 8.0},
+            {"effective_from": "2026-07-01", "hours": 6.0},
+        ]
+
+    def test_single_field_update_is_non_destructive(self, client):
+        client.put(
+            "/api/config/daily-target-schedule",
+            json={
+                "rows": [
+                    {"effective_from": "2025-01-01", "hours": 8.0},
+                    {"effective_from": "2026-07-01", "hours": 6.0},
+                ]
+            },
+        )
+        # Changing the simple single field only touches the current (latest) row.
+        client.put("/api/config", json={"daily_target_hours": 5.0})
+        assert client.get("/api/config/daily-target-schedule").json()["rows"] == [
+            {"effective_from": "2025-01-01", "hours": 8.0},
+            {"effective_from": "2026-07-01", "hours": 5.0},
+        ]
+
+    def test_dashboard_cumulative_bills_each_day_at_its_own_rate(self, client, work_body):
+        # 8h→6h on 2026-07-01. Two June work days (8h target) + two July (6h target),
+        # each 7h worked. Cumulative target must be 28, not 4×8=32.
+        client.put(
+            "/api/config/daily-target-schedule",
+            json={
+                "rows": [
+                    {"effective_from": "2025-01-01", "hours": 8.0},
+                    {"effective_from": "2026-07-01", "hours": 6.0},
+                ]
+            },
+        )
+        for d in ("2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02"):
+            assert client.post("/api/entries", json=work_body(date=d)).status_code == 201
+
+        data = client.get("/api/dashboard?today=2026-07-02").json()
+        assert data["cumulative"]["target_hours"] == 28.0
+        assert data["cumulative"]["net_hours"] == 28.0  # 7 × 4
+        assert data["cumulative"]["surplus_hours"] == 0.0
+        assert data["daily_target_hours"] == 6.0  # today's effective target
+
+    @pytest.mark.parametrize(
+        "payload,reason",
+        [
+            ({"rows": []}, "empty rows"),
+            ({"rows": [{"effective_from": "2025-01-01", "hours": 0}]}, "zero hours"),
+            ({"rows": [{"effective_from": "2025-01-01", "hours": 25}]}, "hours over 24"),
+            ({"rows": [{"effective_from": "not-a-date", "hours": 8}]}, "bad date"),
+        ],
+    )
+    def test_rejects_invalid(self, client, payload, reason):
+        resp = client.put("/api/config/daily-target-schedule", json=payload)
+        assert resp.status_code == 422, reason
+
+
 class TestDashboardLayout:
     def test_defaults(self, client):
         resp = client.get("/api/config/dashboard-layout")

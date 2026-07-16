@@ -6,7 +6,7 @@
  * (e.g. after updating styles.css or app.js).
  */
 
-const CACHE_NAME = 'kronos-v26';
+const CACHE_NAME = 'kronos-v27';
 
 /** Assets to pre-cache on install so the app shell is available offline. */
 const PRECACHE_URLS = [

@@ -13,8 +13,10 @@ from sqlalchemy.orm import Session
 
 from app.config import DEFAULT_CUMULATIVE_START_DATE, DEFAULT_DAILY_TARGET_HOURS
 from app.models import Setting
+from app.services.computations import DailyTargetSchedule
 
-DAILY_TARGET_HOURS = "daily_target_hours"
+DAILY_TARGET_HOURS = "daily_target_hours"  # legacy single value; fallback before a timeline exists
+DAILY_TARGET_TIMELINE = "daily_target_timeline"  # JSON: [{effective_from, hours}, ...]
 CUMULATIVE_START_DATE = "cumulative_start_date"
 RESET_ANNUALLY = "reset_annually"
 WORK_WEEK_DAYS = "work_week_days"
@@ -48,12 +50,65 @@ def _set(session: Session, key: str, value: str) -> None:
         session.add(Setting(key=key, value=value))
 
 
-def get_daily_target_hours(session: Session) -> float:
+def _legacy_target_hours(session: Session) -> float:
     return float(_get(session, DAILY_TARGET_HOURS, str(DEFAULT_DAILY_TARGET_HOURS)))
 
 
+def _schedule_to_json(schedule: DailyTargetSchedule) -> str:
+    return json.dumps([{"effective_from": d.isoformat(), "hours": h} for d, h in schedule.rows])
+
+
+def _schedule_from_json(raw: str) -> DailyTargetSchedule:
+    data = json.loads(raw)
+    return DailyTargetSchedule.from_rows(
+        [(date.fromisoformat(r["effective_from"]), float(r["hours"])) for r in data]
+    )
+
+
+def get_daily_target_schedule(session: Session) -> DailyTargetSchedule:
+    """The date-effective daily-target timeline.
+
+    Before any timeline is written, synthesize a constant schedule from the legacy
+    single ``daily_target_hours`` value so existing deployments keep working unchanged.
+    """
+    raw = _get(session, DAILY_TARGET_TIMELINE, "")
+    if raw:
+        return _schedule_from_json(raw)
+    # No timeline yet: one row from the legacy single value, anchored at the cumulative
+    # start so it serializes with a sensible date (for_date still covers earlier dates).
+    return DailyTargetSchedule.from_rows(
+        [(get_cumulative_start_date(session), _legacy_target_hours(session))]
+    )
+
+
+def set_daily_target_schedule(session: Session, schedule: DailyTargetSchedule) -> None:
+    _set(session, DAILY_TARGET_TIMELINE, _schedule_to_json(schedule))
+
+
+def get_daily_target_hours(session: Session, on: date | None = None) -> float:
+    """Effective target hours. ``on=None`` returns the *current* contracted target
+    (the latest row); pass a date to resolve the target in effect that day."""
+    schedule = get_daily_target_schedule(session)
+    if on is None:
+        return schedule.rows[-1][1]
+    return schedule.for_date(on)
+
+
 def set_daily_target_hours(session: Session, hours: float) -> None:
-    _set(session, DAILY_TARGET_HOURS, f"{hours:g}")
+    """Set the *current* target non-destructively.
+
+    Updates the latest row of the timeline (never wiping earlier contract history);
+    on first write, seeds a one-row timeline dated at the cumulative start so the
+    advanced editor shows a sensible "since" date rather than 0001-01-01.
+    """
+    raw = _get(session, DAILY_TARGET_TIMELINE, "")
+    if raw:
+        rows = list(_schedule_from_json(raw).rows)
+        rows[-1] = (rows[-1][0], float(hours))
+        set_daily_target_schedule(session, DailyTargetSchedule.from_rows(rows))
+    else:
+        start = get_cumulative_start_date(session)
+        set_daily_target_schedule(session, DailyTargetSchedule.from_rows([(start, float(hours))]))
 
 
 def get_cumulative_start_date(session: Session) -> date:
