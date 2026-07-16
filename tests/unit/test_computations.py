@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-
 from app.models import Break, DayType, WorkEntry
 from app.services.computations import (
+    DailyTargetSchedule,
     PeriodSummary,
     daily_net_hours,
     daily_target_for,
@@ -18,7 +18,6 @@ from app.services.computations import (
     net_minutes,
     summarize,
 )
-
 
 # ---------- factory ---------------------------------------------------------
 
@@ -39,7 +38,9 @@ def make_entry(
         start_time=start if day_type is DayType.WORK else None,
         end_time=end if day_type is DayType.WORK else None,
     )
-    entry.breaks = [Break(break_minutes=m) for m in (breaks_min if day_type is DayType.WORK else [])]
+    entry.breaks = [
+        Break(break_minutes=m) for m in (breaks_min if day_type is DayType.WORK else [])
+    ]
     return entry
 
 
@@ -92,6 +93,50 @@ class TestDailyTargetFor:
     def test_target(self, day_type, expected):
         entry = make_entry(date(2026, 4, 14), day_type=day_type)
         assert daily_target_for(entry, 8.0) == expected
+
+    def test_flex_day_charges_target(self):
+        entry = make_entry(date(2026, 4, 14), day_type=DayType.FLEX)
+        assert daily_target_for(entry, 8.0) == 8.0
+
+    def test_resolves_by_entry_date_from_schedule(self):
+        sched = DailyTargetSchedule.from_rows([(date(2025, 1, 1), 8.0), (date(2026, 7, 1), 6.0)])
+        before = make_entry(date(2026, 6, 30))
+        on_change = make_entry(date(2026, 7, 1))
+        after = make_entry(date(2026, 8, 15))
+        assert daily_target_for(before, sched) == 8.0
+        assert daily_target_for(on_change, sched) == 6.0
+        assert daily_target_for(after, sched) == 6.0
+
+
+class TestDailyTargetSchedule:
+    def test_constant_is_flat_for_all_time(self):
+        sched = DailyTargetSchedule.constant(7.5)
+        assert sched.for_date(date(1999, 1, 1)) == 7.5
+        assert sched.for_date(date(2050, 12, 31)) == 7.5
+
+    def test_for_date_picks_most_recent_row_on_or_before(self):
+        sched = DailyTargetSchedule.from_rows(
+            [(date(2025, 1, 1), 8.0), (date(2026, 7, 1), 6.0), (date(2027, 1, 1), 7.0)]
+        )
+        assert sched.for_date(date(2025, 6, 1)) == 8.0
+        assert sched.for_date(date(2026, 7, 1)) == 6.0  # on the boundary → new rate
+        assert sched.for_date(date(2026, 12, 31)) == 6.0
+        assert sched.for_date(date(2027, 3, 1)) == 7.0
+
+    def test_date_before_first_row_falls_back_to_first(self):
+        sched = DailyTargetSchedule.from_rows([(date(2026, 1, 1), 6.0)])
+        assert sched.for_date(date(2020, 1, 1)) == 6.0
+
+    def test_from_rows_sorts_and_dedupes_keeping_last(self):
+        # Unsorted input, with a duplicate date whose second value should win.
+        sched = DailyTargetSchedule.from_rows(
+            [(date(2026, 7, 1), 6.0), (date(2025, 1, 1), 8.0), (date(2026, 7, 1), 5.0)]
+        )
+        assert sched.rows == ((date(2025, 1, 1), 8.0), (date(2026, 7, 1), 5.0))
+
+    def test_from_rows_rejects_empty(self):
+        with pytest.raises(ValueError):
+            DailyTargetSchedule.from_rows([])
 
 
 class TestDailyNetHours:
@@ -158,6 +203,32 @@ class TestSummarize:
         assert s.net_hours == 10.0
         assert s.target_hours == 8.0
         assert s.surplus_hours == 2.0
+
+    def test_target_resolved_per_date_across_contract_change(self):
+        # Contract drops 8h → 6h on 2026-07-01. A range spanning the change must
+        # bill the two June work days at 8h and the two July work days at 6h.
+        sched = DailyTargetSchedule.from_rows([(date(2025, 1, 1), 8.0), (date(2026, 7, 1), 6.0)])
+        entries = [
+            make_entry(date(2026, 6, 29)),  # 7h worked, 8h target
+            make_entry(date(2026, 6, 30)),  # 7h worked, 8h target
+            make_entry(date(2026, 7, 1)),  # 7h worked, 6h target
+            make_entry(date(2026, 7, 2)),  # 7h worked, 6h target
+        ]
+        s = summarize(entries, sched)
+        assert s.target_hours == 28.0  # 8+8+6+6, NOT 4×8=32
+        assert s.net_hours == 28.0  # 7 × 4
+        assert s.surplus_hours == 0.0
+        assert s.work_days == 4
+
+    def test_flex_day_target_also_resolved_by_schedule(self):
+        # A flex day drains the target in effect on its own date.
+        sched = DailyTargetSchedule.from_rows([(date(2025, 1, 1), 8.0), (date(2026, 7, 1), 6.0)])
+        entries = [make_entry(date(2026, 7, 5), day_type=DayType.FLEX)]
+        s = summarize(entries, sched)
+        assert s.target_hours == 6.0
+        assert s.net_hours == 0.0
+        assert s.surplus_hours == -6.0
+        assert s.non_work_days == 1
 
 
 # ---------- calendar helpers ----------------------------------------------

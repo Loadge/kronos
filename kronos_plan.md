@@ -252,20 +252,34 @@ to bulk-import historical entries.
 
 ---
 
-## Phase 23 — Date-Effective Daily Target (planned)
+## Phase 23 — Date-Effective Daily Target ✅ DONE
 
-Today `daily_target_hours` is a single global value, so if the contracted hours ever
-changed (e.g. 8h → 6h mid-year) every historical cumulative/surplus number is silently
-wrong. Make the target date-effective so the math is correct across a contract change.
+`daily_target_hours` was a single global value, so a mid-year contract change (8h → 6h)
+silently corrupted every cumulative/surplus number spanning it. The target is now
+date-effective and the math is correct across a change.
 
-- Store a list of `(effective_from, hours)` rows; the target for any date is the most
-  recent row on or before that date. Current single value becomes the first row.
-- `summarize()` / `daily_target_for()` resolve the target per-entry-date instead of
-  taking one flat number.
-- Settings UI: manage the target timeline (add a change with an effective date; edit /
-  remove rows). The common single-target case stays a one-field experience.
-- Backfill/migration: seed one row from the existing `daily_target_hours` setting so
-  nothing changes for users who never switched contracts.
+- **`DailyTargetSchedule`** value object (`computations.py`): sorted `(effective_from,
+  hours)` rows; `for_date(d)` returns the most recent row on/before `d`. `summarize()`
+  and `daily_target_for()` accept `float | DailyTargetSchedule` — a bare float is coerced
+  to a constant schedule, so display-only callers stay simple while the range-summing
+  analytics callers resolve the target per entry date.
+- **Storage** (`settings.py`): JSON timeline under the `daily_target_timeline` KV key,
+  mirroring `dashboard_layout`. No schema migration. Before any timeline exists it
+  synthesizes a one-row schedule from the legacy `daily_target_hours` value (anchored at
+  the cumulative start), so existing deployments are unchanged.
+- **Single-field coexistence**: the familiar "Daily target hours" field reads today's
+  effective target and writes the *latest* row non-destructively (never wipes history).
+- **API**: `GET`/`PUT /api/config/daily-target-schedule`; the timeline also rides along
+  in `ConfigOut` so backup/restore round-trips it (older backups without it fall back to
+  the single value).
+- **Callers updated** to pass the schedule: dashboard, streaks (on-target compares each
+  day to its own target), cumulative/monthly/yearly/records/yoy, entries, export.
+- **Settings UI**: an "Advanced: my contracted hours changed over time" `<details>`
+  disclosure with an add/remove/save timeline editor (rows keyed by stable client id to
+  avoid Alpine `x-for` node-reuse on removal). The common single-target case is untouched.
+- 20 new tests (326 total): schedule value object, settings service (fallback,
+  non-destructive single-field write), the endpoint, dashboard per-date correctness, and
+  a backup round-trip.
 
 ---
 

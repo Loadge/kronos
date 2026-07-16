@@ -781,6 +781,81 @@ button.btn-action {
 .label-action:hover { text-decoration: underline; }
 
 /* ================================================================
+   DATE-EFFECTIVE TARGET SCHEDULE (Phase 23)
+   ================================================================ */
+
+.target-schedule {
+  margin-bottom: 1rem;
+  border-top: 1px solid var(--k-border);
+  border-bottom: 1px solid var(--k-border);
+  padding: 0.5rem 0;
+}
+.target-schedule > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--k-brass);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+  list-style: none;
+}
+.target-schedule > summary::-webkit-details-marker { display: none; }
+.target-schedule > summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform var(--k-transition-fast);
+}
+.target-schedule[open] > summary::before { content: "▾ "; }
+
+.target-schedule-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+}
+.target-schedule-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+.target-schedule-row label { margin-bottom: 0; }
+.target-schedule-remove {
+  width: auto;
+  padding: 0.2rem 0.6rem;
+  background: transparent;
+  border: 1px solid var(--k-border-strong);
+  border-radius: 4px;
+  color: var(--k-muted);
+  cursor: pointer;
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
+}
+.target-schedule-remove:not(:disabled):hover {
+  color: var(--k-deficit);
+  border-color: var(--k-deficit);
+}
+.target-schedule-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.target-schedule-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* Ghost action button — dashed brass outline, transparent fill */
+button.btn-action-ghost {
+  width: auto;
+  background: transparent;
+  border: 1px dashed var(--k-brass);
+  color: var(--k-brass);
+  border-radius: 4px;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+}
+button.btn-action-ghost:hover {
+  background: color-mix(in srgb, var(--k-brass) 12%, transparent);
+}
+
+/* ================================================================
    ERROR BANNER
    ================================================================ */
 

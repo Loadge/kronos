@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_session
 from app.models import Break, WorkEntry
 from app.schemas import BatchEntryIn, BatchResultOut, EntryIn, EntryOut, EntryUpdate
-from app.services.settings import get_daily_target_hours
+from app.services.settings import get_daily_target_schedule
 from app.services.views import entry_to_out
 
 router = APIRouter(prefix="/api/entries", tags=["entries"])
@@ -31,11 +31,14 @@ def create_entry(body: EntryIn, session: Session = Depends(get_session)) -> Entr
         end_time=body.end_time,
         notes=body.notes,
     )
-    entry.breaks = [Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time) for b in body.breaks]
+    entry.breaks = [
+        Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time)
+        for b in body.breaks
+    ]
     session.add(entry)
     session.commit()
     session.refresh(entry)
-    return entry_to_out(entry, get_daily_target_hours(session))
+    return entry_to_out(entry, get_daily_target_schedule(session))
 
 
 @router.post("/batch", response_model=BatchResultOut)
@@ -67,8 +70,8 @@ def list_entries(
         stmt = stmt.where(WorkEntry.date >= from_)
     if to:
         stmt = stmt.where(WorkEntry.date <= to)
-    daily_target = get_daily_target_hours(session)
-    return [entry_to_out(e, daily_target) for e in session.scalars(stmt)]
+    schedule = get_daily_target_schedule(session)
+    return [entry_to_out(e, schedule) for e in session.scalars(stmt)]
 
 
 @router.get("/{entry_date}", response_model=EntryOut)
@@ -76,7 +79,7 @@ def get_entry(entry_date: date, session: Session = Depends(get_session)) -> Entr
     entry = session.get(WorkEntry, entry_date)
     if not entry:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "entry not found")
-    return entry_to_out(entry, get_daily_target_hours(session))
+    return entry_to_out(entry, get_daily_target_schedule(session))
 
 
 @router.put("/{entry_date}", response_model=EntryOut)
@@ -91,10 +94,13 @@ def update_entry(
     entry.end_time = body.end_time
     entry.notes = body.notes
     # Replace the break set atomically — cascade='all, delete-orphan' handles cleanup.
-    entry.breaks = [Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time) for b in body.breaks]
+    entry.breaks = [
+        Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time)
+        for b in body.breaks
+    ]
     session.commit()
     session.refresh(entry)
-    return entry_to_out(entry, get_daily_target_hours(session))
+    return entry_to_out(entry, get_daily_target_schedule(session))
 
 
 @router.delete("/{entry_date}", status_code=status.HTTP_204_NO_CONTENT)

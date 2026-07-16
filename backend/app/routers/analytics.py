@@ -35,7 +35,7 @@ from app.services.computations import (
     summarize,
 )
 from app.services.settings import (
-    get_daily_target_hours,
+    get_daily_target_schedule,
     get_effective_cumulative_start,
     get_vacation_budget_days,
     get_work_week_days,
@@ -77,7 +77,7 @@ def dashboard(
     session: Session = Depends(get_session),
 ) -> DashboardOut:
     today = today or local_today()
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
 
     week_start, week_end = iso_week_bounds(today)
     month_start, month_end = month_bounds(today)
@@ -100,15 +100,11 @@ def dashboard(
 
     return DashboardOut(
         today=today,
-        week=_period_out(summarize(_entries_between(session, week_start, week_end), daily_target)),
-        month=_period_out(
-            summarize(_entries_between(session, month_start, month_end), daily_target)
-        ),
-        cumulative=_period_out(
-            summarize(_entries_between(session, cum_start, today), daily_target)
-        ),
+        week=_period_out(summarize(_entries_between(session, week_start, week_end), schedule)),
+        month=_period_out(summarize(_entries_between(session, month_start, month_end), schedule)),
+        cumulative=_period_out(summarize(_entries_between(session, cum_start, today), schedule)),
         cumulative_start_date=cum_start,
-        daily_target_hours=daily_target,
+        daily_target_hours=schedule.for_date(today),
         work_week_days=get_work_week_days(session),
         vacation_budget_days=get_vacation_budget_days(session),
         vacation_days_used=vacation_days_used,
@@ -124,7 +120,7 @@ def streaks(
     session: Session = Depends(get_session),
 ) -> StreaksOut:
     today = today or local_today()
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
 
     entries = list(
         session.scalars(
@@ -143,11 +139,12 @@ def streaks(
         d -= timedelta(days=1)
 
     # On-target streak: most recent work days, consecutive, each with surplus >= 0.
+    # Each day is compared against the target in effect on its own date.
     on_target_streak = 0
     for e in entries:
         if e.day_type != DayType.WORK:
             continue
-        surplus = daily_net_hours(e) - daily_target
+        surplus = daily_net_hours(e) - daily_target_for(e, schedule)
         if surplus >= -0.01:
             on_target_streak += 1
         else:
@@ -165,16 +162,16 @@ def cumulative_as_of(
     as_of: date = Query(..., description="Show cumulative surplus/deficit up to this date."),
     session: Session = Depends(get_session),
 ) -> PeriodSummaryOut:
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     start = get_effective_cumulative_start(session, as_of)
     entries = _entries_between(session, start, as_of)
-    return _period_out(summarize(entries, daily_target))
+    return _period_out(summarize(entries, schedule))
 
 
 @router.get("/api/analytics/monthly", response_model=list[MonthlyBreakdownRow])
 def monthly_breakdown(session: Session = Depends(get_session)) -> list[MonthlyBreakdownRow]:
     """Return one row per (year, month) that has any entries, oldest first."""
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     entries = list(session.scalars(select(WorkEntry).order_by(WorkEntry.date)))
 
     grouped: dict[tuple[int, int], list[WorkEntry]] = defaultdict(list)
@@ -183,7 +180,7 @@ def monthly_breakdown(session: Session = Depends(get_session)) -> list[MonthlyBr
 
     rows: list[MonthlyBreakdownRow] = []
     for y, m in sorted(grouped):
-        s = summarize(grouped[(y, m)], daily_target)
+        s = summarize(grouped[(y, m)], schedule)
         rows.append(
             MonthlyBreakdownRow(
                 year=y,
@@ -201,7 +198,7 @@ def monthly_breakdown(session: Session = Depends(get_session)) -> list[MonthlyBr
 
 @router.get("/api/analytics/records", response_model=RecordsOut)
 def records(session: Session = Depends(get_session)) -> RecordsOut:
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     entries = list(session.scalars(select(WorkEntry).order_by(WorkEntry.date)))
     work_entries = [e for e in entries if e.day_type == DayType.WORK]
 
@@ -212,7 +209,7 @@ def records(session: Session = Depends(get_session)) -> RecordsOut:
     grouped: dict[tuple[int, int], list[WorkEntry]] = defaultdict(list)
     for e in entries:
         grouped[(e.date.year, e.date.month)].append(e)
-    month_summaries = {key: summarize(es, daily_target) for key, es in grouped.items()}
+    month_summaries = {key: summarize(es, schedule) for key, es in grouped.items()}
 
     longest_month = (
         max(month_summaries.items(), key=lambda kv: kv[1].net_hours, default=None)
@@ -234,7 +231,7 @@ def records(session: Session = Depends(get_session)) -> RecordsOut:
     year_grouped: dict[int, list[WorkEntry]] = defaultdict(list)
     for e in entries:
         year_grouped[e.date.year].append(e)
-    year_summaries = {y: summarize(es, daily_target) for y, es in year_grouped.items()}
+    year_summaries = {y: summarize(es, schedule) for y, es in year_grouped.items()}
 
     best_year_item = (
         max(year_summaries.items(), key=lambda kv: kv[1].surplus_hours, default=None)
@@ -252,7 +249,7 @@ def records(session: Session = Depends(get_session)) -> RecordsOut:
     cur_streak = 0
     max_streak = 0
     for e in entries:
-        running = round(running + daily_net_hours(e) - daily_target_for(e, daily_target), 2)
+        running = round(running + daily_net_hours(e) - daily_target_for(e, schedule), 2)
         if running > 0.01:
             cur_streak += 1
         else:
@@ -297,7 +294,7 @@ def records(session: Session = Depends(get_session)) -> RecordsOut:
 @router.get("/api/analytics/yearly", response_model=list[YearlyBreakdownRow])
 def yearly_breakdown(session: Session = Depends(get_session)) -> list[YearlyBreakdownRow]:
     """One row per year that has any entries, oldest first."""
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
     entries = list(session.scalars(select(WorkEntry).order_by(WorkEntry.date)))
 
     grouped: dict[int, list[WorkEntry]] = defaultdict(list)
@@ -306,7 +303,7 @@ def yearly_breakdown(session: Session = Depends(get_session)) -> list[YearlyBrea
 
     rows: list[YearlyBreakdownRow] = []
     for y in sorted(grouped):
-        s = summarize(grouped[y], daily_target)
+        s = summarize(grouped[y], schedule)
         rows.append(
             YearlyBreakdownRow(
                 year=y,
@@ -328,17 +325,17 @@ def year_over_year(
 ) -> YoYOut:
     """Compare year-to-date this year vs the same period last year."""
     today = today or local_today()
-    daily_target = get_daily_target_hours(session)
+    schedule = get_daily_target_schedule(session)
 
     this_start = date(today.year, 1, 1)
-    this_s = summarize(_entries_between(session, this_start, today), daily_target)
+    this_s = summarize(_entries_between(session, this_start, today), schedule)
 
     try:
         last_same_day = today.replace(year=today.year - 1)
     except ValueError:
         last_same_day = today.replace(year=today.year - 1, day=28)
     last_start = date(today.year - 1, 1, 1)
-    last_s = summarize(_entries_between(session, last_start, last_same_day), daily_target)
+    last_s = summarize(_entries_between(session, last_start, last_same_day), schedule)
 
     def _period(label: str, s: PeriodSummary) -> YoYPeriod:
         return YoYPeriod(

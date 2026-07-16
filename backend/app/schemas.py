@@ -185,8 +185,23 @@ class YoYOut(BaseModel):
     last_year: YoYPeriod
 
 
+class DailyTargetRow(BaseModel):
+    effective_from: date_
+    hours: float = Field(..., gt=0, le=24)
+
+
+class DailyTargetScheduleOut(BaseModel):
+    rows: list[DailyTargetRow]
+
+
+class DailyTargetScheduleIn(BaseModel):
+    rows: list[DailyTargetRow] = Field(..., min_length=1)
+
+
 class ConfigOut(BaseModel):
-    daily_target_hours: float
+    daily_target_hours: float  # the CURRENT effective target (latest schedule row)
+    # Full date-effective timeline; empty in old backups → derive from daily_target_hours.
+    daily_target_schedule: list[DailyTargetRow] = Field(default_factory=list)
     cumulative_start_date: date_
     reset_annually: bool = False  # default keeps old backup files valid
     work_week_days: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
