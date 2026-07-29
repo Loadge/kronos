@@ -1,0 +1,12 @@
+{
+  "name": "kronos-demo-recorder",
+  "private": true,
+  "type": "module",
+  "description": "Playwright tour that captures the frames for the README demo GIF.",
+  "scripts": {
+    "record": "node record_demo.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

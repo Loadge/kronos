@@ -17,6 +17,10 @@ data/
 *.sqlite
 *.sqlite3
 
+# Demo GIF recorder
+node_modules/
+docs/demo/frames/
+
 # Editors / OS
 .vscode/
 .idea/
