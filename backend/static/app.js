@@ -1368,58 +1368,46 @@ function app() {
 
       const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-      // Pass 1: build raw day list with weekCol (1-based week number) and row (Mon=0…Sun=6)
+      // Pass 1: build raw day list. A day's column is the index of its week
+      // *within its own month*, so a week split across two months no longer
+      // drags the new month's first days into the previous month's block.
       const rawDays = [];
-      {
-        const d = new Date(year, 0, 1);
-        let row = (d.getDay() + 6) % 7;
-        let weekCol = 1;
-        while (d.getFullYear() === year) {
-          const mo = d.getMonth();
-          const mm = String(mo + 1).padStart(2, '0');
-          const dd = String(d.getDate()).padStart(2, '0');
-          rawDays.push({ iso: `${year}-${mm}-${dd}`, month: mo, weekCol, row });
-          row++;
-          if (row === 7) { row = 0; weekCol++; }
-          d.setDate(d.getDate() + 1);
+      const weeksInMonth = [];
+      for (let mo = 0; mo < 12; mo++) {
+        const offset = (new Date(year, mo, 1).getDay() + 6) % 7;   // Mon=0…Sun=6
+        const daysInMonth = new Date(year, mo + 1, 0).getDate();
+        weeksInMonth[mo] = Math.ceil((offset + daysInMonth) / 7);
+        const mm = String(mo + 1).padStart(2, '0');
+        for (let dom = 1; dom <= daysInMonth; dom++) {
+          rawDays.push({
+            iso: `${year}-${mm}-${String(dom).padStart(2, '0')}`,
+            month: mo,
+            week: Math.floor((offset + dom - 1) / 7),
+            row: (offset + dom - 1) % 7,
+          });
         }
       }
 
-      // First month of each weekCol (used for gap detection and label placement)
-      const weekColFirstMonth = {};
-      for (const day of rawDays) {
-        if (!(day.weekCol in weekColFirstMonth)) weekColFirstMonth[day.weekCol] = day.month;
-      }
-      const maxWeekCol = rawDays[rawDays.length - 1].weekCol;
-
-      // Pass 2: assign finalCol, inserting a narrow gap column between months
-      const weekColToFinalCol = {};
+      // Pass 2: lay the months out left to right with a narrow gap column between
+      const monthStartCol = [];
       const finalColIsGap = {};
       let finalCol = 0;
-      let prevMonth = -1;
-      for (let wc = 1; wc <= maxWeekCol; wc++) {
-        const mo = weekColFirstMonth[wc];
-        if (prevMonth !== -1 && mo !== prevMonth) {
+      for (let mo = 0; mo < 12; mo++) {
+        if (mo > 0) {
           finalCol++;
           finalColIsGap[finalCol] = true;
         }
-        finalCol++;
-        weekColToFinalCol[wc] = finalCol;
-        prevMonth = mo;
+        monthStartCol[mo] = finalCol + 1;
+        finalCol += weeksInMonth[mo];
       }
       const totalFinalCols = finalCol;
 
       // Pass 3: build cells array
       const cells = [];
 
-      // Month label cells at the first finalCol of each month
-      const labelsAdded = new Set();
-      for (let wc = 1; wc <= maxWeekCol; wc++) {
-        const mo = weekColFirstMonth[wc];
-        if (!labelsAdded.has(mo)) {
-          labelsAdded.add(mo);
-          cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: weekColToFinalCol[wc], cls: '', title: '', weekend: false });
-        }
+      // Month label cells at the first column of each month
+      for (let mo = 0; mo < 12; mo++) {
+        cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: monthStartCol[mo], cls: '', title: '', weekend: false });
       }
 
       // Day cells
@@ -1438,7 +1426,7 @@ function app() {
         const sign = entry && entry.surplus_hours > 0 ? '+' : '';
         const title = entry ? `${day.iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h` : day.iso;
         const today = day.iso === this.todayIso();
-        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: weekColToFinalCol[day.weekCol], cls, title, weekend: day.row >= 5, today });
+        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: monthStartCol[day.month] + day.week, cls, title, weekend: day.row >= 5, today });
       }
 
       // Build CSS grid-template-columns string
