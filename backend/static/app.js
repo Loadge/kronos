@@ -1353,9 +1353,22 @@ function app() {
         `<p class="muted chart-caption">Net hours per month — dashed line = daily target × work days</p>`;
     },
 
+    // ISO-8601 week number for a given date.
+    isoWeekNumber(y, mo, dom) {
+      const d = new Date(Date.UTC(y, mo, dom));
+      const day = (d.getUTCDay() + 6) % 7;
+      d.setUTCDate(d.getUTCDate() - day + 3);
+      const firstThu = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+      const firstDay = (firstThu.getUTCDay() + 6) % 7;
+      firstThu.setUTCDate(firstThu.getUTCDate() - firstDay + 3);
+      return 1 + Math.round((d - firstThu) / (7 * 86400000));
+    },
+
     // Year-at-a-glance heatmap cells for the selected year.
-    // Returns { cells, colTemplate } where day cells have { key, type:'day', date, row, col, cls, title, weekend }
-    // and month label cells have { key, type:'label', label, row:8, col }.
+    // Returns { cells, colTemplate } where day cells have { key, type:'day', date, row, col, cls, title, weekend },
+    // month label cells have { key, type:'label', label, row:8, col }, and week number cells have
+    // { key, type:'week', label, row:9, col } — a week split across a month boundary gets the same
+    // ISO week number on both sides.
     heatmapCells() {
       if (!this.entries.length) return null;
       const year = parseInt(
@@ -1382,6 +1395,7 @@ function app() {
           rawDays.push({
             iso: `${year}-${mm}-${String(dom).padStart(2, '0')}`,
             month: mo,
+            dom,
             week: Math.floor((offset + dom - 1) / 7),
             row: (offset + dom - 1) % 7,
           });
@@ -1408,6 +1422,15 @@ function app() {
       // Month label cells at the first column of each month
       for (let mo = 0; mo < 12; mo++) {
         cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: monthStartCol[mo], cls: '', title: '', weekend: false });
+      }
+
+      // Week number cells, one per non-gap column, below the month labels
+      for (let mo = 0; mo < 12; mo++) {
+        for (let w = 0; w < weeksInMonth[mo]; w++) {
+          const day = rawDays.find(d => d.month === mo && d.week === w);
+          const col = monthStartCol[mo] + w;
+          cells.push({ key: `week-${col}`, type: 'week', label: this.isoWeekNumber(year, mo, day.dom), row: 9, col, cls: '', title: '', weekend: false });
+        }
       }
 
       // Day cells
