@@ -32,7 +32,6 @@ import pytest
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 BACKEND_DIR = Path(__file__).parent.parent.parent / "backend"
-E2E_PORT = 8998
 
 
 def _find_free_port() -> int:
@@ -61,10 +60,12 @@ def _wait_for_server(port: int, timeout: float = 15.0) -> None:
 def live_server():
     """Start a real uvicorn process for the full E2E session.
 
-    Yields the base URL (e.g. ``http://127.0.0.1:8998``).
-    The server is terminated when the session ends.
+    Yields the base URL (e.g. ``http://127.0.0.1:54321``).
+    The server is terminated when the session ends. Each test session picks a
+    free port so multiple e2e runs (e.g. parallel local + CI, or two agents
+    working on different test files) can run at once without colliding.
     """
-    port = E2E_PORT
+    port = _find_free_port()
     db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     db_path = db_file.name
     db_file.close()
@@ -88,10 +89,14 @@ def live_server():
 
     proc = subprocess.Popen(
         [
-            sys.executable, "-m", "uvicorn",
+            sys.executable,
+            "-m",
+            "uvicorn",
             "app.main:app",
-            "--host", "127.0.0.1",
-            "--port", str(port),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
             "--no-access-log",
         ],
         cwd=str(BACKEND_DIR),
