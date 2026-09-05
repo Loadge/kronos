@@ -7,9 +7,8 @@ submission tests running first.
 
 from __future__ import annotations
 
-import pytest
 import httpx
-
+import pytest
 
 pytestmark = pytest.mark.e2e
 
@@ -64,10 +63,13 @@ class TestDashboardMetrics:
             assert "128" not in text, f"Unexpected value in card: {text}"
 
     def test_work_days_show_in_week_card(self, page, base_url):
-        _seed(base_url, [
-            _work("2026-07-14"),  # Monday of a week
-            _work("2026-07-15"),  # Tuesday
-        ])
+        _seed(
+            base_url,
+            [
+                _work("2026-07-14"),  # Monday of a week
+                _work("2026-07-15"),  # Tuesday
+            ],
+        )
 
         page.goto(f"{base_url}/?today=2026-07-14#dashboard")
         page.wait_for_load_state("networkidle")
@@ -79,7 +81,7 @@ class TestDashboardMetrics:
 
     def test_surplus_shown_correctly(self, page, base_url):
         """10h work day (no breaks) vs 8h target → +2h surplus visible."""
-        _seed(base_url, [_work("2026-07-20", start="08:00", end="18:00", breaks=(0,))])
+        _seed(base_url, [_work("2026-07-20", start="08:00", end="18:00", breaks=())])
 
         page.goto(f"{base_url}/?today=2026-07-20#dashboard")
         page.wait_for_load_state("networkidle")
@@ -118,10 +120,17 @@ class TestSettingsTab:
         target_input = page.locator("input[type='number']").first
         target_input.fill("7.5")
 
-        page.locator("button:has-text('Save'), button[type='submit']").first.click()
+        # `button[type='submit']` alone: "Save timeline" (inside a collapsed
+        # <details>) also matches `:has-text('Save')` and sits earlier in the
+        # DOM, so `.first` used to pick a hidden, unclickable button.
+        page.locator("button[type='submit']").click()
 
-        # Should show some form of success feedback
-        page.wait_for_selector(
-            ".success, [role='alert'], .notification, text=saved, text=✓, text=Settings saved",
-            timeout=5000,
-        )
+        # Should show some form of success feedback. The actual mechanism is the
+        # `.save-ribbon` toast (index.html): it toggles a `ribbon-show` class and
+        # its `.ribbon-msg` reads "Settings saved". The page also has a
+        # permanently-present (but hidden) `[role='alert']` error banner earlier
+        # in the DOM, so a comma-joined fallback selector including
+        # `[role='alert']` would resolve to that hidden element first and
+        # `wait_for_selector` would wait on its (never-changing) state forever —
+        # targeting the ribbon directly avoids that.
+        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
