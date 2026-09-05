@@ -1,4 +1,4 @@
-.PHONY: install test lint format seed migrate revision run build up down logs shell clean
+.PHONY: install test lint format seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
 
 PY ?= python
 PIP ?= pip
@@ -53,6 +53,18 @@ logs:
 
 shell:
 	docker compose exec kronos /bin/bash
+
+## staging-up / staging-down / staging-logs — local integration environment
+## (own container name + volume, isolated from prod) on this workstation's
+## Docker Desktop engine. See deploy-staging.sh for the full build+verify flow.
+staging-up:
+	docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+
+staging-down:
+	docker compose -f docker-compose.yml -f docker-compose.staging.yml down
+
+staging-logs:
+	docker compose -f docker-compose.yml -f docker-compose.staging.yml logs -f
 
 ## clean — remove caches and pyc files (keeps data/)
 clean:

@@ -1,0 +1,17 @@
+# Override for a local staging stack on this workstation's own Docker Desktop
+# engine — isolated from the production compose file by container name and
+# volume, so it can never collide with the real deployment on DockerusMaximus.
+#
+# Usage (from project root):
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d --build
+# or:
+#   make staging-up
+
+services:
+  kronos:
+    container_name: kronos-staging
+    volumes:
+      - kronos-staging-data:/app/data
+
+volumes:
+  kronos-staging-data:
