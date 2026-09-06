@@ -227,7 +227,7 @@ class TestRoundtrip:
         backup2 = client.get("/api/backup").json()
 
         assert len(backup2["entries"]) == len(backup1["entries"])
-        for e1, e2 in zip(backup1["entries"], backup2["entries"]):
+        for e1, e2 in zip(backup1["entries"], backup2["entries"], strict=True):
             assert e1["date"] == e2["date"]
             assert e1["day_type"] == e2["day_type"]
             assert e1["breaks"] == e2["breaks"]

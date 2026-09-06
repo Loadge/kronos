@@ -17,10 +17,19 @@ class TestCsvExport:
         assert resp.headers["content-type"].startswith("text/csv")
         assert "attachment" in resp.headers["content-disposition"]
         rows = list(csv.reader(io.StringIO(resp.text)))
-        assert rows == [[
-            "date", "day_type", "start_time", "end_time",
-            "total_break_minutes", "net_hours", "target_hours", "surplus_hours", "notes",
-        ]]
+        assert rows == [
+            [
+                "date",
+                "day_type",
+                "start_time",
+                "end_time",
+                "total_break_minutes",
+                "net_hours",
+                "target_hours",
+                "surplus_hours",
+                "notes",
+            ]
+        ]
 
     def test_round_trip(self, client, work_body):
         _post(client, work_body(date="2026-04-14", notes="shipped feature"))

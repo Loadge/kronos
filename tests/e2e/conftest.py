@@ -66,9 +66,8 @@ def live_server():
     working on different test files) can run at once without colliding.
     """
     port = _find_free_port()
-    db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    db_path = db_file.name
-    db_file.close()
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as db_file:
+        db_path = db_file.name
 
     db_url = f"sqlite:///{db_path}"
 

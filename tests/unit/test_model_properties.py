@@ -5,10 +5,8 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-
 from app.models import Break, DayType, WorkEntry
 from app.services.computations import is_work_day
-
 
 # ── DayType ────────────────────────────────────────────────────────────────
 

@@ -32,10 +32,16 @@ class TestLifecycle:
         assert e["surplus_hours"] == -1.0
 
         # Update — extend the day
-        _put(client, "2026-04-14", {
-            "day_type": "work", "start_time": "08:00", "end_time": "18:00",
-            "breaks": [{"break_minutes": 60}],
-        })
+        _put(
+            client,
+            "2026-04-14",
+            {
+                "day_type": "work",
+                "start_time": "08:00",
+                "end_time": "18:00",
+                "breaks": [{"break_minutes": 60}],
+            },
+        )
         e = client.get("/api/entries/2026-04-14").json()
         assert e["net_hours"] == 9.0
         assert e["surplus_hours"] == 1.0
@@ -104,10 +110,16 @@ class TestExportReflectsMixedData:
         _post(client, work_body(date="2026-04-17", start="08:00", end="19:00"))
 
         # Update one after export
-        _put(client, "2026-04-14", {
-            "day_type": "work", "start_time": "09:00", "end_time": "17:30",
-            "breaks": [{"break_minutes": 30}],
-        })
+        _put(
+            client,
+            "2026-04-14",
+            {
+                "day_type": "work",
+                "start_time": "09:00",
+                "end_time": "17:30",
+                "breaks": [{"break_minutes": 30}],
+            },
+        )
 
         json_export = client.get("/api/export.json").json()
         assert len(json_export) == 4

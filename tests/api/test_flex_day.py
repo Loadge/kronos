@@ -35,17 +35,26 @@ class TestFlexDayCreation:
         assert e["total_break_minutes"] == 0
 
     def test_flex_with_start_time_rejected(self, client):
-        r = client.post("/api/entries", json={
-            "date": "2026-04-14", "day_type": "flex",
-            "start_time": "09:00", "end_time": "17:00",
-        })
+        r = client.post(
+            "/api/entries",
+            json={
+                "date": "2026-04-14",
+                "day_type": "flex",
+                "start_time": "09:00",
+                "end_time": "17:00",
+            },
+        )
         assert r.status_code == 422
 
     def test_flex_with_breaks_rejected(self, client):
-        r = client.post("/api/entries", json={
-            "date": "2026-04-14", "day_type": "flex",
-            "breaks": [{"break_minutes": 30}],
-        })
+        r = client.post(
+            "/api/entries",
+            json={
+                "date": "2026-04-14",
+                "day_type": "flex",
+                "breaks": [{"break_minutes": 30}],
+            },
+        )
         assert r.status_code == 422
 
     def test_flex_custom_target(self, client):
@@ -84,7 +93,7 @@ class TestFlexDayDashboard:
         client.post("/api/entries", json=_flex("2026-04-11"))
 
         data = client.get("/api/dashboard?today=2026-04-11").json()
-        assert data["week"]["net_hours"] == 36.0    # 4 × 9h
+        assert data["week"]["net_hours"] == 36.0  # 4 × 9h
         assert data["week"]["target_hours"] == 40.0  # 5 × 8h (4 work + 1 flex)
         assert data["week"]["surplus_hours"] == -4.0
 
@@ -106,19 +115,21 @@ class TestFlexDayDashboard:
         client.post("/api/entries", json=_flex("2026-04-09"))
 
         data = client.get("/api/analytics/cumulative?as_of=2026-04-09").json()
-        assert data["net_hours"] == 72.0     # 8 × 9h
+        assert data["net_hours"] == 72.0  # 8 × 9h
         assert data["target_hours"] == 72.0  # 9 × 8h (8 work + 1 flex)
         assert data["surplus_hours"] == 0.0
 
 
 class TestFlexInExport:
     def test_flex_appears_in_csv_export(self, client):
-        import csv, io
+        import csv
+        import io
+
         client.post("/api/entries", json=_flex())
         resp = client.get("/api/export.csv")
         rows = list(csv.reader(io.StringIO(resp.text)))
         header, row = rows[0], rows[1]
-        by_col = dict(zip(header, row))
+        by_col = dict(zip(header, row, strict=True))
         assert by_col["day_type"] == "flex"
         assert by_col["net_hours"] == "0.00"
         assert by_col["target_hours"] == "8.00"

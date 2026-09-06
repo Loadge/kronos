@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pytest
 
-
 pytestmark = pytest.mark.e2e
 
 
@@ -30,7 +29,7 @@ class TestTabSwitching:
         page.wait_for_load_state("networkidle")
 
         page.click("text=Log")
-        page.wait_for_url(f"**/#log", timeout=3000)
+        page.wait_for_url("**/#log", timeout=3000)
 
         # The log form must appear
         page.wait_for_selector("form", timeout=3000)
@@ -41,10 +40,12 @@ class TestTabSwitching:
         page.wait_for_load_state("networkidle")
 
         page.click("text=Days")
-        page.wait_for_url(f"**/#days", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
 
         # The entries table (or empty state) must be visible
-        table_or_empty = page.locator("table, [data-testid='empty-state'], .empty-state, p:has-text('No entries')")
+        table_or_empty = page.locator(
+            "table, [data-testid='empty-state'], .empty-state, p:has-text('No entries')"
+        )
         assert table_or_empty.count() >= 0  # just checking no JS crash
 
     def test_can_navigate_to_settings_tab(self, page, base_url):
@@ -52,7 +53,7 @@ class TestTabSwitching:
         page.wait_for_load_state("networkidle")
 
         page.click("text=Settings")
-        page.wait_for_url(f"**/#settings", timeout=3000)
+        page.wait_for_url("**/#settings", timeout=3000)
 
         # Settings form must have target hours input
         page.wait_for_selector("input[type='number']", timeout=3000)

@@ -188,7 +188,8 @@ def set_dashboard_layout(session: Session, layout: dict[str, list[str]]) -> None
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:
-    """Cumulative start date, auto-advanced to Jan 1 of the current year when reset_annually=True."""
+    """Cumulative start date, auto-advanced to Jan 1 of the current year
+    when reset_annually=True."""
     base = get_cumulative_start_date(session)
     if get_reset_annually(session):
         return max(base, date(today.year, 1, 1))
