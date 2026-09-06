@@ -11,7 +11,6 @@ from __future__ import annotations
 import csv
 import io
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -170,9 +169,15 @@ class TestFloatPrecision:
 
     def test_break_minutes_do_not_exceed_work_span(self, client):
         """Break > span is rejected with 422 — guard against negative net hours."""
-        r = client.post("/api/entries", json=_work(
-            "2026-04-14", start="09:00", end="10:00", breaks=(120,),  # 120 min break > 60 min span
-        ))
+        r = client.post(
+            "/api/entries",
+            json=_work(
+                "2026-04-14",
+                start="09:00",
+                end="10:00",
+                breaks=(120,),  # 120 min break > 60 min span
+            ),
+        )
         assert r.status_code == 422
 
 
@@ -197,10 +202,12 @@ class TestBackupRestorePreservesAllFields:
         assert e["total_break_minutes"] == sum(breaks)
 
     def test_settings_survive_roundtrip(self, client):
-        payload = _backup_payload(settings={
-            "daily_target_hours": 6.75,
-            "cumulative_start_date": "2024-07-15",
-        })
+        payload = _backup_payload(
+            settings={
+                "daily_target_hours": 6.75,
+                "cumulative_start_date": "2024-07-15",
+            }
+        )
         client.post("/api/restore", json=payload)
         cfg = client.get("/api/config").json()
         assert cfg["daily_target_hours"] == 6.75
@@ -209,9 +216,30 @@ class TestBackupRestorePreservesAllFields:
     def test_all_day_types_survive_roundtrip(self, client):
         entries = [
             _backup_work_entry("2026-04-14"),
-            {"date": "2026-04-15", "day_type": "vacation", "start_time": None, "end_time": None, "notes": None, "breaks": []},
-            {"date": "2026-04-16", "day_type": "sick",     "start_time": None, "end_time": None, "notes": None, "breaks": []},
-            {"date": "2026-04-17", "day_type": "holiday",  "start_time": None, "end_time": None, "notes": None, "breaks": []},
+            {
+                "date": "2026-04-15",
+                "day_type": "vacation",
+                "start_time": None,
+                "end_time": None,
+                "notes": None,
+                "breaks": [],
+            },
+            {
+                "date": "2026-04-16",
+                "day_type": "sick",
+                "start_time": None,
+                "end_time": None,
+                "notes": None,
+                "breaks": [],
+            },
+            {
+                "date": "2026-04-17",
+                "day_type": "holiday",
+                "start_time": None,
+                "end_time": None,
+                "notes": None,
+                "breaks": [],
+            },
         ]
         client.post("/api/restore", json=_backup_payload(entries=entries))
         restored = client.get("/api/entries").json()
@@ -358,7 +386,7 @@ class TestCsvExportEdgeCases:
         resp = client.get("/api/export.csv")
         rows = list(csv.reader(io.StringIO(resp.text)))
         header, row = rows[0], rows[1]
-        by_col = dict(zip(header, row))
+        by_col = dict(zip(header, row, strict=True))
         assert by_col["start_time"] == ""
         assert by_col["end_time"] == ""
         assert by_col["net_hours"] == "0.00"

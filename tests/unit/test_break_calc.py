@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.services.computations import (
     minutes_between,
     minutes_of,
@@ -29,15 +28,15 @@ class TestParseHhmm:
         "value",
         [
             "",
-            "9:00",        # single-digit hour
-            "09:0",        # single-digit minute
-            "24:00",       # hour out of range
-            "12:60",       # minute out of range
+            "9:00",  # single-digit hour
+            "09:0",  # single-digit minute
+            "24:00",  # hour out of range
+            "12:60",  # minute out of range
             "ab:cd",
-            "09-00",       # wrong separator
+            "09-00",  # wrong separator
             "  :  ",
             None,
-            123,           # not a string
+            123,  # not a string
         ],
     )
     def test_invalid(self, value):

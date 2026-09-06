@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
-
 import pytest
-
 from app.models import Break
+from sqlalchemy import func, select
 
 
 class TestCreateEntry:
@@ -71,7 +69,8 @@ class TestCreateEntry:
             ),
             (
                 {
-                    "date": "2026-04-14", "day_type": "work",
+                    "date": "2026-04-14",
+                    "day_type": "work",
                     "start_time": "09:00",
                     "breaks": [{"break_minutes": 30}],
                 },
@@ -315,10 +314,13 @@ class TestDeleteEntry:
 
 class TestBatchCreateEntries:
     def test_creates_multiple_entries(self, client):
-        resp = client.post("/api/entries/batch", json={
-            "dates": ["2026-05-01", "2026-05-02", "2026-05-05"],
-            "day_type": "vacation",
-        })
+        resp = client.post(
+            "/api/entries/batch",
+            json={
+                "dates": ["2026-05-01", "2026-05-02", "2026-05-05"],
+                "day_type": "vacation",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert sorted(data["created"]) == ["2026-05-01", "2026-05-02", "2026-05-05"]
@@ -326,10 +328,13 @@ class TestBatchCreateEntries:
 
     def test_skips_existing_entries(self, client, work_body):
         client.post("/api/entries", json=work_body(date="2026-05-01"))
-        resp = client.post("/api/entries/batch", json={
-            "dates": ["2026-05-01", "2026-05-02"],
-            "day_type": "vacation",
-        })
+        resp = client.post(
+            "/api/entries/batch",
+            json={
+                "dates": ["2026-05-01", "2026-05-02"],
+                "day_type": "vacation",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["created"] == ["2026-05-02"]
@@ -361,7 +366,9 @@ class TestClockInOut:
     """In-progress work entries: start_time set, end_time absent (clock-in state)."""
 
     def test_clock_in_creates_entry(self, client):
-        resp = client.post("/api/entries", json={"date": "2026-04-14", "day_type": "work", "start_time": "09:00"})
+        resp = client.post(
+            "/api/entries", json={"date": "2026-04-14", "day_type": "work", "start_time": "09:00"}
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["start_time"] == "09:00"
@@ -371,21 +378,33 @@ class TestClockInOut:
         assert data["surplus_hours"] == -8.0
 
     def test_clock_out_completes_entry(self, client):
-        client.post("/api/entries", json={"date": "2026-04-14", "day_type": "work", "start_time": "09:00"})
-        resp = client.put("/api/entries/2026-04-14", json={
-            "day_type": "work", "start_time": "09:00", "end_time": "17:00",
-            "breaks": [{"break_minutes": 60}],
-        })
+        client.post(
+            "/api/entries", json={"date": "2026-04-14", "day_type": "work", "start_time": "09:00"}
+        )
+        resp = client.put(
+            "/api/entries/2026-04-14",
+            json={
+                "day_type": "work",
+                "start_time": "09:00",
+                "end_time": "17:00",
+                "breaks": [{"break_minutes": 60}],
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["end_time"] == "17:00"
         assert data["net_hours"] == 7.0
 
     def test_in_progress_breaks_rejected(self, client):
-        resp = client.post("/api/entries", json={
-            "date": "2026-04-14", "day_type": "work",
-            "start_time": "09:00", "breaks": [{"break_minutes": 30}],
-        })
+        resp = client.post(
+            "/api/entries",
+            json={
+                "date": "2026-04-14",
+                "day_type": "work",
+                "start_time": "09:00",
+                "breaks": [{"break_minutes": 30}],
+            },
+        )
         assert resp.status_code == 422
 
     def test_work_without_start_time_rejected(self, client):

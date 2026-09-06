@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
-
-_TPL = {"name": "Standard day", "start_time": "09:00", "end_time": "17:00", "breaks": [{"break_minutes": 60}]}
+_TPL = {
+    "name": "Standard day",
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "breaks": [{"break_minutes": 60}],
+}
 _TPL_NO_BREAKS = {"name": "Short day", "start_time": "09:00", "end_time": "13:00"}
 
 
@@ -39,8 +43,12 @@ class TestCreateTemplate:
         assert resp.json()["breaks"] == []
 
     def test_break_with_times(self, client):
-        body = {"name": "Lunch break", "start_time": "08:00", "end_time": "17:00",
-                "breaks": [{"start_time": "12:00", "end_time": "13:00"}]}
+        body = {
+            "name": "Lunch break",
+            "start_time": "08:00",
+            "end_time": "17:00",
+            "breaks": [{"start_time": "12:00", "end_time": "13:00"}],
+        }
         resp = client.post("/api/templates", json=body)
         assert resp.status_code == 201
         b = resp.json()["breaks"][0]
@@ -58,8 +66,12 @@ class TestCreateTemplate:
         assert resp.status_code == 422
 
     def test_breaks_exceed_span_rejected(self, client):
-        body = {"name": "Bad", "start_time": "09:00", "end_time": "10:00",
-                "breaks": [{"break_minutes": 90}]}
+        body = {
+            "name": "Bad",
+            "start_time": "09:00",
+            "end_time": "10:00",
+            "breaks": [{"break_minutes": 90}],
+        }
         resp = client.post("/api/templates", json=body)
         assert resp.status_code == 422
 

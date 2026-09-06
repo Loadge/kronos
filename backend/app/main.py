@@ -12,10 +12,14 @@ from app.routers import (
     admin,
     analytics,
     backup,
-    config as config_router,
     entries,
     export,
     holidays,
+)
+from app.routers import (
+    config as config_router,
+)
+from app.routers import (
     templates as templates_router,
 )
 

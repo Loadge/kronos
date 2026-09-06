@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as date_
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import Date, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
 
-class DayType(str, Enum):
+class DayType(StrEnum):
     WORK = "work"
     VACATION = "vacation"
     SICK = "sick"
@@ -32,14 +32,12 @@ class WorkEntry(Base):
     __tablename__ = "work_entries"
 
     date: Mapped[date_] = mapped_column(Date, primary_key=True)
-    day_type: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=DayType.WORK.value
-    )
+    day_type: Mapped[str] = mapped_column(String(16), nullable=False, default=DayType.WORK.value)
     start_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     end_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    breaks: Mapped[list["Break"]] = relationship(
+    breaks: Mapped[list[Break]] = relationship(
         back_populates="entry",
         cascade="all, delete-orphan",
         order_by="Break.id",

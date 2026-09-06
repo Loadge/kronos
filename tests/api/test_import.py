@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-HEADER = "date,day_type,start_time,end_time,total_break_minutes,net_hours,target_hours,surplus_hours,notes"
+HEADER = (
+    "date,day_type,start_time,end_time,total_break_minutes,"
+    "net_hours,target_hours,surplus_hours,notes"
+)
 
 
 def _import(client, content):

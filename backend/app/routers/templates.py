@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-
 from sqlalchemy.orm import Session
 
 from app.database import get_session
@@ -17,7 +16,9 @@ router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 def _to_out(t: Template) -> TemplateOut:
     breaks = [TemplateBreakOut(**b) for b in json.loads(t.breaks)]
-    return TemplateOut(id=t.id, name=t.name, start_time=t.start_time, end_time=t.end_time, breaks=breaks)
+    return TemplateOut(
+        id=t.id, name=t.name, start_time=t.start_time, end_time=t.end_time, breaks=breaks
+    )
 
 
 @router.get("", response_model=list[TemplateOut])
@@ -31,10 +32,16 @@ def create_template(body: TemplateIn, session: Session = Depends(get_session)) -
         name=body.name,
         start_time=body.start_time,
         end_time=body.end_time,
-        breaks=json.dumps([
-            {"break_minutes": b.break_minutes, "start_time": b.start_time, "end_time": b.end_time}
-            for b in body.breaks
-        ]),
+        breaks=json.dumps(
+            [
+                {
+                    "break_minutes": b.break_minutes,
+                    "start_time": b.start_time,
+                    "end_time": b.end_time,
+                }
+                for b in body.breaks
+            ]
+        ),
     )
     session.add(t)
     session.commit()

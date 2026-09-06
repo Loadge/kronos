@@ -135,7 +135,8 @@ def main() -> None:
 
     date_range = (
         f"{entries[0].date.isoformat()} → {entries[-1].date.isoformat()}"
-        if entries else "no entries"
+        if entries
+        else "no entries"
     )
     print(
         f"seeded {len(entries)} entries: "

@@ -54,9 +54,9 @@ def seed_data(session: Session = Depends(get_session)) -> dict[str, int]:
     session.commit()
 
     return {
-        "seeded":   len(entries),
-        "work":     sum(1 for e in entries if e.day_type == DayType.WORK.value),
+        "seeded": len(entries),
+        "work": sum(1 for e in entries if e.day_type == DayType.WORK.value),
         "vacation": sum(1 for e in entries if e.day_type == DayType.VACATION.value),
-        "sick":     sum(1 for e in entries if e.day_type == DayType.SICK.value),
-        "holiday":  sum(1 for e in entries if e.day_type == DayType.HOLIDAY.value),
+        "sick": sum(1 for e in entries if e.day_type == DayType.SICK.value),
+        "holiday": sum(1 for e in entries if e.day_type == DayType.HOLIDAY.value),
     }
