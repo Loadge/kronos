@@ -6,7 +6,9 @@ __pycache__
 *.py[cod]
 .pytest_cache
 .ruff_cache
-tests
+# tests/ must stay in the context: the Dockerfile's test stage gates the image on them.
+# e2e is left out — it needs a browser, and pyproject's addopts already ignores it.
+tests/e2e
 data
 *.db
 *.db-wal

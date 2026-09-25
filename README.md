@@ -96,8 +96,10 @@ docker compose up -d
 
 Open **http://localhost:8765**. First boot runs `alembic upgrade head` and seeds default settings.
 
-The build runs the full test suite in an intermediate stage — if the tests fail, you don't get
-an image.
+The build runs the test suite (everything except the Playwright e2e tests) in an intermediate
+`test` stage, and the `runtime` image copies a marker file out of it — so the tests always run,
+and if any fail, or none are collected, you don't get an image and the running container is left
+alone.
 
 ### Reverse proxy
 
@@ -323,7 +325,7 @@ kronos/
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
 ├── deploy.sh             # one-command deploy to a remote Docker host over SSH
-├── Dockerfile            # base → test (pytest at build time) → runtime
+├── Dockerfile            # base → test (pytest, no e2e) → runtime; red tests = no image
 ├── docker-compose.yml
 ├── entrypoint.sh         # alembic upgrade head, then uvicorn
 ├── Makefile
