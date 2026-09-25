@@ -22,17 +22,19 @@ if [[ ! -f "Dockerfile" ]]; then
   exit 1
 fi
 
-# ── 1. local tests (non-fatal — warn and continue if pytest is unavailable) ───
+# ── 1. local tests (fast pre-check — the real gate is the Dockerfile) ─────────
+# The image build runs the same suite and refuses to produce an image on any
+# failure, so staging cannot run red code either; stopping here just fails fast.
 echo "▸ Running tests…"
 if ! command -v python &>/dev/null; then
-  echo "⚠  python is not on PATH — tests were SKIPPED, not run. Deploying unverified."
+  echo "⚠  python is not on PATH — local tests SKIPPED. The image build will still run them."
 else
   rc=0
   python -m pytest tests/ -q --tb=short || rc=$?
   case $rc in
     0) echo "✓ Tests passed" ;;
-    5) echo "⚠  pytest collected NO tests — that is not a pass. Deploying unverified." ;;
-    *) echo "⚠  Tests FAILED (pytest exit $rc) — deploying anyway (staging is where you're supposed to catch this)" ;;
+    5) echo "✗  pytest collected NO tests — that is not a pass. Aborting." >&2; exit 1 ;;
+    *) echo "✗  Tests FAILED (pytest exit $rc) — aborting." >&2; exit 1 ;;
   esac
 fi
 

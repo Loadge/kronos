@@ -17,15 +17,20 @@ WORKDIR /app
 COPY requirements.txt ./
 RUN pip install -r requirements.txt
 
-# ---------- test: runs the full suite at build time -------------------------
+# ---------- test: runs the suite (minus e2e) at build time ------------------
 FROM base AS test
 COPY requirements-dev.txt ./
 RUN pip install -r requirements-dev.txt
 COPY . .
-RUN pytest -q
+# Any non-zero pytest exit fails the build — including 5 ("collected nothing").
+RUN pytest -q && touch /tmp/tests-passed
 
 # ---------- runtime: slim final image ---------------------------------------
 FROM base AS runtime
+
+# The gate. BuildKit skips stages the target doesn't reference, so without this
+# COPY the test stage above never runs when building --target runtime.
+COPY --from=test /tmp/tests-passed /tmp/tests-passed
 
 # Non-root user for defense-in-depth.
 RUN useradd --create-home --uid 1000 --shell /bin/bash kronos
