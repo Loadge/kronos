@@ -1,8 +1,9 @@
-.PHONY: install test lint format seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
+.PHONY: install test lint format e2e smoke check seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
 
 PY ?= python
 PIP ?= pip
 APP_PORT ?= 8765
+SMOKE_URL ?= http://localhost:$(APP_PORT)
 
 ## install — install dev dependencies into the current environment
 install:
@@ -21,6 +22,17 @@ lint:
 format:
 	ruff format .
 	ruff check --fix .
+
+## e2e — run the E2E suite (live server + Playwright browser)
+e2e:
+	pytest tests/e2e -q -p no:cacheprovider
+
+## smoke — read-only HTTP smoke checks against $(SMOKE_URL) (default localhost:$(APP_PORT))
+smoke:
+	$(PY) bin/smoke.py $(SMOKE_URL)
+
+## check — lint, then the full test suite, then the E2E suite
+check: lint test e2e
 
 ## seed — populate the DB with ~3 months of sample data
 seed:

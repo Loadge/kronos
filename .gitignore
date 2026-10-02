@@ -16,6 +16,8 @@ data/
 *.db-shm
 *.sqlite
 *.sqlite3
+.kctl/
+.artifacts/
 
 # Demo GIF recorder
 node_modules/
@@ -38,3 +40,10 @@ IMPROVEMENTS.md
 deploy.sh
 
 CLAUDE.md
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+# Kept as the literal line `graft/` that `graft build` looks for, or it
+# re-appends its own copy after every build. It matches at any depth, so the
+# skill it installs needs an explicit way back in:
+graft/
+!.claude/skills/graft/
