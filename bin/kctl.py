@@ -35,6 +35,7 @@ import os
 import re
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -195,6 +196,33 @@ def spawn(env: dict, log_path: Path) -> tuple[int, str | None]:
     return proc.pid, process_started(proc.pid)
 
 
+def ensure_port_free(port: int, timeout: float = 5.0) -> None:
+    """Refuse to start on a port something else already holds.
+
+    Otherwise `wait_healthy` takes the squatter's answer on /healthz for ours
+    and reports success while our server has died on bind (WinError 10048).
+    The test is the same bind uvicorn is about to do, so it fails exactly when
+    uvicorn would; the retries give a process just killed time to let go.
+    """
+    deadline = time.time() + timeout
+    while True:
+        with socket.socket() as sock:
+            if os.name != "nt":
+                # As uvicorn does — a port in TIME_WAIT is free to it.
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", port))
+                return
+            except OSError:
+                pass
+        if time.time() >= deadline:
+            raise Fail(
+                f"port {port} is already in use by a process kctl did not start. "
+                f"Stop it, or run kctl on another port with KCTL_PORT=<n>."
+            )
+        time.sleep(0.25)
+
+
 def wait_healthy(url: str, pid: int, started: str | None, log_path: Path, timeout: float) -> None:
     """Poll <url>/healthz until it answers, or explain why it never will."""
     deadline = time.time() + timeout
@@ -323,6 +351,7 @@ def cmd_up(args) -> int:
     # is not: clean it now, or overwriting state.json orphans it for good.
     if state.get("data_dir"):
         delete_data_dir(state["data_dir"])
+    ensure_port_free(PORT)
 
     # Fresh throwaway data dir. KRONOS_DATA_DIR goes with it so the server
     # never mkdirs the repo's real data/ either.
@@ -367,15 +396,23 @@ def cmd_up(args) -> int:
 
 
 def delete_data_dir(raw: str) -> None:
-    """Delete a throwaway data dir — only if it is unambiguously one of ours."""
+    """Delete a throwaway data dir — only if it is unambiguously one of ours.
+
+    A refusal is a warning, not a failure: a dir the guard rejects is not one
+    kctl made, so leaving it orphans nothing. Raising here kept the bad
+    state.json in place, and with it every later `up` and `down` failed too.
+    """
     path = Path(raw)
-    if not path.name.startswith("kctl-"):
-        raise Fail(f"refusing to delete {path}: its name does not start with 'kctl-'")
     resolved = path.resolve()
     temp_root = Path(tempfile.gettempdir()).resolve()
-    if temp_root not in resolved.parents:
-        raise Fail(f"refusing to delete {path}: it is not inside {temp_root}")
-    shutil.rmtree(resolved, ignore_errors=True)
+    if not path.name.startswith("kctl-"):
+        reason = "its name does not start with 'kctl-'"
+    elif temp_root not in resolved.parents:
+        reason = f"it is not inside {temp_root}"
+    else:
+        shutil.rmtree(resolved, ignore_errors=True)
+        return
+    print(f"kctl: warning: left {path} alone ({reason}); forgot it", file=sys.stderr)
 
 
 def cmd_down(args) -> int:
