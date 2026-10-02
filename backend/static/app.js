@@ -1267,9 +1267,12 @@ function app() {
           : avg > 0.1 ? 'hm-surplus'
           : avg < -0.1 ? 'hm-deficit'
           : 'hm-neutral';
-        const sign = avg !== null && avg > 0 ? '+' : '';
-        return { label, avg, cls, count,
-          title: avg === null ? `${label}: no data` : `${label}: avg ${sign}${avg}h (${count} days)` };
+        // One decimal everywhere; the sign follows the rounded value, so a tiny
+        // average reads 0.0h rather than −0.0h.
+        const r = avg === null ? null : Math.round(avg * 10) / 10;
+        const text = r === null ? '—' : `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}h`;
+        return { label, avg, cls, count, text,
+          title: avg === null ? `${label}: no data` : `${label}: avg ${text} (${count} days)` };
       });
     },
 

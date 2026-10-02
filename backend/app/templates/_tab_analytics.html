@@ -138,7 +138,7 @@
             <div class="weekday-label" x-text="cell.label"></div>
             <div class="weekday-avg"
                  :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
-                 x-text="cell.avg !== null ? (cell.avg > 0 ? '+' : '') + cell.avg + 'h' : '—'"></div>
+                 x-text="cell.text"></div>
           </div>
         </template>
       </div>

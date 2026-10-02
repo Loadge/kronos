@@ -6,6 +6,7 @@ WHY these tests exist:
   it carried the heatmap's ``hm-surplus`` class, which paints a *background*,
   plus ``muted``, which wins over the text colour. The number has to be text
   in the surplus/deficit colour on no background, or nobody can read it.
+  The number is shown with exactly one decimal (+0.7h, not +0.67h / +0.6h).
 * Records — "Worst year" and "Most deficit month" only mean something when
   they are negative. With every month in surplus (or a single year of data)
   they showed a positive number in red, i.e. a "worst" that is not bad. The
@@ -76,11 +77,13 @@ class TestAnalyticsDisplay:
 
     def test_weekday_average_is_coloured_text_on_no_background(self, page, base_url):
         monday = _last_weekday(0)
-        _seed(base_url, [_entry(monday, "19:00")])  # Monday average: +1h
+        # Two Mondays, +1h and +20 min: the average 0.6666… must read "+0.7h" (one decimal).
+        earlier = monday - datetime.timedelta(days=7)
+        _seed(base_url, [_entry(monday, "19:00"), _entry(earlier, "18:20")])
         _open_analytics(page, base_url)
 
         avg = page.locator(".weekday-cell", has_text="Mon").locator(".weekday-avg")
-        assert avg.inner_text() == "+1h"
+        assert avg.inner_text() == "+0.7h"
         style = avg.evaluate(
             """el => {
                 const probe = document.createElement('span');
