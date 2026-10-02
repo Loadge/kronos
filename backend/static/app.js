@@ -60,8 +60,6 @@ function app() {
     yearly: [],
     yoy: null,
     records: null,
-    asOfDate: '',
-    asOfResult: null,
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
@@ -1467,7 +1465,6 @@ function app() {
     async loadAnalytics() {
       this.loading.analytics = true;
       try {
-        this.asOfDate = this.asOfDate || this.todayIso();
         const [monthly, yearly, records, yoy] = await Promise.all([
           this.api('GET', '/api/analytics/monthly'),
           this.api('GET', '/api/analytics/yearly'),
@@ -1480,18 +1477,8 @@ function app() {
         this.yoy = yoy;
         // Entries needed for the heatmap; load lazily if not already in memory
         if (!this.entries.length) await this.loadDays();
-        await this.computeAsOf();
       } catch (e) { this.error = e.message; }
       finally { this.loading.analytics = false; }
-    },
-
-    async computeAsOf() {
-      if (!this.asOfDate) { this.asOfResult = null; return; }
-      try {
-        this.asOfResult = await this.api(
-          'GET', `/api/analytics/cumulative?as_of=${this.asOfDate}`
-        );
-      } catch (e) { this.error = e.message; }
     },
 
     // =====================================================================
@@ -1790,7 +1777,6 @@ function app() {
       this.entries = [];
       this.monthly = [];
       this.records = null;
-      this.asOfResult = null;
     },
 
     // =====================================================================

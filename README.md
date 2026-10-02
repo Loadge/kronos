@@ -47,9 +47,9 @@ Log a day in a few seconds, then get out of the way.
 - **Non-work days zero out that day's target**, so period totals adjust on their own. `flex`
   days are the exception — they still charge the target, draining the surplus you banked
 - **Vacation budget** tracking against an annual allowance
-- **Analytics tab** — point-in-time balance, cumulative trend chart, monthly and yearly
-  breakdowns, records (longest day, best month, best/worst year), a year-at-a-glance heatmap,
-  and average surplus per weekday
+- **Analytics tab** — a year-at-a-glance heatmap first, then the cumulative trend chart,
+  monthly and yearly breakdowns, average surplus per weekday, and records (longest day, best
+  month, best/worst year)
 
 ### The app itself
 
@@ -216,7 +216,7 @@ Interactive docs at `/docs` once it's running.
 |---|---|
 | `GET /api/dashboard` | Week + month + cumulative summary |
 | `GET /api/streaks` | Logging streak, on-target streak, all-time days logged |
-| `GET /api/analytics/cumulative?as_of=` | Point-in-time balance |
+| `GET /api/analytics/cumulative?as_of=` | Balance as of a date (API only — no UI since 2026-10-01) |
 | `GET /api/analytics/monthly` · `/yearly` | One row per calendar month / year |
 | `GET /api/analytics/records` | Longest day, best month, longest streak, best/worst year |
 | `GET /api/analytics/yoy` | This year vs. the same period last year |
