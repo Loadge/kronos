@@ -136,8 +136,8 @@
           <div class="weekday-cell" :title="cell.title">
             <div class="weekday-swatch" :class="cell.cls"></div>
             <div class="weekday-label" x-text="cell.label"></div>
-            <div class="weekday-avg muted"
-                 :class="cell.avg !== null ? cell.cls : ''"
+            <div class="weekday-avg"
+                 :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
                  x-text="cell.avg !== null ? (cell.avg > 0 ? '+' : '') + cell.avg + 'h' : '—'"></div>
           </div>
         </template>
@@ -193,17 +193,15 @@
         </template>
         <template x-if="!records.most_surplus_month"><p class="muted">—</p></template>
       </article>
-      <article class="summary-card small">
-        <h3>Most deficit month</h3>
-        <template x-if="records.most_deficit_month">
-          <div>
-            <div class="metric deficit"
-                 x-text="formatSurplus(records.most_deficit_month.surplus_hours)"></div>
-            <div class="sub" x-text="records.most_deficit_month.label"></div>
-          </div>
-        </template>
-        <template x-if="!records.most_deficit_month"><p class="muted">—</p></template>
-      </article>
+      <!-- Only a negative value is a "worst" worth showing (2026-10-02). -->
+      <template x-if="records.most_deficit_month && records.most_deficit_month.surplus_hours < 0">
+        <article class="summary-card small">
+          <h3>Most deficit month</h3>
+          <div class="metric deficit"
+               x-text="formatSurplus(records.most_deficit_month.surplus_hours)"></div>
+          <div class="sub" x-text="records.most_deficit_month.label"></div>
+        </article>
+      </template>
       <article class="summary-card small">
         <h3>Longest positive streak</h3>
         <div>
@@ -222,17 +220,15 @@
         </template>
         <template x-if="!records.best_year"><p class="muted">—</p></template>
       </article>
-      <article class="summary-card small">
-        <h3>Worst year</h3>
-        <template x-if="records.worst_year">
-          <div>
-            <div class="metric deficit"
-                 x-text="formatSurplus(records.worst_year.surplus_hours)"></div>
-            <div class="sub" x-text="records.worst_year.label"></div>
-          </div>
-        </template>
-        <template x-if="!records.worst_year"><p class="muted">—</p></template>
-      </article>
+      <!-- Only a negative value is a "worst" worth showing (2026-10-02). -->
+      <template x-if="records.worst_year && records.worst_year.surplus_hours < 0">
+        <article class="summary-card small">
+          <h3>Worst year</h3>
+          <div class="metric deficit"
+               x-text="formatSurplus(records.worst_year.surplus_hours)"></div>
+          <div class="sub" x-text="records.worst_year.label"></div>
+        </article>
+      </template>
     </div>
   </template>
 
