@@ -36,6 +36,17 @@ else
     5) echo "✗  pytest collected NO tests — that is not a pass. Aborting." >&2; exit 1 ;;
     *) echo "✗  Tests FAILED (pytest exit $rc) — aborting." >&2; exit 1 ;;
   esac
+
+  # E2E is NOT covered by the Dockerfile gate (no browser in the image), so this
+  # local run is its only gate.
+  echo "▸ Running E2E (Playwright)…"
+  rc=0
+  python -m pytest tests/e2e -q --tb=short -p no:cacheprovider || rc=$?
+  case $rc in
+    0) echo "✓ E2E passed" ;;
+    5) echo "✗  E2E collected NO tests — that is not a pass. Aborting." >&2; exit 1 ;;
+    *) echo "✗  E2E FAILED (pytest exit $rc) — aborting." >&2; exit 1 ;;
+  esac
 fi
 
 # ── 2. build + (re)create the staging container ────────────────────────────────
@@ -53,11 +64,25 @@ for i in $(seq 1 12); do
     break
   fi
   if [[ "$i" -eq 12 ]]; then
-    echo "⚠  Container did not reach healthy state after 60 s — check: docker logs $CONTAINER"
+    echo "✗  Container did not reach healthy state after 60 s — check: docker logs $CONTAINER" >&2
+    exit 1
   fi
   sleep 5
 done
 
+# ── 4. smoke test ─────────────────────────────────────────────────────────────
+# Same GET-only checks deploy.sh runs against prod (see bin/smoke.py).
+URL="http://localhost:${APP_PORT:-8765}"
+echo "▸ Smoke-testing $URL…"
+if ! command -v python &>/dev/null; then
+  echo "✗  python is not on PATH — smoke test SKIPPED. Staging is UNVERIFIED." >&2
+  exit 1
+fi
+if ! python bin/smoke.py "$URL"; then
+  echo "✗  Smoke test FAILED — check: docker logs $CONTAINER" >&2
+  exit 1
+fi
+
 # ── done ──────────────────────────────────────────────────────────────────────
 echo ""
-echo "🚀  http://localhost:${APP_PORT:-8765}  (staging — separate volume from prod, local to this workstation)"
+echo "🚀  $URL  (staging — separate volume from prod, local to this workstation)"

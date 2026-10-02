@@ -1,0 +1,24 @@
+#!/bin/sh
+# Keep graft's context graph aligned with the code that was just committed.
+# (Canonical version: winifred_studio/.githooks/post-commit, minus its Feature
+# Map check — Kronos has no Feature Map.)
+#
+# Never fails a commit — it reports, it does not block.
+# Enabled via: git config core.hooksPath .githooks
+#
+# graft/ is a local, git-ignored cache. It self-refreshes before every query,
+# but only for the files it already knows about — a commit that adds, renames
+# or deletes files can leave the graph describing code that no longer exists.
+# Rebuilding here keeps agents from being told a lie by a stale node.
+#
+# Cheap: incremental, cache-replayed, no API key, no LLM.
+command -v graft >/dev/null 2>&1 || exit 0
+
+# The LLM layer (concept nodes + per-symbol summaries) is the part that really
+# drifts, so refresh it too — but only when a provider key is configured.
+if [ -n "$GRAFT_API_KEY" ]; then
+    graft build --deep >/dev/null 2>&1 || true
+else
+    graft build >/dev/null 2>&1 || true
+fi
+exit 0

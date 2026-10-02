@@ -255,6 +255,8 @@ Interactive docs at `/docs` once it's running.
 ```sh
 make test             # pytest — in-memory SQLite, no container needed
 make lint             # ruff check + format --check
+make e2e              # Playwright end-to-end suite (see below)
+make check            # lint, then test, then e2e — what to run before a deploy
 ```
 
 **326 passing**, across four suites:
@@ -268,8 +270,10 @@ make lint             # ruff check + format --check
 
 ### End-to-end
 
-22 Playwright tests drive a real browser against a real uvicorn server. Excluded from
-`make test`.
+56 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
+viewport/responsive checks, the Analytics section order, and the smoke script itself. Excluded
+from `make test` and from the Docker build (no browser in the image), so `deploy.sh` and
+`deploy-staging.sh` run them locally and abort if they fail or collect nothing.
 
 ```sh
 pip install pytest-playwright
@@ -277,6 +281,29 @@ playwright install chromium
 
 pytest tests/e2e -v            # headless
 pytest tests/e2e -v --headed   # watch it work
+```
+
+### Smoke test
+
+`bin/smoke.py <url>` runs GET-only checks against a running Kronos — `/healthz`, the page,
+`app.js`, and the dashboard/analytics endpoints, each with its expected JSON shape — plus a
+negative control that must return 404, so a proxy answering 200 to everything cannot fake a
+pass. Both deploy scripts run it after the container is healthy and fail if it does.
+
+```sh
+python bin/smoke.py https://kronos.nutello.cc   # or: make smoke SMOKE_URL=...
+```
+
+### kctl — a disposable Kronos for verifying changes
+
+`bin/kctl.py` starts Kronos on a fresh temporary SQLite DB (never `data/`), so an agent or a
+human can check a change without touching real data:
+
+```sh
+python bin/kctl.py up --seed                                   # ~3 months of sample data
+python bin/kctl.py api GET /api/analytics/monthly
+python bin/kctl.py shot "/#analytics" --out .artifacts/analytics.png [--viewport phone] [--theme light]
+python bin/kctl.py down                                        # kill it, delete the temp DB
 ```
 
 ---
@@ -324,6 +351,7 @@ kronos/
 ├── docs/
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
+├── bin/                  # smoke.py (post-deploy checks) · kctl.py (disposable instance)
 ├── deploy.sh             # one-command deploy to a remote Docker host over SSH
 ├── Dockerfile            # base → test (pytest, no e2e) → runtime; red tests = no image
 ├── docker-compose.yml
