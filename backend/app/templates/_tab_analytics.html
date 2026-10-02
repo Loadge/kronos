@@ -13,23 +13,35 @@
     </select>
   </div>
 
-  <h2>Point-in-time</h2>
-  <div class="grid">
-    <label>
-      Show cumulative surplus/deficit as of
-      <input type="date" x-model="asOfDate" @change="computeAsOf()">
-    </label>
-    <div x-show="asOfResult">
-      <article class="summary-card">
-        <div class="metric" :class="asOfResult && surplusClass(asOfResult.surplus_hours)"
-             x-text="asOfResult && formatSurplus(asOfResult.surplus_hours)"></div>
-        <div class="sub">
-          <span x-text="asOfResult?.net_hours + 'h'"></span> worked /
-          <span x-text="asOfResult?.target_hours + 'h'"></span> target
+  <h2>Year at a glance</h2>
+  <template x-if="heatmapCells()">
+    <div>
+      <div class="heatmap-legend">
+        <span class="legend-item"><span class="hm-swatch hm-surplus"></span> Surplus</span>
+        <span class="legend-item"><span class="hm-swatch hm-deficit"></span> Deficit</span>
+        <span class="legend-item"><span class="hm-swatch hm-neutral"></span> On target</span>
+        <span class="legend-item"><span class="hm-swatch hm-vacation"></span> Vacation</span>
+        <span class="legend-item"><span class="hm-swatch hm-sick"></span> Sick</span>
+        <span class="legend-item"><span class="hm-swatch hm-holiday"></span> Holiday</span>
+        <span class="legend-item"><span class="hm-swatch hm-flex"></span> Flex</span>
+        <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
+      </div>
+      <div class="heatmap-scroll">
+        <div class="heatmap"
+             :style="`grid-template-columns: ${heatmapCells().colTemplate}`">
+          <template x-for="cell in heatmapCells().cells" :key="cell.key">
+            <div :class="cell.type === 'label' ? 'hm-month-label' : cell.type === 'week' ? 'hm-week-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
+                 :style="`grid-row: ${cell.row}; grid-column: ${cell.col}`"
+                 :title="cell.title || ''"
+                 x-text="cell.type === 'label' || cell.type === 'week' ? cell.label : ''"></div>
+          </template>
         </div>
-      </article>
+      </div>
     </div>
-  </div>
+  </template>
+  <template x-if="!heatmapCells()">
+    <p class="muted">Visit the Days tab first to load entry data.</p>
+  </template>
 
   <h2>Cumulative trend</h2>
   <template x-if="trendLine()">
@@ -55,6 +67,86 @@
   </template>
   <template x-if="!trendLine() && monthly.length === 0">
     <p class="muted">No data yet.</p>
+  </template>
+
+  <h2>Monthly breakdown</h2>
+  <!-- x-for inside <svg> doesn't work in Alpine (SVG parser treats <template> differently).
+       We render the bar chart as a string via x-html instead. -->
+  <div class="chart-wrap" x-html="renderBarChart()"></div>
+  <template x-if="filteredMonthly().length === 0">
+    <p class="muted">No data for this period.</p>
+  </template>
+  <div class="month-grid" x-show="filteredMonthly().length">
+    <template x-for="row in filteredMonthly()" :key="row.label">
+      <article class="month-card" :class="'month-card--' + surplusClass(row.surplus_hours)">
+        <div class="month-card-label" x-text="row.label"></div>
+        <div class="month-card-surplus" :class="surplusClass(row.surplus_hours)"
+             x-text="formatSurplus(row.surplus_hours)"></div>
+        <div class="month-card-detail">
+          <span x-text="row.net_hours + 'h'"></span>
+          <span class="muted"> / </span>
+          <span x-text="row.target_hours + 'h'"></span>
+        </div>
+        <div class="month-card-days muted"
+             x-text="row.work_days + 'w · ' + row.non_work_days + ' off'"></div>
+      </article>
+    </template>
+  </div>
+
+  <h2>Yearly breakdown</h2>
+  <template x-if="yearly.length === 0">
+    <p class="muted">No data yet.</p>
+  </template>
+  <div class="table-wrap" x-show="yearly.length">
+    <table>
+      <thead>
+        <tr>
+          <th>Year</th>
+          <th>Net</th>
+          <th>Target</th>
+          <th>Δ</th>
+          <th title="Accumulated surplus carried in from all prior years">Carry-in</th>
+          <th>Work days</th>
+          <th>Off days</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="row in yearlyWithCarryover()" :key="row.year">
+          <tr>
+            <td x-text="row.label"></td>
+            <td x-text="row.net_hours + 'h'"></td>
+            <td x-text="row.target_hours + 'h'"></td>
+            <td :class="surplusClass(row.surplus_hours)"
+                x-text="formatSurplus(row.surplus_hours)"></td>
+            <td :class="surplusClass(row.carry_in)"
+                x-text="row.carry_in !== 0 ? formatSurplus(row.carry_in) : '—'"></td>
+            <td x-text="row.work_days"></td>
+            <td x-text="row.non_work_days"></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Weekday pattern</h2>
+  <template x-if="weekdayPattern()">
+    <div>
+      <div class="weekday-grid">
+        <template x-for="cell in weekdayPattern()" :key="cell.label">
+          <div class="weekday-cell" :title="cell.title">
+            <div class="weekday-swatch" :class="cell.cls"></div>
+            <div class="weekday-label" x-text="cell.label"></div>
+            <div class="weekday-avg muted"
+                 :class="cell.avg !== null ? cell.cls : ''"
+                 x-text="cell.avg !== null ? (cell.avg > 0 ? '+' : '') + cell.avg + 'h' : '—'"></div>
+          </div>
+        </template>
+      </div>
+      <p class="muted chart-caption">Average surplus/deficit per weekday across all logged work days</p>
+    </div>
+  </template>
+  <template x-if="!weekdayPattern()">
+    <p class="muted">No work days logged yet.</p>
   </template>
 
   <h2>Records</h2>
@@ -142,116 +234,6 @@
         <template x-if="!records.worst_year"><p class="muted">—</p></template>
       </article>
     </div>
-  </template>
-
-  <h2>Monthly breakdown</h2>
-  <!-- x-for inside <svg> doesn't work in Alpine (SVG parser treats <template> differently).
-       We render the bar chart as a string via x-html instead. -->
-  <div class="chart-wrap" x-html="renderBarChart()"></div>
-  <template x-if="filteredMonthly().length === 0">
-    <p class="muted">No data for this period.</p>
-  </template>
-  <div class="month-grid" x-show="filteredMonthly().length">
-    <template x-for="row in filteredMonthly()" :key="row.label">
-      <article class="month-card" :class="'month-card--' + surplusClass(row.surplus_hours)">
-        <div class="month-card-label" x-text="row.label"></div>
-        <div class="month-card-surplus" :class="surplusClass(row.surplus_hours)"
-             x-text="formatSurplus(row.surplus_hours)"></div>
-        <div class="month-card-detail">
-          <span x-text="row.net_hours + 'h'"></span>
-          <span class="muted"> / </span>
-          <span x-text="row.target_hours + 'h'"></span>
-        </div>
-        <div class="month-card-days muted"
-             x-text="row.work_days + 'w · ' + row.non_work_days + ' off'"></div>
-      </article>
-    </template>
-  </div>
-
-  <h2>Yearly breakdown</h2>
-  <template x-if="yearly.length === 0">
-    <p class="muted">No data yet.</p>
-  </template>
-  <div class="table-wrap" x-show="yearly.length">
-    <table>
-      <thead>
-        <tr>
-          <th>Year</th>
-          <th>Net</th>
-          <th>Target</th>
-          <th>Δ</th>
-          <th title="Accumulated surplus carried in from all prior years">Carry-in</th>
-          <th>Work days</th>
-          <th>Off days</th>
-        </tr>
-      </thead>
-      <tbody>
-        <template x-for="row in yearlyWithCarryover()" :key="row.year">
-          <tr>
-            <td x-text="row.label"></td>
-            <td x-text="row.net_hours + 'h'"></td>
-            <td x-text="row.target_hours + 'h'"></td>
-            <td :class="surplusClass(row.surplus_hours)"
-                x-text="formatSurplus(row.surplus_hours)"></td>
-            <td :class="surplusClass(row.carry_in)"
-                x-text="row.carry_in !== 0 ? formatSurplus(row.carry_in) : '—'"></td>
-            <td x-text="row.work_days"></td>
-            <td x-text="row.non_work_days"></td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
-  </div>
-
-  <h2>Year at a glance</h2>
-  <template x-if="heatmapCells()">
-    <div>
-      <div class="heatmap-legend">
-        <span class="legend-item"><span class="hm-swatch hm-surplus"></span> Surplus</span>
-        <span class="legend-item"><span class="hm-swatch hm-deficit"></span> Deficit</span>
-        <span class="legend-item"><span class="hm-swatch hm-neutral"></span> On target</span>
-        <span class="legend-item"><span class="hm-swatch hm-vacation"></span> Vacation</span>
-        <span class="legend-item"><span class="hm-swatch hm-sick"></span> Sick</span>
-        <span class="legend-item"><span class="hm-swatch hm-holiday"></span> Holiday</span>
-        <span class="legend-item"><span class="hm-swatch hm-flex"></span> Flex</span>
-        <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
-      </div>
-      <div class="heatmap-scroll">
-        <div class="heatmap"
-             :style="`grid-template-columns: ${heatmapCells().colTemplate}`">
-          <template x-for="cell in heatmapCells().cells" :key="cell.key">
-            <div :class="cell.type === 'label' ? 'hm-month-label' : cell.type === 'week' ? 'hm-week-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
-                 :style="`grid-row: ${cell.row}; grid-column: ${cell.col}`"
-                 :title="cell.title || ''"
-                 x-text="cell.type === 'label' || cell.type === 'week' ? cell.label : ''"></div>
-          </template>
-        </div>
-      </div>
-    </div>
-  </template>
-  <template x-if="!heatmapCells()">
-    <p class="muted">Visit the Days tab first to load entry data.</p>
-  </template>
-
-  <h2>Weekday pattern</h2>
-  <template x-if="weekdayPattern()">
-    <div>
-      <div class="weekday-grid">
-        <template x-for="cell in weekdayPattern()" :key="cell.label">
-          <div class="weekday-cell" :title="cell.title">
-            <div class="weekday-swatch" :class="cell.cls"></div>
-            <div class="weekday-label" x-text="cell.label"></div>
-            <div class="weekday-avg muted"
-                 :class="cell.avg !== null ? cell.cls : ''"
-                 x-text="cell.avg !== null ? (cell.avg > 0 ? '+' : '') + cell.avg + 'h' : '—'"></div>
-          </div>
-        </template>
-      </div>
-      <p class="muted chart-caption">Average surplus/deficit per weekday across all logged work days</p>
-    </div>
-  </template>
-  <template x-if="!weekdayPattern()">
-    <p class="muted">No work days logged yet.</p>
   </template>
 
   <h2>Export</h2>
