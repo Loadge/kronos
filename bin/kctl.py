@@ -20,8 +20,10 @@ Usage
 
 Every instance uses `sqlite:///<tmp>/kronos.db` with `<tmp>` from
 `tempfile.mkdtemp(prefix="kctl-")`. The caller's DATABASE_URL is never read,
-and `down` refuses to delete anything that is not a `kctl-*` directory
-inside the system temp dir.
+and `down` (or `up`, clearing a dead instance's leftovers) refuses to
+delete anything that is not a `kctl-*` directory inside the system temp dir.
+A pid is only killed while it is still the process kctl started (pid plus
+creation time), never a stranger that inherited the number.
 """
 
 from __future__ import annotations
@@ -83,26 +85,62 @@ def write_state(state: dict) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
-def pid_alive(pid: int) -> bool:
+def process_started(pid: int) -> str | None:
+    """When the live process `pid` was created, or None if there is none.
+
+    A pid alone does not identify a process: the OS recycles it, and after a
+    reboot or power cut state.json can name an unrelated process (2026-10-01:
+    pid 45560 survived a power cut). The pid *and* its creation time together
+    cannot match a stranger, so that pair is what state.json records.
+    """
     if pid <= 0:
-        return False
+        return None
     if os.name == "nt":
-        out = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-            capture_output=True,
-            text=True,
-        ).stdout
-        return str(pid) in out
-    try:
-        os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
-        return False
-    return True
+        import ctypes
+        from ctypes import wintypes
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.OpenProcess.restype = wintypes.HANDLE
+        k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        k32.GetExitCodeProcess.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+        k32.GetProcessTimes.argtypes = (wintypes.HANDLE,) + (ctypes.POINTER(wintypes.FILETIME),) * 4
+        k32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        handle = k32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return None
+        try:
+            code = wintypes.DWORD()
+            # An exited process lingers while anyone holds a handle to it.
+            if not k32.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:
+                return None  # 259 = STILL_ACTIVE
+            created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+            if not k32.GetProcessTimes(
+                handle,
+                ctypes.byref(created),
+                ctypes.byref(exited),
+                ctypes.byref(kernel),
+                ctypes.byref(user),
+            ):
+                return None
+            return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+        finally:
+            k32.CloseHandle(handle)
+    out = subprocess.run(
+        ["ps", "-o", "lstart=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return out or None
 
 
-def kill_pid(pid: int) -> None:
-    """Kill the process and its children."""
-    if not pid_alive(pid):
+def pid_alive(pid: int, started: str | None) -> bool:
+    """True only while `pid` is still the process kctl spawned at `started`."""
+    return started is not None and process_started(pid) == started
+
+
+def kill_pid(pid: int, started: str | None) -> None:
+    """Kill the process and its children — only if it is still ours."""
+    if not pid_alive(pid, started):
         return
     if os.name == "nt":
         # /T because a child (alembic, seed) may still be owned by the tree.
@@ -116,15 +154,18 @@ def kill_pid(pid: int) -> None:
     except (ProcessLookupError, PermissionError):
         return
     for _ in range(20):
-        if not pid_alive(pid):
+        if not pid_alive(pid, started):
             return
         time.sleep(0.25)
     with contextlib.suppress(ProcessLookupError, PermissionError):
         os.killpg(os.getpgid(pid), signal.SIGKILL)
 
 
-def spawn(env: dict, log_path: Path) -> int:
-    """Start uvicorn from backend/, detached, logging to `log_path`."""
+def spawn(env: dict, log_path: Path) -> tuple[int, str | None]:
+    """Start uvicorn from backend/, detached, logging to `log_path`.
+
+    Returns the pid and its creation time — the pair `pid_alive` checks.
+    """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handle = log_path.open("w", encoding="utf-8", errors="replace")
     kwargs: dict = {}
@@ -151,14 +192,14 @@ def spawn(env: dict, log_path: Path) -> int:
         stdin=subprocess.DEVNULL,
         **kwargs,
     )
-    return proc.pid
+    return proc.pid, process_started(proc.pid)
 
 
-def wait_healthy(url: str, pid: int, log_path: Path, timeout: float) -> None:
+def wait_healthy(url: str, pid: int, started: str | None, log_path: Path, timeout: float) -> None:
     """Poll <url>/healthz until it answers, or explain why it never will."""
     deadline = time.time() + timeout
     while time.time() < deadline:
-        if not pid_alive(pid):
+        if not pid_alive(pid, started):
             tail = tail_file(log_path, 25)
             raise Fail(f"{url} died during startup. Last output:\n{tail}\nFull log: {log_path}")
         try:
@@ -272,12 +313,16 @@ def seed(env: dict) -> None:
 
 def cmd_up(args) -> int:
     state = read_state()
-    if state.get("pid") and pid_alive(state["pid"]):
+    if state.get("pid") and pid_alive(state["pid"], state.get("started")):
         raise Fail(
             f"an instance is already running (pid {state['pid']}, {state.get('url')}). "
             f"kctl never reuses an instance — a fresh DB is what makes runs reproducible. "
             f"Run: python bin/kctl.py down"
         )
+    # The instance in state is dead (reboot, power cut, crash) but its temp dir
+    # is not: clean it now, or overwriting state.json orphans it for good.
+    if state.get("data_dir"):
+        delete_data_dir(state["data_dir"])
 
     # Fresh throwaway data dir. KRONOS_DATA_DIR goes with it so the server
     # never mkdirs the repo's real data/ either.
@@ -292,21 +337,22 @@ def cmd_up(args) -> int:
         # seed.py's "→" cannot encode. Force UTF-8 on every child's stdio.
         "PYTHONIOENCODING": "utf-8",
     }
-    pid = 0
+    pid, started = 0, None
     try:
         migrate(env)
         if args.seed:
             seed(env)
-        pid = spawn(env, APP_LOG)
-        wait_healthy(URL, pid, APP_LOG, timeout=60)
+        pid, started = spawn(env, APP_LOG)
+        wait_healthy(URL, pid, started, APP_LOG, timeout=60)
     except Fail:
         if pid:
-            kill_pid(pid)
+            kill_pid(pid, started)
         shutil.rmtree(data_dir, ignore_errors=True)
         raise
 
     state = {
         "pid": pid,
+        "started": started,
         "port": PORT,
         "url": URL,
         "data_dir": str(data_dir),
@@ -336,8 +382,8 @@ def cmd_down(args) -> int:
     state = read_state()
     stopped = False
     pid = state.get("pid")
-    if pid and pid_alive(pid):
-        kill_pid(pid)
+    if pid and pid_alive(pid, state.get("started")):
+        kill_pid(pid, state.get("started"))
         stopped = True
     if state.get("data_dir"):
         delete_data_dir(state["data_dir"])
@@ -352,7 +398,7 @@ def cmd_down(args) -> int:
 def cmd_status(args) -> int:
     state = read_state()
     pid = state.get("pid") or 0
-    up = bool(pid) and pid_alive(pid)
+    up = bool(pid) and pid_alive(pid, state.get("started"))
     info = {
         "url": state.get("url") if up else None,
         "pid": pid if up else None,
@@ -390,7 +436,7 @@ def cmd_api(args) -> int:
 def cmd_shot(args) -> int:
     state = read_state()
     pid = state.get("pid")
-    if not (pid and pid_alive(pid)):
+    if not (pid and pid_alive(pid, state.get("started"))):
         raise Fail(f"no instance is up. Run: {UP_HINT}")
     url = state.get("url") or URL
 
