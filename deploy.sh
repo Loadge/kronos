@@ -11,12 +11,20 @@
 #   DEPLOY_PATH        directory on that host holding the compose project
 #   DEPLOY_URL         URL the smoke test hits once the container is up
 #   DEPLOY_CONTAINER   container name (optional, default: kronos)
+#   DEPLOY_SKIP_TESTS  set to 1 ONLY from CI, after its test stage passed (optional)
 
 set -euo pipefail
 
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck disable=SC1091
-[[ -f "$DEPLOY_DIR/deploy.env" ]] && source "$DEPLOY_DIR/deploy.env"
+if [[ -f "$DEPLOY_DIR/deploy.env" ]]; then
+  # The environment wins over the file: keep what is already set, load the file for the
+  # rest, then put the explicit values back. (Without this a stale deploy.env silently
+  # overrode DEPLOY_HOST=... and aimed the script at the real host.)
+  _saved="$(declare -p DEPLOY_HOST DEPLOY_PATH DEPLOY_URL DEPLOY_CONTAINER DEPLOY_SKIP_TESTS 2>/dev/null || true)"
+  # shellcheck disable=SC1091
+  source "$DEPLOY_DIR/deploy.env"
+  eval "$_saved"
+fi
 : "${DEPLOY_HOST:?DEPLOY_HOST is not set - put it in deploy.env or the environment}"
 : "${DEPLOY_PATH:?DEPLOY_PATH is not set - put it in deploy.env or the environment}"
 : "${DEPLOY_URL:?DEPLOY_URL is not set - put it in deploy.env or the environment}"
@@ -36,7 +44,11 @@ fi
 # failure, so a red run here can never deploy. Stopping now just fails in
 # seconds instead of after syncing a broken tree to $REMOTE.
 echo "▸ Running tests…"
-if ! command -v python &>/dev/null; then
+if [[ "${DEPLOY_SKIP_TESTS:-0}" == "1" ]]; then
+  # For CI: the pipeline's test stage already ran unit + E2E on this exact commit and
+  # this job only runs after it. The image build below still runs the unit suite.
+  echo "⚠  DEPLOY_SKIP_TESTS=1 — local tests and E2E SKIPPED here; the caller must have run them."
+elif ! command -v python &>/dev/null; then
   echo "⚠  python is not on PATH — local tests SKIPPED. The image build will still run them."
 else
   rc=0
@@ -65,6 +77,7 @@ fi
 echo "▸ Syncing files to $HOST:$REMOTE…"
 tar czf - \
   --exclude='./.git' \
+  --exclude='./deploy.env' \
   --exclude='./__pycache__' \
   --exclude='./.pytest_cache' \
   --exclude='./data' \
