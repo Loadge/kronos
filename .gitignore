@@ -36,8 +36,9 @@ Thumbs.db
 # Local planning notes
 IMPROVEMENTS.md
 
-# Deployment script (contains host/path details)
-deploy.sh
+# Where to deploy (host, path, URL) lives here, never in the repo.
+# deploy.sh itself is versioned and reads it; see deploy.env.example.
+deploy.env
 
 CLAUDE.md
 
