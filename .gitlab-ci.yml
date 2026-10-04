@@ -1,0 +1,85 @@
+# Kronos pipeline: tests on every push; on the default branch, tests -> INT (automatic) -> PROD (manual).
+#
+# No host details live here (this repo is mirrored publicly). They come from CI/CD variables:
+#   DEPLOY_HOST, DEPLOY_PATH, DEPLOY_URL, DEPLOY_CONTAINER, DEPLOY_APP_PORT   (scoped per environment)
+#   SSH_KEY (File, protected), SSH_KNOWN_HOSTS                                (deploy access)
+#   TELEGRAM_BOT_TOKEN (masked, protected), TELEGRAM_CHAT_ID                  (failure notices)
+# Protected variables only exist on protected branches: INT/PROD deploys and notices happen on master only.
+
+default:
+  image: python:3.12-slim
+
+stages: [test, int, prod]
+
+variables:
+  PIP_ROOT_USER_ACTION: ignore
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+unit:
+  stage: test
+  script:
+    - pip install -q -r requirements-dev.txt
+    - pytest -q
+
+e2e:
+  stage: test
+  script:
+    - pip install -q -r requirements-dev.txt
+    - playwright install --with-deps chromium
+    - pytest tests/e2e -q -p no:cacheprovider
+
+.deploy:
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq openssh-client tar >/dev/null
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - test -n "$SSH_KEY" || { echo "NO SSH_KEY on ref $CI_COMMIT_REF_NAME (protected=$CI_COMMIT_REF_PROTECTED) - refusing to deploy"; exit 1; }
+    # A File variable pasted into a web form may lack the final newline, which OpenSSH rejects as "invalid format".
+    - tr -d '\r' < "$SSH_KEY" | sed -e '$a\' > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+    - printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - |
+      printf 'Host *\n  User root\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n  BatchMode yes\n' > ~/.ssh/config
+    - ssh "$DEPLOY_HOST" 'echo "preflight ok on $(hostname)"'
+    # INT runs beside PROD on the same host: own directory, port, container and image tag (the compose file hard-codes prod's).
+    - |
+      if [ "$DEPLOY_CONTAINER" != "kronos" ]; then
+        printf 'services:\n  kronos:\n    container_name: %s\n    image: %s:latest\n' "$DEPLOY_CONTAINER" "$DEPLOY_CONTAINER" > docker-compose.override.yml
+        echo "APP_PORT=$DEPLOY_APP_PORT" > .env
+      fi
+  script:
+    - DEPLOY_SKIP_TESTS=1 bash deploy.sh
+
+deploy-int:
+  extends: .deploy
+  stage: int
+  needs: [unit, e2e]
+  environment: int
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+deploy-prod:
+  extends: .deploy
+  stage: prod
+  needs: [deploy-int]
+  environment: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: manual
+
+# Runs after everything; only when something failed on the default branch.
+notify-failure:
+  stage: .post
+  image: alpine:3.20
+  when: on_failure
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: on_failure
+  script:
+    - apk add --no-cache curl >/dev/null
+    - test -n "$TELEGRAM_BOT_TOKEN" || { echo "NO TOKEN on ref $CI_COMMIT_REF_NAME - no message sent"; exit 1; }
+    - |
+      MSG="[CI] Pipeline FALLIDO en $CI_PROJECT_PATH ($CI_COMMIT_REF_NAME @ ${CI_COMMIT_SHORT_SHA})
+      $CI_PIPELINE_URL"
+      curl -sS --max-time 20 -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${MSG}" -o /tmp/tg.json
+    - |
+      grep -q '"ok":true' /tmp/tg.json && echo "telegram delivered, message_id=$(grep -o '"message_id":[0-9]*' /tmp/tg.json | cut -d: -f2)"
