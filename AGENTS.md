@@ -39,3 +39,30 @@ re-read whole files.
 After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
 <!-- graft:end -->
+
+## CI/CD
+
+This repo lives in the self-hosted GitLab (`origin`) and follows the homelab pipeline contract. The text of
+this section is the same in every GitLab repo; only "This repo" at the end differs.
+
+1. **Every push**: the test stage runs.
+2. **Default branch** (`master`; `main` in the portfolio): after the tests, **INT deploys by itself** at
+   `https://<app>-int.<domain>`, the same build as PROD with its own port and data volume, never real data.
+3. **PROD is a manual job, pressed by Miguel.** An agent never presses it and never deploys PROD from a shell
+   for a repo that has a pipeline. A local `deploy.sh` is for debugging INT or for an emergency, and only
+   after asking.
+
+Rules:
+
+- **No host details in the repo** (it may be mirrored publicly). Hosts, paths, URLs and keys are CI/CD variables
+  scoped `int` / `production`; locally they live in a git-ignored `deploy.env`, and the environment wins over the file.
+- **Secrets are never typed by an agent.** Miguel pastes them into GitLab (Settings > CI/CD > Variables).
+- **A failure on the default branch notifies Telegram.** A broken `.gitlab-ci.yml` fails with *no jobs* and notifies
+  nobody: lint it before pushing (`gl.sh lint`).
+- **Reading a pipeline**: the `gitlab-admin` skill (`gl.sh last`, `gl.sh pipelines <project>`, `gl.sh log <job>`),
+  with the read-only `claude-bot` token. A change is not done until its last pipeline is green **and** the host
+  confirms it (container healthy; PROD's `StartedAt` unchanged after an INT run).
+- **Trying a change without deploying**: push a temporary non-default branch. Only the tests run; delete it afterwards.
+- **Mirrors**: where a repo has a GitHub mirror, only the pipeline publishes there (its guard checks what goes out); never push to the `github` remote by hand.
+
+**This repo**: tests (unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it runs `ci/mirror-guard.sh` first: gitleaks plus the `MIRROR_DENYLIST` variable over what is published). Branch `master`.
