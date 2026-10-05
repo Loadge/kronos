@@ -1,0 +1,6 @@
+# Scripts and CI files run on Linux (containers, the CI runner): a Windows checkout must never
+# turn them into CRLF (a shell script with CRLF fails with "illegal option -").
+*.sh    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+Dockerfile text eol=lf
