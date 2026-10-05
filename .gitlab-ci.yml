@@ -48,24 +48,15 @@ deploy-prod:
   script:
     - DEPLOY_SKIP_TESTS=1 bash deploy.sh
 
-# Public mirror (GitHub is the public face; GitLab is the origin). It runs only after INT is green, and
-# only if ci/mirror-guard.sh passes: no secret (gitleaks) and none of MIRROR_DENYLIST in what is published.
+# Public mirror (GitHub is the public face; GitLab is the origin). The shared .mirror-github block (root/ci-templates)
+# in PUBLIC mode: it runs only after INT is green, and publishes only if gitleaks finds no secret and none of
+# MIRROR_DENYLIST is in what is published (diffs, messages, file names); it refuses when the denylist is empty.
 # A normal fast-forward push; a rewritten history needs a deliberate force by hand.
 mirror-github:
-  stage: mirror
-  image:
-    name: zricethezav/gitleaks:v8.30.1
-    entrypoint: [""]
-  variables:
-    GIT_DEPTH: "0"
+  extends: .mirror-github
   needs: [deploy-int]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-  script:
-    - test -n "$GITHUB_MIRROR_TOKEN" || { echo "NO GITHUB_MIRROR_TOKEN on ref $CI_COMMIT_REF_NAME - nothing published"; exit 1; }
-    - test -n "$GITHUB_MIRROR_REPO" || { echo "NO GITHUB_MIRROR_REPO - nothing published"; exit 1; }
-    - sh ci/mirror-guard.sh
-    - git push "https://x-access-token:${GITHUB_MIRROR_TOKEN}@github.com/${GITHUB_MIRROR_REPO}.git" "HEAD:refs/heads/${CI_DEFAULT_BRANCH}"
+  variables:
+    MIRROR_VISIBILITY: public
 
 notify-failure:
   extends: .notify-failure

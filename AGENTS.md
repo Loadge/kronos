@@ -65,4 +65,4 @@ Rules:
 - **Trying a change without deploying**: push a temporary non-default branch. Only the tests run; delete it afterwards.
 - **Mirrors**: where a repo has a GitHub mirror, only the pipeline publishes there (its guard checks what goes out); never push to the `github` remote by hand.
 
-**This repo**: tests (unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it runs `ci/mirror-guard.sh` first: gitleaks plus the `MIRROR_DENYLIST` variable over what is published). Branch `master`.
+**This repo**: tests (unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it uses the shared `.mirror-github` block in public mode: gitleaks plus the `MIRROR_DENYLIST` variable over what is published, and it refuses to run without that list). Branch `master`.
