@@ -34,7 +34,7 @@ Log a day in a few seconds, then get out of the way.
 - **Bulk logging** applies one non-work type across a whole date range in a single call
 - **Day templates** stored server-side — one click fills a recurring shift
 - **Public holiday import** by country and region, with a preview before anything is written
-  (via [Nager.Date](https://date.nager.at/))
+  (Spain from the official BOE list; other countries via [Nager.Date](https://date.nager.at/))
 - **Free-text notes** per day, searchable across all entries
 
 ### The numbers
@@ -242,7 +242,7 @@ Interactive docs at `/docs` once it's running.
 
 | | |
 |---|---|
-| `GET /api/holidays/countries` · `/subdivisions` | Lookups, proxied from Nager.Date |
+| `GET /api/holidays/countries` · `/subdivisions` | Lookups, proxied from Nager.Date (Spain's regions: the BOE table) |
 | `GET /api/holidays/preview` · `POST /api/holidays/import` | Preview, then commit |
 | `GET · POST /api/templates` · `DELETE /api/templates/{id}` | Day templates |
 

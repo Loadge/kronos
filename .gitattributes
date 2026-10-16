@@ -4,3 +4,5 @@
 *.yml   text eol=lf
 *.yaml  text eol=lf
 Dockerfile text eol=lf
+# Fixtures are real downloaded documents (BOE XML): kept byte-for-byte, never re-encoded.
+tests/fixtures/** -text

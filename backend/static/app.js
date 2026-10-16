@@ -1585,7 +1585,11 @@ function app() {
           'GET', `/api/holidays/preview?country=${c}&year=${this.holidayYear}`
             + (region ? `&region=${encodeURIComponent(region)}` : '')
         );
-      } catch { this.holidayPreview = []; }
+      } catch (e) {
+        // Say why (e.g. Spain's BOE list for this year isn't known yet), not just an empty calendar.
+        this.holidayPreview = [];
+        this.error = e.message;
+      }
     },
 
     async onHolidayCountryChange() {

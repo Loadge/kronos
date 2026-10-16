@@ -283,6 +283,39 @@ date-effective and the math is correct across a change.
 
 ---
 
+## Phase 27 — Spanish Holidays from the BOE (in INT, awaiting Miguel's check)
+
+Phase 14 took Spain from Nager.Date, which is wrong for every Spanish region: it leaves
+national holidays that fall on a Sunday on the Sunday (1-nov and 6-dic 2026, 15-ago 2027)
+instead of the Monday the regions move them to, and it misses each region's own choices
+(San José, Easter Monday, substitutions). Against the official list it differs in all 19
+regions (76 differences in 2026, 46 in 2027). Madrid 2027: the BOE has 19-mar and 16-ago,
+Nager 2-may and 15-ago.
+
+- Spain now comes from the yearly resolution of the Dirección General de Trabajo
+  ("relación de fiestas laborales"), fetched as XML from `boe.es/diario_boe/xml.php?id=<id>`.
+  `services/boe_holidays.py` parses its table (one row per date, one column per region;
+  `*`/`**` national, `***` the region's own, so only `***` shows as "regional"). Header
+  texts drift between years, so columns map to ISO codes by keyword, and any unreadable
+  table raises (→ 502) rather than returning partial data.
+- `BOE_RESOLUTIONS` maps year → BOE id (2026: `BOE-A-2025-21667`, 2027:
+  `BOE-A-2026-21254`). **Add the next year's id each October** when the BOE publishes it.
+  A Spanish year without one is a 404 with that explanation, never a fallback to Nager;
+  the Settings preview now shows that error instead of an empty calendar.
+- Without a region, Spain imports only the holidays all 19 regions share. Subdivisions
+  for ES are the 19 BOE columns. Every other country still uses Nager.Date.
+- Known limits: Canarias' island holidays and Arán's substitution live in the table's
+  footnotes and are not imported (log them by hand, like local fiestas).
+- Tests: the two real XML files are fixtures (`tests/fixtures/boe/`, kept byte-for-byte by
+  `.gitattributes`). ES-MD 2027 imports exactly its 12 official dates; the Spain API tests
+  make Nager raise, so routing Spain back to Nager fails 7 of them (checked by planting it).
+  19 new tests (345 total).
+- PROD data check (2026-10-16, read-only): PROD's 2026 holidays already match the BOE for
+  ES-MD (they had been fixed by hand); 1-may is stored as `vacation` and 12-jun / 19-jun are
+  holidays without a note — left for Miguel to decide.
+
+---
+
 ## Phase 24 — Half-Day Leave (planned)
 
 Vacation / sick / holiday / flex are whole-day only. Real leave is often a half-day
