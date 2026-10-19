@@ -160,6 +160,17 @@
           <span class="holiday-legend-item"><span class="holiday-swatch is-holiday"></span> to import</span>
           <span class="holiday-legend-item" x-show="holidayPreview.some(h => h.exists)"><span class="holiday-swatch is-logged"></span> already logged (skipped)</span>
         </div>
+        <ul class="holiday-list">
+          <template x-for="h in holidayListItems()" :key="h.date">
+            <li>
+              <span class="holiday-list-date" x-text="h.label"></span>
+              —
+              <span x-text="h.name"></span>
+              <span class="holiday-list-regional" x-show="h.regional">regional</span>
+              <span class="holiday-list-logged" x-show="h.exists">already logged</span>
+            </li>
+          </template>
+        </ul>
       </div>
     </template>
 

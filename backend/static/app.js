@@ -1649,6 +1649,19 @@ function app() {
       });
     },
 
+    // The previewed holidays as date-ordered rows for the list under the legend.
+    holidayListItems() {
+      return [...this.holidayPreview]
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+        .map(h => ({
+          date: h.date,
+          label: new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+          name: h.name,
+          regional: h.regional,
+          exists: h.exists,
+        }));
+    },
+
     async importHolidays() {
       const country = this.settingsForm.holiday_country;
       if (!country) { this.error = 'Pick a country first.'; return; }

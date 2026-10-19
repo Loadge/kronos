@@ -302,6 +302,8 @@ Nager 2-may and 15-ago.
   `BOE-A-2026-21254`). **Add the next year's id each October** when the BOE publishes it.
   A Spanish year without one is a 404 with that explanation, never a fallback to Nager;
   the Settings preview now shows that error instead of an empty calendar.
+- Under the preview's legend, the holidays are also listed one per line ("Thu, Jan 1 — Año
+  Nuevo", with a "regional" tag and "already logged" note), asked for by Miguel on INT.
 - Without a region, Spain imports only the holidays all 19 regions share. Subdivisions
   for ES are the 19 BOE columns. Every other country still uses Nager.Date.
 - Known limits: Canarias' island holidays and Arán's substitution live in the table's
