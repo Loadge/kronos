@@ -170,6 +170,8 @@ holidays for the current year as `holiday` entries in one click.
   `GET /api/holidays/preview` sharing the same filter logic as import. The import button
   reflects the count ("Import 3 holidays") and disables when nothing is left to import.
 - 12 new API tests (291 total); fetches are monkeypatched so tests never hit the network.
+- Superseded for Spain by Phase 27 (2026-10): Spanish holidays come from the BOE; see
+  `kronos_plan_archive.md`.
 
 ---
 
