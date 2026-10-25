@@ -349,6 +349,8 @@ kronos/
 ├── alembic/              # migrations + env.py
 ├── tests/                # unit · api · integration · e2e
 ├── docs/
+│   ├── BUILD_PHASES.md   # open phases (the roadmap)
+│   ├── BUILD_PHASES_ARCHIVE.md  # completed phases: what was decided and why
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
 ├── bin/                  # smoke.py (post-deploy checks) · kctl.py (disposable instance)
@@ -357,7 +359,6 @@ kronos/
 ├── docker-compose.yml
 ├── entrypoint.sh         # alembic upgrade head, then uvicorn
 ├── Makefile
-├── kronos_plan.md        # phase-by-phase history and roadmap
 └── pyproject.toml        # ruff + pytest config
 ```
 
@@ -368,7 +369,8 @@ scripted tour of a throwaway seeded database, never your real data.
 
 ## Roadmap
 
-Full phase-by-phase history in [`kronos_plan.md`](kronos_plan.md). Next up:
+Open phases in [`docs/BUILD_PHASES.md`](docs/BUILD_PHASES.md); completed ones, with the reasons
+behind them, in [`docs/BUILD_PHASES_ARCHIVE.md`](docs/BUILD_PHASES_ARCHIVE.md). Next up:
 
 - **Half-day leave** — 0.5-day granularity for vacation/sick/holiday/flex, charged
   proportionally against the target and the vacation budget
