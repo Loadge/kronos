@@ -128,7 +128,7 @@ Pipelines 218 and 233 (PROD from 233).
 ---
 
 ## Phase 24 — Partial-Day Leave
-Built 2026-10-27 on branch `phases-24-26`; not yet confirmed by Miguel or deployed.
+Confirmed by Miguel and deployed to PROD 2026-10-27.
 
 **Why.** Vacation / sick / holiday / flex were whole-day only, but real leave is often part of a
 day (a morning off, leaving at 15:00 sick). The plan said "half-day (0.5)"; during design Miguel
@@ -172,14 +172,14 @@ of the Phase 19 harness quirk (orphaned breaks under the test engine).
 **Known limits.** Partial days are whole-hour-agnostic but the slider steps in quarter hours; a
 fraction set through the API can be anything in (0, 1]. Holiday import is whole-day only.
 
-**Commits.** One commit for Phases 24–26 on branch `phases-24-26`. Phase numbers were kept out of the code on purpose (Miguel's rule: managerial
+**Commits.** `17c2cdb` Phases 24–26 together; pipeline 257 (INT and PROD). Phase numbers were kept out of the code on purpose (Miguel's rule: managerial
 detail belongs in `docs/`) — the 13 older "Phase N" comments in `app.js` / `styles.css` /
 templates predate that rule.
 
 ---
 
 ## Phase 25 — Time-Off Planner
-Built 2026-10-27 on branch `phases-24-26`; not yet confirmed by Miguel or deployed.
+Confirmed by Miguel and deployed to PROD 2026-10-27.
 
 **Why.** Kronos was retrospective. The planner pencils in vacation / holiday / flex before the
 days arrive and shows where the balance lands at Dec 31 and what the plan leaves of the vacation
@@ -221,12 +221,12 @@ checked on a real file.
 **Known limits.** Partial drafts only through the API. The ledger merges blocks by type *and* note,
 so two notes on adjacent days make two rows. No "commit all" — per block only, by Miguel's choice.
 
-**Commits.** One commit for Phases 24–26 on branch `phases-24-26`.
+**Commits.** `17c2cdb` Phases 24–26 together; pipeline 257 (INT and PROD).
 
 ---
 
 ## Phase 26 — Printable Timesheet / PDF Export
-Built 2026-10-27 on branch `phases-24-26`; not yet confirmed by Miguel or deployed.
+Confirmed by Miguel and deployed to PROD 2026-10-27.
 
 **Why.** A clean timesheet for records, an employer, or invoicing, without a PDF library: the
 browser's "Save as PDF" is the export.
@@ -268,7 +268,7 @@ printer on the page and checks a real PDF comes out.
 **Known limits.** No page numbers in the footer (CSS page counters aren't reliable in Chromium;
 the browser's own header/footer option adds them). Notes are printed as-is, one line per day.
 
-**Commits.** One commit for Phases 24–26 on branch `phases-24-26`.
+**Commits.** `17c2cdb` Phases 24–26 together; pipeline 257 (INT and PROD).
 
 ---
 

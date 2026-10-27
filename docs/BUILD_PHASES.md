@@ -23,16 +23,16 @@ it for the history of a decision, not by default). This file keeps only open and
 | 19 | CSV import | `01f4de5` |
 | 22 | Log tab UI overhaul | `0e9d347` |
 | 23 | Date-effective daily target | `31bd9ba` |
-| 24 | Partial-day leave (any hours, not just half days) | branch `phases-24-26` (not merged) |
-| 25 | Time-off planner (Plan tab, projection, ghost days) | branch `phases-24-26` (not merged) |
-| 26 | Printable timesheet (Days → PDF, profile settings) | branch `phases-24-26` (not merged) |
+| 24 | Partial-day leave (any hours, not just half days) | `17c2cdb` |
+| 25 | Time-off planner (Plan tab, projection, ghost days) | `17c2cdb` |
+| 26 | Printable timesheet (Days → PDF, profile settings) | `17c2cdb` |
 | 27 | Spanish holidays from the BOE (+ list under the preview) | `bfdffe1`, `a1c8bff` |
 
 ---
 
 ## Open phases
 
-Suggested order (2026-10-27, 24–26 built, pending confirmation): 29 next; 28 starts with its spike; 30 only if logging
+Suggested order (2026-10-27, 24–26 done): 29 next; 28 starts with its spike; 30 only if logging
 from the phone outside the LAN turns out to be common.
 
 ### Phase 28 — Log Without Typing (idea, spike first)
