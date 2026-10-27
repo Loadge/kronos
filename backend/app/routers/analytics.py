@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.config import TIMEZONE
 from app.database import get_session
-from app.models import DayType, WorkEntry
+from app.models import DayType, Plan, WorkEntry
 from app.schemas import (
     DashboardOut,
     MonthlyBreakdownRow,
@@ -84,19 +84,31 @@ def dashboard(
 
     cum_start = get_effective_cumulative_start(session, today)
 
+    # Vacation used this year, in days: partial days count their fraction.
     year_start = date(today.year, 1, 1)
-    vacation_days_used = (
+    vacation_days_used = round(
         session.scalar(
-            select(func.count())
-            .select_from(WorkEntry)
-            .where(
+            select(func.coalesce(func.sum(WorkEntry.fraction), 0.0)).where(
                 WorkEntry.date >= year_start,
                 WorkEntry.date <= today,
                 WorkEntry.day_type == DayType.VACATION,
             )
         )
-        or 0
+        or 0.0,
+        2,
     )
+
+    # Drafted time off after today, this year, on dates still free: the forecast uses
+    # it instead of assuming the whole remaining vacation budget will be taken.
+    year_end = date(today.year, 12, 31)
+    planned_days = 0.0
+    planned_flex_hours = 0.0
+    for plan in session.scalars(select(Plan).where(Plan.date > today, Plan.date <= year_end)):
+        if session.get(WorkEntry, plan.date):
+            continue
+        planned_days += plan.fraction
+        if plan.day_type == DayType.FLEX:
+            planned_flex_hours += schedule.for_date(plan.date) * plan.fraction
 
     return DashboardOut(
         today=today,
@@ -108,6 +120,8 @@ def dashboard(
         work_week_days=get_work_week_days(session),
         vacation_budget_days=get_vacation_budget_days(session),
         vacation_days_used=vacation_days_used,
+        planned_days_remaining=round(planned_days, 2),
+        planned_flex_hours=round(planned_flex_hours, 2),
     )
 
 

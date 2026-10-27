@@ -46,7 +46,7 @@ class TestWipeAllData:
     def test_wipe_empty_db_returns_zero(self, client):
         r = client.delete("/api/data")
         assert r.status_code == 200
-        assert r.json() == {"deleted_entries": 0}
+        assert r.json() == {"deleted_entries": 0, "deleted_plans": 0}
 
     def test_wipe_deletes_all_entries(self, client, work_body):
         # Seed a handful of entries.
@@ -56,7 +56,7 @@ class TestWipeAllData:
 
         r = client.delete("/api/data")
         assert r.status_code == 200
-        assert r.json() == {"deleted_entries": 3}
+        assert r.json() == {"deleted_entries": 3, "deleted_plans": 0}
         assert client.get("/api/entries").json() == []
 
     def test_wipe_cascades_breaks(self, client, work_body):
@@ -66,7 +66,7 @@ class TestWipeAllData:
 
         r = client.delete("/api/data")
         assert r.status_code == 200
-        assert r.json() == {"deleted_entries": 1}
+        assert r.json() == {"deleted_entries": 1, "deleted_plans": 0}
 
         # Re-creating the same date should succeed (PK is free again).
         assert client.post("/api/entries", json=work_body(date="2026-04-14")).status_code == 201
@@ -84,8 +84,8 @@ class TestWipeAllData:
         assert client.post("/api/entries", json=work_body()).status_code == 201
 
         first = client.delete("/api/data")
-        assert first.json() == {"deleted_entries": 1}
+        assert first.json() == {"deleted_entries": 1, "deleted_plans": 0}
 
         second = client.delete("/api/data")
         assert second.status_code == 200
-        assert second.json() == {"deleted_entries": 0}
+        assert second.json() == {"deleted_entries": 0, "deleted_plans": 0}

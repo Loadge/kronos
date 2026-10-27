@@ -10,7 +10,7 @@
       <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
     </label>
 
-    <!-- Phase 23: date-effective target. Collapsed by default — the common case is one
+    <!-- Date-effective target. Collapsed by default — the common case is one
          target, edited via the field above. Open this only if your contract changed. -->
     <details class="target-schedule">
       <summary>Advanced: my contracted hours changed over time</summary>
@@ -71,8 +71,8 @@
     <label>
       Vacation budget (days / year)
       <input type="number" x-model.number="settingsForm.vacation_budget_days"
-             min="0" max="365" step="1" required>
-      <small>Annual leave allowance. Kronos counts vacation days logged this calendar year and shows remaining days on the Dashboard.</small>
+             min="0" max="365" step="0.5" required>
+      <small>Annual leave allowance, in half days if your contract has them (22.5). Kronos counts vacation days logged this calendar year — partial days by their share — and shows remaining days on the Dashboard.</small>
     </label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
       <label>
@@ -86,6 +86,24 @@
         <small>Pre-filled in the Log form for new work entries.</small>
       </label>
     </div>
+
+    <!-- Profile: printed at the top of the timesheet (Days → PDF). All optional. -->
+    <h3 class="settings-subhead">Profile</h3>
+    <p class="muted settings-subhead-note">Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p>
+    <div class="profile-grid">
+      <label>
+        Name
+        <input type="text" x-model="settingsForm.profile_name" maxlength="120" placeholder="Your name" autocomplete="name">
+      </label>
+      <label>
+        Employer / client
+        <input type="text" x-model="settingsForm.profile_employer" maxlength="120" placeholder="Company">
+      </label>
+    </div>
+    <label>
+      Extra line
+      <input type="text" x-model="settingsForm.profile_extra" maxlength="160" placeholder="Employee nº, team, contract…">
+    </label>
     <button type="submit" class="btn-action">Save settings</button>
   </form>
 

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from app.models import WorkEntry
 from app.schemas import BreakOut, EntryOut
-from app.services.computations import DailyTargetSchedule, daily_net_hours, daily_target_for
+from app.services.computations import (
+    DailyTargetSchedule,
+    daily_net_hours,
+    daily_target_for,
+    leave_hours_for,
+)
 
 
 def entry_to_out(entry: WorkEntry, daily_target: float | DailyTargetSchedule) -> EntryOut:
@@ -14,6 +19,8 @@ def entry_to_out(entry: WorkEntry, daily_target: float | DailyTargetSchedule) ->
     return EntryOut(
         date=entry.date,
         day_type=entry.day_type,
+        fraction=entry.fraction,
+        leave_hours=leave_hours_for(entry, daily_target),
         start_time=entry.start_time,
         end_time=entry.end_time,
         notes=entry.notes,

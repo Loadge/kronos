@@ -26,6 +26,10 @@ DEFAULT_END_TIME = "default_end_time"
 HOLIDAY_COUNTRY = "holiday_country"
 HOLIDAY_REGION = "holiday_region"
 DASHBOARD_LAYOUT = "dashboard_layout"
+# Profile: who the printable timesheet is for. All optional free text.
+PROFILE_NAME = "profile_name"
+PROFILE_EMPLOYER = "profile_employer"
+PROFILE_EXTRA = "profile_extra"
 
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 _DEFAULT_START_TIME = "09:00"
@@ -136,12 +140,15 @@ def set_work_week_days(session: Session, days: list[int]) -> None:
     _set(session, WORK_WEEK_DAYS, ",".join(str(d) for d in sorted(days)))
 
 
-def get_vacation_budget_days(session: Session) -> int:
-    return int(_get(session, VACATION_BUDGET_DAYS, "0"))
+def get_vacation_budget_days(session: Session) -> float:
+    # Stored as text; "22" (whole budgets) and "22.5" both read back as a float.
+    return float(_get(session, VACATION_BUDGET_DAYS, "0"))
 
 
-def set_vacation_budget_days(session: Session, days: int) -> None:
-    _set(session, VACATION_BUDGET_DAYS, str(days))
+def set_vacation_budget_days(session: Session, days: float) -> None:
+    # Keep whole budgets as "22" rather than "22.0" so the stored value stays tidy.
+    value = int(days) if float(days).is_integer() else days
+    _set(session, VACATION_BUDGET_DAYS, str(value))
 
 
 def get_default_start_time(session: Session) -> str:
@@ -174,6 +181,19 @@ def get_holiday_region(session: Session) -> str:
 
 def set_holiday_region(session: Session, value: str) -> None:
     _set(session, HOLIDAY_REGION, value)
+
+
+def get_profile(session: Session) -> dict[str, str]:
+    return {
+        "profile_name": _get(session, PROFILE_NAME, ""),
+        "profile_employer": _get(session, PROFILE_EMPLOYER, ""),
+        "profile_extra": _get(session, PROFILE_EXTRA, ""),
+    }
+
+
+def set_profile_field(session: Session, key: str, value: str) -> None:
+    assert key in (PROFILE_NAME, PROFILE_EMPLOYER, PROFILE_EXTRA)
+    _set(session, key, value.strip())
 
 
 def get_dashboard_layout(session: Session) -> dict[str, list[str]]:

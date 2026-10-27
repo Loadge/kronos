@@ -23,7 +23,7 @@ function app() {
     // ---------- dashboard -----------------------------------------------
     dashboard: null,
 
-    // ---------- streaks & milestones (Phase 18) --------------------------
+    // ---------- streaks & milestones -------------------------------------
     streakStats: null,
     MILESTONES: [30, 100, 365],
 
@@ -37,7 +37,9 @@ function app() {
     _dashboardSortables: [],
 
     // ---------- log form ------------------------------------------------
-    form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [] },
+    // leave_hours: hours of leave on a non-work day, null for work days.
+    // Stored on the server as a fraction of that date's target (see formFraction()).
+    form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [], leave_hours: null },
     editingDate: null,
 
     // ---------- log calendar --------------------------------------------
@@ -46,6 +48,21 @@ function app() {
 
     // ---------- week view -----------------------------------------------
     weekStart: '', // ISO date of the Monday of the displayed week; set in init()
+
+    // ---------- time-off planner ----------------------------------------
+    plans: [],            // every draft (all years); the Plan tab filters by planYear
+    projection: null,     // /api/plans/projection for planYear
+    planYear: new Date().getFullYear(),
+    planMonth: new Date().getMonth(),      // the working month shown large
+    planType: 'vacation',                  // what a click / drag drafts
+    planNote: '',                          // note attached to new drafts
+    planMode: localStorage.getItem('k-plan-mode') || 'on_target',  // 'on_target' | 'at_pace'
+    planDrag: { anchor: null, current: null, dragging: false, startX: 0, startY: 0 },
+    planBusy: false,
+    planNoteEdit: null,   // { key, text } while a ledger note is being edited
+
+    // ---------- printable timesheet (Days → PDF) -------------------------
+    pdfModal: { open: false, preset: 'this_month', from: '', to: '', detail: 'full', hours: 'dec', theme: 'light', notes: false, sign: false },
 
     // ---------- days list -----------------------------------------------
     entries: [],
@@ -63,10 +80,10 @@ function app() {
     analyticsYear: String(new Date().getFullYear()),
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [] },
-    _scheduleKeySeq: 0,  // stable keys for the date-effective target rows (Phase 23)
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '' },
+    _scheduleKeySeq: 0,  // stable keys for the date-effective target rows
 
-    // ---------- public holidays (Phase 14) ------------------------------
+    // ---------- public holidays ------------------------------------------
     holidayCountries: [],
     holidaySubdivisions: [],
     holidayPreview: [],
@@ -118,7 +135,7 @@ function app() {
       // Apply persisted theme before first render
       document.documentElement.setAttribute('data-theme', this.theme);
 
-      const TABS = ['dashboard', 'week', 'log', 'days', 'analytics', 'settings'];
+      const TABS = ['dashboard', 'plan', 'week', 'log', 'days', 'analytics', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
 
@@ -152,6 +169,7 @@ function app() {
         if (inInput || e.ctrlKey || e.altKey || e.metaKey) return;
 
         switch (e.key) {
+          case 'p': case 'P': e.preventDefault(); this.go('plan');      break;
           case 'w': case 'W': e.preventDefault(); this.go('week');      break;
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
           case 'd': case 'D': e.preventDefault(); this.go('days');      break;
@@ -189,6 +207,7 @@ function app() {
       this.error = null;
       this.notesQuery = '';
       if (t === 'dashboard') { await this.loadDashboard(); this.$nextTick(() => this.initDashboardSortables()); }
+      else if (t === 'plan') await this.loadPlan();
       else if (t === 'week') { this.ensureWeekStart(); await this.loadDays(); }
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
@@ -333,13 +352,318 @@ function app() {
     },
 
     // =====================================================================
+    // printable timesheet
+    // =====================================================================
+    openPdfModal() {
+      // Remembered choices, except the theme: light prints best, so it is the default every
+      // time; dark is a per-report decision.
+      const saved = JSON.parse(localStorage.getItem('k-pdf-options') || '{}');
+      this.pdfModal = { ...this.pdfModal, ...saved, theme: 'light', open: true };
+      if (!this.pdfModal.from) { const { from, to } = this.pdfPresets()[0]; this.pdfModal.from = from; this.pdfModal.to = to; }
+    },
+    // Presets end today when the period is still running — an employer doesn't want
+    // sixty blank rows — and cover whole past periods.
+    pdfPresets() {
+      const today = new Date(); const iso = this.todayIso();
+      const y = today.getFullYear(), m = today.getMonth();
+      const first = (yy, mm) => `${yy}-${String(mm + 1).padStart(2, '0')}-01`;
+      const last = (yy, mm) => this._dateIso(new Date(yy, mm + 1, 0));
+      const pm = m === 0 ? [y - 1, 11] : [y, m - 1];
+      const monthName = (yy, mm) => new Date(yy, mm, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      return [
+        { id: 'this_month', label: 'This month', hint: `${monthName(y, m)}, up to today`, from: first(y, m), to: iso },
+        { id: 'last_month', label: 'Last month', hint: monthName(...pm), from: first(...pm), to: last(...pm) },
+        { id: 'this_year', label: 'This year', hint: `${y}, up to today`, from: `${y}-01-01`, to: iso },
+        { id: 'last_year', label: 'Last year', hint: String(y - 1), from: `${y - 1}-01-01`, to: `${y - 1}-12-31` },
+        { id: 'custom', label: 'Custom range', hint: '', from: '', to: '' },
+      ];
+    },
+    timesheetUrl() {
+      const o = this.pdfModal;
+      const preset = this.pdfPresets().find(p => p.id === o.preset);
+      const from = o.preset === 'custom' ? o.from : preset.from;
+      const to = o.preset === 'custom' ? o.to : preset.to;
+      const q = new URLSearchParams({ from, to, detail: o.detail, hours: o.hours, theme: o.theme });
+      if (o.notes) q.set('notes', '1');
+      if (o.sign) q.set('sign', '1');
+      return `/timesheet?${q}`;
+    },
+    openTimesheet() {
+      const o = this.pdfModal;
+      if (o.preset === 'custom' && (!o.from || !o.to || o.to < o.from)) { this.showToast('Pick a valid date range', 'deficit'); return; }
+      const { open, ...remember } = o;
+      localStorage.setItem('k-pdf-options', JSON.stringify(remember));
+      window.open(this.timesheetUrl(), '_blank', 'noopener');
+      this.pdfModal.open = false;
+    },
+
+    // =====================================================================
+    // time-off planner
+    // =====================================================================
+    async loadPlan() {
+      try {
+        const [projection] = await Promise.all([
+          this.api('GET', `/api/plans/projection?year=${this.planYear}`),
+          this.loadDays(),  // entries + every draft, for the year strip and the month
+        ]);
+        this.projection = projection;
+      } catch (e) { this.error = e.message; }
+    },
+    async _refreshPlan() {
+      // After a change: drafts + projection, and the dashboard's forecast inputs.
+      await this.loadPlan();
+      this.loadDashboard();
+    },
+    setPlanYear(y, month = null) {
+      this.planYear = y;
+      const now = new Date();
+      this.planMonth = month ?? (y === now.getFullYear() ? now.getMonth() : 0);
+      this.loadPlan();
+    },
+    setPlanMode(mode) {
+      this.planMode = mode;
+      localStorage.setItem('k-plan-mode', mode);
+    },
+    planYearEndBalance() {
+      if (!this.projection) return null;
+      return this.planMode === 'at_pace' ? this.projection.at_pace : this.projection.on_target;
+    },
+    planYearDrafts() {
+      return this.plans.filter(p => p.date.startsWith(String(this.planYear)));
+    },
+
+    // ── year strip: twelve mini months, click one to work on it ──────────
+    planYearStrip() {
+      const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const entryMap = {};
+      for (const e of this.entries) if (e.date.startsWith(String(this.planYear))) entryMap[e.date] = e;
+      const drafts = this.draftMap();
+      const todayStr = this.todayIso();
+      const out = [];
+      for (let mo = 0; mo < 12; mo++) {
+        const offset = (new Date(this.planYear, mo, 1).getDay() + 6) % 7;
+        const days = new Date(this.planYear, mo + 1, 0).getDate();
+        const cells = [];
+        for (let i = 0; i < offset; i++) cells.push({ key: `p${i}`, pad: true });
+        for (let d = 1; d <= days; d++) {
+          const iso = `${this.planYear}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const entry = entryMap[iso] || null;
+          const dow = (offset + d - 1) % 7;
+          cells.push({ key: iso, pad: false,
+            cls: this.dayCellCls(entry, drafts[iso]) + (dow >= 5 ? ' hm-weekend' : '') + (iso === todayStr ? ' hm-today' : ''),
+            style: this.entryCellStyle(entry) });
+        }
+        out.push({ mo, label: MONTHS[mo], cells, active: mo === this.planMonth });
+      }
+      return out;
+    },
+
+    // ── the working month ────────────────────────────────────────────────
+    planMonthLabel() {
+      return new Date(this.planYear, this.planMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    },
+    planPrev() { if (this.planMonth === 0) this.setPlanYear(this.planYear - 1, 11); else this.planMonth--; },
+    planNext() { if (this.planMonth === 11) this.setPlanYear(this.planYear + 1, 0); else this.planMonth++; },
+    planCalDays() {
+      const year = this.planYear, month = this.planMonth;
+      const todayStr = this.todayIso();
+      const entryMap = {};
+      for (const e of this.entries) entryMap[e.date] = e;
+      const drafts = this.draftMap();
+      const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const cells = [];
+      for (let i = 0; i < firstDow; i++) cells.push({ padded: true, key: `ppad-${i}` });
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const entry = entryMap[iso] || null;
+        const draft = entry ? null : (drafts[iso] || null);
+        const dow = new Date(year, month, d).getDay();
+        // Logged days and the past can't be drafted; clicking them opens the Log tab.
+        const opensLog = !!entry || iso < todayStr;
+        cells.push({ padded: false, key: iso, date: iso, day: d, entry, draft, opensLog,
+          cls: this.dayCellCls(entry, draft), style: this.entryCellStyle(entry),
+          isToday: iso === todayStr, weekend: dow === 0 || dow === 6, past: iso < todayStr,
+          title: entry ? `${this.pillLabel(entry)} — logged · open in Log` : opensLog ? 'open in Log'
+            : draft ? `${draft.day_type} · drafted${draft.notes ? ' · ' + draft.notes : ''}` : '' });
+      }
+      return cells;
+    },
+    _planWorkWeek() {
+      return new Set(this.dashboard?.work_week_days ?? this.settingsForm.work_week_days ?? [0,1,2,3,4]);
+    },
+    _isWorkWeekDay(iso) { return this._planWorkWeek().has((new Date(iso + 'T12:00:00').getDay() + 6) % 7); },
+    // Highlight only what a drag will draft: the range's work-week days.
+    planIsHighlighted(iso) {
+      const g = this.planDrag;
+      if (!iso || !g.dragging || !g.anchor || !g.current) return false;
+      return this._isWorkWeekDay(iso) && this._bulkRange(g.anchor, g.current).includes(iso);
+    },
+    planMousedown(event, cell) {
+      if (!cell.date || cell.opensLog) return;  // those cells open the Log tab on click instead
+      this.planDrag = { anchor: cell.date, current: cell.date, dragging: false, startX: event.clientX, startY: event.clientY };
+    },
+    planGridMove(event) {
+      const g = this.planDrag;
+      if (!g.anchor) return;
+      if (Math.hypot(event.clientX - g.startX, event.clientY - g.startY) < 4) return;
+      const iso = event.target.closest('[data-pdate]')?.dataset.pdate;
+      if (!iso || iso === g.current) return;
+      g.dragging = true;
+      g.current = iso;
+    },
+    async planMouseup() {
+      const g = this.planDrag;
+      if (!g.anchor) return;
+      const { anchor, current, dragging } = g;
+      this.planDrag = { anchor: null, current: null, dragging: false, startX: 0, startY: 0 };
+      if (dragging) {
+        // A dragged range drafts its work-week days only (a click still takes any day).
+        const entryDates = new Set(this.entries.map(e => e.date));
+        const dates = this._bulkRange(anchor, current)
+          .filter(d => this._isWorkWeekDay(d) && !entryDates.has(d));
+        if (dates.length) await this.draftDates(dates);
+      } else {
+        const existing = this.draftMap()[anchor];
+        if (existing) await this.removeDraft([anchor]);
+        else await this.draftDates([anchor]);
+      }
+    },
+    async draftDates(dates) {
+      if (this.planBusy) return;
+      this.planBusy = true;
+      try {
+        const body = { dates, day_type: this.planType, notes: this.planNote.trim() || null };
+        const r = await this.api('POST', '/api/plans', body);
+        await this._refreshPlan();
+        const n = r.drafted.length + r.replaced.length;
+        this.showToast(`${n} day${n !== 1 ? 's' : ''} drafted as ${this.planType}`, 'neutral');
+      } catch (e) { this.error = e.message; }
+      finally { this.planBusy = false; }
+    },
+    async removeDraft(dates) {
+      if (this.planBusy) return;
+      this.planBusy = true;
+      try {
+        for (const d of dates) await this.api('DELETE', `/api/plans/${d}`);
+        await this._refreshPlan();
+      } catch (e) { this.error = e.message; }
+      finally { this.planBusy = false; }
+    },
+    async commitDraft(block) {
+      if (this.planBusy) return;
+      this.planBusy = true;
+      try {
+        const r = await this.api('POST', '/api/plans/commit', { dates: block.dates });
+        await this._refreshPlan();
+        const n = r.created.length, s = r.skipped.length;
+        this.showToast(s ? `${n} logged, ${s} already logged` : `${n} day${n !== 1 ? 's' : ''} logged as ${block.day_type}`, 'neutral');
+      } catch (e) { this.error = e.message; }
+      finally { this.planBusy = false; }
+    },
+    // A logged block in the ledger: delete its entries (same confirm as the Log tab).
+    async deleteLoggedBlock(block) {
+      const n = block.dates.length;
+      if (!confirm(`Delete ${n === 1 ? 'the entry for ' + block.label : n + ' logged days (' + block.label + ')'}?`)) return;
+      if (this.planBusy) return;
+      this.planBusy = true;
+      try {
+        for (const d of block.dates) await this.api('DELETE', `/api/entries/${d}`);
+        await this._refreshPlan();
+        this.showToast(`${n} day${n !== 1 ? 's' : ''} deleted`, 'neutral');
+      } catch (e) { this.error = e.message; }
+      finally { this.planBusy = false; }
+    },
+    // Inline note editing on a ledger block (applies to every day of the block).
+    startNoteEdit(block) {
+      this.planNoteEdit = { key: block.key, text: block.notes || '' };
+      this.$nextTick(() => document.querySelector('.plan-note-input')?.focus());
+    },
+    async saveNoteEdit(block) {
+      if (!this.planNoteEdit || this.planNoteEdit.key !== block.key) return;
+      const text = this.planNoteEdit.text.trim() || null;
+      this.planNoteEdit = null;
+      if ((block.notes || null) === text) return;
+      try {
+        for (const d of block.dates) await this.api('PUT', `/api/plans/${d}`, { notes: text });
+        await this.loadPlan();
+      } catch (e) { this.error = e.message; }
+    },
+
+    // ── ledger: drafts and logged time off of the year, oldest first ────
+    // Consecutive days of the same type (weekends in between allowed) form one block.
+    planLedger() {
+      const year = String(this.planYear);
+      const todayStr = this.todayIso();
+      const week = this._planWorkWeek();
+      const items = [];
+      for (const p of this.plans) {
+        if (!p.date.startsWith(year)) continue;
+        items.push({ date: p.date, day_type: p.day_type, fraction: p.fraction, leave_hours: p.leave_hours,
+          notes: p.notes, kind: p.exists ? 'logged-over' : (p.date <= todayStr ? 'overdue' : 'draft') });
+      }
+      for (const e of this.entries) {
+        if (!e.date.startsWith(year) || e.day_type === 'work' || e.date <= todayStr) continue;
+        items.push({ date: e.date, day_type: e.day_type, fraction: e.fraction, leave_hours: e.leave_hours, notes: e.notes, kind: 'logged' });
+      }
+      items.sort((a, b) => a.date < b.date ? -1 : 1);
+
+      const gapIsFree = (a, b) => {  // only non-scheduled days between a and b (exclusive)
+        const cur = new Date(a + 'T12:00:00'); cur.setDate(cur.getDate() + 1);
+        const end = new Date(b + 'T12:00:00');
+        while (cur < end) {
+          if (week.has((cur.getDay() + 6) % 7)) return false;
+          cur.setDate(cur.getDate() + 1);
+        }
+        return true;
+      };
+      const blocks = [];
+      for (const it of items) {
+        const last = blocks[blocks.length - 1];
+        if (last && last.kind === it.kind && last.day_type === it.day_type && (last.notes || null) === (it.notes || null)
+            && last.fraction === it.fraction && gapIsFree(last.dates[last.dates.length - 1], it.date)) {
+          last.dates.push(it.date);
+          last.days += it.fraction;
+          last.leave_hours += it.leave_hours;
+        } else {
+          blocks.push({ key: `${it.kind}-${it.date}`, kind: it.kind, day_type: it.day_type, fraction: it.fraction,
+            notes: it.notes, dates: [it.date], days: it.fraction, leave_hours: it.leave_hours });
+        }
+      }
+      for (const b of blocks) {
+        b.days = Math.round(b.days * 100) / 100;
+        b.leave_hours = Math.round(b.leave_hours * 100) / 100;
+        b.label = this._planBlockLabel(b.dates);
+        b.detail = this._planBlockDetail(b);
+      }
+      return blocks;
+    },
+    _planBlockLabel(dates) {
+      const fmt = (iso, opts) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', opts);
+      if (dates.length === 1) return fmt(dates[0], { weekday: 'short', month: 'short', day: 'numeric' });
+      const a = dates[0], b = dates[dates.length - 1];
+      const sameMonth = a.slice(0, 7) === b.slice(0, 7);
+      return `${fmt(a, { month: 'short', day: 'numeric' })} – ${fmt(b, sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' })}`;
+    },
+    _planBlockDetail(b) {
+      const parts = [];
+      if (b.dates.length > 1 || b.fraction < 1) parts.push(`${this.fmtDays(b.days)} day${b.days !== 1 ? 's' : ''}`);
+      if (b.fraction < 1) parts.push(`${this.fmtHours(b.leave_hours)} off`);
+      if (b.day_type === 'flex') parts.push(`−${this.fmtHours(b.leave_hours)} pool`);
+      return parts.join(' · ');
+    },
+    planBlockCount(kind) { return this.planLedger().filter(b => b.kind === kind).length; },
+
+    // =====================================================================
     // command palette
     // =====================================================================
     _COMMANDS: [
       { id: 'dashboard', label: 'Dashboard',     hint: '1'     },
+      { id: 'plan',      label: 'Plan time off', hint: 'P'     },
       { id: 'week',      label: 'Week',          hint: 'W'     },
       { id: 'log',       label: 'Log new entry', hint: '2 · L' },
       { id: 'days',      label: 'Days',          hint: '3'     },
+      { id: 'pdf',       label: 'PDF timesheet', hint: ''      },
       { id: 'analytics', label: 'Analytics',     hint: '4 · A' },
       { id: 'settings',  label: 'Settings',      hint: '5 · S' },
     ],
@@ -367,9 +691,10 @@ function app() {
       this.palette.selected = (this.palette.selected + dir + len) % len;
     },
 
-    paletteRun(cmd) {
-      this.go(cmd.id);
+    async paletteRun(cmd) {
       this.closePalette();
+      if (cmd.id === 'pdf') { await this.go('days'); this.openPdfModal(); return; }
+      this.go(cmd.id);
     },
 
     paletteConfirm() {
@@ -424,6 +749,64 @@ function app() {
       return 'On target';
     },
 
+    // 3 → "3h", 3.5 → "3.5h", 0.75 → "0.75h" — at most two decimals, no trailing zeros.
+    fmtHours(h) {
+      return `${Math.round((Number(h) || 0) * 100) / 100}h`;
+    },
+    // Day counts can be fractional (a 3h-off day is 0.62 work + 0.38 off).
+    fmtDays(n) {
+      return String(Math.round((Number(n) || 0) * 100) / 100);
+    },
+
+    // ---------- partial-day leave ----------------------------------------
+    // Target hours in force on `iso`, from the date-effective schedule loaded with the
+    // settings (falls back to the single current value before the settings arrive).
+    targetForDate(iso) {
+      const rows = this.settingsForm.daily_target_schedule || [];
+      let hours = null;
+      for (const r of rows) {
+        if (r.effective_from <= iso) hours = Number(r.hours);
+        else break;
+      }
+      if (hours === null && rows.length) hours = Number(rows[0].hours);
+      return hours ?? (this.settingsForm.daily_target_hours || 8);
+    },
+    isPartial(e) {
+      return !!e && e.day_type !== 'work' && e.fraction < 1;
+    },
+    // Pill text: "vacation" for a whole day, "vacation · 3h" for 3h of leave.
+    pillLabel(e) {
+      return this.isPartial(e) ? `${e.day_type} · ${this.fmtHours(e.leave_hours)}` : e.day_type;
+    },
+    // Calendar / heatmap / week cell colouring, shared by every calendar surface.
+    // A partial day is split diagonally: leave colour for the leave share, then the
+    // worked part's surplus colour (set inline, since the class colours are solid).
+    _workedCls(e) {
+      return e.surplus_hours > 0.01 ? 'hm-surplus' : e.surplus_hours < -0.01 ? 'hm-deficit' : 'hm-neutral';
+    },
+    entryCellCls(e) {
+      if (!e) return 'hm-empty';
+      if (e.day_type === 'work') return this._workedCls(e);
+      return this.isPartial(e) ? 'hm-partial' : `hm-${e.day_type}`;
+    },
+    // A drafted (planned, not yet real) day: dashed outline in the type colour.
+    draftCellCls(p) { return p ? `hm-ghost hm-ghost-${p.day_type}` : 'hm-empty'; },
+    draftMap() {
+      const m = {};
+      for (const p of this.plans) if (!p.exists) m[p.date] = p;
+      return m;
+    },
+    // Cell class for a date with a real entry, a draft, or nothing.
+    dayCellCls(entry, draft) { return entry ? this.entryCellCls(entry) : this.draftCellCls(draft); },
+    entryCellStyle(e) {
+      if (!this.isPartial(e)) return '';
+      const pct = Math.round(e.fraction * 100);
+      const worked = { 'hm-surplus': 'var(--k-surplus)', 'hm-deficit': 'var(--k-deficit)', 'hm-neutral': 'var(--k-muted)' }[this._workedCls(e)];
+      // Longhand on purpose: the `background` shorthand would reset the origin/repeat
+      // that .hm-partial sets to keep the gradient from tiling into a cell's border.
+      return `background-image: linear-gradient(135deg, var(--k-${e.day_type}) 0 ${pct}%, ${worked} ${pct}% 100%)`;
+    },
+
     minutesToLabel(m) {
       if (m === null || m === undefined || isNaN(m) || m < 0) return '';
       m = Math.floor(m);
@@ -472,7 +855,7 @@ function app() {
       if (!this._dashboardLayoutLoaded) this.loadDashboardLayout();
     },
 
-    // Phase 18 — streaks & milestones
+    // streaks & milestones
     async loadStreaks() {
       try {
         this.streakStats = await this.api('GET', '/api/streaks');
@@ -628,7 +1011,38 @@ function app() {
         end_time: this.settingsForm.default_end_time || '17:00',
         notes: '',
         breaks: [],
+        leave_hours: null,
       };
+    },
+
+    // Day type changed in the form: a non-work type starts as a whole day (slider at the
+    // date's target); the hours are kept when switching between types.
+    onDayTypeChange() {
+      if (this.form.day_type === 'work') { this.form.leave_hours = null; return; }
+      const t = this.formTarget();
+      if (this.form.leave_hours == null || this.form.leave_hours > t) this.form.leave_hours = t;
+    },
+    formTarget() { return this.targetForDate(this.form.date || this.todayIso()); },
+    // Slider top: the target rounded up to the next quarter hour, so a target that isn't
+    // a multiple of 0.25 (7.33h) still has a reachable "whole day" position.
+    leaveSliderMax() { return Math.ceil(this.formTarget() * 4 - 1e-9) / 4; },
+    // Fraction to send: leave hours over the date's target; at or above it, the whole day.
+    formFraction() {
+      if (this.form.day_type === 'work') return 1;
+      const t = this.formTarget();
+      const h = Number(this.form.leave_hours);
+      if (!(h > 0) || h >= t - 1e-9) return 1;
+      return Math.round((h / t) * 10000) / 10000;
+    },
+    formIsPartial() { return this.form.day_type !== 'work' && this.formFraction() < 1; },
+    // Whether the start/end/breaks fields apply: work days and the worked part of a
+    // partial leave day.
+    formHasTimes() { return this.form.day_type === 'work' || this.formIsPartial(); },
+    leaveSliderLabel() {
+      const t = this.formTarget();
+      if (!this.formIsPartial()) return `Full day (${this.fmtHours(t)})`;
+      const off = Math.round(this.formFraction() * t * 100) / 100;
+      return `${this.fmtHours(off)} off · ${this.fmtHours(t - off)} to work`;
     },
 
     // Check whether *dateStr* already has a saved entry.
@@ -658,6 +1072,7 @@ function app() {
       const selectedStr = this.form.date;
       const entryMap = {};
       for (const e of this.entries) entryMap[e.date] = e;
+      const drafts = this.draftMap();
       const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon-first
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const cells = [];
@@ -667,18 +1082,9 @@ function app() {
         const dd = String(d).padStart(2, '0');
         const dateStr = `${year}-${mm}-${dd}`;
         const entry = entryMap[dateStr] || null;
-        let cls = 'hm-empty';
-        if (entry) {
-          if (entry.day_type === 'work') {
-            cls = entry.surplus_hours > 0.01 ? 'hm-surplus'
-                : entry.surplus_hours < -0.01 ? 'hm-deficit'
-                : 'hm-neutral';
-          } else {
-            cls = `hm-${entry.day_type}`;
-          }
-        }
         cells.push({ padded: false, key: dateStr, date: dateStr, day: d,
-          cls, isToday: dateStr === todayStr, isSelected: dateStr === selectedStr });
+          cls: this.dayCellCls(entry, drafts[dateStr]), style: this.entryCellStyle(entry),
+          isToday: dateStr === todayStr, isSelected: dateStr === selectedStr });
       }
       return cells;
     },
@@ -696,9 +1102,16 @@ function app() {
     async calSelectDay(dateStr) {
       this.form.date = dateStr;
       await this.probeDate(dateStr);
+      // A drafted day with no entry yet: start the form from the draft.
+      const draft = this.draftMap()[dateStr];
+      if (!this.editingDate && draft) {
+        this.form.day_type = draft.day_type;
+        this.form.notes = draft.notes || '';
+        this.form.leave_hours = draft.leave_hours;
+      }
     },
 
-    // ── Week view (Phase 17) ────────────────────────────────────────────────────
+    // ── Week view ───────────────────────────────────────────────────────────────
     // All figures come straight from /api/entries — summing a week's entries
     // reproduces the backend's `summarize()`, so this stays in lock-step with the
     // Dashboard "This week" card without a dedicated endpoint.
@@ -741,20 +1154,17 @@ function app() {
       const todayStr = this.todayIso();
       const entryMap = {};
       for (const e of this.entries) entryMap[e.date] = e;
+      const drafts = this.draftMap();
       const base = new Date(this.weekStart + 'T00:00:00');
       const days = [];
       for (let i = 0; i < 7; i++) {
         const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
         const iso = this._dateIso(d);
         const entry = entryMap[iso] || null;
-        let cls = 'hm-empty';
-        if (entry) {
-          cls = entry.day_type === 'work'
-            ? (entry.surplus_hours > 0.01 ? 'hm-surplus' : entry.surplus_hours < -0.01 ? 'hm-deficit' : 'hm-neutral')
-            : `hm-${entry.day_type}`;
-        }
+        const draft = entry ? null : (drafts[iso] || null);
         days.push({
-          iso, label: DOW[i], dayNum: d.getDate(), entry, cls,
+          iso, label: DOW[i], dayNum: d.getDate(), entry, draft,
+          cls: this.dayCellCls(entry, draft), style: this.entryCellStyle(entry),
           isToday: iso === todayStr, isWeekend: i >= 5, isFuture: iso > todayStr,
         });
       }
@@ -779,18 +1189,21 @@ function app() {
         net += entry.net_hours;
         target += entry.target_hours;
         surplus += entry.surplus_hours;
-        if (entry.day_type === 'work') workDays++; else offDays++;
+        // A partial leave day splits between the two counts.
+        const off = entry.day_type === 'work' ? 0 : entry.fraction;
+        workDays += 1 - off; offDays += off;
       }
       return {
         net: Math.round(net * 100) / 100,
         target: Math.round(target * 100) / 100,
         surplus: Math.round(surplus * 100) / 100,
-        work_days: workDays, non_work_days: offDays,
+        work_days: Math.round(workDays * 100) / 100, non_work_days: Math.round(offDays * 100) / 100,
       };
     },
 
     // Open a day in the Log tab — edit mode if it already has an entry, else new.
-    async weekSelectDay(iso) {
+    async weekSelectDay(iso) { await this.openDayInLog(iso); },
+    async openDayInLog(iso) {
       this.openNewEntry();
       this.form.date = iso;
       const d = new Date(iso + 'T00:00:00');
@@ -800,7 +1213,7 @@ function app() {
       await this.probeDate(iso);
     },
 
-    // ── Bulk log modal (Phase 11) ──────────────────────────────────────────────
+    // ── Bulk log modal ─────────────────────────────────────────────────────────
 
     openBulkModal() {
       const now = new Date();
@@ -840,13 +1253,9 @@ function app() {
         const entry = entryMap[dateStr] || null;
         const dow = new Date(year, month, d).getDay();
         const weekend = dow === 0 || dow === 6;
-        let cls = 'hm-empty';
-        if (entry) {
-          cls = entry.day_type === 'work'
-            ? (entry.surplus_hours > 0.01 ? 'hm-surplus' : entry.surplus_hours < -0.01 ? 'hm-deficit' : 'hm-neutral')
-            : `hm-${entry.day_type}`;
-        }
-        cells.push({ padded: false, key: dateStr, date: dateStr, day: d, cls, isToday: dateStr === todayStr, weekend });
+        cells.push({ padded: false, key: dateStr, date: dateStr, day: d,
+          cls: this.entryCellCls(entry), style: this.entryCellStyle(entry),
+          isToday: dateStr === todayStr, weekend });
       }
       return cells;
     },
@@ -944,14 +1353,30 @@ function app() {
     // or null when the form isn't complete enough to preview.
     logPreview() {
       const f = this.form;
-      if (f.day_type !== 'work' || !f.start_time || !f.end_time) return null;
+      if (!this.formHasTimes()) return null;
+      const netHours = this._formNetHours();
+      if (f.day_type === 'work' && netHours === null) return null;
+      return this._formNumbers(netHours ?? 0);
+    },
+
+    // Net hours from the form's times, or null while the span isn't usable yet.
+    _formNetHours() {
+      const f = this.form;
+      if (!f.start_time || !f.end_time) return null;
       const [sh, sm] = f.start_time.split(':').map(Number);
       const [eh, em] = f.end_time.split(':').map(Number);
       const totalMins = (eh * 60 + em) - (sh * 60 + sm);
       if (totalMins <= 0) return null;
       const breakMins = f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0);
-      const netHours = Math.round(Math.max(0, totalMins - breakMins) / 60 * 100) / 100;
-      const target = this.settingsForm.daily_target_hours || 8;
+      return Math.round(Math.max(0, totalMins - breakMins) / 60 * 100) / 100;
+    },
+    // net / target / surplus for the form, mirroring the server's daily_target_for:
+    // work and flex charge the whole target, other leave only the worked share.
+    _formNumbers(netHours) {
+      const t = this.formTarget();
+      const frac = this.formFraction();
+      const type = this.form.day_type;
+      const target = type === 'work' || type === 'flex' ? t : Math.round(t * (1 - frac) * 100) / 100;
       return {
         net_hours: netHours,
         target_hours: target,
@@ -971,6 +1396,7 @@ function app() {
         end_time: e.end_time || '17:00',
         notes: e.notes || '',
         breaks: (e.breaks || []).map(b => ({ break_minutes: b.break_minutes, start_time: b.start_time || '', end_time: b.end_time || '' })),
+        leave_hours: e.day_type === 'work' ? null : e.leave_hours,
       };
       this.tab = 'log';
       this.error = null;
@@ -1007,27 +1433,23 @@ function app() {
     // optimistic insertion before the server round-trip completes.
     _buildOptimisticEntry() {
       const f = this.form;
-      const isWork = f.day_type === 'work';
-      let netHours = 0;
-      if (isWork) {
-        const [sh, sm] = f.start_time.split(':').map(Number);
-        const [eh, em] = f.end_time.split(':').map(Number);
-        const totalMins = (eh * 60 + em) - (sh * 60 + sm);
-        const breakMins = f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0);
-        netHours = Math.round(Math.max(0, totalMins - breakMins) / 60 * 100) / 100;
-      }
-      const target = isWork ? (this.settingsForm.daily_target_hours || 8) : 0;
+      const hasTimes = this.formHasTimes();
+      const netHours = hasTimes ? (this._formNetHours() ?? 0) : 0;
+      const nums = this._formNumbers(netHours);
+      const frac = this.formFraction();
       return {
         date: f.date,
         day_type: f.day_type,
-        start_time: isWork ? f.start_time : null,
-        end_time: isWork ? f.end_time : null,
+        fraction: frac,
+        leave_hours: f.day_type === 'work' ? 0 : Math.round(frac * this.formTarget() * 100) / 100,
+        start_time: hasTimes ? (f.start_time || null) : null,
+        end_time: hasTimes ? (f.end_time || null) : null,
         notes: f.notes || null,
-        breaks: f.breaks.filter(b => Number(b.break_minutes) > 0).map(b => ({ break_minutes: Number(b.break_minutes), start_time: b.start_time || null, end_time: b.end_time || null })),
-        total_break_minutes: f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0),
-        net_hours: netHours,
-        target_hours: target,
-        surplus_hours: Math.round((netHours - target) * 100) / 100,
+        breaks: hasTimes ? f.breaks.filter(b => Number(b.break_minutes) > 0).map(b => ({ break_minutes: Number(b.break_minutes), start_time: b.start_time || null, end_time: b.end_time || null })) : [],
+        total_break_minutes: hasTimes ? f.breaks.reduce((s, b) => s + (Number(b.break_minutes) || 0), 0) : 0,
+        net_hours: nums.net_hours,
+        target_hours: nums.target_hours,
+        surplus_hours: nums.surplus_hours,
         _saving: true, // marker stripped once server confirms
       };
     },
@@ -1035,11 +1457,11 @@ function app() {
     async saveEntry() {
       this.saving = true;
       this.error = null;
-      const isWork = this.form.day_type === 'work';
-      const body = { day_type: this.form.day_type, notes: this.form.notes || null };
-      if (isWork) {
-        body.start_time = this.form.start_time;
-        body.end_time = this.form.end_time;
+      const body = { day_type: this.form.day_type, fraction: this.formFraction(), notes: this.form.notes || null };
+      if (this.formHasTimes()) {
+        // Work day, or the hours worked in the rest of a partial leave day (optional there).
+        body.start_time = this.form.start_time || null;
+        body.end_time = this.form.end_time || null;
         // Drop any break rows left empty rather than failing the >= 1 validation.
         body.breaks = this.form.breaks
           .filter(b => Number(b.break_minutes) > 0)
@@ -1086,6 +1508,13 @@ function app() {
         // Reload dashboard in background — no await, UI stays responsive
         this.loadDashboard();
 
+        // Logging a day you had drafted consumes the draft.
+        if (saved && this.plans.some(p => p.date === saved.date)) {
+          this.api('DELETE', `/api/plans/${saved.date}`).then(() => {
+            this.plans = this.plans.filter(p => p.date !== saved.date);
+          }).catch(() => {});
+        }
+
         // W5 ribbon
         if (saved) {
           const dow = new Date(saved.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
@@ -1119,7 +1548,11 @@ function app() {
     // =====================================================================
     async loadDays() {
       this.loading.days = true;
-      try { this.entries = await this.api('GET', '/api/entries'); }
+      try {
+        const [entries, plans] = await Promise.all([this.api('GET', '/api/entries'), this.api('GET', '/api/plans')]);
+        this.entries = entries;
+        this.plans = plans;
+      }
       catch (e) { this.error = e.message; }
       finally { this.loading.days = false; }
     },
@@ -1209,20 +1642,26 @@ function app() {
       }
 
       // 2. Vacation days still to take this year (only when a budget is set)
+      // Fractional: partial vacation days count their share. When time off has been
+      // drafted in the planner, the drafts replace the assumption that the whole
+      // remaining budget will be taken (and drafted flex drains the pool).
       const budget = this.dashboard.vacation_budget_days ?? 0;
       const used = this.dashboard.vacation_days_used ?? 0;
-      const vacationRemaining = budget > 0 ? Math.max(0, budget - used) : 0;
+      const planned = this.dashboard.planned_days_remaining ?? 0;
+      const plannedFlexHours = this.dashboard.planned_flex_hours ?? 0;
+      const vacationRemaining = planned > 0 ? 0
+        : budget > 0 ? Math.max(0, Math.round((budget - used) * 100) / 100) : 0;
 
       // 3. Surplus-banked days: each full daily-target of surplus = 1 day you
       //    can take off without falling below zero.
       const bankedDays = Math.max(0, Math.floor(surplus_hours / dailyTarget));
 
       // 4. Effective days you'll actually work
-      const adjustedWorkDays = Math.max(0, workDaysLeft - vacationRemaining - bankedDays);
+      const adjustedWorkDays = Math.max(0, Math.round((workDaysLeft - vacationRemaining - planned - bankedDays) * 100) / 100);
 
       const avgDaily = surplus_hours / work_days;
-      const projected = Math.round((surplus_hours + avgDaily * adjustedWorkDays) * 100) / 100;
-      return { projected, workDaysLeft, adjustedWorkDays, vacationRemaining, bankedDays };
+      const projected = Math.round((surplus_hours - plannedFlexHours + avgDaily * adjustedWorkDays) * 100) / 100;
+      return { projected, workDaysLeft, adjustedWorkDays, vacationRemaining, planned, bankedDays };
     },
 
     // Vacation budget status: used/remaining/pct for the current year.
@@ -1231,7 +1670,7 @@ function app() {
       const budget = this.dashboard.vacation_budget_days ?? 0;
       if (!budget) return null;
       const used = this.dashboard.vacation_days_used ?? 0;
-      const remaining = Math.max(budget - used, 0);
+      const remaining = Math.max(Math.round((budget - used) * 100) / 100, 0);
       const pct = Math.round((used / budget) * 100);
       return { budget, used, remaining, pct };
     },
@@ -1379,6 +1818,7 @@ function app() {
       for (const e of this.entries) {
         if (e.date.startsWith(String(year))) map[e.date] = e;
       }
+      const drafts = this.draftMap();
 
       const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -1422,7 +1862,7 @@ function app() {
 
       // Month label cells at the first column of each month
       for (let mo = 0; mo < 12; mo++) {
-        cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: monthStartCol[mo], cls: '', title: '', weekend: false });
+        cells.push({ key: `label-${mo}`, type: 'label', label: MONTH_NAMES[mo], row: 8, col: monthStartCol[mo], cls: '', style: '', title: '', weekend: false });
       }
 
       // Week number cells, one per non-gap column, below the month labels
@@ -1430,27 +1870,21 @@ function app() {
         for (let w = 0; w < weeksInMonth[mo]; w++) {
           const day = rawDays.find(d => d.month === mo && d.week === w);
           const col = monthStartCol[mo] + w;
-          cells.push({ key: `week-${col}`, type: 'week', label: this.isoWeekNumber(year, mo, day.dom), row: 9, col, cls: '', title: '', weekend: false });
+          cells.push({ key: `week-${col}`, type: 'week', label: this.isoWeekNumber(year, mo, day.dom), row: 9, col, cls: '', style: '', title: '', weekend: false });
         }
       }
 
       // Day cells
       for (const day of rawDays) {
         const entry = map[day.iso];
-        let cls;
-        if (!entry) {
-          cls = 'hm-empty';
-        } else if (entry.day_type === 'work') {
-          cls = entry.surplus_hours > 0.01 ? 'hm-surplus'
-              : entry.surplus_hours < -0.01 ? 'hm-deficit'
-              : 'hm-neutral';
-        } else {
-          cls = `hm-${entry.day_type}`;
-        }
+        const draft = entry ? null : drafts[day.iso];
+        const cls = this.dayCellCls(entry, draft);
+        const style = this.entryCellStyle(entry);
         const sign = entry && entry.surplus_hours > 0 ? '+' : '';
-        const title = entry ? `${day.iso} · ${entry.day_type} · ${sign}${entry.surplus_hours}h` : day.iso;
+        const title = entry ? `${day.iso} · ${this.pillLabel(entry)} · ${sign}${entry.surplus_hours}h`
+          : draft ? `${day.iso} · ${draft.day_type} · planned` : day.iso;
         const today = day.iso === this.todayIso();
-        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: monthStartCol[day.month] + day.week, cls, title, weekend: day.row >= 5, today });
+        cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: monthStartCol[day.month] + day.week, cls, style, title, weekend: day.row >= 5, today });
       }
 
       // Build CSS grid-template-columns string
@@ -1508,7 +1942,7 @@ function app() {
       } catch (e) { this.error = e.message; }
     },
 
-    // ---------- date-effective daily target (Phase 23) ------------------
+    // ---------- date-effective daily target ------------------------------
     _keyedSchedule(rows) {
       return (rows || []).map(r => ({
         _k: ++this._scheduleKeySeq,
@@ -1548,7 +1982,7 @@ function app() {
     },
 
     // =====================================================================
-    // public holidays (Phase 14)
+    // public holidays
     // =====================================================================
     // Country + region lists are proxied through the backend so the browser
     // never calls the external holiday API directly. Loaded lazily when the

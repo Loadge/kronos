@@ -21,6 +21,7 @@ class TestCsvExport:
             [
                 "date",
                 "day_type",
+                "fraction",
                 "start_time",
                 "end_time",
                 "total_break_minutes",

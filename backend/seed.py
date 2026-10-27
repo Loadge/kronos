@@ -22,7 +22,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.database import Base, SessionLocal, engine  # noqa: E402
-from app.models import Break, DayType, WorkEntry  # noqa: E402
+from app.models import Break, DayType, Plan, WorkEntry  # noqa: E402
 
 # Reproducible "realistic" seed — fixed seed so every fresh seed run looks the same.
 RNG = random.Random(42)
@@ -30,6 +30,13 @@ RNG = random.Random(42)
 
 def _is_in_any_range(d: date, ranges: list[tuple[date, date]]) -> bool:
     return any(a <= d <= b for a, b in ranges)
+
+
+def _weekday_on_or_before(d: date) -> date:
+    """Pull a Saturday/Sunday back to the Friday so anchored days are never skipped."""
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
 
 
 def _workday_times(d: date) -> tuple[str, str, list[int]]:
@@ -73,6 +80,25 @@ def build_entries(today: date | None = None) -> list[WorkEntry]:
     ]
     sick_days: list[date] = [today - timedelta(days=50), today - timedelta(days=14)]
     holidays: list[date] = [today - timedelta(days=78), today - timedelta(days=40)]
+    # Partial leave: the day's fraction that was leave, and the hours worked
+    # in the rest of it. Tuned for an 8h target: half a vacation day with its 4h
+    # worked, and a 2h sick leave (left at 15:00 after a 6h shift).
+    partial_days: dict[date, tuple[DayType, float, str, str, list[int]]] = {
+        _weekday_on_or_before(today - timedelta(days=33)): (
+            DayType.VACATION,
+            0.5,
+            "09:00",
+            "13:00",
+            [],
+        ),
+        _weekday_on_or_before(today - timedelta(days=9)): (
+            DayType.SICK,
+            0.25,
+            "08:30",
+            "15:00",
+            [30],
+        ),
+    }
 
     # Reset the RNG so every seed run produces identical data regardless of
     # how many times the function has been called in this process.
@@ -83,6 +109,16 @@ def build_entries(today: date | None = None) -> list[WorkEntry]:
     while d <= today:
         # Skip weekends by default (Saturday = 5, Sunday = 6)
         if d.weekday() >= 5:
+            d += timedelta(days=1)
+            continue
+
+        if d in partial_days:
+            day_type, fraction, start, end, breaks_min = partial_days[d]
+            entry = WorkEntry(
+                date=d, day_type=day_type.value, fraction=fraction, start_time=start, end_time=end
+            )
+            entry.breaks = [Break(break_minutes=m) for m in breaks_min]
+            entries.append(entry)
             d += timedelta(days=1)
             continue
 
@@ -113,6 +149,27 @@ def build_entries(today: date | None = None) -> list[WorkEntry]:
     return entries
 
 
+def build_plans(today: date | None = None) -> list[Plan]:
+    """A few drafted days ahead of *today* so the planner has something to show:
+    a long weekend of vacation in three weeks and a flex Friday in two."""
+    today = today or date.today()
+    plans: list[Plan] = []
+    monday = _weekday_on_or_before(today + timedelta(days=21))
+    monday -= timedelta(days=monday.weekday())  # back to that week's Monday
+    for i in range(3):
+        plans.append(
+            Plan(
+                date=monday + timedelta(days=i),
+                day_type=DayType.VACATION.value,
+                notes="long weekend",
+            )
+        )
+    friday = today + timedelta(days=14)
+    friday += timedelta(days=(4 - friday.weekday()) % 7)  # next Friday on/after
+    plans.append(Plan(date=friday, day_type=DayType.FLEX.value))
+    return plans
+
+
 def main() -> None:
     # Ensure tables exist (in case the user runs seed on a fresh volume before migrations).
     Base.metadata.create_all(engine)
@@ -124,8 +181,12 @@ def main() -> None:
             session.delete(e)
         session.flush()
 
+        for p in session.query(Plan).all():
+            session.delete(p)
         entries = build_entries()
+        plans = build_plans()
         session.add_all(entries)
+        session.add_all(plans)
         session.commit()
 
         work = sum(1 for e in entries if e.day_type == DayType.WORK.value)
@@ -141,7 +202,7 @@ def main() -> None:
     print(
         f"seeded {len(entries)} entries: "
         f"{work} work, {vac} vacation, {sick} sick, {hol} holiday "
-        f"({date_range})"
+        f"({date_range}); {len(plans)} planner drafts"
     )
 
 

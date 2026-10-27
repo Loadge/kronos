@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Plan mockup · P3 — Year strip + composer</title>
+<style>
+  :root {
+    --k-bg:#17140f; --k-surface:#1f1c16; --k-border:#3d3a33; --k-border-strong:#57524a;
+    --k-text:#ece6d7; --k-muted:#a49b87; --k-brass:#e0b341; --k-ink:#8ab0c4;
+    --k-surplus:#7db369; --k-deficit:#e07b63;
+    --k-work:#e0b341; --k-vacation:#8ab0c4; --k-sick:#d49b4a; --k-holiday:#516b77; --k-flex:#9b82c4;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--k-bg); color:var(--k-text);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .num { font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; }
+  h1,h2,h3 { font-variant:small-caps; letter-spacing:.06em; margin:0; }
+  .wrap { max-width:1200px; margin:0 auto; padding:0 1.5rem 3rem; }
+  /* header */
+  header.app { display:flex; align-items:center; gap:2rem; padding:1.1rem 0; border-bottom:1px solid var(--k-border); margin-bottom:1.6rem; }
+  .brand { font-variant:small-caps; font-weight:800; font-size:1.7rem; letter-spacing:.04em; }
+  nav { display:flex; gap:1.4rem; margin-left:auto; }
+  nav a { color:var(--k-muted); text-decoration:none; font-variant:small-caps; letter-spacing:.05em; font-size:1.02rem; padding-bottom:.35rem; }
+  nav a.active { color:var(--k-brass); border-bottom:2px solid var(--k-brass); }
+  /* cards */
+  .card { background:var(--k-surface); border:1px solid var(--k-border); border-radius:8px; padding:1.1rem 1.25rem; }
+  .muted { color:var(--k-muted); }
+  .surplus { color:var(--k-surplus); } .deficit { color:var(--k-deficit); }
+  /* pills */
+  .day-pill { display:inline-block; padding:.1rem .45rem; border-radius:2px; font-size:.65rem;
+              text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+  .day-pill.vacation { background:rgba(138,176,196,.18); border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .day-pill.holiday  { background:rgba(81,107,119,.28);  border:1px solid #7d98a5; color:#9db6c2; }
+  .day-pill.flex     { background:rgba(155,130,196,.18); border:1px solid var(--k-flex); color:var(--k-flex); }
+  .day-pill.ghost    { border-style:dashed; background:transparent; }
+  /* buttons */
+  .btn { border:1px solid var(--k-border-strong); background:transparent; color:var(--k-text);
+         border-radius:6px; padding:.4rem .9rem; font-size:.85rem; cursor:pointer; }
+  .btn.primary { background:var(--k-brass); border-color:var(--k-brass); color:var(--k-bg); font-weight:700; }
+  .btn.small { padding:.15rem .6rem; font-size:.75rem; border-radius:5px; }
+  .btn.commit { border-color:var(--k-surplus); color:var(--k-surplus); }
+  .btn.danger-ghost { border:none; color:var(--k-muted); font-size:.9rem; padding:.15rem .3rem; }
+  .type-btn { border-radius:999px; padding:.35rem 1rem; font-size:.85rem; cursor:pointer; background:transparent; }
+  .type-btn.vacation { border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .type-btn.holiday  { border:1px solid #7d98a5; color:#9db6c2; }
+  .type-btn.flex     { border:1px solid var(--k-flex); color:var(--k-flex); }
+  .type-btn.on { background:rgba(138,176,196,.18); box-shadow:0 0 0 1px var(--k-vacation); }
+  /* calendar */
+  .cal { }
+  .cal-title { text-align:center; font-weight:700; font-variant:small-caps; letter-spacing:.05em; margin-bottom:.5rem; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .dow { text-align:center; font-size:.68rem; color:var(--k-muted); font-variant:small-caps; }
+  .cd { aspect-ratio:1; border:1px solid var(--k-border); border-radius:4px; background:transparent;
+        display:flex; align-items:center; justify-content:center; font-size:.82rem; color:var(--k-text); position:relative; }
+  .cd.pad { border:none; }
+  .cd.we { color:var(--k-muted); opacity:.75; }
+  .cd.past-s { background:var(--k-surplus); border-color:transparent; color:var(--k-bg); }
+  .cd.past-d { background:var(--k-deficit); border-color:transparent; color:var(--k-bg); }
+  .cd.past-n { background:#6e675c; border-color:transparent; color:var(--k-bg); }
+  .cd.hol  { background:var(--k-holiday); border-color:transparent; color:var(--k-bg); }
+  .cd.today { box-shadow:0 0 0 2px var(--k-brass); }
+  /* ghost drafts on calendars */
+  .cd.g-vac { border:2px dashed var(--k-vacation); color:var(--k-vacation); background:rgba(138,176,196,.10); }
+  .cd.g-flex{ border:2px dashed var(--k-flex); color:var(--k-flex); background:rgba(155,130,196,.10); }
+  .cd.sel { box-shadow:0 0 0 2px var(--k-ink); }
+  .legend { display:flex; flex-wrap:wrap; gap:.9rem; font-size:.72rem; color:var(--k-muted); margin-top:.6rem; }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:.3rem; }
+  /* toggle */
+  .seg { display:inline-flex; border:1px solid var(--k-border-strong); border-radius:999px; overflow:hidden; font-size:.78rem; }
+  .seg span { padding:.25rem .8rem; cursor:pointer; color:var(--k-muted); }
+  .seg span.on { background:var(--k-brass); color:var(--k-bg); font-weight:700; }
+  .footer-note { margin-top:2.5rem; padding-top:1rem; border-top:1px dashed var(--k-border); color:var(--k-muted); font-size:.8rem; }
+</style></head>
+<body><div class="wrap">
+<header class="app">
+  <span class="brand">⏱ Kronos</span>
+  <nav>
+    <a>Dashboard</a><a class="active">Plan</a><a>Week</a><a>Log</a><a>Days</a><a>Analytics</a><a>Settings</a>
+  </nav>
+</header>
+
+<style>
+  .mini-t { font-size:.68rem; color:var(--k-muted); text-align:center; font-variant:small-caps; margin-bottom:.25rem; }
+  .mini-g { display:grid; grid-template-columns:repeat(7,9px); grid-auto-rows:9px; gap:2px; }
+  .mini-g i { border-radius:2px; background:transparent; border:1px solid var(--k-border); }
+  .mini-g i.we { border-color:rgba(61,58,51,.5); }
+  .mini-g i.past-s { background:var(--k-surplus); border-color:transparent; }
+  .mini-g i.past-d { background:var(--k-deficit); border-color:transparent; }
+  .mini-g i.past-n { background:#6e675c; border-color:transparent; }
+  .mini-g i.hol { background:var(--k-holiday); border-color:transparent; }
+  .mini-g i.today { box-shadow:0 0 0 1.5px var(--k-brass); }
+  .mini-g i.g-vac { border:1.5px dashed var(--k-vacation); background:rgba(138,176,196,.12); }
+  .mini-g i.g-flex { border:1.5px dashed var(--k-flex); background:rgba(155,130,196,.12); }
+  .chart { position:relative; height:130px; border-left:1px solid var(--k-border); border-bottom:1px solid var(--k-border); }
+  .chart svg { position:absolute; inset:0; width:100%; height:100%; }
+</style>
+<section>
+<div style="display:flex;align-items:baseline;gap:1rem;margin-bottom:1rem">
+  <h2>Plan</h2>
+  <span class="muted" style="font-size:.85rem">Jul – Dec 2026</span>
+  <span class="seg" style="margin-left:auto"><span>‹ 2026 H1</span><span class="on">2026 H2</span><span>2027 H1 ›</span></span>
+</div>
+
+<!-- year strip -->
+<div class="card" style="margin-bottom:1.3rem">
+  <div style="display:flex;gap:1.6rem;justify-content:space-between;overflow-x:auto"><div class="mini"><div class="mini-t">Jul</div><div class="mini-g"><i></i><i></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i></i><i></i></div></div><div class="mini"><div class="mini-t">Aug</div><div class="mini-g"><i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="mini"><div class="mini-t">Sep</div><div class="mini-g"><i></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-d"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i></i><i></i><i></i><i></i></div></div><div class="mini"><div class="mini-t">Oct</div><div class="mini-g"><i></i><i></i><i></i><i class="hol"></i><i class="hol"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-n"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="past-s"></i><i class="past-d"></i><i class="past-s"></i><i class="past-d"></i><i class="past-n"></i><i class="we"></i><i class="we"></i><i class="past-d"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="past-s"></i><i class="we"></i><i class="we"></i><i class="today"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i></i></div></div><div class="mini"><div class="mini-t">Nov</div><div class="mini-g"><i></i><i></i><i></i><i></i><i></i><i></i><i class="we"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="g-flex"></i><i class="we"></i><i class="we"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class=""></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="mini"><div class="mini-t">Dec</div><div class="mini-g"><i></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class=""></i><i class="hol"></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i><i class="we"></i><i class="we"></i><i class="g-vac"></i><i class="g-vac"></i><i class="g-vac"></i><i class=""></i><i class="hol"></i><i class="we"></i><i class="we"></i><i class="g-vac"></i><i class="g-vac"></i><i class="g-vac"></i><i class="g-vac"></i><i></i><i></i><i></i></div></div></div>
+  <div class="legend" style="margin-top:.8rem">
+    <span><span class="sw" style="background:var(--k-surplus)"></span>Logged</span>
+    <span><span class="sw" style="background:var(--k-holiday)"></span>Holiday (logged)</span>
+    <span><span class="sw" style="border:1.5px dashed var(--k-vacation)"></span>Draft vacation</span>
+    <span><span class="sw" style="border:1.5px dashed var(--k-flex)"></span>Draft flex</span>
+    <span><span class="sw" style="box-shadow:0 0 0 1.5px var(--k-brass)"></span>Today</span>
+  </div>
+</div>
+
+<!-- composer -->
+<div class="card" style="display:flex;align-items:center;gap:.9rem;margin-bottom:1.3rem;flex-wrap:wrap">
+  <strong style="font-variant:small-caps">Add time off</strong>
+  <button class="type-btn vacation on">Vacation</button>
+  <button class="type-btn holiday">Holiday</button>
+  <button class="type-btn flex">Flex</button>
+  <span class="muted">from</span><span class="num" style="border-bottom:1px solid var(--k-border-strong);padding:.15rem .4rem">2026-12-21</span>
+  <span class="muted">to</span><span class="num" style="border-bottom:1px solid var(--k-border-strong);padding:.15rem .4rem">2026-12-23</span>
+  <span class="muted" style="font-size:.8rem">(work days only: 3)</span>
+  <button class="btn primary" style="margin-left:auto">+ Draft</button>
+</div>
+
+<div style="display:grid;grid-template-columns:1.15fr .85fr;gap:1.4rem;align-items:start">
+  <!-- projection with chart -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.6rem">
+      <h3>Projected balance</h3>
+      <span class="seg"><span class="on">On target</span><span>At my pace</span></span>
+    </div>
+    <div class="chart">
+      <svg viewBox="0 0 400 130" preserveAspectRatio="none">
+        <path d="M0,95 L40,88 L80,92 L120,78 L160,70 L200,62" fill="none" stroke="#7db369" stroke-width="2"/>
+        <path d="M200,62 L240,62 L250,70 L290,70 L310,70 L330,70 L345,70 L360,70 L400,70"
+              fill="none" stroke="#7db369" stroke-width="2" stroke-dasharray="5 4" opacity=".8"/>
+        <circle cx="200" cy="62" r="3.5" fill="#e0b341"/>
+        <circle cx="250" cy="70" r="3" fill="#9b82c4"/>
+        <text x="204" y="54" fill="#a49b87" font-size="9">today +25.00h</text>
+        <text x="254" y="84" fill="#9b82c4" font-size="9">flex −8h</text>
+        <text x="344" y="62" fill="#7db369" font-size="10" font-weight="bold">+17.00h</text>
+      </svg>
+    </div>
+    <div class="muted" style="font-size:.78rem;margin-top:.5rem">
+      Solid: logged so far · dashed: projection — vacation/holiday drafts are neutral, flex drains, the other 38 work days land on target.
+    </div>
+    <hr style="border:none;border-top:1px solid var(--k-border);margin:.8rem 0">
+    <div style="display:flex;gap:2.2rem;font-size:.9rem">
+      <span>Dec 31: <strong class="num surplus">+17.00h</strong></span>
+      <span>🏖 after plan: <strong class="num">8 / 22.5</strong></span>
+      <span>pool drafted: <strong class="num" style="color:var(--k-flex)">−8h</strong></span>
+    </div>
+  </div>
+
+  <!-- drafts -->
+  <div class="card">
+    <h3 style="margin-bottom:.7rem">Drafts</h3>
+    <div style="display:flex;flex-direction:column;gap:.55rem;font-size:.9rem">
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="day-pill flex ghost">flex</span><span class="num">Fri, Nov 13</span>
+        <span style="margin-left:auto;display:flex;gap:.4rem"><button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="day-pill vacation ghost">vacation</span><span class="num">Dec 21 – 23</span><span class="muted" style="font-size:.78rem">3d</span>
+        <span style="margin-left:auto;display:flex;gap:.4rem"><button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="day-pill vacation ghost">vacation</span><span class="num">Dec 28 – 31</span><span class="muted" style="font-size:.78rem">4d</span>
+        <span style="margin-left:auto;display:flex;gap:.4rem"><button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button></span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<p class="footer-note"><strong>Mockup P3 — Year strip + composer</strong> — static, no behaviour. A half-year overview strip on top (the whole plan at a glance), a one-line composer for ranges, and the projection drawn as a chart continuing the real cumulative line.</p>
+</div></body></html>

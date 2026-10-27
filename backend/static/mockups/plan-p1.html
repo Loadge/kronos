@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Plan mockup · P1 — Calendar first</title>
+<style>
+  :root {
+    --k-bg:#17140f; --k-surface:#1f1c16; --k-border:#3d3a33; --k-border-strong:#57524a;
+    --k-text:#ece6d7; --k-muted:#a49b87; --k-brass:#e0b341; --k-ink:#8ab0c4;
+    --k-surplus:#7db369; --k-deficit:#e07b63;
+    --k-work:#e0b341; --k-vacation:#8ab0c4; --k-sick:#d49b4a; --k-holiday:#516b77; --k-flex:#9b82c4;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--k-bg); color:var(--k-text);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+  .num { font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; }
+  h1,h2,h3 { font-variant:small-caps; letter-spacing:.06em; margin:0; }
+  .wrap { max-width:1200px; margin:0 auto; padding:0 1.5rem 3rem; }
+  /* header */
+  header.app { display:flex; align-items:center; gap:2rem; padding:1.1rem 0; border-bottom:1px solid var(--k-border); margin-bottom:1.6rem; }
+  .brand { font-variant:small-caps; font-weight:800; font-size:1.7rem; letter-spacing:.04em; }
+  nav { display:flex; gap:1.4rem; margin-left:auto; }
+  nav a { color:var(--k-muted); text-decoration:none; font-variant:small-caps; letter-spacing:.05em; font-size:1.02rem; padding-bottom:.35rem; }
+  nav a.active { color:var(--k-brass); border-bottom:2px solid var(--k-brass); }
+  /* cards */
+  .card { background:var(--k-surface); border:1px solid var(--k-border); border-radius:8px; padding:1.1rem 1.25rem; }
+  .muted { color:var(--k-muted); }
+  .surplus { color:var(--k-surplus); } .deficit { color:var(--k-deficit); }
+  /* pills */
+  .day-pill { display:inline-block; padding:.1rem .45rem; border-radius:2px; font-size:.65rem;
+              text-transform:uppercase; letter-spacing:.07em; font-weight:600; }
+  .day-pill.vacation { background:rgba(138,176,196,.18); border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .day-pill.holiday  { background:rgba(81,107,119,.28);  border:1px solid #7d98a5; color:#9db6c2; }
+  .day-pill.flex     { background:rgba(155,130,196,.18); border:1px solid var(--k-flex); color:var(--k-flex); }
+  .day-pill.ghost    { border-style:dashed; background:transparent; }
+  /* buttons */
+  .btn { border:1px solid var(--k-border-strong); background:transparent; color:var(--k-text);
+         border-radius:6px; padding:.4rem .9rem; font-size:.85rem; cursor:pointer; }
+  .btn.primary { background:var(--k-brass); border-color:var(--k-brass); color:var(--k-bg); font-weight:700; }
+  .btn.small { padding:.15rem .6rem; font-size:.75rem; border-radius:5px; }
+  .btn.commit { border-color:var(--k-surplus); color:var(--k-surplus); }
+  .btn.danger-ghost { border:none; color:var(--k-muted); font-size:.9rem; padding:.15rem .3rem; }
+  .type-btn { border-radius:999px; padding:.35rem 1rem; font-size:.85rem; cursor:pointer; background:transparent; }
+  .type-btn.vacation { border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .type-btn.holiday  { border:1px solid #7d98a5; color:#9db6c2; }
+  .type-btn.flex     { border:1px solid var(--k-flex); color:var(--k-flex); }
+  .type-btn.on { background:rgba(138,176,196,.18); box-shadow:0 0 0 1px var(--k-vacation); }
+  /* calendar */
+  .cal { }
+  .cal-title { text-align:center; font-weight:700; font-variant:small-caps; letter-spacing:.05em; margin-bottom:.5rem; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .dow { text-align:center; font-size:.68rem; color:var(--k-muted); font-variant:small-caps; }
+  .cd { aspect-ratio:1; border:1px solid var(--k-border); border-radius:4px; background:transparent;
+        display:flex; align-items:center; justify-content:center; font-size:.82rem; color:var(--k-text); position:relative; }
+  .cd.pad { border:none; }
+  .cd.we { color:var(--k-muted); opacity:.75; }
+  .cd.past-s { background:var(--k-surplus); border-color:transparent; color:var(--k-bg); }
+  .cd.past-d { background:var(--k-deficit); border-color:transparent; color:var(--k-bg); }
+  .cd.past-n { background:#6e675c; border-color:transparent; color:var(--k-bg); }
+  .cd.hol  { background:var(--k-holiday); border-color:transparent; color:var(--k-bg); }
+  .cd.today { box-shadow:0 0 0 2px var(--k-brass); }
+  /* ghost drafts on calendars */
+  .cd.g-vac { border:2px dashed var(--k-vacation); color:var(--k-vacation); background:rgba(138,176,196,.10); }
+  .cd.g-flex{ border:2px dashed var(--k-flex); color:var(--k-flex); background:rgba(155,130,196,.10); }
+  .cd.sel { box-shadow:0 0 0 2px var(--k-ink); }
+  .legend { display:flex; flex-wrap:wrap; gap:.9rem; font-size:.72rem; color:var(--k-muted); margin-top:.6rem; }
+  .sw { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:.3rem; }
+  /* toggle */
+  .seg { display:inline-flex; border:1px solid var(--k-border-strong); border-radius:999px; overflow:hidden; font-size:.78rem; }
+  .seg span { padding:.25rem .8rem; cursor:pointer; color:var(--k-muted); }
+  .seg span.on { background:var(--k-brass); color:var(--k-bg); font-weight:700; }
+  .footer-note { margin-top:2.5rem; padding-top:1rem; border-top:1px dashed var(--k-border); color:var(--k-muted); font-size:.8rem; }
+</style></head>
+<body><div class="wrap">
+<header class="app">
+  <span class="brand">⏱ Kronos</span>
+  <nav>
+    <a>Dashboard</a><a class="active">Plan</a><a>Week</a><a>Log</a><a>Days</a><a>Analytics</a><a>Settings</a>
+  </nav>
+</header>
+
+<section>
+<h2 style="margin-bottom:1rem">Plan</h2>
+<div style="display:grid;grid-template-columns:1.25fr .9fr;gap:1.4rem;align-items:start">
+
+  <!-- left: two months + type bar -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem">
+      <button class="btn small">‹</button>
+      <span class="muted" style="font-size:.8rem">click to toggle · drag for a range</span>
+      <button class="btn small">›</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.3rem">
+      <div class="cal"><div class="cal-title">November 2026</div><div class="cal-grid"><div class="dow">Mo</div><div class="dow">Tu</div><div class="dow">We</div><div class="dow">Th</div><div class="dow">Fr</div><div class="dow">Sa</div><div class="dow">Su</div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd we">1</div><div class="cd">2</div><div class="cd">3</div><div class="cd">4</div><div class="cd">5</div><div class="cd">6</div><div class="cd we">7</div><div class="cd we">8</div><div class="cd">9</div><div class="cd">10</div><div class="cd">11</div><div class="cd">12</div><div class="cd g-flex">13</div><div class="cd we">14</div><div class="cd we">15</div><div class="cd">16</div><div class="cd">17</div><div class="cd">18</div><div class="cd">19</div><div class="cd">20</div><div class="cd we">21</div><div class="cd we">22</div><div class="cd">23</div><div class="cd">24</div><div class="cd">25</div><div class="cd">26</div><div class="cd">27</div><div class="cd we">28</div><div class="cd we">29</div><div class="cd">30</div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div></div></div>
+      <div class="cal"><div class="cal-title">December 2026</div><div class="cal-grid"><div class="dow">Mo</div><div class="dow">Tu</div><div class="dow">We</div><div class="dow">Th</div><div class="dow">Fr</div><div class="dow">Sa</div><div class="dow">Su</div><div class="cd pad"></div><div class="cd">1</div><div class="cd">2</div><div class="cd">3</div><div class="cd">4</div><div class="cd we">5</div><div class="cd we">6</div><div class="cd">7</div><div class="cd hol">8</div><div class="cd">9</div><div class="cd">10</div><div class="cd">11</div><div class="cd we">12</div><div class="cd we">13</div><div class="cd">14</div><div class="cd">15</div><div class="cd">16</div><div class="cd">17</div><div class="cd">18</div><div class="cd we">19</div><div class="cd we">20</div><div class="cd g-vac">21</div><div class="cd g-vac">22</div><div class="cd g-vac">23</div><div class="cd">24</div><div class="cd hol">25</div><div class="cd we">26</div><div class="cd we">27</div><div class="cd g-vac">28</div><div class="cd g-vac">29</div><div class="cd g-vac">30</div><div class="cd g-vac">31</div><div class="cd pad"></div><div class="cd pad"></div><div class="cd pad"></div></div></div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:1rem;align-items:center">
+      <span class="muted" style="font-size:.8rem">Draft selected as:</span>
+      <button class="type-btn vacation">Vacation</button>
+      <button class="type-btn holiday">Holiday</button>
+      <button class="type-btn flex">Flex</button>
+      <span class="muted" style="margin-left:auto;font-size:.8rem">0 days selected</span>
+    </div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--k-holiday)"></span>Logged holiday</span>
+      <span><span class="sw" style="border:2px dashed var(--k-vacation)"></span>Drafted vacation</span>
+      <span><span class="sw" style="border:2px dashed var(--k-flex)"></span>Drafted flex</span>
+      <span><span class="sw" style="border:1px solid var(--k-border)"></span>Free</span>
+    </div>
+  </div>
+
+  <!-- right: projection + drafts -->
+  <div style="display:flex;flex-direction:column;gap:1.4rem">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <h3>Balance at Dec 31</h3>
+        <span class="seg"><span class="on">On target</span><span>At my pace</span></span>
+      </div>
+      <div class="num surplus" style="font-size:2.5rem;font-weight:700;line-height:1.2">+17.00h</div>
+      <div class="muted" style="font-size:.85rem">
+        +25.00h today &nbsp;−&nbsp; 8h flex drafted &nbsp;·&nbsp; 38 work days left assumed on&nbsp;target
+      </div>
+      <hr style="border:none;border-top:1px solid var(--k-border);margin:.9rem 0">
+      <div style="display:flex;justify-content:space-between;font-size:.9rem">
+        <span>🏖 Vacation after this plan</span>
+        <span class="num"><strong>8</strong> / 22.5 left</span>
+      </div>
+      <div style="height:7px;border-radius:4px;background:var(--k-border);margin-top:.45rem;overflow:hidden">
+        <div style="height:100%;width:64%;background:linear-gradient(90deg,var(--k-surplus) 0 52%,var(--k-vacation) 52% 100%)"></div>
+      </div>
+      <div class="muted" style="font-size:.75rem;margin-top:.3rem">7.5 used · 7 drafted · 8 remaining</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:.7rem">Drafts <span class="muted" style="font-weight:400;font-size:.8rem">(8 days)</span></h3>
+      <div style="display:flex;flex-direction:column;gap:.55rem;font-size:.9rem">
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span class="day-pill flex ghost">flex</span>
+          <span class="num">Fri, Nov 13</span><span class="muted" style="font-size:.78rem">−8h from the pool</span>
+          <span style="margin-left:auto;display:flex;gap:.4rem">
+            <button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span class="day-pill vacation ghost">vacation</span>
+          <span class="num">Dec 21 – 23</span><span class="muted" style="font-size:.78rem">3 days · “pre-Christmas”</span>
+          <span style="margin-left:auto;display:flex;gap:.4rem">
+            <button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span class="day-pill vacation ghost">vacation</span>
+          <span class="num">Dec 28 – 31</span><span class="muted" style="font-size:.78rem">4 days</span>
+          <span style="margin-left:auto;display:flex;gap:.4rem">
+            <button class="btn small commit">Commit</button><button class="btn danger-ghost">✕</button>
+          </span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:.9rem">
+        <button class="btn primary">Commit all…</button>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<p class="footer-note"><strong>Mockup P1 — Calendar first</strong> — static, no behaviour. Two-pane: the calendar pair is the protagonist (bulk-modal interaction), projection and drafts on the right. Drafts grouped into consecutive blocks, committed per block or all at once.</p>
+</div></body></html>

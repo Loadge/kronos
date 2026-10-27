@@ -37,6 +37,7 @@
     </div>
     <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
       <a role="tab" :tabindex="tab==='dashboard' ? 0 : -1" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')" @keydown.enter.prevent="go('dashboard')" @keydown.space.prevent="go('dashboard')">Dashboard</a>
+      <a role="tab" :tabindex="tab==='plan' ? 0 : -1"      :aria-selected="tab==='plan'"      @click.prevent="go('plan')"      @keydown.enter.prevent="go('plan')"      @keydown.space.prevent="go('plan')">Plan</a>
       <a role="tab" :tabindex="tab==='week' ? 0 : -1"      :aria-selected="tab==='week'"      @click.prevent="go('week')"      @keydown.enter.prevent="go('week')"      @keydown.space.prevent="go('week')">Week</a>
       <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')">Log</a>
       <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')">Days</a>
@@ -47,6 +48,7 @@
       <div class="shortcut-wrap">
         <button class="shortcut-btn" @click="openPalette()" aria-label="Keyboard shortcuts">⌨</button>
         <div class="shortcut-tooltip" role="tooltip">
+          <div class="shortcut-row"><kbd>P</kbd><span>Plan</span></div>
           <div class="shortcut-row"><kbd>W</kbd><span>Week</span></div>
           <div class="shortcut-row"><kbd>L</kbd><span>Log</span></div>
           <div class="shortcut-row"><kbd>D</kbd><span>Days</span></div>
@@ -77,6 +79,7 @@
   </div>
 
   {% include "_tab_dashboard.html" %}
+  {% include "_tab_plan.html" %}
   {% include "_tab_week.html" %}
   {% include "_tab_log.html" %}
   {% include "_tab_days.html" %}

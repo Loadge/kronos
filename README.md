@@ -7,7 +7,7 @@ Single-user. No auth. One SQLite file. Runs as a Docker container behind your ow
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-326%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-521%20passing-brightgreen.svg)](#tests)
 
 ![Kronos dashboard and analytics](docs/demo.gif)
 
@@ -30,6 +30,9 @@ Log a day in a few seconds, then get out of the way.
 - **One row per date.** Every day is `work`, `vacation`, `sick`, `holiday`, or `flex`
 - **Work days** carry a start time, an end time, and any number of breaks — entered as a
   time range or as raw minutes
+- **Partial leave.** A leave day can cover only part of the day — 3h of vacation, a 2h
+  sick leave — with the hours worked in the rest of it logged on the same row. The Log tab
+  has a slider in hours; the rest of the app shows `vacation · 3h`
 - **Clock in / clock out** stamps the current time into the form, for logging as you go
 - **Bulk logging** applies one non-work type across a whole date range in a single call
 - **Day templates** stored server-side — one click fills a recurring shift
@@ -44,9 +47,18 @@ Log a day in a few seconds, then get out of the way.
 - **Date-effective daily target.** If your contract changed mid-year, the target is a timeline,
   not a single number: every day is measured against the target in force *on that date*, so
   cumulative totals spanning the change stay correct
-- **Non-work days zero out that day's target**, so period totals adjust on their own. `flex`
-  days are the exception — they still charge the target, draining the surplus you banked
-- **Vacation budget** tracking against an annual allowance
+- **Non-work days zero out that day's target**, so period totals adjust on their own. A
+  partial leave day zeroes only its leave share (3h off an 8h day leaves a 5h target for the
+  hours you worked). `flex` days are the exception — they still charge the whole target,
+  draining the surplus you banked
+- **Vacation budget** tracking against an annual allowance, in fractional days (a 3h
+  vacation on an 8h day uses 0.375 of it; budgets can be 22.5)
+- **Time-off planner.** Pencil in vacation, holidays and flex days on a calendar before they
+  happen and see where the balance lands at Dec 31 — *on target* (only leave moves it: flex
+  drains, vacation is neutral) or *at your pace* — and how much of the vacation budget the plan
+  leaves. Drafts don't touch the numbers until you commit them, block by block, with their notes.
+  They show as dashed ghost days on every calendar, and the dashboard forecast counts them
+  instead of assuming you'll take the whole remaining budget
 - **Analytics tab** — a year-at-a-glance heatmap first, then the cumulative trend chart,
   monthly and yearly breakdowns, average surplus per weekday, and records (longest day, best
   month, best/worst year)
@@ -56,17 +68,26 @@ Log a day in a few seconds, then get out of the way.
 - **Draggable dashboard** — reorder the summary cards, streak tiles, and forecast/quick-log
   blocks; the layout persists server-side, not in your browser
 - **Logging and on-target streaks**, with milestone toasts at 30 / 100 / 365 days
+- **Plan tab** — a year strip of twelve mini months picks the working month; click or drag to
+  draft, one ledger for drafts and the time off already logged ahead (commit, remove, delete,
+  or open a day in the Log tab from there; logged and past days on its calendar open in Log too)
 - **Week view** for the current week at a glance; **Log** tab driven by a calendar picker;
   **Days** tab for the full searchable history
 - **Command palette** (<kbd>.</kbd>), keyboard shortcuts, dark and light themes
 - **PWA-installable**, with a service worker for the app shell
 - **CSV import/export** and full JSON backup/restore
+- **Printable timesheet** (Days → **PDF**) — a month, a year, or any range as a clean A4 document:
+  every calendar day, hours as 7.50 or 7:30, *Compact* (hours only) or *Full* (target, Δ, running
+  Σ), optional notes column and signature lines, light or dark, your name and employer from
+  Settings → Profile. Month sections with subtotals when the range spans months; "not logged"
+  flags a past work day without an entry. The browser's *Save as PDF* is the PDF — no
+  server-side dependency
 
 ### Keyboard
 
 | Key | |
 |---|---|
-| <kbd>W</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>S</kbd> | Week · Log · Days · Analytics · Settings |
+| <kbd>P</kbd> <kbd>W</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>S</kbd> | Plan · Week · Log · Days · Analytics · Settings |
 | <kbd>.</kbd> | Command palette |
 | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Save the current form |
 | <kbd>Esc</kbd> | Dismiss / back out |
@@ -152,9 +173,10 @@ in the `settings` key-value table:
 | `cumulative_start_date` | `2025-01-01` | Where the all-time running total begins |
 | `reset_annually` | `false` | Auto-advance the cumulative start to Jan 1 each year |
 | `work_week_days` | Mon–Fri | Which weekdays count toward the schedule |
-| `vacation_budget_days` | `0` | Annual vacation allowance shown on the dashboard |
+| `vacation_budget_days` | `0` | Annual vacation allowance shown on the dashboard; halves allowed (`22.5`) |
 | `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Log tab |
 | `holiday_country` · `holiday_region` | *(none)* | Selection remembered for holiday import |
+| `profile_name` · `profile_employer` · `profile_extra` | *(empty)* | Printed in the timesheet header; blank lines are left out |
 | `dashboard_layout` | see below | Card/tile/block order for the drag-to-reorder groups |
 
 ```json
@@ -195,6 +217,11 @@ named volume.
 > Restore **wipes existing data first**. SQLite checkpoints the WAL on connection close; for a
 > tighter guarantee, stop the container before copying the file directly.
 
+Backups are **version 2** since partial leave: every entry carries its `fraction`. Version 1
+files still restore (their days are whole); an older Kronos refuses a version 2 file rather
+than silently flattening partial days. The CSV has a `fraction` column for the same reason —
+a CSV without it imports as whole days.
+
 ---
 
 ## API
@@ -205,8 +232,8 @@ Interactive docs at `/docs` once it's running.
 
 | | |
 |---|---|
-| `POST /api/entries` | Create a day (with breaks) |
-| `POST /api/entries/batch` | Apply one non-work type across many dates |
+| `POST /api/entries` | Create a day (with breaks; `fraction` < 1 for partial leave) |
+| `POST /api/entries/batch` | Apply one non-work type across many dates (optional `fraction`) |
 | `GET /api/entries` | List, optional `from`/`to` range |
 | `GET · PUT · DELETE /api/entries/{date}` | Read, full replace (atomic break-set swap), delete |
 
@@ -234,9 +261,19 @@ Interactive docs at `/docs` once it's running.
 | | |
 |---|---|
 | `GET /api/export.csv` · `/api/export.json` | Download entries |
+| `GET /timesheet?from&to&detail&hours&notes&sign&theme` | The printable timesheet (HTML, not JSON) — every switch is a query parameter, so a URL is a report |
 | `POST /api/import/csv` | Bulk import from a Kronos-format CSV |
-| `GET /api/backup` · `POST /api/restore` | Full JSON snapshot / restore |
+| `GET /api/backup` · `POST /api/restore` | Full JSON snapshot / restore (entries, settings, planner drafts) |
 | `DELETE /api/data` · `POST /api/data/seed` | Wipe / sample data (admin, testing) |
+
+**Time-off planner**
+
+| | |
+|---|---|
+| `GET /api/plans?year=` · `POST /api/plans` | Drafts; draft one leave type across dates (re-drafts, skips logged dates) |
+| `PUT · DELETE /api/plans/{date}` | Change a draft's type / share / note, or drop it |
+| `POST /api/plans/commit` | Turn drafts into real entries (an existing entry wins) |
+| `GET /api/plans/projection?year=` | Balance at Dec 31 on target and at pace, vacation left after the plan |
 
 **Holidays and templates**
 
@@ -259,19 +296,22 @@ make e2e              # Playwright end-to-end suite (see below)
 make check            # lint, then test, then e2e — what to run before a deploy
 ```
 
-**326 passing**, across four suites:
+**521 passing**, across four suites:
 
 | Suite | |
 |---|---|
-| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service |
-| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config |
+| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting |
+| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV |
 | **Integration** | Full CRUD flows, dashboard recalculation after state changes, cross-month weeks, export/import round-trips |
-| **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity, orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
+| **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity (backup → wipe → restore → backup is identical), orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
+| **Repo hygiene** | The models and the Alembic migrations describe the same schema (autogenerate finds nothing to add after `upgrade head`); no phase numbers in code; no file mixes line endings |
 
 ### End-to-end
 
-56 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
-viewport/responsive checks, the Analytics section order, and the smoke script itself. Excluded
+93 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
+viewport/responsive checks, the Analytics section order, the partial-leave slider, the planner
+(click, drag, commit, notes, delete, opening days in Log, ghosts on the Log calendar), the
+timesheet picker and page (including Chromium's own PDF printer), and the smoke script itself. Excluded
 from `make test` and from the Docker build (no browser in the image), so `deploy.sh` and
 `deploy-staging.sh` run them locally and abort if they fail or collect nothing.
 
@@ -286,7 +326,8 @@ pytest tests/e2e -v --headed   # watch it work
 ### Smoke test
 
 `bin/smoke.py <url>` runs GET-only checks against a running Kronos — `/healthz`, the page,
-`app.js`, and the dashboard/analytics endpoints, each with its expected JSON shape — plus a
+`app.js`, the dashboard/analytics/planner endpoints and the timesheet, each with its expected
+shape — plus a
 negative control that must return 404, so a proxy answering 200 to everything cannot fake a
 pass. Both deploy scripts run it after the container is healthy and fail if it does.
 
@@ -341,8 +382,8 @@ timeline, the dashboard layout — are stored as JSON and need no migration at a
 kronos/
 ├── backend/
 │   ├── app/
-│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates
-│   │   ├── services/     # computations · settings · views
+│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates · plans · timesheet
+│   │   ├── services/     # computations · settings · views · timesheet
 │   │   └── templates/    # Jinja2 shell + one partial per tab
 │   ├── static/           # app.js · styles.css · sw.js · manifest.json · vendor/
 │   └── seed.py           # sample-data generator
@@ -372,12 +413,8 @@ scripted tour of a throwaway seeded database, never your real data.
 Open phases in [`docs/BUILD_PHASES.md`](docs/BUILD_PHASES.md); completed ones, with the reasons
 behind them, in [`docs/BUILD_PHASES_ARCHIVE.md`](docs/BUILD_PHASES_ARCHIVE.md). Next up:
 
-- **Half-day leave** — 0.5-day granularity for vacation/sick/holiday/flex, charged
-  proportionally against the target and the vacation budget
-- **Time-off planner** — pencil in future leave and see the projected balance before the days
-  arrive, then commit the drafts as real entries
-- **Printable timesheet** — a print-optimized monthly/annual view for records or invoicing, no
-  server-side PDF dependency
+- **BOE resolution discovery** — find next year's Spanish holiday resolution instead of adding
+  its id by hand each October
 
 ---
 

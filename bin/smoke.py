@@ -14,6 +14,9 @@ Each check is a plain GET with a 10 s timeout, run in this order:
     /api/analytics/yearly           200, JSON list
     /api/analytics/records          200, JSON object
     /api/analytics/yoy              200, JSON object
+    /api/plans                      200, JSON list
+    /api/plans/projection           200, JSON object containing key "on_target"
+    /timesheet                      200, HTML containing "Timesheet" and a "table"
     /api/__smoke_negative_control__ MUST be 404 (see "The negative control")
 
 Safety
@@ -163,6 +166,33 @@ def check_api_yoy(status: int, body: bytes) -> str | None:
     return _check_json(status, body, dict)
 
 
+def check_api_plans(status: int, body: bytes) -> str | None:
+    return _check_json(status, body, list)
+
+
+def check_api_projection(status: int, body: bytes) -> str | None:
+    if (err := _expected_200(status)) is not None:
+        return err
+    data, err = _parse_json(body)
+    if err is not None:
+        return err
+    if not isinstance(data, dict):
+        return f"expected JSON object, got {type(data).__name__}"
+    if "on_target" not in data:
+        return 'JSON object has no "on_target" key'
+    return None
+
+
+def check_timesheet(status: int, body: bytes) -> str | None:
+    if (err := _expected_200(status)) is not None:
+        return err
+    text = body.decode("utf-8", errors="replace")
+    for needle in ("Timesheet", "<table"):
+        if needle not in text:
+            return f"timesheet page does not contain {needle!r}"
+    return None
+
+
 def check_negative_control(status: int, body: bytes) -> str | None:
     if status != 404:
         return (
@@ -183,6 +213,9 @@ CHECKS: list[tuple[str, Validator]] = [
     ("/api/analytics/yearly", check_api_yearly),
     ("/api/analytics/records", check_api_records),
     ("/api/analytics/yoy", check_api_yoy),
+    ("/api/plans", check_api_plans),
+    ("/api/plans/projection", check_api_projection),
+    ("/timesheet", check_timesheet),
     ("/api/__smoke_negative_control__", check_negative_control),
 ]
 

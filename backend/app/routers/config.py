@@ -17,6 +17,9 @@ from app.schemas import (
 )
 from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
+    PROFILE_EMPLOYER,
+    PROFILE_EXTRA,
+    PROFILE_NAME,
     get_cumulative_start_date,
     get_daily_target_hours,
     get_daily_target_schedule,
@@ -25,6 +28,7 @@ from app.services.settings import (
     get_default_start_time,
     get_holiday_country,
     get_holiday_region,
+    get_profile,
     get_reset_annually,
     get_vacation_budget_days,
     get_work_week_days,
@@ -36,6 +40,7 @@ from app.services.settings import (
     set_default_start_time,
     set_holiday_country,
     set_holiday_region,
+    set_profile_field,
     set_reset_annually,
     set_vacation_budget_days,
     set_work_week_days,
@@ -63,6 +68,7 @@ def _config_out(session: Session) -> ConfigOut:
         default_end_time=get_default_end_time(session),
         holiday_country=get_holiday_country(session),
         holiday_region=get_holiday_region(session),
+        **get_profile(session),
     )
 
 
@@ -91,6 +97,12 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_holiday_country(session, body.holiday_country)
     if body.holiday_region is not None:
         set_holiday_region(session, body.holiday_region)
+    if body.profile_name is not None:
+        set_profile_field(session, PROFILE_NAME, body.profile_name)
+    if body.profile_employer is not None:
+        set_profile_field(session, PROFILE_EMPLOYER, body.profile_employer)
+    if body.profile_extra is not None:
+        set_profile_field(session, PROFILE_EXTRA, body.profile_extra)
     session.commit()
     return _config_out(session)
 

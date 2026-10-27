@@ -15,6 +15,8 @@ from app.routers import (
     entries,
     export,
     holidays,
+    plans,
+    timesheet,
 )
 from app.routers import (
     config as config_router,
@@ -40,6 +42,8 @@ app.include_router(admin.router)
 app.include_router(backup.router)
 app.include_router(holidays.router)
 app.include_router(templates_router.router)
+app.include_router(plans.router)
+app.include_router(timesheet.router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

@@ -22,7 +22,7 @@
           <span class="week-day-dow" x-text="d.label"></span>
           <span class="week-day-num" x-text="d.dayNum"></span>
         </span>
-        <span class="week-day-bar" :class="d.cls"></span>
+        <span class="week-day-bar" :class="d.cls" :style="d.style"></span>
         <template x-if="d.entry && d.entry.day_type === 'work'">
           <span class="week-day-body">
             <span class="week-day-net" x-text="d.entry.net_hours + 'h'"></span>
@@ -32,10 +32,24 @@
         </template>
         <template x-if="d.entry && d.entry.day_type !== 'work'">
           <span class="week-day-body">
-            <span class="day-pill" :class="d.entry.day_type" x-text="d.entry.day_type"></span>
+            <span class="day-pill" :class="d.entry.day_type" x-text="pillLabel(d.entry)"></span>
+            <!-- Partial leave: the worked part has hours and a delta too -->
+            <template x-if="isPartial(d.entry)">
+              <span class="week-day-partial">
+                <span class="week-day-net" x-text="d.entry.net_hours + 'h'"></span>
+                <span class="week-day-delta" :class="surplusClass(d.entry.surplus_hours)"
+                      x-text="formatSurplus(d.entry.surplus_hours)"></span>
+              </span>
+            </template>
           </span>
         </template>
-        <template x-if="!d.entry">
+        <template x-if="!d.entry && d.draft">
+          <span class="week-day-body">
+            <span class="day-pill ghost" :class="d.draft.day_type" x-text="d.draft.day_type"></span>
+            <span class="week-day-planned muted">planned</span>
+          </span>
+        </template>
+        <template x-if="!d.entry && !d.draft">
           <span class="week-day-body week-day-empty-label" x-text="d.isFuture ? '·' : '—'"></span>
         </template>
       </button>
@@ -52,8 +66,8 @@
       <span x-text="weekSummary().net + 'h'"></span> worked /
       <span x-text="weekSummary().target + 'h'"></span> target
       <br>
-      <span x-text="weekSummary().work_days"></span> work days,
-      <span x-text="weekSummary().non_work_days"></span> off
+      <span x-text="fmtDays(weekSummary().work_days)"></span> work days,
+      <span x-text="fmtDays(weekSummary().non_work_days)"></span> off
     </div>
   </article>
 </section>

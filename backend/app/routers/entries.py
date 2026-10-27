@@ -27,6 +27,7 @@ def create_entry(body: EntryIn, session: Session = Depends(get_session)) -> Entr
     entry = WorkEntry(
         date=body.date,
         day_type=body.day_type.value,
+        fraction=body.fraction,
         start_time=body.start_time,
         end_time=body.end_time,
         notes=body.notes,
@@ -52,7 +53,7 @@ def batch_create_entries(
         if session.get(WorkEntry, d):
             skipped.append(d)
             continue
-        session.add(WorkEntry(date=d, day_type=body.day_type.value))
+        session.add(WorkEntry(date=d, day_type=body.day_type.value, fraction=body.fraction))
         created.append(d)
     if created:
         session.commit()
@@ -90,6 +91,7 @@ def update_entry(
     if not entry:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "entry not found")
     entry.day_type = body.day_type.value
+    entry.fraction = body.fraction
     entry.start_time = body.start_time
     entry.end_time = body.end_time
     entry.notes = body.notes

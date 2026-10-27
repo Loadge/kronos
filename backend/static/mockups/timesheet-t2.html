@@ -1,0 +1,72 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Kronos — Timesheet mockup T2 — Full</title><style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9e7e2; color: #1a1814; font: 10.5pt/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .toolbar { background: #1f1c16; color: #ece6d7; padding: .6rem 1rem; display: flex; gap: 1rem; align-items: center; font-size: .85rem; }
+  .toolbar .sp { flex: 1; }
+  .toolbar .seg { display: inline-flex; border: 1px solid #57524a; border-radius: 999px; overflow: hidden; }
+  .toolbar .seg span { padding: .15rem .7rem; color: #a49b87; }
+  .toolbar .seg span.on { background: #e0b341; color: #17140f; font-weight: 700; }
+  .toolbar label { display: inline-flex; gap: .3rem; align-items: center; color: #a49b87; }
+  .toolbar .btn { background: #e0b341; color: #17140f; border: none; border-radius: 6px; padding: .35rem .9rem; font-weight: 700; }
+  .page { background: #fff; width: 210mm; min-height: 297mm; margin: 1.2rem auto; padding: 16mm 14mm; box-shadow: 0 2px 14px rgba(0,0,0,.15); }
+  @media print { body { background: #fff; } .toolbar { display: none; } .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; } }
+  header.doc { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a1814; padding-bottom: .6rem; margin-bottom: .9rem; }
+  .title { font-variant: small-caps; letter-spacing: .08em; font-size: 1.55rem; font-weight: 800; margin: 0; line-height: 1.1; }
+  .period { font-size: 1rem; margin-top: .15rem; }
+  .who { text-align: right; font-size: .9rem; line-height: 1.35; }
+  .who strong { font-size: 1rem; }
+  .meta { display: flex; gap: 1.6rem; font-size: .78rem; color: #55504a; margin-bottom: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #55504a; border-bottom: 1px solid #1a1814; padding: .25rem .35rem; }
+  td { padding: .22rem .35rem; border-bottom: 1px solid #e4e1da; vertical-align: top; }
+  td.n, th.n { text-align: right; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: .92em; }
+  tr.we td { background: #f4f2ee; color: #7a746b; }
+  tr.gap td { color: #a39c92; }
+  tr.gap td.flag { color: #b5482a; font-size: .72rem; font-style: italic; }
+  td:nth-child(3) { white-space: nowrap; }
+  .type { display: inline-block; font-size: .66rem; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; border: 1px solid currentColor; border-radius: 2px; padding: 0 .3rem; line-height: 1.35; }
+  .type.work { color: #6b5410; } .type.vacation { color: #2f5d78; } .type.sick { color: #9a5a12; } .type.holiday { color: #3d5560; } .type.flex { color: #5c3a8a; }
+  .pos { color: #2f6b24; } .neg { color: #b5482a; }
+  td.notes { font-size: .82em; color: #3a3631; max-width: 38mm; }
+  tr.sub td { font-weight: 700; border-top: 1px solid #1a1814; border-bottom: 2px solid #1a1814; background: #faf8f4; }
+  tr.month td { font-variant: small-caps; letter-spacing: .06em; font-weight: 700; background: #efece6; border-bottom: 1px solid #1a1814; padding-top: .4rem; }
+  .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; margin-top: 1rem; }
+  .tot { border: 1px solid #d6d2ca; border-radius: 3px; padding: .45rem .6rem; }
+  .tot .k { font-size: .66rem; text-transform: uppercase; letter-spacing: .08em; color: #55504a; }
+  .tot .v { font-size: 1.25rem; font-weight: 700; font-family: ui-monospace, Consolas, monospace; }
+  .tot .s { font-size: .75rem; color: #55504a; }
+  .legend { font-size: .72rem; color: #55504a; margin-top: .8rem; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; margin-top: 2.4rem; }
+  .sign div { border-top: 1px solid #1a1814; padding-top: .3rem; font-size: .78rem; color: #55504a; }
+  footer.doc { margin-top: 1.4rem; font-size: .7rem; color: #8a847a; display: flex; justify-content: space-between; }
+</style></head>
+<body>
+<div class="toolbar">
+  <span>Timesheet · September 2026</span>
+  <span class="sp"></span>
+  <span class="seg"><span class="">Compact</span><span class="on">Full</span></span>
+  <span class="seg"><span class="">7.50</span><span class="on">7:30</span></span>
+  <label><input type="checkbox" checked> notes</label>
+  <label><input type="checkbox" checked> signatures</label>
+  <button class="btn">Print / Save as PDF</button>
+</div>
+<div class="page">
+  <header class="doc">
+    <div><h1 class="title">Timesheet</h1><div class="period">September 2026</div></div>
+    <div class="who"><strong>Juan Pérez</strong><br>ACME Ingeniería S.L.<br>Employee nº 4711 · Platform team</div>
+  </header>
+  <div class="meta"><span>Daily target: <strong>8h</strong></span><span>Work week: Mon–Fri</span><span>Hours as h:mm</span><span>Generated 2026-10-26 by Kronos</span></div>
+  <table><thead><tr><th>Day</th><th></th><th>Type</th><th class=n>Start</th><th class=n>End</th><th class=n>Breaks</th><th class=n>Net</th><th class=n>Target</th><th class=n>Δ</th><th class=n>Σ</th><th>Notes</th></tr></thead><tbody><tr class=""><td>01</td><td>Tue</td><td><span class="type work">work</span></td><td class=n>09:30</td><td class=n>19:00</td><td class=n>0:45</td><td class=n>8:45</td><td class=n>8:00</td><td class="n pos">+0:45</td><td class="n pos">+0:45</td><td class=notes></td></tr><tr class=""><td>02</td><td>Wed</td><td><span class="type work">work</span></td><td class=n>08:15</td><td class=n>17:30</td><td class=n>0:30</td><td class=n>8:45</td><td class=n>8:00</td><td class="n pos">+0:45</td><td class="n pos">+1:30</td><td class=notes></td></tr><tr class=""><td>03</td><td>Thu</td><td><span class="type work">work</span></td><td class=n>08:45</td><td class=n>18:30</td><td class=n>0:30</td><td class=n>9:15</td><td class=n>8:00</td><td class="n pos">+1:15</td><td class="n pos">+2:45</td><td class=notes>Client on-site, Bilbao</td></tr><tr class=""><td>04</td><td>Fri</td><td><span class="type work">work</span></td><td class=n>08:15</td><td class=n>18:45</td><td class=n>1:00</td><td class=n>9:30</td><td class=n>8:00</td><td class="n pos">+1:30</td><td class="n pos">+4:15</td><td class=notes></td></tr><tr class="we"><td>05</td><td>Sat</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class="we"><td>06</td><td>Sun</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class=""><td>07</td><td>Mon</td><td><span class="type work">work</span></td><td class=n>09:00</td><td class=n>19:00</td><td class=n>1:00</td><td class=n>9:00</td><td class=n>8:00</td><td class="n pos">+1:00</td><td class="n pos">+5:15</td><td class=notes></td></tr><tr class=""><td>08</td><td>Tue</td><td><span class="type work">work</span></td><td class=n>08:15</td><td class=n>17:15</td><td class=n>1:00</td><td class=n>8:00</td><td class=n>8:00</td><td class="n ">±0:00</td><td class="n pos">+5:15</td><td class=notes></td></tr><tr class=""><td>09</td><td>Wed</td><td><span class="type work">work</span></td><td class=n>09:30</td><td class=n>17:40</td><td class=n>0:40</td><td class=n>7:30</td><td class=n>8:00</td><td class="n neg">−0:30</td><td class="n pos">+4:45</td><td class=notes></td></tr><tr class=""><td>10</td><td>Thu</td><td><span class="type work">work</span></td><td class=n>09:30</td><td class=n>19:45</td><td class=n>1:15</td><td class=n>9:00</td><td class=n>8:00</td><td class="n pos">+1:00</td><td class="n pos">+5:45</td><td class=notes></td></tr><tr class=""><td>11</td><td>Fri</td><td><span class="type holiday">holiday</span></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n>0:00</td><td class="n ">±0:00</td><td class="n pos">+5:45</td><td class=notes>Día de Asturias</td></tr><tr class="we"><td>12</td><td>Sat</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class="we"><td>13</td><td>Sun</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class=""><td>14</td><td>Mon</td><td><span class="type work">work</span></td><td class=n>09:00</td><td class=n>17:30</td><td class=n>1:00</td><td class=n>7:30</td><td class=n>8:00</td><td class="n neg">−0:30</td><td class="n pos">+5:15</td><td class=notes></td></tr><tr class=""><td>15</td><td>Tue</td><td><span class="type work">work</span></td><td class=n>09:15</td><td class=n>19:30</td><td class=n>0:45</td><td class=n>9:30</td><td class=n>8:00</td><td class="n pos">+1:30</td><td class="n pos">+6:45</td><td class=notes></td></tr><tr class="gap"><td>16</td><td>Wed</td><td><span class=flag>not logged</span></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class=""><td>17</td><td>Thu</td><td><span class="type work">work</span></td><td class=n>08:30</td><td class=n>17:00</td><td class=n>0:45</td><td class=n>7:45</td><td class=n>8:00</td><td class="n neg">−0:15</td><td class="n pos">+6:30</td><td class=notes></td></tr><tr class=""><td>18</td><td>Fri</td><td><span class="type work">work</span></td><td class=n>08:45</td><td class=n>17:15</td><td class=n>1:00</td><td class=n>7:30</td><td class=n>8:00</td><td class="n neg">−0:30</td><td class="n pos">+6:00</td><td class=notes></td></tr><tr class="we"><td>19</td><td>Sat</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class="we"><td>20</td><td>Sun</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class=""><td>21</td><td>Mon</td><td><span class="type work">work</span></td><td class=n>08:30</td><td class=n>18:30</td><td class=n>0:30</td><td class=n>9:30</td><td class=n>8:00</td><td class="n pos">+1:30</td><td class="n pos">+7:30</td><td class=notes></td></tr><tr class=""><td>22</td><td>Tue</td><td><span class="type work">work</span></td><td class=n>08:00</td><td class=n>17:30</td><td class=n>1:00</td><td class=n>8:30</td><td class=n>8:00</td><td class="n pos">+0:30</td><td class="n pos">+8:00</td><td class=notes></td></tr><tr class=""><td>23</td><td>Wed</td><td><span class="type vacation">vacation</span> · 4h</td><td class=n>09:00</td><td class=n>13:00</td><td class=n></td><td class=n>4:00</td><td class=n>4:00</td><td class="n ">±0:00</td><td class="n pos">+8:00</td><td class=notes>dentist</td></tr><tr class=""><td>24</td><td>Thu</td><td><span class="type work">work</span></td><td class=n>08:15</td><td class=n>17:00</td><td class=n>0:45</td><td class=n>8:00</td><td class=n>8:00</td><td class="n ">±0:00</td><td class="n pos">+8:00</td><td class=notes></td></tr><tr class=""><td>25</td><td>Fri</td><td><span class="type work">work</span></td><td class=n>09:00</td><td class=n>19:00</td><td class=n>0:30</td><td class=n>9:30</td><td class=n>8:00</td><td class="n pos">+1:30</td><td class="n pos">+9:30</td><td class=notes></td></tr><tr class="we"><td>26</td><td>Sat</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class="we"><td>27</td><td>Sun</td><td>—</td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class=n></td><td class="n "></td><td class="n pos"></td><td class=notes></td></tr><tr class=""><td>28</td><td>Mon</td><td><span class="type work">work</span></td><td class=n>08:45</td><td class=n>16:45</td><td class=n>0:30</td><td class=n>7:30</td><td class=n>8:00</td><td class="n neg">−0:30</td><td class="n pos">+9:00</td><td class=notes></td></tr><tr class=""><td>29</td><td>Tue</td><td><span class="type work">work</span></td><td class=n>09:30</td><td class=n>18:50</td><td class=n>0:50</td><td class=n>8:30</td><td class=n>8:00</td><td class="n pos">+0:30</td><td class="n pos">+9:30</td><td class=notes></td></tr><tr class=""><td>30</td><td>Wed</td><td><span class="type work">work</span></td><td class=n>08:00</td><td class=n>16:45</td><td class=n>1:00</td><td class=n>7:45</td><td class=n>8:00</td><td class="n neg">−0:15</td><td class="n pos">+9:15</td><td class=notes></td></tr><tr class=sub><td colspan=6>Total · 19.5 work days, 1.5 off</td><td class=n>165:15</td><td class=n>156:00</td><td class="n pos">+9:15</td><td></td><td></td></tr></tbody></table>
+  <div class="totals">
+      <div class="tot"><div class="k">Net hours</div><div class="v">165:15</div><div class="s">19.5 work days</div></div>
+      <div class="tot"><div class="k">Target</div><div class="v">156:00</div><div class="s">8h per work day</div></div>
+      <div class="tot"><div class="k">Balance</div><div class="v pos">+9:15</div><div class="s">net − target</div></div>
+      <div class="tot"><div class="k">Time off</div><div class="v">1.5<span style="font-size:.8rem;font-weight:500"> days</span></div><div class="s">0.5 vacation · 0 sick · 1 holiday · 0 flex · 1 not logged</div></div>
+    </div>
+  <div class="legend">Net = end − start − breaks. Δ = net − target; Σ = running balance within the period. Partial leave shows its hours off next to the type; the rest of the day is worked. Weekends shaded; "not logged" marks a past work-week day without an entry.</div>
+  <div class="sign"><div>Employee · signature and date</div><div>Employer · signature and date</div></div>
+  <footer class="doc"><span>Kronos · timesheet</span><span>Page 1 of 1</span></footer>
+</div>
+<p style="max-width:210mm;margin:0 auto 2rem;font-size:.8rem;color:#55504a"><strong>Mockup T2 — Full</strong> — static. Full detail (target, Δ, running Σ), h:mm, notes column on, signatures on.</p>
+</body></html>

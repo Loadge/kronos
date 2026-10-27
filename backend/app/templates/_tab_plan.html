@@ -1,0 +1,197 @@
+<!-- ========================= PLAN ========================= -->
+<template x-if="tab==='plan'">
+<section aria-label="Time-off planner" @mouseup.window="planMouseup()">
+  <header class="section-header plan-header">
+    <h2>Plan</h2>
+    <nav class="section-header-controls plan-year-switch" aria-label="Plan year">
+      <button type="button" class="log-cal-nav" @click="setPlanYear(planYear - 1)" aria-label="Previous year">‹</button>
+      <span class="week-range" x-text="planYear"></span>
+      <button type="button" class="log-cal-nav" @click="setPlanYear(planYear + 1)" aria-label="Next year">›</button>
+    </nav>
+  </header>
+
+  <!-- Year strip: twelve mini months; click one to make it the working month -->
+  <div class="plan-strip" role="tablist" aria-label="Months">
+    <template x-for="m in planYearStrip()" :key="m.mo">
+      <button type="button" class="plan-mini" :class="m.active ? 'active' : ''"
+              role="tab" :aria-selected="m.active ? 'true' : 'false'"
+              @click="planMonth = m.mo" :aria-label="m.label + ' ' + planYear">
+        <span class="plan-mini-title" x-text="m.label"></span>
+        <span class="plan-mini-grid">
+          <template x-for="c in m.cells" :key="c.key">
+            <i :class="c.pad ? 'pad' : 'hm-cell ' + c.cls" :style="c.style"></i>
+          </template>
+        </span>
+      </button>
+    </template>
+  </div>
+
+  <!-- Projection strip -->
+  <template x-if="projection">
+    <div class="hero-grid plan-stats">
+      <article class="summary-card plan-stat">
+        <h3 x-text="'Balance at Dec 31, ' + planYear"></h3>
+        <div class="subdial-label" :class="surplusClass(planYearEndBalance())" x-text="subdialLabel(planYearEndBalance())"></div>
+        <div class="metric" :class="surplusClass(planYearEndBalance())" x-text="formatSurplus(planYearEndBalance())"></div>
+        <div class="seg-toggle" role="radiogroup" aria-label="Projection assumption">
+          <button type="button" role="radio" :aria-checked="planMode === 'on_target' ? 'true' : 'false'" :class="planMode === 'on_target' ? 'on' : ''" @click="setPlanMode('on_target')">On target</button>
+          <button type="button" role="radio" :aria-checked="planMode === 'at_pace' ? 'true' : 'false'" :class="planMode === 'at_pace' ? 'on' : ''" @click="setPlanMode('at_pace')">At my pace</button>
+        </div>
+        <div class="sub">
+          <template x-if="planMode === 'on_target'">
+            <span>
+              <span x-text="formatSurplus(projection.balance_today)"></span> today
+              <template x-if="projection.drafted_flex_hours > 0"><span x-text="' − ' + fmtHours(projection.drafted_flex_hours) + ' flex drafted'"></span></template>
+              · <span x-text="fmtDays(projection.open_days_left)"></span> open days land on target
+              <br><span class="muted">at my pace it would be <span :class="surplusClass(projection.at_pace)" x-text="formatSurplus(projection.at_pace)"></span></span>
+            </span>
+          </template>
+          <template x-if="planMode === 'at_pace'">
+            <span>
+              <span x-text="formatSurplus(projection.balance_today)"></span> today ·
+              <span x-text="formatSurplus(projection.pace_per_day)"></span> per work day ×
+              <span x-text="fmtDays(projection.open_days_left)"></span> open days
+              <template x-if="projection.drafted_flex_hours > 0"><span x-text="' − ' + fmtHours(projection.drafted_flex_hours) + ' flex'"></span></template>
+              <br><span class="muted">on target it would be <span :class="surplusClass(projection.on_target)" x-text="formatSurplus(projection.on_target)"></span></span>
+            </span>
+          </template>
+        </div>
+      </article>
+      <article class="summary-card plan-stat">
+        <h3>Vacation after this plan</h3>
+        <template x-if="projection.vacation_budget_days > 0">
+          <div>
+            <div class="metric" :class="projection.vacation_remaining_after_plan < 0 ? 'deficit' : ''">
+              <span x-text="fmtDays(projection.vacation_remaining_after_plan)"></span><span class="metric-unit" x-text="' / ' + fmtDays(projection.vacation_budget_days)"></span>
+            </div>
+            <div class="sub">
+              <span x-text="fmtDays(projection.vacation_used_days)"></span> logged ·
+              <span x-text="fmtDays(projection.vacation_drafted_days)"></span> drafted
+            </div>
+          </div>
+        </template>
+        <template x-if="!(projection.vacation_budget_days > 0)">
+          <div>
+            <div class="metric"><span x-text="fmtDays(projection.vacation_drafted_days)"></span><span class="metric-unit"> days</span></div>
+            <div class="sub">vacation drafted · <a @click.prevent="go('settings')">set a budget</a> to track what's left</div>
+          </div>
+        </template>
+      </article>
+      <article class="summary-card plan-stat">
+        <h3>Drafted</h3>
+        <div class="metric"><span x-text="fmtDays(projection.drafted_days)"></span><span class="metric-unit" x-text="projection.drafted_days === 1 ? ' day' : ' days'"></span></div>
+        <div class="sub">
+          <span x-text="fmtDays(projection.open_days_left) + ' of ' + fmtDays(projection.scheduled_days_left) + ' scheduled days still open'"></span>
+          <template x-if="projection.drafted_flex_hours > 0"><span x-text="' · −' + fmtHours(projection.drafted_flex_hours) + ' pool'"></span></template>
+        </div>
+      </article>
+    </div>
+  </template>
+
+  <div class="plan-layout">
+    <!-- Working month -->
+    <div class="log-cal plan-cal">
+      <div class="log-cal-header">
+        <button type="button" class="log-cal-nav" @click="planPrev()" aria-label="Previous month">‹</button>
+        <span class="log-cal-title" x-text="planMonthLabel()"></span>
+        <button type="button" class="log-cal-nav" @click="planNext()" aria-label="Next month">›</button>
+      </div>
+      <div class="log-cal-grid" @mousemove="planGridMove($event)">
+        <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
+          <div class="log-cal-dow" x-text="h"></div>
+        </template>
+        <template x-for="cell in planCalDays()" :key="cell.key">
+          <button type="button"
+                  class="log-cal-day"
+                  :class="[cell.cls, cell.padded ? 'log-cal-pad' : '', cell.isToday ? 'cal-today' : '', cell.weekend ? 'bulk-weekend' : '', cell.past ? 'plan-past' : '', cell.opensLog ? 'plan-opens-log' : '', planIsHighlighted(cell.date) ? 'bulk-selected' : '']"
+                  :style="cell.style"
+                  @mousedown.prevent="planMousedown($event, cell)"
+                  @click="cell.opensLog && openDayInLog(cell.date)"
+                  :data-pdate="cell.padded ? null : cell.date"
+                  :disabled="cell.padded"
+                  :title="cell.title"
+                  x-text="cell.padded ? '' : cell.day"
+                  :aria-label="cell.padded ? null : cell.date"
+                  :aria-pressed="cell.draft ? 'true' : 'false'">
+          </button>
+        </template>
+      </div>
+      <div class="plan-type-bar">
+        <button type="button" class="bulk-pill-btn plan-type vacation" :class="planType === 'vacation' ? 'on' : ''" @click="planType = 'vacation'" aria-pressed="true">Vacation</button>
+        <button type="button" class="bulk-pill-btn plan-type holiday"  :class="planType === 'holiday' ? 'on' : ''"  @click="planType = 'holiday'">Holiday</button>
+        <button type="button" class="bulk-pill-btn plan-type flex"     :class="planType === 'flex' ? 'on' : ''"     @click="planType = 'flex'">Flex</button>
+      </div>
+      <input type="text" class="plan-note" x-model="planNote" placeholder="Note for new drafts (optional)" aria-label="Note for new drafts" maxlength="120">
+      <p class="muted bulk-hint">Click a day to draft it as <span class="day-pill" :class="planType" x-text="planType"></span> · click again to remove · drag for a range (work days only)<br>Logged days and the past open in the Log tab.</p>
+    </div>
+
+    <!-- Ledger -->
+    <div class="plan-ledger">
+      <h3>Upcoming time off <span class="muted plan-ledger-count" x-text="planYear"></span></h3>
+      <template x-if="!planLedger().length">
+        <p class="muted">Nothing drafted or logged ahead yet. Click days on the calendar to pencil in vacation, holidays or flex days.</p>
+      </template>
+      <template x-if="planLedger().length">
+        <table class="plan-table">
+          <tbody>
+            <template x-for="b in planLedger()" :key="b.key">
+              <tr :class="'plan-row-' + b.kind">
+                <td class="plan-when">
+                  <template x-if="b.kind === 'logged'">
+                    <button type="button" class="plan-open" @click="openDayInLog(b.dates[0])" :title="'Open ' + b.label + ' in the Log tab'" x-text="b.label"></button>
+                  </template>
+                  <template x-if="b.kind !== 'logged'"><span x-text="b.label"></span></template>
+                </td>
+                <td>
+                  <span class="day-pill" :class="[b.day_type, b.kind === 'logged' ? '' : 'ghost']"
+                        x-text="b.day_type + (b.kind === 'logged' ? '' : ' · draft')"></span>
+                </td>
+                <td class="plan-detail">
+                  <span class="muted" x-text="b.detail"></span>
+                  <template x-if="b.kind === 'logged'">
+                    <span class="muted" x-text="(b.detail ? ' · ' : '') + (b.notes ? b.notes + ' — ' : '') + 'logged'"></span>
+                  </template>
+                  <template x-if="b.kind === 'logged-over'">
+                    <span class="muted"><span x-text="b.detail ? ' · ' : ''"></span>already logged — dismiss the draft</span>
+                  </template>
+                  <template x-if="b.kind === 'overdue'">
+                    <span class="muted"><span x-text="b.detail ? ' · ' : ''"></span>in the past — commit it or let it go</span>
+                  </template>
+                  <template x-if="b.kind !== 'logged'">
+                    <span class="plan-note-wrap">
+                      <template x-if="planNoteEdit && planNoteEdit.key === b.key">
+                        <input type="text" class="plan-note-input" x-model="planNoteEdit.text" maxlength="120"
+                               @keydown.enter.prevent="saveNoteEdit(b)" @keydown.escape.prevent="planNoteEdit = null"
+                               @blur="saveNoteEdit(b)" aria-label="Draft note">
+                      </template>
+                      <template x-if="!(planNoteEdit && planNoteEdit.key === b.key)">
+                        <button type="button" class="plan-note-btn" :class="b.notes ? '' : 'empty'"
+                                @click="startNoteEdit(b)" :title="b.notes ? 'Edit note' : 'Add a note'"
+                                x-text="b.notes ? (b.detail ? ' · ' : '') + '“' + b.notes + '”' : '+ note'"></button>
+                      </template>
+                    </span>
+                  </template>
+                </td>
+                <td class="plan-actions">
+                  <template x-if="b.kind === 'draft' || b.kind === 'overdue'">
+                    <button type="button" class="secondary outline compact plan-commit" :disabled="planBusy" @click="commitDraft(b)">Commit</button>
+                  </template>
+                  <template x-if="b.kind !== 'logged'">
+                    <button type="button" class="plan-remove" :disabled="planBusy" @click="removeDraft(b.dates)"
+                            :aria-label="'Remove draft ' + b.label" title="Remove draft">✕</button>
+                  </template>
+                  <template x-if="b.kind === 'logged'">
+                    <button type="button" class="plan-remove plan-delete" :disabled="planBusy" @click="deleteLoggedBlock(b)"
+                            :aria-label="'Delete logged ' + b.label" title="Delete these logged days">✕</button>
+                  </template>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </template>
+      <p class="muted plan-ledger-note">Drafts don't touch your numbers until committed. Logged days (holidays you imported, days logged ahead) are listed so the plan reads as one timeline.</p>
+    </div>
+  </div>
+</section>
+</template>

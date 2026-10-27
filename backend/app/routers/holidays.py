@@ -116,7 +116,7 @@ def _spanish_holidays(year: int, region: str | None) -> list[tuple[date, str, bo
     if region:
         if region not in by_region:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, f"unknown Spanish region {region!r}"
+                status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown Spanish region {region!r}"
             )
         return [(h.date, h.name, h.regional) for h in by_region[region]]
     columns = list(by_region.values())

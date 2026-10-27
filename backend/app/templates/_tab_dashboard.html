@@ -37,7 +37,7 @@
         Cumulative tracking since <strong x-text="dashboard.cumulative_start_date"></strong>.
       </p>
 
-      <!-- Phase 22 (redesign): hero metrics — This week / This month / Cumulative.
+      <!-- Hero metrics — This week / This month / Cumulative.
            Draggable via the grip handle (SortableJS); order persists server-side. -->
       <!-- One real <article> per iteration (not a display:contents wrapper) — SortableJS's
            floating drag clone needs an actual box to position; `display:contents` has no
@@ -70,8 +70,8 @@
                   <span x-text="dashboard.week.net_hours + 'h'"></span> worked /
                   <span x-text="dashboard.week.target_hours + 'h'"></span> target
                   <br>
-                  <span x-text="dashboard.week.work_days"></span> work days,
-                  <span x-text="dashboard.week.non_work_days"></span> off
+                  <span x-text="fmtDays(dashboard.week.work_days)"></span> work days,
+                  <span x-text="fmtDays(dashboard.week.non_work_days)"></span> off
                 </div>
               </div>
             </template>
@@ -87,8 +87,8 @@
                   <span x-text="dashboard.month.net_hours + 'h'"></span> worked /
                   <span x-text="dashboard.month.target_hours + 'h'"></span> target
                   <br>
-                  <span x-text="dashboard.month.work_days"></span> work days,
-                  <span x-text="dashboard.month.non_work_days"></span> off
+                  <span x-text="fmtDays(dashboard.month.work_days)"></span> work days,
+                  <span x-text="fmtDays(dashboard.month.non_work_days)"></span> off
                 </div>
               </div>
             </template>
@@ -105,8 +105,8 @@
                   <span x-text="dashboard.cumulative.net_hours + 'h'"></span> worked /
                   <span x-text="dashboard.cumulative.target_hours + 'h'"></span> target
                   <br>
-                  <span x-text="dashboard.cumulative.work_days"></span> work days,
-                  <span x-text="dashboard.cumulative.non_work_days"></span> off
+                  <span x-text="fmtDays(dashboard.cumulative.work_days)"></span> work days,
+                  <span x-text="fmtDays(dashboard.cumulative.non_work_days)"></span> off
                 </div>
               </div>
             </template>
@@ -174,12 +174,15 @@
                 <strong :class="surplusClass(forecast().projected)"
                         x-text="formatSurplus(forecast().projected)"></strong>
                 by year end
-                <span class="muted" x-text="'(' + forecast().adjustedWorkDays + ' effective work days remaining)'"></span>
-                <template x-if="forecast().vacationRemaining > 0 || forecast().bankedDays > 0">
+                <span class="muted" x-text="'(' + fmtDays(forecast().adjustedWorkDays) + ' effective work days remaining)'"></span>
+                <template x-if="forecast().vacationRemaining > 0 || forecast().planned > 0 || forecast().bankedDays > 0">
                   <span class="forecast-breakdown">
                     <span x-text="forecast().workDaysLeft + ' scheduled'"></span>
+                    <template x-if="forecast().planned > 0">
+                      <a @click.prevent="go('plan')" x-text="' − ' + fmtDays(forecast().planned) + ' planned'" title="Open the planner"></a>
+                    </template>
                     <template x-if="forecast().vacationRemaining > 0">
-                      <span x-text="' − ' + forecast().vacationRemaining + ' vacation'"></span>
+                      <span x-text="' − ' + fmtDays(forecast().vacationRemaining) + ' vacation'"></span>
                     </template>
                     <template x-if="forecast().bankedDays > 0">
                       <span x-text="' − ' + forecast().bankedDays + ' banked'"></span>
@@ -208,7 +211,7 @@
               <div class="vacation-bar-wrap">
                 <div class="vacation-bar-header">
                   <span>🏖 Vacation</span>
-                  <span x-text="vacationStatus().used + ' / ' + vacationStatus().budget + ' days used'"></span>
+                  <span x-text="fmtDays(vacationStatus().used) + ' / ' + fmtDays(vacationStatus().budget) + ' days used'"></span>
                 </div>
                 <div class="vacation-bar-track">
                   <div class="vacation-bar-fill"
@@ -216,7 +219,7 @@
                        :style="'width:' + Math.min(vacationStatus().pct, 100) + '%'"></div>
                 </div>
                 <div class="vacation-bar-footer muted">
-                  <span x-text="vacationStatus().remaining + ' days remaining'"></span>
+                  <span x-text="fmtDays(vacationStatus().remaining) + ' days remaining'"></span>
                   <span x-text="'(' + vacationStatus().pct + '%)'"></span>
                 </div>
               </div>

@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api", tags=["export"])
 CSV_COLUMNS = [
     "date",
     "day_type",
+    "fraction",  # files without the column import as whole days
     "start_time",
     "end_time",
     "total_break_minutes",
@@ -49,6 +50,7 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
             [
                 e.date.isoformat(),
                 e.day_type,
+                repr(float(e.fraction)),  # shortest exact repr, so 0.375 round-trips
                 e.start_time or "",
                 e.end_time or "",
                 e.total_break_minutes,
@@ -85,7 +87,8 @@ def _row_to_entry_in(row: dict[str, str | None]) -> EntryIn:
     Mirrors the export format (CSV_COLUMNS). The derived columns
     (net/target/surplus) are ignored — they are recomputed on read. A work day's
     individual breaks aren't stored in the CSV, so ``total_break_minutes`` is
-    reconstructed as a single break.
+    reconstructed as a single break. A missing/blank ``fraction`` (files written
+    before the column existed) means a whole day.
     """
     date_str = (row.get("date") or "").strip()
     if not date_str:
@@ -94,7 +97,15 @@ def _row_to_entry_in(row: dict[str, str | None]) -> EntryIn:
     notes = (row.get("notes") or "").strip() or None
 
     data: dict = {"date": date_str, "day_type": day_type, "notes": notes}
-    if day_type == "work":
+    frac = (row.get("fraction") or "").strip()
+    if frac:
+        try:
+            data["fraction"] = float(frac)
+        except ValueError:
+            raise ValueError(f"invalid fraction {frac!r}") from None
+    # Times belong to work days and to the worked part of a partial leave day. Read
+    # them whenever present; the EntryIn validator rejects them on whole-day leave.
+    if day_type == "work" or data.get("fraction", 1.0) < 1.0:
         data["start_time"] = (row.get("start_time") or "").strip() or None
         data["end_time"] = (row.get("end_time") or "").strip() or None
         brk = (row.get("total_break_minutes") or "").strip()
@@ -120,7 +131,7 @@ def import_csv(payload: CsvImportIn, session: Session = Depends(get_session)) ->
     fields = reader.fieldnames
     if not fields or "date" not in fields or "day_type" not in fields:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "CSV must have at least 'date' and 'day_type' columns",
         )
 
@@ -151,6 +162,7 @@ def import_csv(payload: CsvImportIn, session: Session = Depends(get_session)) ->
         entry = WorkEntry(
             date=d,
             day_type=entry_in.day_type.value,
+            fraction=entry_in.fraction,
             start_time=entry_in.start_time,
             end_time=entry_in.end_time,
             notes=entry_in.notes,

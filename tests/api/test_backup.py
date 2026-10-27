@@ -48,7 +48,7 @@ class TestDownloadBackup:
         r = client.get("/api/backup")
         assert r.status_code == 200
         body = r.json()
-        assert body["version"] == 1
+        assert body["version"] == 2  # entries carry `fraction`
         assert "exported_at" in body
         assert body["entries"] == []
         assert "settings" in body
@@ -70,7 +70,7 @@ class TestDownloadBackup:
         assert e["date"] == "2026-04-14"
         assert e["day_type"] == "work"
         assert e["start_time"] == "09:00"
-        assert e["breaks"] == [{"break_minutes": 30}]
+        assert e["breaks"] == [{"break_minutes": 30, "start_time": None, "end_time": None}]
 
     def test_backup_contains_non_work_entries(self, client):
         client.post(

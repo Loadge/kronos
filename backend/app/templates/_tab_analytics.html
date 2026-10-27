@@ -24,6 +24,8 @@
         <span class="legend-item"><span class="hm-swatch hm-sick"></span> Sick</span>
         <span class="legend-item"><span class="hm-swatch hm-holiday"></span> Holiday</span>
         <span class="legend-item"><span class="hm-swatch hm-flex"></span> Flex</span>
+        <span class="legend-item"><span class="hm-swatch hm-partial-swatch"></span> Partial</span>
+        <span class="legend-item"><span class="hm-swatch hm-ghost hm-ghost-vacation"></span> Planned</span>
         <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
       </div>
       <div class="heatmap-scroll">
@@ -31,7 +33,7 @@
              :style="`grid-template-columns: ${heatmapCells().colTemplate}`">
           <template x-for="cell in heatmapCells().cells" :key="cell.key">
             <div :class="cell.type === 'label' ? 'hm-month-label' : cell.type === 'week' ? 'hm-week-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
-                 :style="`grid-row: ${cell.row}; grid-column: ${cell.col}`"
+                 :style="`grid-row: ${cell.row}; grid-column: ${cell.col};` + (cell.style || '')"
                  :title="cell.title || ''"
                  x-text="cell.type === 'label' || cell.type === 'week' ? cell.label : ''"></div>
           </template>

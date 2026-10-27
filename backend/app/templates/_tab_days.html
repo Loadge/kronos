@@ -18,8 +18,70 @@
         </template>
       </div>
       <span class="muted" x-text="sortedEntries().length + ' entries'"></span>
+      <button type="button" class="secondary outline compact pdf-btn" @click="openPdfModal()" title="Printable timesheet">PDF</button>
     </div>
   </header>
+
+  <!-- Timesheet picker: builds a /timesheet URL and opens it in a new tab -->
+  <template x-if="pdfModal.open">
+    <div class="bulk-backdrop" @click.self="pdfModal.open = false" role="dialog" aria-modal="true" aria-label="Printable timesheet">
+      <div class="bulk-modal pdf-modal">
+        <div class="bulk-modal-header">
+          <h3>Timesheet</h3>
+          <button type="button" class="bulk-close" @click="pdfModal.open = false" aria-label="Close">✕</button>
+        </div>
+        <form @submit.prevent="openTimesheet()">
+          <fieldset class="pdf-presets">
+            <legend>Period</legend>
+            <template x-for="p in pdfPresets()" :key="p.id">
+              <label class="pdf-preset">
+                <input type="radio" name="pdf-period" :value="p.id" x-model="pdfModal.preset">
+                <span x-text="p.label"></span>
+                <small class="muted" x-text="p.hint"></small>
+              </label>
+            </template>
+            <div class="pdf-custom" x-show="pdfModal.preset === 'custom'">
+              <label>From <input type="date" x-model="pdfModal.from" :max="pdfModal.to || null" :required="pdfModal.preset === 'custom'"></label>
+              <label>To <input type="date" x-model="pdfModal.to" :min="pdfModal.from || null" :required="pdfModal.preset === 'custom'"></label>
+            </div>
+          </fieldset>
+          <div class="pdf-options">
+            <div class="pdf-opt">
+              <span class="pdf-opt-label">Detail</span>
+              <div class="seg-toggle" role="radiogroup" aria-label="Detail">
+                <button type="button" role="radio" :aria-checked="pdfModal.detail === 'compact' ? 'true' : 'false'" :class="pdfModal.detail === 'compact' ? 'on' : ''" @click="pdfModal.detail = 'compact'">Compact</button>
+                <button type="button" role="radio" :aria-checked="pdfModal.detail === 'full' ? 'true' : 'false'" :class="pdfModal.detail === 'full' ? 'on' : ''" @click="pdfModal.detail = 'full'">Full</button>
+              </div>
+            </div>
+            <div class="pdf-opt">
+              <span class="pdf-opt-label">Hours</span>
+              <div class="seg-toggle" role="radiogroup" aria-label="Hours format">
+                <button type="button" role="radio" :aria-checked="pdfModal.hours === 'dec' ? 'true' : 'false'" :class="pdfModal.hours === 'dec' ? 'on' : ''" @click="pdfModal.hours = 'dec'">7.50</button>
+                <button type="button" role="radio" :aria-checked="pdfModal.hours === 'hm' ? 'true' : 'false'" :class="pdfModal.hours === 'hm' ? 'on' : ''" @click="pdfModal.hours = 'hm'">7:30</button>
+              </div>
+            </div>
+            <div class="pdf-opt">
+              <span class="pdf-opt-label">Theme</span>
+              <div class="seg-toggle" role="radiogroup" aria-label="Theme">
+                <button type="button" role="radio" :aria-checked="pdfModal.theme === 'light' ? 'true' : 'false'" :class="pdfModal.theme === 'light' ? 'on' : ''" @click="pdfModal.theme = 'light'">Light</button>
+                <button type="button" role="radio" :aria-checked="pdfModal.theme === 'dark' ? 'true' : 'false'" :class="pdfModal.theme === 'dark' ? 'on' : ''" @click="pdfModal.theme = 'dark'">Dark</button>
+              </div>
+            </div>
+            <div class="pdf-checks">
+              <label class="pdf-check"><input type="checkbox" x-model="pdfModal.notes"> Notes column</label>
+              <label class="pdf-check"><input type="checkbox" x-model="pdfModal.sign"> Signature lines</label>
+            </div>
+          </div>
+          <p class="muted pdf-hint">Opens in a new tab. Use the browser's <strong>Print → Save as PDF</strong> there; the switches can still be changed on the page.
+            <template x-if="!settingsForm.profile_name"><span>Add your name under <a @click.prevent="pdfModal.open = false; go('settings')">Settings → Profile</a> to print it in the header.</span></template>
+          </p>
+          <div class="pdf-actions">
+            <button type="submit" class="log-submit-btn">Open timesheet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
 
   <!-- E2: skeleton while first fetch is in-flight -->
   <template x-if="loading.days && !entries.length">
@@ -83,7 +145,7 @@
             <!-- E2: _saving flag → dim row while API call is in-flight -->
             <tr :class="[e.day_type !== 'work' ? 'non-work' : '', e._saving ? 'row-saving' : '']">
               <td x-text="e.date"></td>
-              <td><span class="day-pill" :class="e.day_type" x-text="e.day_type"></span></td>
+              <td><span class="day-pill" :class="e.day_type" x-text="pillLabel(e)"></span></td>
               <td x-text="e.start_time || '—'"></td>
               <td x-text="e.end_time || '—'"></td>
               <td x-text="e.total_break_minutes ? e.total_break_minutes + 'm' : '—'"></td>

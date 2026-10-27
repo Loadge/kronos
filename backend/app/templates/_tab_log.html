@@ -26,6 +26,7 @@
             <button type="button"
                     class="log-cal-day"
                     :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '']"
+                    :style="cell.style"
                     @click="calSelectDay(cell.date)"
                     :disabled="cell.padded || !!editingDate"
                     x-text="cell.padded ? '' : cell.day"
@@ -42,6 +43,8 @@
           <span class="legend-item"><span class="hm-swatch hm-sick"></span> Sick</span>
           <span class="legend-item"><span class="hm-swatch hm-holiday"></span> Holiday</span>
           <span class="legend-item"><span class="hm-swatch hm-flex"></span> Flex</span>
+          <span class="legend-item"><span class="hm-swatch hm-partial-swatch"></span> Partial</span>
+          <span class="legend-item"><span class="hm-swatch hm-ghost hm-ghost-vacation"></span> Planned</span>
           <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
         </div>
       </div>
@@ -83,7 +86,7 @@
               Day type
               <span class="day-pill day-pill-preview" :class="form.day_type" x-text="form.day_type"></span>
             </span>
-            <select x-model="form.day_type">
+            <select x-model="form.day_type" @change="onDayTypeChange()">
               <option value="work">Work</option>
               <option value="vacation">Vacation</option>
               <option value="sick">Sick</option>
@@ -92,7 +95,31 @@
             </select>
           </label>
 
-          <template x-if="form.day_type === 'work'">
+          <!-- How much of the day is leave. Slider in hours (quarter-hour
+               steps) up to the target in force on the selected date; at the top it's a
+               whole day, anywhere below the time fields appear for the hours worked. -->
+          <template x-if="form.day_type !== 'work'">
+            <div class="leave-slider" data-testid="leave-slider">
+              <div class="leave-slider-header">
+                <span>Time off</span>
+                <span class="leave-slider-value" :class="formIsPartial() ? 'partial' : ''"
+                      x-text="leaveSliderLabel()"></span>
+              </div>
+              <input type="range" min="0.25" :max="leaveSliderMax()" step="0.25"
+                     x-model.number="form.leave_hours"
+                     aria-label="Hours of leave">
+              <small class="muted" x-show="formIsPartial()">
+                <template x-if="form.day_type === 'flex'">
+                  <span>Flex still charges the whole day's target; log the hours you worked to offset it.</span>
+                </template>
+                <template x-if="form.day_type !== 'flex'">
+                  <span>The rest of the day counts as work — log the hours below (optional).</span>
+                </template>
+              </small>
+            </div>
+          </template>
+
+          <template x-if="formHasTimes()">
             <div>
               <hr class="log-section-divider">
 
@@ -107,7 +134,7 @@
                             :title="'Stamp current time: ' + nowDisplay"
                             x-text="'⏱ ' + nowDisplay"></button>
                   </div>
-                  <input type="time" x-model="form.start_time" required>
+                  <input type="time" x-model="form.start_time" :required="form.day_type === 'work'">
                 </label>
                 <label>
                   <div class="time-field-header">
@@ -245,6 +272,7 @@
               <button type="button"
                       class="log-cal-day"
                       :class="[cell.cls, cell.padded ? 'log-cal-pad' : '', cell.isToday ? 'cal-today' : '', bulkIsHighlighted(cell.date) ? 'bulk-selected' : '', cell.weekend ? 'bulk-weekend' : '']"
+                      :style="cell.style"
                       @mousedown.prevent="bulkMousedown($event, cell.date)"
                       :data-bdate="cell.padded ? null : cell.date"
                       :disabled="cell.padded"

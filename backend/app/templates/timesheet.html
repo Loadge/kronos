@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timesheet · {{ sheet.period_label }}{% if profile.profile_name %} · {{ profile.profile_name }}{% endif %}</title>
+<link rel="stylesheet" href="/static/timesheet.css">
+</head>
+<body>
+
+<!-- Toolbar: every switch is a query parameter; changing one reloads the report. Not printed. -->
+<form class="toolbar" method="get" action="/timesheet" aria-label="Timesheet options" id="ts-form">
+  <span class="tb-title">Timesheet · {{ sheet.period_label }}</span>
+  <label class="tb-range">
+    <input type="date" name="from" id="ts-from" value="{{ sheet.start.isoformat() }}" max="{{ sheet.end.isoformat() }}" aria-label="From" onchange="this.form.requestSubmit()">
+    <span>–</span>
+    <input type="date" name="to" id="ts-to" value="{{ sheet.end.isoformat() }}" min="{{ sheet.start.isoformat() }}" aria-label="To" onchange="this.form.requestSubmit()">
+  </label>
+  <span class="sp"></span>
+  <span class="seg" role="radiogroup" aria-label="Detail">
+    <label class="{{ 'on' if detail == 'compact' else '' }}"><input type="radio" name="detail" value="compact" {{ 'checked' if detail == 'compact' else '' }} onchange="this.form.requestSubmit()">Compact</label>
+    <label class="{{ 'on' if detail == 'full' else '' }}"><input type="radio" name="detail" value="full" {{ 'checked' if detail == 'full' else '' }} onchange="this.form.requestSubmit()">Full</label>
+  </span>
+  <span class="seg" role="radiogroup" aria-label="Hours format">
+    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }} onchange="this.form.requestSubmit()">7.50</label>
+    <label class="{{ 'on' if hours == 'hm' else '' }}"><input type="radio" name="hours" value="hm" {{ 'checked' if hours == 'hm' else '' }} onchange="this.form.requestSubmit()">7:30</label>
+  </span>
+  <label class="tb-check"><input type="checkbox" name="notes" value="1" {{ 'checked' if show_notes else '' }} onchange="this.form.requestSubmit()"> notes</label>
+  <label class="tb-check"><input type="checkbox" name="sign" value="1" {{ 'checked' if show_sign else '' }} onchange="this.form.requestSubmit()"> signatures</label>
+  <span class="seg" role="radiogroup" aria-label="Theme">
+    <label class="{{ 'on' if theme == 'light' else '' }}"><input type="radio" name="theme" value="light" {{ 'checked' if theme == 'light' else '' }} onchange="this.form.requestSubmit()">☀</label>
+    <label class="{{ 'on' if theme == 'dark' else '' }}"><input type="radio" name="theme" value="dark" {{ 'checked' if theme == 'dark' else '' }} onchange="this.form.requestSubmit()">☾</label>
+  </span>
+  <button type="button" class="tb-print" onclick="window.print()">Print / Save as PDF</button>
+</form>
+
+<main class="page">
+  <header class="doc">
+    <div>
+      <h1 class="title">Timesheet</h1>
+      <div class="period">{{ sheet.period_label }}</div>
+    </div>
+    {% if profile %}
+    <div class="who">
+      {% if profile.profile_name %}<strong>{{ profile.profile_name }}</strong><br>{% endif %}
+      {% if profile.profile_employer %}{{ profile.profile_employer }}<br>{% endif %}
+      {% if profile.profile_extra %}{{ profile.profile_extra }}{% endif %}
+    </div>
+    {% endif %}
+  </header>
+
+  <div class="meta">
+    <span>Daily target: <strong>{{ target_label }}</strong></span>
+    <span>Work week: {{ work_week_label }}</span>
+    <span>Hours as {{ 'h:mm' if hours == 'hm' else 'decimal' }}</span>
+    <span>Generated {{ today.isoformat() }} by Kronos</span>
+  </div>
+
+  <table class="sheet">
+    <thead>
+      <tr>
+        <th class="c-day">Day</th><th></th><th>Type</th>
+        <th class="n">Start</th><th class="n">End</th><th class="n">Breaks</th><th class="n">Net</th>
+        {% if detail == 'full' %}<th class="n">Target</th><th class="n">Δ</th><th class="n">Σ</th>{% endif %}
+        {% if show_notes %}<th>Notes</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for m in sheet.months %}
+      {% if sheet.multi_month %}
+      <tr class="month"><td colspan="{{ columns }}">{{ m.label }}</td></tr>
+      {% endif %}
+      {% for r in m.rows %}
+      <tr class="row-{{ r.kind }}{% if r.weekend %} we{% endif %}" data-date="{{ r.date.isoformat() }}">
+        <td class="c-day">{{ r.day }}</td>
+        <td class="c-dow">{{ r.weekday }}</td>
+        <td class="c-type">
+          {% if r.entry %}<span class="type {{ r.day_type }}">{{ r.day_type }}</span>{% if r.kind == 'partial' %} · {{ r.type_label.split(' · ')[1] }}{% endif %}
+          {% elif r.kind == 'gap' %}<span class="flag">not logged</span>
+          {% elif r.weekend %}—{% endif %}
+        </td>
+        <td class="n">{{ r.start }}</td>
+        <td class="n">{{ r.end }}</td>
+        <td class="n">{{ r.breaks }}</td>
+        <td class="n">{{ r.net }}</td>
+        {% if detail == 'full' %}
+        <td class="n">{{ r.target }}</td>
+        <td class="n {{ 'pos' if r.delta_sign > 0 else 'neg' if r.delta_sign < 0 else '' }}">{{ r.delta }}</td>
+        <td class="n {{ 'pos' if r.running_sign > 0 else 'neg' if r.running_sign < 0 else '' }}">{{ r.running }}</td>
+        {% endif %}
+        {% if show_notes %}<td class="notes">{{ r.notes }}</td>{% endif %}
+      </tr>
+      {% endfor %}
+      {% set t = m.totals if sheet.multi_month else sheet.totals %}
+      <tr class="sub">
+        <td colspan="6">{{ m.abbr + ' subtotal' if sheet.multi_month else 'Total' }} · {{ t.work_days|fmtdays }} work days, {{ t.off_days|fmtdays }} off{% if t.gaps %}, {{ t.gaps }} not logged{% endif %}</td>
+        <td class="n">{{ sheet.fmt(t.net) }}</td>
+        {% if detail == 'full' %}
+        <td class="n">{{ sheet.fmt(t.target) }}</td>
+        <td class="n {{ 'pos' if t.balance > 0 else 'neg' if t.balance < 0 else '' }}">{{ sheet.fmt_signed(t.balance) }}</td>
+        <td></td>
+        {% endif %}
+        {% if show_notes %}<td></td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% set g = sheet.totals %}
+  <section class="totals" aria-label="Totals">
+    <div class="tot"><div class="k">Net hours</div><div class="v">{{ sheet.fmt(g.net) }}</div><div class="s">{{ g.work_days|fmtdays }} work days</div></div>
+    <div class="tot"><div class="k">Target</div><div class="v">{{ sheet.fmt(g.target) }}</div><div class="s">{{ target_label }} per work day</div></div>
+    <div class="tot"><div class="k">Balance</div><div class="v {{ 'pos' if g.balance > 0 else 'neg' if g.balance < 0 else '' }}">{{ sheet.fmt_signed(g.balance) }}</div><div class="s">net − target</div></div>
+    <div class="tot"><div class="k">Time off</div><div class="v">{{ g.off_days|fmtdays }}<span class="unit"> days</span></div>
+      <div class="s">{{ g.vacation|fmtdays }} vacation · {{ g.sick|fmtdays }} sick · {{ g.holiday|fmtdays }} holiday · {{ g.flex|fmtdays }} flex{% if g.gaps %} · {{ g.gaps }} not logged{% endif %}</div></div>
+  </section>
+
+  <p class="legend">
+    Net = end − start − breaks.{% if detail == 'full' %} Δ = net − target; Σ = running balance within this period.{% endif %}
+    Whole days off print their type only; partial leave shows its hours off next to the type and the rest of the day is worked.
+    Weekends shaded; “not logged” marks a past work-week day without an entry.
+  </p>
+
+  {% if show_sign %}
+  <section class="sign" aria-label="Signatures">
+    <div>Employee · signature and date</div>
+    <div>Employer · signature and date</div>
+  </section>
+  {% endif %}
+
+  <footer class="doc"><span>Kronos · timesheet</span><span>{{ sheet.start.isoformat() }} – {{ sheet.end.isoformat() }}</span></footer>
+</main>
+
+<script>
+  // Every switch reloads the page (the toolbar is a GET form). Keep the reader where
+  // they were so toggling notes or signatures shows the before and after in place.
+  (function () {
+    var form = document.getElementById('ts-form');
+    var key = 'kronos-timesheet-scroll';
+    form.addEventListener('submit', function () { sessionStorage.setItem(key, String(window.scrollY)); });
+    var y = sessionStorage.getItem(key);
+    if (y !== null) { sessionStorage.removeItem(key); window.scrollTo(0, Number(y)); }
+    // The native date pickers can't cross each other: "from" is capped at "to" and vice versa.
+    var from = document.getElementById('ts-from'), to = document.getElementById('ts-to');
+    from.addEventListener('input', function () { to.min = from.value; });
+    to.addEventListener('input', function () { from.max = to.value; });
+  })();
+</script>
+</body>
+</html>

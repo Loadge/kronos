@@ -123,7 +123,7 @@ class TestHeaderLayout:
         page.wait_for_load_state("networkidle")
 
         tabs = page.locator("nav[role='tablist'] a[role='tab']")
-        assert tabs.count() == 6
+        assert tabs.count() == 7  # Dashboard · Plan · Week · Log · Days · Analytics · Settings
         for i in range(tabs.count()):
             assert tabs.nth(i).is_visible(), f"tab {i} not visible on mobile"
 

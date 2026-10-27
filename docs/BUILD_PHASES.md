@@ -23,48 +23,17 @@ it for the history of a decision, not by default). This file keeps only open and
 | 19 | CSV import | `01f4de5` |
 | 22 | Log tab UI overhaul | `0e9d347` |
 | 23 | Date-effective daily target | `31bd9ba` |
+| 24 | Partial-day leave (any hours, not just half days) | branch `phases-24-26` (not merged) |
+| 25 | Time-off planner (Plan tab, projection, ghost days) | branch `phases-24-26` (not merged) |
+| 26 | Printable timesheet (Days → PDF, profile settings) | branch `phases-24-26` (not merged) |
 | 27 | Spanish holidays from the BOE (+ list under the preview) | `bfdffe1`, `a1c8bff` |
 
 ---
 
 ## Open phases
 
-Suggested order (2026-10-25): 24 → 26 → 25 (26 is a low-risk break between the two halves of the
-leave work), then 29. 28 starts with its spike; 30 only if logging from the phone outside the LAN
-turns out to be common.
-
-### Phase 24 — Half-Day Leave (planned)
-
-Vacation / sick / holiday / flex are whole-day only. Real leave is often a half-day
-(a morning off, a half-day sick). Add 0.5-day granularity to non-work entries.
-
-- Non-work entries gain a fraction (1.0 / 0.5); a half-day charges half the day's target
-  against the surplus pool and counts as 0.5 against the vacation budget.
-- Log tab + bulk logging expose the half-day option; Days/Week/dashboard reflect it.
-- Vacation-budget math and `summarize()` account for fractional non-work days.
-- A model change (Alembic migration) that reaches almost every computation: backup/restore and the
-  CSV import/export must round-trip the fraction, and old backups must still load as whole days.
-
-### Phase 25 — Time-Off Planner (planned)
-
-Kronos is retrospective — you log what already happened. The planner is forward-looking:
-pencil in future vacation/holiday/flex and see the projected cumulative balance and
-remaining vacation budget **before** the days arrive. Builds on the existing vacation
-budget + forecast, the date-effective target (Phase 23), and half-day leave (Phase 24).
-
-- A planning view where future non-work days can be drafted (not yet real entries).
-- Live projection: cumulative balance and vacation budget remaining as-of year end, given
-  the drafted days.
-- "Commit" turns drafts into real entries via the existing batch endpoint.
-
-### Phase 26 — Printable Timesheet / PDF Export (planned)
-
-A cleanly formatted monthly or annual timesheet for records, an employer, or invoicing.
-Independent of the other phases — pure output layer, no model changes.
-
-- Print-optimized HTML view (period picker → formatted table + totals) that the browser
-  can save to PDF; no server-side PDF dependency required.
-- Reuses the existing period/summary computations; shows per-day rows + period totals.
+Suggested order (2026-10-27, 24–26 built, pending confirmation): 29 next; 28 starts with its spike; 30 only if logging
+from the phone outside the LAN turns out to be common.
 
 ### Phase 28 — Log Without Typing (idea, spike first)
 
@@ -96,6 +65,14 @@ worth it only if logging from the phone outside the LAN is common.
 ---
 
 ## Small items
+
+- **Wrap-up after Phase 26 (2026-10-27):** `tests/unit/test_repo_hygiene.py` now enforces three
+  rules by test — models ⇔ migrations (autogenerate diff empty after `upgrade head`), no "Phase N"
+  in code, no mixed line endings; `tests/integration/test_backup_fidelity.py` proves backup → wipe →
+  restore → backup is identical, which found that break time ranges were dropped by the backup
+  (fixed, old files still load); `bin/smoke.py` checks the planner and the timesheet too.
+- **Demo GIF** (`docs/demo/`) predates the planner, partial days and the timesheet; re-record it
+  when convenient (`docs/demo/README.md`).
 
 - **PROD data from the Phase 27 check (2026-10-16):** 1-may is stored as `vacation`, and 12-jun /
   19-jun as holidays without a note. Left for Miguel to decide.

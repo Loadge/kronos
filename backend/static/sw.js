@@ -6,7 +6,7 @@
  * (e.g. after updating styles.css or app.js).
  */
 
-const CACHE_NAME = 'kronos-v27';
+const CACHE_NAME = 'kronos-v28';
 
 /** Assets to pre-cache on install so the app shell is available offline. */
 const PRECACHE_URLS = [
@@ -48,8 +48,9 @@ self.addEventListener('fetch', event => {
   // Only intercept same-origin GETs
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // API, exports, healthz → always go to network; never cache
-  if (url.pathname.startsWith('/api/') || url.pathname === '/healthz') return;
+  // API, exports, healthz, and the timesheet (a report must never be stale) → always
+  // go to network; never cache
+  if (url.pathname.startsWith('/api/') || url.pathname === '/healthz' || url.pathname === '/timesheet') return;
 
   event.respondWith(staleWhileRevalidate(request));
 });
