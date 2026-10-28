@@ -53,14 +53,19 @@ class TestDashboardMetrics:
     def test_empty_dashboard_shows_zero_metrics(self, page, base_url):
         page.goto(f"{base_url}/#dashboard")
         page.wait_for_load_state("networkidle")
-        page.wait_for_selector(".summary-card", timeout=5000)
+        page.wait_for_selector(".hero-num", timeout=5000)
 
-        # All metric values should be 0 / 0h / 0.0 with an empty DB
-        cards = page.locator(".summary-card")
-        for i in range(cards.count()):
-            text = cards.nth(i).inner_text()
-            # Expect no large positive numbers (nothing is seeded)
-            assert "128" not in text, f"Unexpected value in card: {text}"
+        # The hero and every chip read zero with an empty DB
+        page.wait_for_function(
+            "() => document.querySelector('.hero-num')?.innerText.includes('0.00h')", timeout=5000
+        )
+        chips = page.locator(".chip")
+        assert chips.count() == 3
+        for i in range(chips.count()):
+            text = chips.nth(i).inner_text()
+            assert "128" not in text, f"Unexpected value in chip: {text}"
+        # Nothing to quick-log from yet, but the row is there since today is empty.
+        assert page.locator(".quick-log").is_visible()
 
     def test_work_days_show_in_week_card(self, page, base_url):
         _seed(
@@ -71,25 +76,32 @@ class TestDashboardMetrics:
             ],
         )
 
-        page.goto(f"{base_url}/?today=2026-07-14#dashboard")
+        page.goto(f"{base_url}/#dashboard")
         page.wait_for_load_state("networkidle")
-        page.wait_for_selector(".summary-card", timeout=5000)
+        page.wait_for_selector(".chip", timeout=5000)
 
-        # There should be a card showing "2" work days somewhere
-        page_text = page.locator("body").inner_text()
-        assert "2" in page_text  # at least the work day count
+        # Two 7h days against 8h: the cumulative chip's tooltip carries the day count
+        # and the hero the balance.
+        page.wait_for_function(
+            "() => document.querySelector('.hero-num')?.innerText.includes('2.00h')", timeout=5000
+        )
+        assert "−2.00h" in page.locator(".hero-num").inner_text()
+        assert "2 work days" in page.locator(".hero-text").get_attribute("title")
 
     def test_surplus_shown_correctly(self, page, base_url):
         """10h work day (no breaks) vs 8h target → +2h surplus visible."""
         _seed(base_url, [_work("2026-07-20", start="08:00", end="18:00", breaks=())])
 
-        page.goto(f"{base_url}/?today=2026-07-20#dashboard")
+        page.goto(f"{base_url}/#dashboard")
         page.wait_for_load_state("networkidle")
-        page.wait_for_selector(".summary-card", timeout=5000)
-
-        page_text = page.locator("body").inner_text()
-        # +2h surplus should appear somewhere
-        assert "2" in page_text
+        page.wait_for_function(
+            "() => document.querySelector('.hero-num')?.innerText.includes('+2.00h')", timeout=5000
+        )
+        # The trajectory ends on that value and projects past it.
+        chart = page.locator(".traj-wrap")
+        assert "+2.00h today" in (chart.get_attribute("aria-label") or "")
+        assert page.locator(".traj-line").count() == 1
+        assert page.locator(".traj-proj").count() == 1
 
     def test_analytics_tab_loads_without_error(self, page, base_url):
         page.goto(f"{base_url}/#analytics")
@@ -120,10 +132,13 @@ class TestSettingsTab:
         target_input = page.locator("input[type='number']").first
         target_input.fill("7.5")
 
-        # `button[type='submit']` alone: "Save timeline" (inside a collapsed
-        # <details>) also matches `:has-text('Save')` and sits earlier in the
-        # DOM, so `.first` used to pick a hidden, unclickable button.
-        page.locator("button[type='submit']").click()
+        # Each section saves its own fields; the button wakes up once something changed.
+        save = page.get_by_role("button", name="Save work")
+        page.wait_for_function(
+            "() => !document.querySelector('#settings-work button[type=submit]').disabled",
+            timeout=5000,
+        )
+        save.click()
 
         # Should show some form of success feedback. The actual mechanism is the
         # `.save-ribbon` toast (index.html): it toggles a `ribbon-show` class and

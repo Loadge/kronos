@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Redesign mockup · R1 — Chronograph</title>
+<style>
+  /* ── tokens: copied from styles.css ───────────────────────────────────── */
+  :root {
+    --k-bg:#17140f; --k-surface:#1f1c16; --k-border:#3d3a33; --k-border-strong:#57524a;
+    --k-text:#ece6d7; --k-muted:#a49b87; --k-brass:#e0b341; --k-ink:#8ab0c4;
+    --k-surplus:#7db369; --k-deficit:#e07b63;
+    --k-work:#e0b341; --k-vacation:#8ab0c4; --k-sick:#d49b4a; --k-holiday:#516b77; --k-flex:#9b82c4;
+    --k-fast:150ms ease;
+  }
+  [data-theme="light"] {
+    --k-bg:#f4ede1; --k-surface:#faf4e8; --k-border:#d9cfbb; --k-border-strong:#b5a992;
+    --k-text:#1f1b15; --k-muted:#6d6353; --k-brass:#a8761a; --k-ink:#1a3a52;
+    --k-surplus:#3d6b2e; --k-deficit:#a23826;
+    --k-work:#a8761a; --k-vacation:#1a3a52; --k-sick:#b07022; --k-holiday:#516b77; --k-flex:#5c3a8a;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--k-bg); color:var(--k-text);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased;
+         transition:background var(--k-fast), color var(--k-fast); }
+  .num { font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; }
+  h1,h2,h3,h4 { font-variant:small-caps; letter-spacing:.06em; margin:0; }
+  .wrap { max-width:1200px; margin:0 auto; padding:0 1.5rem 3rem; }
+  .muted { color:var(--k-muted); }
+  .surplus { color:var(--k-surplus); } .deficit { color:var(--k-deficit); } .neutral { color:var(--k-muted); }
+  a { color:var(--k-brass); }
+  button { font:inherit; }
+  .banner { background:color-mix(in srgb, var(--k-brass) 12%, var(--k-surface)); border:1px dashed var(--k-brass);
+            border-radius:6px; padding:.6rem 1rem; margin:1rem 0; font-size:.85rem; }
+  .banner strong { color:var(--k-brass); }
+
+  /* ── header: 5 tabs + controls (⌨ · settings · theme) ─────────────────── */
+  header.app { display:flex; align-items:center; gap:.5rem; padding:1.1rem 0 1rem; border-bottom:1px solid var(--k-border); margin-bottom:1.6rem; }
+  .brand { display:flex; align-items:center; gap:.75rem; margin-right:auto; }
+  .brand-logo { width:44px; height:44px; border-radius:.5rem; background:radial-gradient(circle at 35% 35%, var(--k-brass), #6b4f12 70%); box-shadow:inset 0 0 0 2px rgba(0,0,0,.25); }
+  .brand h1 { font-size:1.7rem; line-height:1; font-weight:800; }
+  .brand .subtitle { margin:.25rem 0 0; font-size:.85rem; color:var(--k-muted); }
+  nav.tabs { display:flex; gap:.25rem; }
+  nav.tabs a { color:var(--k-muted); text-decoration:none; font-variant:small-caps; letter-spacing:.05em; font-size:1.02rem;
+               padding:.4rem .85rem; border-bottom:2px solid transparent; cursor:pointer; transition:color var(--k-fast), border-color var(--k-fast); }
+  nav.tabs a:hover { color:var(--k-text); border-bottom-color:var(--k-border-strong); }
+  nav.tabs a.active { color:var(--k-brass); border-bottom-color:var(--k-brass); }
+  .controls { display:flex; align-items:center; gap:.4rem; margin-left:.75rem; }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; padding:0; border:1px solid var(--k-border);
+              border-radius:.375rem; background:transparent; color:var(--k-muted); cursor:pointer; transition:border-color var(--k-fast), color var(--k-fast); }
+  .icon-btn:hover { border-color:var(--k-text); color:var(--k-text); }
+  .icon-btn.kbd { color:var(--k-brass); font-size:1rem; }
+  /* R1 settings icon: a watch crown. Brass on dark, ink on light; pulls out (translates) on hover, glows when Settings is open. */
+  .crown { width:18px; height:18px; }
+  .crown .body { fill:none; stroke:currentColor; stroke-width:1.6; }
+  .crown .stem { stroke:currentColor; stroke-width:1.6; }
+  .icon-btn.settings { color:var(--k-brass); }
+  [data-theme="light"] .icon-btn.settings { color:var(--k-ink); }
+  .icon-btn.settings:hover .crown { transform:translateX(2px); }
+  .crown { transition:transform var(--k-fast); }
+  .icon-btn.settings.active { border-color:var(--k-brass); box-shadow:0 0 0 2px color-mix(in srgb, var(--k-brass) 30%, transparent); }
+  .icon-btn.settings.active .crown { animation:crown-turn 2.4s linear infinite; transform-origin:50% 50%; }
+  @keyframes crown-turn { to { transform:rotate(360deg); } }
+  @media (max-width:719px) {
+    header.app { display:grid; grid-template-columns:1fr auto; grid-template-areas:"brand ctl" "tabs tabs"; row-gap:.75rem; border-bottom:none; }
+    .brand { grid-area:brand; } .controls { grid-area:ctl; margin:0; }
+    nav.tabs { grid-area:tabs; border-bottom:1px solid var(--k-border); padding-bottom:.25rem; gap:0; }
+    nav.tabs a { flex:1; text-align:center; padding:.4rem .15rem; font-size:.85rem; }
+    .brand-logo { width:36px; height:36px; }
+  }
+
+  /* ── pills & swatches ─────────────────────────────────────────────────── */
+  .day-pill { display:inline-block; padding:.1rem .45rem; border-radius:2px; font-size:.65rem; text-transform:uppercase; letter-spacing:.07em; font-weight:600; white-space:nowrap; }
+  .day-pill.work     { background:color-mix(in srgb, var(--k-work) 18%, transparent);     border:1px solid var(--k-work);     color:var(--k-work); }
+  .day-pill.vacation { background:color-mix(in srgb, var(--k-vacation) 18%, transparent); border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .day-pill.sick     { background:color-mix(in srgb, var(--k-sick) 18%, transparent);     border:1px solid var(--k-sick);     color:var(--k-sick); }
+  .day-pill.holiday  { background:color-mix(in srgb, var(--k-holiday) 18%, transparent);  border:1px solid var(--k-holiday);  color:var(--k-holiday); }
+  .day-pill.flex     { background:color-mix(in srgb, var(--k-flex) 18%, transparent);     border:1px solid var(--k-flex);     color:var(--k-flex); }
+  .day-pill.ghost    { border-style:dashed; background:transparent; }
+  .hm-surplus { background:var(--k-surplus); } .hm-deficit { background:var(--k-deficit); } .hm-neutral { background:var(--k-muted); }
+  .hm-vacation { background:var(--k-vacation); } .hm-holiday { background:var(--k-holiday); } .hm-sick { background:var(--k-sick); } .hm-flex { background:var(--k-flex); }
+  .hm-empty { background:transparent; border:1px dashed var(--k-border); }
+  .hm-ghost { background:transparent; border:1px dashed var(--k-vacation); }
+
+  .screen { display:none; } .screen.on { display:block; }
+
+  /* ═════════════════════════ DASHBOARD — R1 "Chronograph" ═════════════════════ */
+  .dash { display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(0, 1fr); gap:1.5rem 2rem; align-items:start; }
+  .dash > * { min-width:0; }
+  .dash-full { grid-column:1 / -1; }
+  /* main dial */
+  .dial-card { position:relative; padding:.5rem 0 0; }
+  .dial { width:100%; max-width:520px; display:block; margin:0 auto; overflow:visible; }
+  .dial .track { fill:none; stroke:var(--k-border); stroke-width:10; stroke-linecap:round; }
+  .dial .fill  { fill:none; stroke-width:10; stroke-linecap:round; }
+  .dial .fill.surplus { stroke:var(--k-surplus); } .dial .fill.deficit { stroke:var(--k-deficit); }
+  .dial .proj  { fill:none; stroke:var(--k-brass); stroke-width:3; stroke-dasharray:3 5; stroke-linecap:round; opacity:.9; }
+  .dial .tick  { stroke:var(--k-border-strong); stroke-width:1.5; }
+  .dial .tick.major { stroke:var(--k-muted); stroke-width:2; }
+  .dial .tick-label { fill:var(--k-muted); font-size:9px; font-family:ui-monospace,monospace; text-anchor:middle; }
+  .dial .marker { fill:var(--k-brass); stroke:var(--k-bg); stroke-width:2; filter:drop-shadow(0 0 4px color-mix(in srgb, var(--k-brass) 80%, transparent)); }
+  .dial .proj-tick { stroke:var(--k-brass); stroke-width:2.5; }
+  .dial .proj-label { fill:var(--k-brass); font-size:10px; font-family:ui-monospace,monospace; font-weight:600; }
+  .dial .proj-sub { fill:var(--k-muted); font-size:7.5px; letter-spacing:.08em; }
+  .dial .engraved { fill:var(--k-muted); font-size:8px; letter-spacing:.14em; text-anchor:middle; text-transform:uppercase; }
+  .dial .hero-num { font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; font-size:40px; font-weight:700; text-anchor:middle; }
+  .dial .hero-num.surplus { fill:var(--k-surplus); } .dial .hero-num.deficit { fill:var(--k-deficit); }
+  .dial .hero-cap { fill:var(--k-muted); font-size:10px; text-anchor:middle; font-family:ui-monospace,monospace; }
+  /* the date window — a watch complication: today's weekday + day number */
+  .dial .datewin { fill:var(--k-surface); stroke:var(--k-border-strong); stroke-width:1; }
+  .dial .datewin-dow { fill:var(--k-muted); font-size:7px; letter-spacing:.12em; text-anchor:middle; }
+  .dial .datewin-num { fill:var(--k-text); font-size:15px; font-weight:700; text-anchor:middle; font-family:ui-monospace,monospace; }
+  /* subdials */
+  .subdials { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:.75rem; }
+  .subdial { text-align:center; }
+  .subdial svg { width:100%; max-width:120px; overflow:visible; }
+  .subdial .track { fill:none; stroke:var(--k-border); stroke-width:6; stroke-linecap:round; }
+  .subdial .fill  { fill:none; stroke-width:6; stroke-linecap:round; }
+  .subdial .fill.surplus { stroke:var(--k-surplus); } .subdial .fill.deficit { stroke:var(--k-deficit); }
+  .subdial .val { font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:17px; font-weight:700; text-anchor:middle; }
+  .subdial .val.surplus { fill:var(--k-surplus); } .subdial .val.deficit { fill:var(--k-deficit); } .subdial .val.neutral { fill:var(--k-muted); }
+  .subdial .needle { stroke:var(--k-brass); stroke-width:1.8; stroke-linecap:round; }
+  .subdial .hub { fill:var(--k-brass); }
+  .subdial-name { font-size:.72rem; font-variant:small-caps; letter-spacing:.1em; color:var(--k-muted); margin-top:-.2rem; }
+  .subdial-sub { font-size:.72rem; color:var(--k-muted); font-family:ui-monospace,monospace; }
+  .subdial.link { cursor:pointer; border-radius:6px; transition:background var(--k-fast); }
+  .subdial.link:hover { background:color-mix(in srgb, var(--k-border) 40%, transparent); }
+  /* power reserve = vacation budget */
+  .reserve { margin-top:1.25rem; }
+  .reserve-head { display:flex; justify-content:space-between; font-size:.78rem; font-variant:small-caps; letter-spacing:.08em; color:var(--k-muted); }
+  .reserve-head b { color:var(--k-text); font-variant:normal; letter-spacing:0; font-family:ui-monospace,monospace; font-weight:600; }
+  .reserve-track { position:relative; height:14px; margin-top:.35rem; border:1px solid var(--k-border-strong); border-radius:3px; overflow:hidden;
+                   background:repeating-linear-gradient(90deg, transparent 0 calc(100%/22 - 1px), var(--k-border) calc(100%/22 - 1px) calc(100%/22)); }
+  .reserve-used { position:absolute; inset:0 auto 0 0; background:var(--k-vacation); opacity:.85; width:0; transition:width 1.2s cubic-bezier(.2,.8,.2,1) .4s; }
+  .reserve-planned { position:absolute; inset:0 auto 0 0; background:repeating-linear-gradient(135deg, var(--k-vacation) 0 3px, transparent 3px 6px); opacity:.7; width:0; transition:width 1.2s cubic-bezier(.2,.8,.2,1) .4s; }
+  .reserve-foot { display:flex; justify-content:space-between; font-size:.72rem; color:var(--k-muted); margin-top:.25rem; }
+  /* week strip */
+  .strip-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:.5rem; }
+  .strip-head h3 { font-size:.78rem; color:var(--k-muted); font-weight:500; }
+  .strip-head .total { font-family:ui-monospace,monospace; font-size:.85rem; }
+  .strip { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.4rem; }
+  .sd { border:1px solid var(--k-border); border-radius:6px; background:var(--k-surface); padding:.5rem .5rem .55rem; text-align:left; color:inherit; cursor:pointer;
+        display:flex; flex-direction:column; gap:.35rem; transition:border-color var(--k-fast), transform var(--k-fast); }
+  .sd:hover { border-color:var(--k-brass); transform:translateY(-1px); }
+  .sd.today { border-color:var(--k-brass); box-shadow:inset 0 0 0 1px var(--k-brass); }
+  .sd.we { background:color-mix(in srgb, var(--k-surface) 55%, var(--k-bg)); }
+  .sd.empty { opacity:.65; }
+  .sd-head { display:flex; justify-content:space-between; align-items:baseline; }
+  .sd-dow { font-size:.68rem; font-variant:small-caps; letter-spacing:.1em; color:var(--k-muted); }
+  .sd-num { font-size:1rem; font-weight:600; }
+  .sd-bar { height:4px; border-radius:3px; opacity:.85; }
+  .sd-net { font-size:.95rem; font-weight:600; font-family:ui-monospace,monospace; }
+  .sd-delta { font-size:.74rem; font-family:ui-monospace,monospace; }
+  .sd-dash { color:var(--k-muted); font-size:1rem; }
+  /* quick-log (only while today is empty) + streaks */
+  .ql { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin-top:1rem; }
+  .ql-label { font-size:.78rem; color:var(--k-muted); margin-right:.25rem; }
+  .ql-btn { padding:.3rem .85rem; border-radius:9999px; border:1px solid var(--k-border); background:transparent; cursor:pointer; font-size:.82rem; font-weight:500; color:inherit; }
+  .ql-btn.work{border-color:var(--k-work);color:var(--k-work)} .ql-btn.vacation{border-color:var(--k-vacation);color:var(--k-vacation)}
+  .ql-btn.sick{border-color:var(--k-sick);color:var(--k-sick)} .ql-btn.holiday{border-color:var(--k-holiday);color:var(--k-holiday)} .ql-btn.flex{border-color:var(--k-flex);color:var(--k-flex)}
+  .ql-btn:hover { opacity:.8; }
+  .streaks { display:flex; gap:1.5rem; font-size:.8rem; color:var(--k-muted); margin-top:1.25rem; }
+  .streaks b { color:var(--k-text); font-family:ui-monospace,monospace; }
+  @media (max-width:900px) { .dash { grid-template-columns:1fr; } .subdials { max-width:420px; margin:0 auto; } }
+  @media (max-width:640px) {
+    .strip { grid-template-columns:1fr; }
+    .sd { flex-direction:row; align-items:center; gap:.75rem; }
+    .sd-head { gap:.5rem; min-width:4.5rem; } .sd-bar { width:4px; height:auto; align-self:stretch; }
+  }
+
+  /* ═════════════════════════ SETTINGS — index + sized fields ═════════════════════ */
+  .settings-layout { display:grid; grid-template-columns:180px minmax(0, 720px); gap:2.5rem; align-items:start; }
+  .sidx { position:sticky; top:1rem; display:flex; flex-direction:column; gap:.15rem; }
+  .sidx a { color:var(--k-muted); text-decoration:none; padding:.35rem .75rem; border-left:2px solid transparent; font-variant:small-caps; letter-spacing:.06em; font-size:.95rem; }
+  .sidx a:hover { color:var(--k-text); }
+  .sidx a.active { color:var(--k-brass); border-left-color:var(--k-brass); }
+  .ssec { padding-bottom:2rem; margin-bottom:2rem; border-bottom:1px solid var(--k-border); scroll-margin-top:1rem; }
+  .ssec:last-child { border-bottom:none; }
+  .ssec-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:1rem; }
+  .ssec-head h3 { font-size:1.1rem; }
+  .ssec-head p { margin:.15rem 0 0; font-size:.82rem; color:var(--k-muted); }
+  .fields { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem 1.5rem; }
+  .fields .wide { grid-column:1 / -1; }
+  label.f { display:block; font-size:.85rem; color:var(--k-muted); }
+  label.f span.l { display:block; margin-bottom:.3rem; font-variant:small-caps; letter-spacing:.05em; }
+  label.f input:not([type=checkbox]), label.f select { width:100%; padding:.45rem .6rem; border:1px solid var(--k-border-strong); border-radius:4px; background:transparent; color:var(--k-text); font:inherit; }
+  label.f input.n { max-width:7.5rem; font-family:ui-monospace,monospace; text-align:right; }
+  label.f input.t { max-width:8.5rem; font-family:ui-monospace,monospace; }
+  label.f input.d { max-width:11rem; font-family:ui-monospace,monospace; }
+  label.f small { display:block; margin-top:.3rem; font-size:.75rem; color:var(--k-muted); }
+  .switch { display:flex; align-items:center; gap:.6rem; font-size:.9rem; color:var(--k-text); }
+  .switch i { width:2.1rem; height:1.15rem; border-radius:1rem; background:var(--k-border-strong); position:relative; flex-shrink:0; }
+  .switch i::after { content:""; position:absolute; top:2px; left:2px; width:.85rem; height:.85rem; border-radius:50%; background:var(--k-bg); }
+  .switch.on i { background:var(--k-brass); } .switch.on i::after { left:auto; right:2px; }
+  .wwk { display:flex; gap:.3rem; }
+  .wwk button { padding:.3rem .6rem; border:1px solid var(--k-border-strong); background:transparent; color:var(--k-muted); border-radius:4px; cursor:pointer; font-size:.8rem; }
+  .wwk button.on { background:color-mix(in srgb, var(--k-brass) 18%, transparent); border-color:var(--k-brass); color:var(--k-brass); }
+  .btn { border:1px solid var(--k-border-strong); background:transparent; color:var(--k-text); border-radius:6px; padding:.4rem .9rem; font-size:.85rem; cursor:pointer; }
+  .btn.primary { background:var(--k-brass); border-color:var(--k-brass); color:var(--k-bg); font-weight:700; }
+  .btn.small { padding:.15rem .6rem; font-size:.75rem; }
+  .btn.danger { border-color:var(--k-deficit); color:var(--k-deficit); }
+  .btn[disabled] { opacity:.4; cursor:default; }
+  .ssec-foot { display:flex; justify-content:flex-end; align-items:center; gap:.75rem; margin-top:1.25rem; }
+  .ssec-foot .dirty { font-size:.75rem; color:var(--k-muted); }
+  details.adv { margin-top:.5rem; font-size:.85rem; }
+  details.adv summary { cursor:pointer; color:var(--k-muted); }
+  .tpl { display:flex; justify-content:space-between; align-items:center; padding:.5rem 0; border-bottom:1px solid var(--k-border); font-size:.9rem; }
+  .data-row { display:flex; justify-content:space-between; gap:2rem; align-items:flex-start; padding:1rem 0; border-bottom:1px solid var(--k-border); }
+  .data-row:last-child { border-bottom:none; }
+  .data-row p { margin:.2rem 0 0; font-size:.82rem; color:var(--k-muted); }
+  .data-row .acts { display:flex; gap:.5rem; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+  .hol-list { font-size:.85rem; columns:2; column-gap:2rem; margin:.75rem 0 0; padding-left:1.1rem; color:var(--k-muted); }
+  .hol-list b { color:var(--k-text); font-weight:500; }
+  @media (max-width:860px) {
+    .settings-layout { grid-template-columns:1fr; gap:1rem; }
+    .sidx { position:static; flex-direction:row; flex-wrap:wrap; gap:.25rem; }
+    .sidx a { border-left:none; border-bottom:2px solid transparent; padding:.25rem .6rem; }
+    .sidx a.active { border-bottom-color:var(--k-brass); }
+  }
+
+  /* ═════════════════════════ DAYS — dense table ═════════════════════ */
+  .days-head { display:flex; align-items:center; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+  .days-head h2 { margin-right:auto; font-size:1.4rem; }
+  .days-head select, .days-head input { padding:.35rem .6rem; border:1px solid var(--k-border-strong); border-radius:4px; background:transparent; color:var(--k-text); font:inherit; font-size:.85rem; }
+  .days-head .count { font-size:.82rem; color:var(--k-muted); font-family:ui-monospace,monospace; }
+  .twrap { overflow:auto; max-height:72vh; border-top:1px solid var(--k-border-strong); border-bottom:1px solid var(--k-border-strong); }
+  table.days { border-collapse:collapse; width:100%; font-size:.85rem; }
+  table.days th { position:sticky; top:0; background:var(--k-bg); text-align:left; padding:.5rem .6rem; font-size:.72rem; font-variant:small-caps; letter-spacing:.08em; color:var(--k-muted); font-weight:500; border-bottom:1px solid var(--k-border-strong); white-space:nowrap; z-index:1; }
+  table.days th.r, table.days td.r { text-align:right; }
+  table.days td { padding:.38rem .6rem; border-bottom:1px solid var(--k-border); white-space:nowrap; vertical-align:middle; }
+  table.days td.num { font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+  table.days tr.row { cursor:pointer; transition:background var(--k-fast); }
+  table.days tr.row:hover { background:color-mix(in srgb, var(--k-brass) 7%, transparent); }
+  table.days tr.row:hover td:first-child { box-shadow:inset 2px 0 0 var(--k-brass); }
+  table.days tr.nonwork td { opacity:.65; }
+  table.days tr.today td { background:color-mix(in srgb, var(--k-brass) 10%, transparent); }
+  table.days td.dow { color:var(--k-muted); font-size:.72rem; font-variant:small-caps; letter-spacing:.08em; }
+  table.days td.act { width:2.25rem; text-align:center; padding-left:0; padding-right:.4rem; }
+  table.days .edit { opacity:0; width:1.6rem; height:1.6rem; border:1px solid transparent; border-radius:4px; background:transparent; color:var(--k-muted); cursor:pointer; transition:opacity var(--k-fast); }
+  table.days tr.row:hover .edit, table.days .edit:focus-visible { opacity:1; }
+  table.days .edit:hover { border-color:var(--k-brass); color:var(--k-brass); }
+  table.days td.note { white-space:normal; max-width:34ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--k-muted); font-size:.8rem; font-style:italic; }
+  table.days td.note::before { content:"📝 "; font-style:normal; opacity:.8; }
+  table.days td.note:empty::before { content:""; }
+  table.days tr.msep td { padding:.55rem .6rem .35rem; background:var(--k-surface); border-bottom:1px solid var(--k-border-strong); border-top:1px solid var(--k-border-strong); font-size:.78rem; }
+  table.days tr.msep td .mname { font-variant:small-caps; letter-spacing:.1em; font-weight:600; color:var(--k-brass); font-size:.9rem; }
+  table.days tr.msep td .msum { font-family:ui-monospace,monospace; color:var(--k-muted); }
+  table.days tr.msep td .msum b { font-weight:600; }
+  mark { background:color-mix(in srgb, var(--k-brass) 35%, transparent); color:inherit; border-radius:2px; padding:0 .1em; }
+  @media (max-width:640px) { table.days td.note { display:none; } table.days th.note { display:none; } }
+</style></head>
+<body><div class="wrap">
+
+<header class="app">
+  <div class="brand"><div class="brand-logo"></div><div><h1>Kronos</h1><p class="subtitle">12.50h ahead overall</p></div></div>
+  <nav class="tabs">
+    <a href="#dashboard" data-screen="dashboard" class="active">Dashboard</a>
+    <a href="#plan">Plan</a>
+    <a href="#log">Log</a>
+    <a href="#days" data-screen="days">Days</a>
+    <a href="#analytics">Analytics</a>
+  </nav>
+  <div class="controls">
+    <button class="icon-btn kbd" title="Keyboard shortcuts (.)">⌨</button>
+    <button class="icon-btn settings" data-screen="settings" title="Settings (S)" aria-label="Settings">
+      <!-- R1: watch crown — the thing you turn to set a watch -->
+      <svg class="crown" viewBox="0 0 20 20" aria-hidden="true">
+        <rect class="body" x="6.5" y="4.5" width="7" height="11" rx="2"/>
+        <line class="stem" x1="8.5" y1="7" x2="8.5" y2="13"/><line class="stem" x1="11.5" y1="7" x2="11.5" y2="13"/>
+        <line class="stem" x1="13.5" y1="10" x2="17" y2="10"/><line class="stem" x1="3" y1="10" x2="6.5" y2="10"/>
+      </svg>
+    </button>
+    <button class="icon-btn theme" id="theme" title="Switch theme">☀</button>
+  </div>
+</header>
+
+<div class="banner"><strong>R1 — Chronograph.</strong> Mockup, not the app: nav switches between Dashboard / Days / Settings (crown icon), the theme toggle works, resize for the phone layout. Plan · Log · Analytics are inert. Numbers are invented for Tue 2026-10-27.</div>
+
+<!-- ═══════════════════════════ DASHBOARD ═══════════════════════════ -->
+<section class="screen on" id="s-dashboard">
+  <div class="dash">
+    <!-- main dial: cumulative balance, with the forecast as a dashed brass arc ahead of the needle -->
+    <div class="dial-card">
+      <svg class="dial" viewBox="0 0 400 245" id="dial"></svg>
+    </div>
+    <!-- subdials: week · month · vs last year. Week opens nothing (the strip is below); month + yoy could open Analytics -->
+    <div>
+      <div class="subdials">
+        <div class="subdial"><svg viewBox="0 0 100 80" data-sub="0.5" data-range="10"></svg><div class="subdial-name">this week</div><div class="subdial-sub">8.50h / 8.00h</div></div>
+        <div class="subdial link"><svg viewBox="0 0 100 80" data-sub="-0.5" data-range="20"></svg><div class="subdial-name">this month</div><div class="subdial-sub">142.50h / 143.00h</div></div>
+        <div class="subdial link"><svg viewBox="0 0 100 80" data-sub="3.4" data-range="20"></svg><div class="subdial-name">vs last year</div><div class="subdial-sub">2025: +9.10h</div></div>
+      </div>
+      <!-- vacation budget as a "power reserve" gauge: one notch per day, solid = used, hatched = planned -->
+      <div class="reserve">
+        <div class="reserve-head"><span>🏖 Vacation · power reserve</span><b>14 / 22</b></div>
+        <div class="reserve-track"><div class="reserve-planned" data-w="77.3"></div><div class="reserve-used" data-w="63.6"></div></div>
+        <div class="reserve-foot"><span>8 days left · 3 planned</span><span>Dec 31</span></div>
+      </div>
+      <div class="streaks"><span>🔥 <b>42d</b> logging · 217 all-time</span><span>🎯 <b>6d</b> on target</span></div>
+    </div>
+
+    <!-- the week strip: what the Week tab showed, compact. Click a day → Log. Always this week (no arrows). -->
+    <div class="dash-full">
+      <div class="strip-head"><h3>This week · 26 Oct – 1 Nov</h3><span class="total surplus">+0.50h · 8.50h of 40.00h</span></div>
+      <div class="strip">
+        <button class="sd"><span class="sd-head"><span class="sd-dow">Mon</span><span class="sd-num">26</span></span><span class="sd-bar hm-surplus"></span><span><span class="sd-net">8.50h</span> <span class="sd-delta surplus">+0.50</span></span></button>
+        <button class="sd today empty"><span class="sd-head"><span class="sd-dow">Tue</span><span class="sd-num">27</span></span><span class="sd-bar hm-empty"></span><span class="sd-dash">—</span></button>
+        <button class="sd empty"><span class="sd-head"><span class="sd-dow">Wed</span><span class="sd-num">28</span></span><span class="sd-bar hm-ghost"></span><span class="day-pill ghost vacation">vacation</span></button>
+        <button class="sd empty"><span class="sd-head"><span class="sd-dow">Thu</span><span class="sd-num">29</span></span><span class="sd-bar hm-empty"></span><span class="sd-dash">·</span></button>
+        <button class="sd empty"><span class="sd-head"><span class="sd-dow">Fri</span><span class="sd-num">30</span></span><span class="sd-bar hm-empty"></span><span class="sd-dash">·</span></button>
+        <button class="sd we empty"><span class="sd-head"><span class="sd-dow">Sat</span><span class="sd-num">31</span></span><span class="sd-bar hm-empty"></span><span class="sd-dash">·</span></button>
+        <button class="sd we empty"><span class="sd-head"><span class="sd-dow">Sun</span><span class="sd-num">1</span></span><span class="sd-bar hm-empty"></span><span class="sd-dash">·</span></button>
+      </div>
+      <!-- quick-log: shown only while today has no entry -->
+      <div class="ql"><span class="ql-label">Quick-log today:</span>
+        <button class="ql-btn work">Office</button><button class="ql-btn work">Remote</button>
+        <button class="ql-btn vacation">Vacation</button><button class="ql-btn sick">Sick</button><button class="ql-btn holiday">Holiday</button><button class="ql-btn flex">Flex</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ SETTINGS ═══════════════════════════ -->
+<section class="screen" id="s-settings">
+  <div class="settings-layout">
+    <nav class="sidx">
+      <a href="#work" class="active">Work</a><a href="#leave">Leave</a><a href="#holidays">Holidays</a><a href="#profile">Profile</a><a href="#templates">Templates</a><a href="#data">Data</a>
+    </nav>
+    <div>
+      <div class="ssec" id="work">
+        <div class="ssec-head"><div><h3>Work</h3><p>What a normal day looks like and where the running balance starts.</p></div></div>
+        <div class="fields">
+          <label class="f"><span class="l">Daily target</span><input class="n" type="number" value="8.0" step="0.1"> <small>Hours per work day. <a href="#">Contract changed? Edit the timeline</a></small></label>
+          <label class="f"><span class="l">Default start</span><input class="t" type="time" value="08:30"></label>
+          <label class="f"><span class="l">Default end</span><input class="t" type="time" value="17:00"></label>
+          <div class="f wide"><span class="l" style="display:block;margin-bottom:.3rem;font-variant:small-caps;letter-spacing:.05em;color:var(--k-muted);font-size:.85rem">Work week</span>
+            <div class="wwk"><button class="on">Mon</button><button class="on">Tue</button><button class="on">Wed</button><button class="on">Thu</button><button class="on">Fri</button><button>Sat</button><button>Sun</button></div></div>
+          <label class="f"><span class="l">Cumulative since</span><input class="d" type="date" value="2025-01-01"><small>The running surplus starts here.</small></label>
+          <div class="f wide"><span class="switch"><i></i>Reset the cumulative on January 1st each year</span></div>
+        </div>
+        <details class="adv"><summary>Advanced: my contracted hours changed over time</summary><p class="muted" style="font-size:.8rem">2025-01-01 → 8.0h · 2026-09-01 → 6.0h … (the timeline editor, as today)</p></details>
+        <div class="ssec-foot"><span class="dirty">unsaved changes</span><button class="btn primary">Save work</button></div>
+      </div>
+
+      <div class="ssec" id="leave">
+        <div class="ssec-head"><div><h3>Leave</h3><p>Your annual allowance. The Dashboard shows what is left of it.</p></div></div>
+        <div class="fields">
+          <label class="f"><span class="l">Vacation budget</span><input class="n" type="number" value="22" step="0.5"><small>Days per year; halves allowed (22.5).</small></label>
+        </div>
+        <div class="ssec-foot"><button class="btn primary" disabled>Save leave</button></div>
+      </div>
+
+      <div class="ssec" id="holidays">
+        <div class="ssec-head"><div><h3>Holidays</h3><p>Import 2027's official public holidays as <code>holiday</code> days. Logged dates are skipped.</p></div></div>
+        <div class="fields">
+          <label class="f"><span class="l">Country</span><select><option>Spain</option></select></label>
+          <label class="f"><span class="l">Region</span><select><option>ES-MD · Madrid</option></select></label>
+        </div>
+        <p class="muted" style="font-size:.82rem;margin:1rem 0 0"><b style="color:var(--k-text)">12 holidays in 2027</b> · 2 already logged — (the twelve mini-month calendar preview, as today)</p>
+        <ul class="hol-list">
+          <li><b>Fri, Jan 1</b> — Año Nuevo</li><li><b>Wed, Jan 6</b> — Epifanía del Señor</li><li><b>Fri, Mar 19</b> — San José <i>regional</i></li><li><b>Thu, Mar 25</b> — Jueves Santo</li>
+          <li><b>Fri, Mar 26</b> — Viernes Santo</li><li><b>Sat, May 1</b> — Fiesta del Trabajo</li><li><b>Mon, Aug 16</b> — Asunción (traslado)</li><li><b>Tue, Oct 12</b> — Fiesta Nacional</li>
+        </ul>
+        <div class="ssec-foot"><button class="btn">Import 10 holidays</button></div>
+      </div>
+
+      <div class="ssec" id="profile">
+        <div class="ssec-head"><div><h3>Profile</h3><p>Printed in the timesheet header (Days → PDF). Leave blank what you don't want on it.</p></div></div>
+        <div class="fields">
+          <label class="f"><span class="l">Name</span><input type="text" placeholder="Your name"></label>
+          <label class="f"><span class="l">Employer / client</span><input type="text" placeholder="Company"></label>
+          <label class="f wide"><span class="l">Extra line</span><input type="text" placeholder="Employee nº, team, contract…"></label>
+        </div>
+        <div class="ssec-foot"><button class="btn primary" disabled>Save profile</button></div>
+      </div>
+
+      <div class="ssec" id="templates">
+        <div class="ssec-head"><div><h3>Day templates</h3><p>Saved from the Log tab ("Save as template"). One click fills a recurring shift.</p></div></div>
+        <div class="tpl"><span><b>Office</b> <span class="muted num">· 08:30–17:00 · 45 min break</span></span><button class="btn small">Delete</button></div>
+        <div class="tpl"><span><b>Remote</b> <span class="muted num">· 08:00–16:00 · 30 min break</span></span><button class="btn small">Delete</button></div>
+      </div>
+
+      <div class="ssec" id="data">
+        <div class="ssec-head"><div><h3>🎢 Fun zone</h3><p>Everything that moves data in bulk. The two that destroy ask you to type first.</p></div></div>
+        <div class="data-row"><div><b>Backup &amp; restore</b><p>Download a full JSON snapshot. Restore wipes the current database first.</p></div><div class="acts"><button class="btn">↓ Download backup</button><button class="btn">↑ Restore…</button></div></div>
+        <div class="data-row"><div><b>Import CSV</b><p>Adds days from a Kronos CSV export. Existing dates are skipped, nothing is wiped.</p></div><div class="acts"><button class="btn">⇪ Import CSV…</button></div></div>
+        <div class="data-row"><div><b>Seed with sample data</b><p>Wipe all entries and repopulate with ~3 months of sample days. Settings are kept.</p></div><div class="acts"><button class="btn">Seed sample data…</button></div></div>
+        <div class="data-row"><div><b>Wipe all data</b><p>Permanently delete every logged day and break. Settings are kept. <b>This cannot be undone.</b></p></div><div class="acts"><button class="btn danger">Wipe all data…</button></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ DAYS ═══════════════════════════ -->
+<section class="screen" id="s-days">
+  <div class="days-head">
+    <h2>Days</h2>
+    <select><option>All years</option><option selected>2026</option><option>2025</option></select>
+    <input type="search" placeholder="Search notes…">
+    <span class="count">217 entries</span>
+    <button class="btn small">PDF</button>
+  </div>
+  <div class="twrap">
+    <table class="days">
+      <thead><tr><th>Date</th><th></th><th>Type</th><th class="r">Start</th><th class="r">End</th><th class="r">Breaks</th><th class="r">Net</th><th class="r">Target</th><th class="r">Δ</th><th class="r">Σ</th><th class="note">Notes</th><th></th></tr></thead>
+      <tbody>
+        <tr class="msep"><td colspan="12"><span class="mname">October 2026</span> &nbsp; <span class="msum">18 days · <b>142.50h</b> / 143.00h · <b class="deficit">−0.50h</b></span></td></tr>
+        <tr class="row"><td class="num">2026-10-26</td><td class="dow">Mon</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">17:45</td><td class="num r">45m</td><td class="num r">8.50h</td><td class="num r">8.00h</td><td class="num r surplus">+0.50h</td><td class="num r surplus">+12.50h</td><td class="note">Release day — stayed for the deploy window</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-10-23</td><td class="dow">Fri</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">15:00</td><td class="num r">30m</td><td class="num r">6.00h</td><td class="num r">8.00h</td><td class="num r deficit">−2.00h</td><td class="num r surplus">+12.00h</td><td class="note"></td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-10-22</td><td class="dow">Thu</td><td><span class="day-pill work">work</span></td><td class="num r">08:15</td><td class="num r">18:00</td><td class="num r">60m</td><td class="num r">8.75h</td><td class="num r">8.00h</td><td class="num r surplus">+0.75h</td><td class="num r surplus">+14.00h</td><td class="note">Dentist at 13:00, made up the time after</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row nonwork"><td class="num">2026-10-21</td><td class="dow">Wed</td><td><span class="day-pill vacation">vacation · 3h</span></td><td class="num r">09:00</td><td class="num r">14:00</td><td class="num r">—</td><td class="num r">5.00h</td><td class="num r">5.00h</td><td class="num r neutral">±0.00h</td><td class="num r surplus">+13.25h</td><td class="note">Afternoon off</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-10-20</td><td class="dow">Tue</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">17:15</td><td class="num r">45m</td><td class="num r">8.00h</td><td class="num r">8.00h</td><td class="num r neutral">±0.00h</td><td class="num r surplus">+13.25h</td><td class="note"></td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-10-19</td><td class="dow">Mon</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">17:30</td><td class="num r">45m</td><td class="num r">8.25h</td><td class="num r">8.00h</td><td class="num r surplus">+0.25h</td><td class="num r surplus">+13.25h</td><td class="note">Sprint planning; lunch with the <mark>Madrid</mark> team</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row nonwork"><td class="num">2026-10-12</td><td class="dow">Mon</td><td><span class="day-pill holiday">holiday</span></td><td class="num r">—</td><td class="num r">—</td><td class="num r">—</td><td class="num r">0.00h</td><td class="num r">0.00h</td><td class="num r neutral">±0.00h</td><td class="num r surplus">+13.00h</td><td class="note">Fiesta Nacional de España</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-10-09</td><td class="dow">Fri</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">14:30</td><td class="num r">—</td><td class="num r">6.00h</td><td class="num r">8.00h</td><td class="num r deficit">−2.00h</td><td class="num r surplus">+13.00h</td><td class="note"></td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="msep"><td colspan="12"><span class="mname">September 2026</span> &nbsp; <span class="msum">22 days · <b>178.25h</b> / 176.00h · <b class="surplus">+2.25h</b></span></td></tr>
+        <tr class="row"><td class="num">2026-09-30</td><td class="dow">Wed</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">17:30</td><td class="num r">45m</td><td class="num r">8.25h</td><td class="num r">8.00h</td><td class="num r surplus">+0.25h</td><td class="num r surplus">+15.00h</td><td class="note"></td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row nonwork"><td class="num">2026-09-29</td><td class="dow">Tue</td><td><span class="day-pill sick">sick</span></td><td class="num r">—</td><td class="num r">—</td><td class="num r">—</td><td class="num r">0.00h</td><td class="num r">0.00h</td><td class="num r neutral">±0.00h</td><td class="num r surplus">+14.75h</td><td class="note">Flu</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-09-28</td><td class="dow">Mon</td><td><span class="day-pill work">work</span></td><td class="num r">08:00</td><td class="num r">17:00</td><td class="num r">30m</td><td class="num r">8.50h</td><td class="num r">8.00h</td><td class="num r surplus">+0.50h</td><td class="num r surplus">+14.75h</td><td class="note"></td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row nonwork"><td class="num">2026-09-25</td><td class="dow">Fri</td><td><span class="day-pill flex">flex</span></td><td class="num r">—</td><td class="num r">—</td><td class="num r">—</td><td class="num r">0.00h</td><td class="num r">8.00h</td><td class="num r deficit">−8.00h</td><td class="num r surplus">+14.25h</td><td class="note">Long weekend in Asturias</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+        <tr class="row"><td class="num">2026-09-24</td><td class="dow">Thu</td><td><span class="day-pill work">work</span></td><td class="num r">08:30</td><td class="num r">19:00</td><td class="num r">45m</td><td class="num r">9.75h</td><td class="num r">8.00h</td><td class="num r surplus">+1.75h</td><td class="num r surplus">+22.25h</td><td class="note">Incident on prod, stayed late</td><td class="act"><button class="edit" title="Edit">✎</button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+// ── mockup plumbing: theme, screens ────────────────────────────────────────
+const root = document.documentElement;
+document.getElementById('theme').onclick = () => {
+  const t = root.dataset.theme === 'dark' ? 'light' : 'dark'; root.dataset.theme = t;
+  document.getElementById('theme').textContent = t === 'dark' ? '☀' : '🌙';
+};
+function show(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === 's-' + name));
+  document.querySelectorAll('nav.tabs a').forEach(a => a.classList.toggle('active', a.dataset.screen === name));
+  document.querySelector('.icon-btn.settings').classList.toggle('active', name === 'settings');
+  if (name === 'dashboard') animateDashboard();
+}
+document.querySelectorAll('[data-screen]').forEach(el => el.addEventListener('click', e => { e.preventDefault(); show(el.dataset.screen); }));
+document.querySelectorAll('.sidx a').forEach(a => a.addEventListener('click', () => { document.querySelectorAll('.sidx a').forEach(x => x.classList.remove('active')); a.classList.add('active'); }));
+
+// ── dial geometry ────────────────────────────────────────────────────────────
+const polar = (cx, cy, r, deg) => { const a = (deg - 90) * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+function arc(cx, cy, r, a0, a1) {
+  if (Math.abs(a1 - a0) < 0.01) return '';
+  const [x0, y0] = polar(cx, cy, r, a0), [x1, y1] = polar(cx, cy, r, a1);
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0, sweep = a1 > a0 ? 1 : 0;
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} ${sweep} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+const fmt = h => (h > 0.01 ? '+' : h < -0.01 ? '−' : '±') + Math.abs(h).toFixed(2) + 'h';
+const cls = h => h > 0.01 ? 'surplus' : h < -0.01 ? 'deficit' : 'neutral';
+
+// main dial: −40h … +40h over a 240° sweep, zero at 12 o'clock, the gap at 6 o'clock holds the date window
+function drawDial(value, projected) {
+  const svg = document.getElementById('dial'); const cx = 200, cy = 128, r = 108, span = 120, range = 40;
+  const ang = h => Math.max(-span, Math.min(span, h / range * span));
+  let s = '';
+  s += `<path class="track" d="${arc(cx, cy, r, -span, span)}"/>`;
+  for (let h = -40; h <= 40; h += 5) {
+    const major = h % 20 === 0, a = ang(h), [x0, y0] = polar(cx, cy, r + 9, a), [x1, y1] = polar(cx, cy, r + (major ? 17 : 13), a);
+    s += `<line class="tick ${major ? 'major' : ''}" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}"/>`;
+    if (major) { const [lx, ly] = polar(cx, cy, r + 26, a); s += `<text class="tick-label" x="${lx}" y="${ly + 3}">${h > 0 ? '+' : ''}${h}</text>`; }
+  }
+  // filled arc from zero to the value, a brass marker at its tip, then the projection dashed ahead of it
+  const a = ang(value), ap = ang(projected);
+  s += `<path class="fill ${cls(value)}" id="dial-fill" d="${arc(cx, cy, r, Math.min(0, a), Math.max(0, a))}"/>`;
+  s += `<path class="proj" id="dial-proj" d="${arc(cx, cy, r, a, ap)}"/>`;
+  const [mx, my] = polar(cx, cy, r, a);
+  s += `<circle class="marker" id="marker" cx="${mx}" cy="${my}" r="6"/>`;
+  const [tx0, ty0] = polar(cx, cy, r - 8, ap), [tx1, ty1] = polar(cx, cy, r + 8, ap), [lx, ly] = polar(cx, cy, r + 22, ap), side = ap >= 0 ? 'start' : 'end';
+  s += `<line class="proj-tick" x1="${tx0}" y1="${ty0}" x2="${tx1}" y2="${ty1}"/>`;
+  s += `<text class="proj-label" text-anchor="${side}" x="${lx}" y="${ly - 2}">${fmt(projected)}</text><text class="proj-sub" text-anchor="${side}" x="${lx}" y="${ly + 9}">DEC 31 · 29 WORK DAYS</text>`;
+  // the face: engraved caption, hero number, worked / target, the date window in the 6 o'clock gap
+  s += `<text class="engraved" x="${cx}" y="${cy - 34}">cumulative · since Jan 2025</text>`;
+  s += `<text class="hero-num ${cls(value)}" id="hero-num" x="${cx}" y="${cy + 16}">${fmt(0)}</text>`;
+  s += `<text class="hero-cap" x="${cx}" y="${cy + 38}">1472.25h / 1459.75h · 8h a day</text>`;
+  s += `<rect class="datewin" x="${cx - 16}" y="${cy + 72}" width="32" height="32" rx="3"/><text class="datewin-dow" x="${cx}" y="${cy + 83}">TUE</text><text class="datewin-num" x="${cx}" y="${cy + 98}">27</text>`;
+  svg.innerHTML = s;
+  // animate: sweep the arcs, slide the marker along the rim, count the number
+  const fill = document.getElementById('dial-fill'), proj = document.getElementById('dial-proj'), marker = document.getElementById('marker');
+  [fill, proj].forEach(p => { if (!p.getAttribute('d')) return; const L = p.getTotalLength(); p.style.strokeDasharray = p === proj ? '3 5' : L; p.style.strokeDashoffset = L;
+    p.style.transition = 'none'; requestAnimationFrame(() => { p.style.transition = `stroke-dashoffset ${p === proj ? 0.8 : 1.4}s cubic-bezier(.2,.8,.2,1) ${p === proj ? 1.2 : 0.2}s`; p.style.strokeDashoffset = 0; }); });
+  marker.style.transformOrigin = `${cx}px ${cy}px`; marker.style.transform = `rotate(${-a}deg)`; marker.style.transition = 'none';
+  requestAnimationFrame(() => { marker.style.transition = 'transform 1.4s cubic-bezier(.2,.8,.2,1) .2s'; marker.style.transform = 'rotate(0deg)'; });
+  countUp(document.getElementById('hero-num'), value, 1400, 200);
+}
+function drawSub(svg) {
+  const value = +svg.dataset.sub, range = +svg.dataset.range, cx = 50, cy = 46, r = 36, span = 120;
+  const ang = h => Math.max(-span, Math.min(span, h / range * span)), a = ang(value);
+  let s = `<path class="track" d="${arc(cx, cy, r, -span, span)}"/>`;
+  s += `<path class="fill ${cls(value)}" d="${arc(cx, cy, r, Math.min(0, a), Math.max(0, a))}"/>`;
+  const [nx, ny] = polar(cx, cy, r - 12, a);
+  s += `<line class="needle" x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" style="transform-origin:${cx}px ${cy}px"/><circle class="hub" cx="${cx}" cy="${cy}" r="2.5"/>`;
+  s += `<text class="val ${cls(value)}" x="${cx}" y="${cy + 28}">${fmt(0)}</text>`;
+  svg.innerHTML = s;
+  const f = svg.querySelector('.fill'); if (f.getAttribute('d')) { const L = f.getTotalLength(); f.style.strokeDasharray = L; f.style.strokeDashoffset = L; requestAnimationFrame(() => { f.style.transition = 'stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1) .5s'; f.style.strokeDashoffset = 0; }); }
+  const n = svg.querySelector('.needle'); n.style.transform = `rotate(${-a}deg)`; requestAnimationFrame(() => { n.style.transition = 'transform 1s cubic-bezier(.2,.8,.2,1) .5s'; n.style.transform = 'rotate(0deg)'; });
+  countUp(svg.querySelector('.val'), value, 1000, 500);
+}
+function countUp(el, target, ms, delay) {
+  const t0 = performance.now() + delay;
+  const step = now => { const p = Math.min(1, Math.max(0, (now - t0) / ms)), e = 1 - Math.pow(1 - p, 3); el.textContent = fmt(target * e); if (p < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function animateDashboard() {
+  drawDial(12.5, 21.92);
+  document.querySelectorAll('.subdial svg').forEach(drawSub);
+  document.querySelectorAll('.reserve-used, .reserve-planned').forEach(el => { el.style.width = '0'; requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = el.dataset.w + '%'; })); });
+}
+animateDashboard();
+</script>
+</div></body></html>

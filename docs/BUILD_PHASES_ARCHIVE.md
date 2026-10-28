@@ -205,7 +205,7 @@ budget, then commits drafts into real entries.
   (days logged ahead included), unlike the dashboard's "used so far".
 - The dashboard forecast subtracts the drafted days (and drafted flex hours) instead of the whole
   remaining vacation budget once anything is drafted, and links to the planner.
-- UI chosen from three mockups (`backend/static/mockups/plan-p{1,2,3}.html`): P2 — stat cards, one
+- UI chosen from three mockups (`docs/mockups/plan-p{1,2,3}.html`): P2 — stat cards, one
   working month, a ledger interleaving drafts with logged time off, year switcher — plus P3's
   year strip of twelve mini months as the month picker. Drafts are dashed ghost cells on the Log
   calendar (click pre-fills the form), the Week view and the heatmap. A dragged range drafts (and
@@ -253,7 +253,7 @@ browser's "Save as PDF" is the export.
   arithmetic. Entry point: a **PDF** button on the Days tab (Miguel's name for it) with a picker,
   plus a palette command. Rejected: a print stylesheet over the Days tab (a tool, not a document),
   any server-side PDF dependency.
-- Mockups first (`backend/static/mockups/timesheet-t{1,2,3}.html`, rendered from seed data):
+- Mockups first (`docs/mockups/timesheet-t{1,2,3}.html`, rendered from seed data):
   Miguel chose T2's detail with T3's month sections.
 - Found in review: the service worker's stale-while-revalidate cached report pages by URL, so
   "last month" could show the previous visit's numbers first. `/timesheet` is network-only now,
@@ -269,6 +269,136 @@ printer on the page and checks a real PDF comes out.
 the browser's own header/footer option adds them). Notes are printed as-is, one line per day.
 
 **Commits.** `17c2cdb` Phases 24–26 together; pipeline 257 (INT and PROD).
+
+---
+
+## Phase 31 — Visual Redesign: Navigation, Dashboard + Week, Settings, Days
+Built 2026-10-28 in one session with Phase 31/33; not yet confirmed by Miguel or deployed.
+
+**Why.** Seven tabs since the planner arrived; a dashboard of three cards, two tiles, a forecast
+sentence, a button and four pills, with the milestone toast over its first line; Settings as one
+1280 px column where a single number took a whole row; a Days table whose note icon pushed the
+Edit button around. One phase on purpose: the four parts share one visual language.
+
+**Process.** Interview first (2026-10-27), then three mockups with all screens in each and a
+working theme toggle (`docs/mockups/redesign-r{1,2,3}.html`, index in `docs/mockups/README.md`):
+R1 "Chronograph" (a dial with subdials, the forecast as a dashed arc), R2 "Trajectory" (a
+sparkline of the balance per day with a dashed projection), R3 "Ledger" (typographic, a year
+runway). **Chosen: R2 throughout with R3's card-per-section Settings and R2's gear.**
+
+**Decisions.**
+- Navigation 7 → 5: Dashboard · Plan · Log · Days · Analytics. Week folded into the Dashboard;
+  Settings behind an eight-tooth gear next to the theme toggle (brass on dark, ink on light,
+  quarter-turn on hover, slow turn while open). Log stays a tab — the slide-over idea was dropped
+  rather than redo Phase 22's three-column Log. Key **W** and the palette's "Week" went; **S**
+  stays. Top bar on the phone, no bottom bar. From the UX pass: the first letter of a tab with a
+  shortcut is brass (P · L · D · A), Escape goes back to the Dashboard from any tab (it used to
+  from Log only; overlays, fields and edits still dismiss first), the palette's hints stopped
+  advertising digit keys that never existed, and clicking a tab no longer leaves a blinking caret
+  (`user-select: none` + transparent caret; Chrome on Windows painted the collapsed selection).
+- Dashboard: no prose. The cumulative balance is the hero, "since Jan 2025 · 8h a day" captions,
+  today + live clock a chip. Next to it the **trajectory** — the balance after each logged day of
+  the year, then a dashed line to Dec 31 at the forecast value — from the new
+  `GET /api/analytics/cumulative-series?year=` (each point equals the as-of cumulative; entries
+  before Jan 1 fold into `opening`; one call, not one per day). Week · month · vs last year as
+  chips with a bullet bar centred on zero; the day counts the old cards printed are the chips'
+  tooltips; yoy is fetched by the dashboard itself. The week as seven tiny bar charts (hours
+  worked plus hours off, target as a dashed rule, drafts as ghost bars), always the current week —
+  the Week tab's prev/next went, by Miguel's preference for the simple thing. Quick-log only
+  while today is empty. Vacation as notches (used / planned / left, fractions fill part of one).
+  Rejected: R1's dial (Miguel liked R2), keeping the week navigation.
+- Draggable layout retired end to end: `/api/config/dashboard-layout`, service, schema, tests,
+  the vendored SortableJS and its CSS. The backup never carried the key; a `dashboard_layout`
+  row may linger in existing `settings` tables, unread.
+- The save ribbon / milestone toast is fixed to the bottom of the viewport.
+- Settings: one page, a scroll-spied index (IntersectionObserver; chips on the phone), one card
+  per section (Work · Leave · Holidays · Profile · Templates · Data), the save in the card header,
+  enabled only while that section is dirty, sending only its fields (`PUT /api/config` already
+  took partial bodies). Rows: label + hint left, a control sized to its content right — the real
+  complaint was "a lonely 8" spanning a 2K screen. Saving stays on the page; Ctrl+Enter saves all.
+  "Fun zone" kept its name. `btn-action` became a real brass button (Pico's primary stayed blue
+  because only `--pico-primary` was mapped; the focus ring followed later).
+- Days: row click edits, a ✎ in a fixed action column (hover/focus; always on the phone), a
+  weekday column, sticky header (the wrap no longer scrolls on desktop so the page is the
+  scroller), a separator with count · net / target · Δ per month under the date sort only, notes
+  always visible in the last column (markdown, search highlights in place; hidden under 640 px),
+  "N entries · PDF" in the top bar. The notes toggle went. `editEntry()` mirrors `#log` into the
+  hash like `go()`.
+- Housekeeping: the ten old mockups moved from `backend/static/mockups/` to `docs/mockups/`, so
+  they stopped shipping in the image. Service worker cache v29.
+
+**Tests.** 5 API (the series), 10 Playwright (`tests/e2e/test_redesign.py`) plus the caret and
+Escape tests in `test_navigation.py`; the affected e2e tests updated (tab count, table columns,
+chips for cards, the strip for the Week tab, the gear for the Settings tab). The tick-up
+animation is idempotent — a background refresh with unchanged numbers no longer restarts it,
+which the e2e suite caught. The sandbox reviewer (`bin/review_sandbox.sh`) came out of this
+phase's review round.
+
+**Known limits.** The trajectory draws logged days only (an unlogged work day is a flat step, as
+in the Σ column). Under 640 px the notes column is hidden; the note is reachable through the row.
+The series endpoint is the seed of Phase 33's per-day chart.
+
+**Commits.** One commit for Phases 31 and 33 on branch `phases-31-33`.
+
+---
+
+## Phase 33 — Interactive Analytics
+Built 2026-10-28 in one session with Phase 31/33; not yet confirmed by Miguel or deployed.
+
+**Why.** Analytics was hand-drawn SVG with nothing interactive — a thin trend line with one
+point per month, fixed monthly bars, month cards Miguel called "derpy and useless" — and
+after Phase 31 it was the page left behind. Miguel wanted what Pi-hole and Proxmox do: draw a
+rectangle on the chart and it becomes the new focus. One rule from the start: Year at a glance
+stays, whatever happens.
+
+**Process.** Interview (2026-10-28), then two mockups in which the chart already worked
+(`docs/mockups/analytics-a{1,2}.html`): A1 "chart first" (full width, the range's numbers as
+chips under it) and A2 "chart + ledger" (the range's numbers in a ledger beside it, presets in
+the ledger). **Chosen: A2 entirely.**
+
+**Decisions.**
+- **Engine: hand-drawn SVG**, like the dashboard's trajectory — the same look, no new
+  dependency. Rejected: Chart.js + its zoom plugin (the plugin and hammer.js for touch were two
+  more files to vendor, and the sandbox has no network). Chart.js, vendored since the start and
+  loaded nowhere, was removed.
+- **Zoom:** drag a rectangle → that x-range is the view and y rescales to what is visible;
+  wheel zooms at the cursor; shift+drag and the history strip under the chart pan;
+  double-click and Reset go back to *This year*; presets This month · 3 months · This year ·
+  12 months · All; never narrower than 7 days. Touch: one finger pans, two pinch
+  (`touch-action: pan-y` so the page still scrolls). Pointer events are attached once to the
+  wrap; the svg inside is rebuilt as markup on every render, because Alpine's `x-for` cannot
+  live inside `<svg>`.
+- **The range drives the page:** the ledger (balance, net, target, per work day, work / off
+  days, vacation · sick, logged days), the weekday pattern, the histogram and the records are
+  computed client-side from `/api/entries` for the visible range. The "All years" page filter
+  went; a year select stays on Year at a glance only.
+- **Series switch:** Balance (cumulative per day across all years, from the new
+  `GET /api/analytics/cumulative-series?all=true`, restarting at zero each January 1st under an
+  annual reset) · Per day (net hours + hours off as bars coloured by type, the target dashed) ·
+  Per month (net vs target). **Monthly breakdown went** — bars and cards; `/api/analytics/monthly`
+  and `/records` stay in the API for the CLI (Phase 32).
+- **Weekday pattern** became a bar per weekday above / below zero with the average start → end
+  under it ("when do I really arrive and leave?"). **Daily surplus**: a histogram in half-hour
+  buckets from −3h to +3h with the share within ±30 min — the one new view Miguel wanted to
+  try; the month-vs-same-month-last-year view was dropped to keep the page lean. **Records**
+  shrank to two columns of one-line rows (Miguel: "way less space, at least on desktop"), per
+  range, plus earliest start and latest end; the 2026-10-02 rule stands (a "worst" only when
+  negative). **Years** (carry-in) and **Export** stayed.
+- **Year at a glance:** a tooltip per day (weekday and date, hours and Δ or the type, the note,
+  a draft as "planned") and click → that day in Log, new entry if empty. The cell's `title`
+  became `aria-label` so the native tooltip does not double the custom one.
+- Order: Year at a glance · Balance over time · Weekday pattern · Daily surplus · Years ·
+  Records · Export.
+
+**Tests.** 1 API, 7 Playwright (`tests/e2e/test_analytics_chart.py`: rectangle and wheel zoom,
+reset, presets driving the ledger and the records, the series switch, weekday times and the
+histogram, the heatmap tooltip and click); the three older Analytics e2e files updated.
+
+**Known limits.** The hover readout exists on the Balance series only (bars carry native
+titles). The histogram clips beyond ±3h and says how many days it clipped. The history strip
+shows the balance whatever series the chart shows. The demo GIF predates both redesigns.
+
+**Commits.** One commit for Phases 31 and 33 on branch `phases-31-33`.
 
 ---
 

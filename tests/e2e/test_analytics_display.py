@@ -65,7 +65,7 @@ def _open_analytics(page, base_url: str) -> None:
 
 
 def _record_titles(page) -> list[str]:
-    return page.locator("section[aria-label=Analytics] .summary-card h3").all_inner_texts()
+    return page.locator("section[aria-label=Analytics] .an-rec-label").all_inner_texts()
 
 
 class TestAnalyticsDisplay:
@@ -81,6 +81,9 @@ class TestAnalyticsDisplay:
         earlier = monday - datetime.timedelta(days=7)
         _seed(base_url, [_entry(monday, "19:00"), _entry(earlier, "18:20")])
         _open_analytics(page, base_url)
+        page.locator(
+            ".an-presets button", has_text="All"
+        ).click()  # both Mondays, whatever the date
 
         avg = page.locator(".weekday-cell", has_text="Mon").locator(".weekday-avg")
         assert avg.inner_text() == "+0.7h"
@@ -115,5 +118,5 @@ class TestAnalyticsDisplay:
         titles = _record_titles(page)
         for card in GATED_CARDS:
             assert card in titles, titles
-            metric = page.locator(".summary-card", has_text=card).locator(".metric")
+            metric = page.locator(".an-rec", has_text=card).locator("b")
             assert metric.inner_text().startswith("−"), metric.inner_text()

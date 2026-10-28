@@ -49,6 +49,7 @@
   --pico-muted-border-color:            var(--k-border);
   --pico-border-color:                  var(--k-border-strong);
   --pico-primary:                       var(--k-brass);
+  --pico-primary-focus:                 color-mix(in srgb, var(--k-brass) 40%, transparent);
   --pico-primary-inverse:               var(--k-bg);
   --pico-form-element-border-color:     var(--k-border-strong);
   --pico-form-element-focus-color:      var(--k-brass);
@@ -94,6 +95,7 @@
   --pico-muted-border-color:            var(--k-border);
   --pico-border-color:                  var(--k-border-strong);
   --pico-primary:                       var(--k-brass);
+  --pico-primary-focus:                 color-mix(in srgb, var(--k-brass) 40%, transparent);
   --pico-primary-inverse:               var(--k-surface);
   --pico-form-element-border-color:     var(--k-border-strong);
   --pico-form-element-focus-color:      var(--k-brass);
@@ -208,6 +210,10 @@ h1, h2, h3, h4 {
   background: transparent;
   text-decoration: none;
   cursor: pointer;
+  /* A click focuses the tab and leaves a collapsed selection inside it, which Chrome on
+     Windows paints as a blinking text caret. Labels are not text to select. */
+  user-select: none;
+  caret-color: transparent;
   transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
 }
 
@@ -222,6 +228,9 @@ h1, h2, h3, h4 {
   border-bottom-color: var(--k-brass);
   background: transparent;
 }
+
+/* The first letter of a tab that has a shortcut is its key: P · L · D · A. */
+.tabs a .tab-key { color: var(--k-brass); }
 
 /* Desktop: single flex row — brand left, tabs+toggle right */
 @media (min-width: 720px) {
@@ -347,6 +356,30 @@ h1, h2, h3, h4 {
   background: transparent;
 }
 
+/* ── Settings gear: brass on dark, ink on light; a quarter-turn on hover, a slow
+      full turn while Settings is open ──────────────────────────────────────── */
+.settings-btn { color: var(--k-brass); }
+[data-theme="light"] .settings-btn { color: var(--k-ink); }
+.settings-btn:hover { color: var(--k-brass); border-color: var(--k-brass); }
+.settings-btn .gear {
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.settings-btn .gear path { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; }
+.settings-btn .gear circle { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.settings-btn:hover .gear { transform: rotate(45deg); }
+.settings-btn.is-open {
+  border-color: var(--k-brass);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--k-brass) 30%, transparent);
+}
+.settings-btn.is-open .gear { animation: gear-turn 6s linear infinite; }
+@keyframes gear-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .settings-btn .gear { transition: none; animation: none !important; }
+}
+
 /* ================================================================
    SECTIONS
    ================================================================ */
@@ -409,31 +442,6 @@ section { margin-bottom: 2rem; }
   margin: 0;
 }
 
-/* Cumulative card — brass top border only; glow pulse (W2) handles the rest */
-.summary-card.cumulative {
-  border-top-color: var(--k-brass);
-}
-
-/* Clickable card — navigates on click (e.g. This week → Week view) */
-.summary-card--link {
-  cursor: pointer;
-  transition: border-color var(--k-transition-fast);
-}
-/* Suppress the role=link underline Pico applies on hover */
-.summary-card--link,
-.summary-card--link:hover,
-.summary-card--link * {
-  text-decoration: none !important;
-}
-.summary-card--link:hover {
-  border-top-color: var(--k-brass);
-  border-bottom-color: var(--k-brass);
-}
-.summary-card--link:focus-visible {
-  outline: 2px solid var(--k-brass);
-  outline-offset: 2px;
-}
-
 .summary-card h3 {
   margin: 0 0 0.25rem;
   font-size: 0.78rem;
@@ -460,148 +468,6 @@ section { margin-bottom: 2rem; }
   margin-top: 0.5rem;
   font-size: 0.85rem;
   color: var(--k-muted);
-}
-
-/* ================================================================
-   DASHBOARD REDESIGN — hero grid, tile row, aux stack, drag-to-reorder
-   ================================================================ */
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.tile-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.tile {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--k-surface);
-  border-top: 1px solid var(--k-border);
-  border-bottom: 1px solid var(--k-border);
-  border-radius: 4px;
-  padding: 0.6rem 0.9rem;
-}
-.tile .tile-metric {
-  font-size: 1.35rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.tile .tile-label {
-  min-width: 0;
-  font-size: 0.78rem;
-  color: var(--k-muted);
-  line-height: 1.35;
-}
-.tile .tile-label strong {
-  display: block;
-  font-weight: 600;
-  color: var(--k-text);
-  font-variant: small-caps;
-  letter-spacing: 0.03em;
-  font-size: 0.85rem;
-}
-
-.aux-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  margin-bottom: 1.5rem;
-}
-.aux-block {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-}
-.aux-block > .drag-handle {
-  flex: 0 0 auto;
-  margin-top: 0.2rem;
-}
-.aux-block > *:not(.drag-handle) {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-/* the wrapped blocks already carry their own spacing; the stack's gap replaces it */
-.aux-block .forecast-line,
-.aux-block .quick-log-section,
-.aux-block .vacation-bar-wrap {
-  margin: 0;
-}
-
-/* Drag handle — grip-dots button. Subtle at rest, brass on hover/focus so it
-   reads as "grab me" without competing with the card content. */
-.summary-card,
-.tile {
-  position: relative;
-}
-.summary-card > .drag-handle,
-.tile > .drag-handle {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-}
-/* button.drag-handle (not just .drag-handle): Pico styles buttons via
-   `[type="button"], ..., button { color: var(--pico-color); ... }`, which ties
-   our class selector on specificity — qualifying with the element type breaks
-   the tie decisively instead of hoping source order sorts it out. */
-button.drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--k-muted);
-  opacity: 0.35;
-  cursor: grab;
-  touch-action: none;
-  transition:
-    opacity var(--k-transition-fast),
-    background-color var(--k-transition-fast),
-    color var(--k-transition-fast);
-}
-button.drag-handle svg {
-  width: 13px;
-  height: 13px;
-}
-button.drag-handle:hover,
-button.drag-handle:focus-visible {
-  opacity: 1;
-  color: var(--k-brass);
-  background: color-mix(in srgb, var(--k-brass) 15%, transparent);
-}
-button.drag-handle:active {
-  cursor: grabbing;
-}
-
-/* SortableJS hook classes — the actual "feel" of the drag. Native HTML5 DnD (no
-   forceFallback) renders its own floating drag image from the source element and
-   moves it with the cursor; these classes style the placeholder slot (.kr-drag-ghost)
-   and the source element while it's being dragged (.kr-drag-dragging). */
-.kr-drag-ghost {
-  opacity: 0.35;
-  outline: 2px dashed var(--k-brass);
-  outline-offset: -2px;
-  background: var(--k-bg);
-}
-.kr-drag-chosen {
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-  z-index: 5;
-}
-.kr-drag-dragging {
-  opacity: 0.4;
 }
 
 /* ================================================================
@@ -778,10 +644,25 @@ th.sortable::after { content: " ↕"; opacity: 0.35; }
 
 /* Override Pico's width:100% so action buttons size to their label */
 .form-footer button,
-.form-footer [role="button"],
-button.btn-action {
+.form-footer [role="button"] {
   width: auto;
 }
+/* The solid brass action (Pico's own primary button stays blue on Windows fonts/colour
+   schemes because only --pico-primary is mapped, not the button background). */
+button.btn-action {
+  width: auto;
+  background: var(--k-brass);
+  color: var(--k-bg);
+  border: 1px solid var(--k-brass);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+button.btn-action:hover:not(:disabled) { opacity: 0.88; background: var(--k-brass); color: var(--k-bg); }
+button.btn-action:disabled { opacity: 0.35; cursor: default; }
 
 /* ================================================================
    LABEL HELPERS
@@ -893,74 +774,15 @@ button.btn-action-ghost:hover {
 }
 
 /* ================================================================
-   MONTH SCORECARDS — 3px TOP-border (D2 style, not left-border)
-   ================================================================ */
-
-.month-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 0.75rem;
-  margin: 1rem 0 2rem;
-}
-
-.month-card {
-  padding: 1rem 1rem 0.85rem;
-  border: 1px solid var(--k-border);
-  border-top-width: 3px;
-  border-radius: 4px;
-  background: var(--k-surface);
-  margin: 0;
-}
-
-.month-card--surplus { border-top-color: var(--k-surplus); }
-.month-card--deficit { border-top-color: var(--k-deficit); }
-.month-card--neutral { border-top-color: var(--k-muted); }
-
-.month-card-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--k-muted);
-  text-transform: uppercase;
-  margin-bottom: 0.4rem;
-}
-
-.month-card-surplus {
-  font-size: 1.45rem;
-  font-weight: 700;
-  line-height: 1.1;
-  margin-bottom: 0.45rem;
-}
-
-.month-card-detail {
-  font-size: 0.8rem;
-  color: var(--k-text);
-  margin-bottom: 0.2rem;
-}
-
-.month-card-days {
-  font-size: 0.75rem;
-}
-
-/* ================================================================
    FUN ZONE — left-border-only rust rule
    ================================================================ */
 
-.fun-zone {
-  margin-top: 2.5rem;
-  border: none;
+.settings-card.fun-zone {
   border-left: 3px solid var(--k-deficit);
-  padding: 1.25rem 1.5rem;
-  background: color-mix(in srgb, var(--k-deficit) 6%, transparent);
+  background: color-mix(in srgb, var(--k-deficit) 5%, var(--k-surface));
 }
 
-.fun-zone-title {
-  font-variant: small-caps;
-  letter-spacing: 0.06em;
-  color: var(--k-deficit);
-  font-size: 0.9rem;
-  margin: 0 0 1rem;
-}
+.fun-zone-title { color: var(--k-deficit); }
 
 .fun-zone-action {
   display: flex;
@@ -1127,59 +949,6 @@ button.btn-action-ghost:hover {
   margin-bottom: 0;
 }
 
-/* Trend line */
-.chart-zero {
-  stroke: var(--k-border-strong);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-}
-
-.chart-area {
-  fill-opacity: 0.12;
-}
-.chart-area--surplus { fill: var(--k-surplus); }
-.chart-area--deficit { fill: var(--k-deficit); }
-.chart-area--neutral { fill: var(--k-muted); }
-
-.chart-line {
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.chart-line--surplus { stroke: var(--k-surplus); }
-.chart-line--deficit { stroke: var(--k-deficit); }
-.chart-line--neutral { stroke: var(--k-muted); }
-
-.chart-dot {
-  stroke-width: 2;
-  stroke: var(--k-surface);
-}
-.chart-dot--surplus { fill: var(--k-surplus); }
-.chart-dot--deficit { fill: var(--k-deficit); }
-.chart-dot--neutral { fill: var(--k-muted); }
-
-/* Monthly bar chart */
-.chart-bar {
-  opacity: 0.85;
-}
-.chart-bar--surplus { fill: var(--k-surplus); }
-.chart-bar--deficit { fill: var(--k-deficit); }
-.chart-bar--neutral { fill: var(--k-muted); }
-
-.chart-target {
-  stroke: var(--k-brass);
-  stroke-width: 1.5;
-  stroke-dasharray: 4 3;
-  opacity: 0.7;
-}
-
-.chart-label {
-  fill: var(--k-muted);
-  font-size: 9px;
-  font-family: ui-monospace, monospace;
-}
-
 /* ================================================================
    HEATMAP
    ================================================================ */
@@ -1226,8 +995,6 @@ button.btn-action-ghost:hover {
 .log-cal-day.hm-ghost.hm-ghost-vacation { color: var(--k-vacation); }
 .log-cal-day.hm-ghost.hm-ghost-holiday  { color: #9db6c2; }
 .log-cal-day.hm-ghost.hm-ghost-flex     { color: var(--k-flex); }
-.week-day-bar.hm-ghost { border-width: 1px; }
-.week-day-planned { font-size: 0.68rem; font-variant: small-caps; letter-spacing: 0.08em; }
 .hm-partial-swatch {
   background: linear-gradient(135deg, var(--k-vacation) 0 50%, var(--k-surplus) 50% 100%);
   opacity: 0.85;
@@ -1260,10 +1027,6 @@ button.btn-action-ghost:hover {
 
 /* ── Settings: profile block ────────────────────────────────────────────── */
 
-.settings-subhead { margin: 1.5rem 0 0.15rem; font-size: 1rem; }
-.settings-subhead-note { font-size: 0.8rem; margin: 0 0 0.75rem; }
-.profile-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-@media (max-width: 600px) { .profile-grid { grid-template-columns: 1fr; } }
 
 /* ── Plan tab (time-off planner) ────────────────────────────────────────── */
 
@@ -1430,99 +1193,6 @@ button.btn-action-ghost:hover {
 .leave-slider small {
   display: block;
   line-height: 1.3;
-}
-
-/* Week tab: a partial day shows its pill plus the worked part's hours and delta */
-.week-day-partial {
-  display: flex;
-  gap: 0.35rem;
-  align-items: baseline;
-  margin-top: 0.25rem;
-  font-size: 0.8rem;
-}
-
-/* ───────────── Week tab ─────────────────────────────────────────────────── */
-
-.week-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.week-range {
-  font-weight: 600;
-  font-size: 0.95rem;
-  min-width: 9rem;
-  text-align: center;
-}
-
-.week-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.week-day {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.6rem 0.55rem 0.75rem;
-  border: 1px solid var(--k-border);
-  border-radius: 8px;
-  background: var(--k-surface);
-  color: var(--k-text);
-  cursor: pointer;
-  width: 100%;
-  margin: 0;
-  min-height: 6.75rem;
-  text-align: left;
-  transition: border-color var(--k-transition-fast);
-}
-.week-day:hover { border-color: var(--k-brass); }
-.week-day--today { border-color: var(--k-brass); box-shadow: inset 0 0 0 1px var(--k-brass); }
-.week-day--weekend { background: color-mix(in srgb, var(--k-surface) 55%, var(--k-bg)); }
-.week-day--empty { opacity: 0.65; }
-
-.week-day-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
-.week-day-dow {
-  font-size: 0.68rem;
-  color: var(--k-muted);
-  font-variant: small-caps;
-  letter-spacing: 0.05em;
-}
-.week-day-num { font-size: 1.05rem; font-weight: 600; }
-
-.week-day-bar { height: 5px; border-radius: 3px; opacity: 0.85; }
-.week-day-bar.hm-empty { border: 1px dashed var(--k-border); background: transparent; }
-
-.week-day-body {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-}
-.week-day-net { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.week-day-delta { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
-.week-day-empty-label { color: var(--k-muted); font-size: 1.1rem; }
-
-.summary-card.week-total { max-width: 320px; }
-
-/* Mobile: stack the seven days as rows */
-@media (max-width: 640px) {
-  .week-grid { grid-template-columns: 1fr; gap: 0.4rem; }
-  .week-day {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 0;
-  }
-  .week-day-head { flex-direction: row; gap: 0.4rem; min-width: 4rem; }
-  .week-day-bar { width: 5px; height: auto; align-self: stretch; }
-  .week-day-body { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; }
 }
 
 /* ── Log tab — layout, card surface, form hierarchy ─────────────────────── */
@@ -2114,25 +1784,6 @@ button.btn-action-ghost:hover {
 }
 
 /* ================================================================
-   FORECAST LINE (Dashboard)
-   ================================================================ */
-
-.forecast-line {
-  font-size: 0.9rem;
-  color: var(--k-muted);
-  margin-top: -0.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.forecast-breakdown {
-  display: block;
-  font-size: 0.78rem;
-  color: var(--k-muted);
-  margin-top: 0.15rem;
-  opacity: 0.75;
-}
-
-/* ================================================================
    DAY TEMPLATES — Log form picker + save row
    ================================================================ */
 
@@ -2193,16 +1844,6 @@ button.btn-action-ghost:hover {
    DAY TEMPLATES — Settings management list
    ================================================================ */
 
-.templates-section {
-  margin: 1.5rem 0;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--k-border);
-}
-
-.templates-section h3 {
-  margin-bottom: 0.75rem;
-}
-
 .template-item {
   display: flex;
   align-items: center;
@@ -2216,19 +1857,6 @@ button.btn-action-ghost:hover {
 }
 
 /* ───────────── Public holidays ─────────────────────────────────────────── */
-.holidays-section {
-  margin: 1.5rem 0;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--k-border);
-}
-.holidays-section h3 { margin-bottom: 0.75rem; }
-.holiday-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 0.5rem;
-}
-.holiday-controls label { flex: 1 1 12rem; margin-bottom: 0; }
 .holiday-note { margin-top: 0.75rem; font-size: 0.85rem; }
 
 /* Mini-calendar preview */
@@ -2314,21 +1942,6 @@ button.btn-action-ghost:hover {
    QUICK-LOG (Dashboard)
    ================================================================ */
 
-.quick-log-section {
-  margin-bottom: 1.5rem;
-}
-
-.quick-log-label {
-  font-size: 0.78rem;
-  margin-bottom: 0.4rem;
-}
-
-.quick-log-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
 .quick-log-btn {
   padding: 0.3rem 0.85rem;
   border-radius: 9999px;
@@ -2352,95 +1965,14 @@ button.btn-action-ghost:hover {
    MARKDOWN NOTES (Days table)
    ================================================================ */
 
-.row-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.notes-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0 0.15rem;
-  font-size: 0.85rem;
-  opacity: 0.4;
-  line-height: 1;
-  transition: opacity 0.15s;
-}
-.notes-btn:hover,
-.notes-btn.active {
-  opacity: 1;
-}
-
-.notes-row td {
-  background: color-mix(in srgb, var(--pico-background-color) 60%, var(--k-card-bg));
-  font-size: 0.88rem;
-  padding: 0.6rem 1.25rem;
-  color: var(--pico-muted-color);
-  border-top: none;
-}
-
-.notes-row code {
-  font-size: 0.82em;
-  background: var(--k-border);
-  padding: 0.1em 0.35em;
-  border-radius: 0.25em;
-}
-
-/* ================================================================
-   VACATION BUDGET BAR (Dashboard)
-   ================================================================ */
-
-.vacation-bar-wrap {
-  margin-bottom: 1.5rem;
-  background: var(--k-card-bg);
-  border: 1px solid var(--k-border);
-  border-radius: 0.5rem;
-  padding: 0.85rem 1rem;
-}
-
-.vacation-bar-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.vacation-bar-track {
-  height: 10px;
-  background: var(--k-border);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.vacation-bar-fill {
-  height: 100%;
-  background: var(--k-surplus);
-  border-radius: 9999px;
-  transition: width 0.4s ease;
-}
-
-.vacation-bar-fill.vacation-bar-over {
-  background: var(--k-deficit);
-}
-
-.vacation-bar-footer {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  margin-top: 0.35rem;
-}
-
 /* ================================================================
    WEEKDAY PATTERN (Analytics)
    ================================================================ */
 
 .weekday-grid {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
   margin: 0.75rem 0 0.25rem;
 }
 
@@ -2448,14 +1980,35 @@ button.btn-action-ghost:hover {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
-.weekday-swatch {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+/* Δ as a bar above or below the dashed zero line */
+.weekday-bar {
+  position: relative;
+  width: 100%;
+  height: 70px;
+  border-bottom: 1px solid var(--k-border-strong);
 }
+.weekday-bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--k-muted);
+  opacity: 0.6;
+}
+.weekday-bar i {
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  display: block;
+}
+.weekday-bar i.up { background: var(--k-surplus); bottom: 50%; border-radius: 3px 3px 0 0; }
+.weekday-bar i.down { background: var(--k-deficit); top: 50%; border-radius: 0 0 3px 3px; }
+.weekday-times { font-size: 0.66rem; color: var(--k-muted); white-space: pre-line; line-height: 1.3; text-align: center; }
 
 .weekday-label {
   font-size: 0.72rem;
@@ -2549,32 +2102,6 @@ tbody.today-row > tr:first-child > td:first-child {
   tbody.today-flash > tr:first-child > td { animation: none; }
 }
 
-/* ── W2: Cumulative card breathing glow ─────────────────────────── */
-.summary-card.cumulative {
-  --pulse-color: transparent;
-  --pulse-peak: transparent;
-  --pulse-base: transparent;
-}
-.summary-card.cumulative.pulse-surplus {
-  --pulse-color: var(--k-surplus);
-  --pulse-peak: color-mix(in srgb, var(--k-surplus) 22%, transparent);
-  --pulse-base: color-mix(in srgb, var(--k-surplus) 6%, transparent);
-  animation: k-pulse 9s ease-in-out infinite;
-}
-.summary-card.cumulative.pulse-deficit {
-  --pulse-color: var(--k-deficit);
-  --pulse-peak: color-mix(in srgb, var(--k-deficit) 22%, transparent);
-  --pulse-base: color-mix(in srgb, var(--k-deficit) 6%, transparent);
-  animation: k-pulse 9s ease-in-out infinite;
-}
-@keyframes k-pulse {
-  0%,100% { box-shadow: 0 0 0 0 var(--pulse-base), 0 0 8px 2px var(--pulse-base); }
-  50%      { box-shadow: 0 0 0 4px var(--pulse-peak), 0 0 20px 6px var(--pulse-peak); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .summary-card.cumulative { animation: none !important; }
-}
-
 /* ── W3: Break row add/remove stagger ───────────────────────────── */
 .break-row {
   overflow: hidden;
@@ -2615,17 +2142,22 @@ tbody.today-row > tr:first-child > td:first-child {
 }
 
 /* ── W5: Save confirmation ribbon ───────────────────────────────── */
+/* Fixed to the bottom of the viewport: it used to sit over the first line of every tab. */
 .save-ribbon-host {
-  position: relative;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 1.25rem;
   height: 0;
   overflow: visible;
   z-index: 10;
+  pointer-events: none;
 }
 .save-ribbon {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 50%;
-  transform: translateX(-50%) translateY(-120%);
+  transform: translateX(-50%) translateY(120%);
   opacity: 0;
   display: flex;
   align-items: center;
@@ -2644,7 +2176,7 @@ tbody.today-row > tr:first-child > td:first-child {
               opacity   220ms ease;
 }
 .save-ribbon.ribbon-show {
-  transform: translateX(-50%) translateY(0.5rem);
+  transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
 .save-ribbon.surplus { border-color: var(--k-surplus); color: var(--k-surplus); }
@@ -2657,7 +2189,7 @@ tbody.today-row > tr:first-child > td:first-child {
 @media (prefers-reduced-motion: reduce) {
   .save-ribbon {
     transition: opacity 200ms ease;
-    transform: translateX(-50%) translateY(0.5rem);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -2775,14 +2307,6 @@ tbody.today-row > tr:first-child > td:first-child {
 }
 .notes-search-clear:hover { color: var(--k-text); }
 
-/* Highlight matched text inside notes rows */
-.notes-row mark {
-  background: color-mix(in srgb, var(--k-brass) 35%, transparent);
-  color: inherit;
-  border-radius: 2px;
-  padding: 0 0.1em;
-}
-
 /* NOW STAMP PILL — styles now live in the Log layout section above */
 
 /* ================================================================
@@ -2827,4 +2351,632 @@ tbody.today-row > tr:first-child > td:first-child {
 
 .clock-since {
   font-size: 0.85rem;
+}
+
+/* ================================================================
+   DASHBOARD — hero, trajectory, chips, week strip, vacation notches
+   ================================================================ */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 430px) minmax(0, 1fr);
+  gap: 1rem 2.5rem;
+  align-items: center;
+  padding: 0.75rem 0 0.25rem;
+}
+.hero > * { min-width: 0; }
+.hero-label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  color: var(--k-muted);
+}
+.today-chip {
+  white-space: nowrap;
+  font-variant: normal;
+  letter-spacing: 0;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--k-brass);
+  border: 1px solid color-mix(in srgb, var(--k-brass) 50%, transparent);
+  border-radius: 999px;
+  padding: 0 0.55rem;
+}
+.hero-num {
+  font-size: 4rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+.hero-cap {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--k-muted);
+  margin-top: 0.35rem;
+}
+.hero-cap b { color: var(--k-text); font-weight: 600; }
+
+.skel-hero-ph { height: 4rem; width: 70%; }
+.skel-traj { height: 160px; border: 1px dashed var(--k-border); border-radius: 4px; }
+
+/* the trajectory */
+.traj-wrap { width: 100%; }
+.traj { width: 100%; height: auto; display: block; overflow: visible; }
+.traj-zero { stroke: var(--k-border-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.traj-month { stroke: var(--k-border); stroke-width: 1; }
+.traj-mlabel { fill: var(--k-muted); font-size: 9px; letter-spacing: 0.08em; text-anchor: middle; }
+.traj-ylabel { fill: var(--k-muted); font-size: 9px; font-family: ui-monospace, monospace; text-anchor: end; }
+.traj-area.surplus { fill: color-mix(in srgb, var(--k-surplus) 18%, transparent); }
+.traj-area.deficit { fill: color-mix(in srgb, var(--k-deficit) 18%, transparent); }
+.traj-area.neutral { fill: color-mix(in srgb, var(--k-muted) 14%, transparent); }
+.traj-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.traj-line.surplus { stroke: var(--k-surplus); }
+.traj-line.deficit { stroke: var(--k-deficit); }
+.traj-line.neutral { stroke: var(--k-muted); }
+.traj-today { stroke: var(--k-brass); stroke-width: 1; opacity: 0.7; }
+.traj-proj { fill: none; stroke: var(--k-brass); stroke-width: 2; stroke-dasharray: 4 4; }
+.traj-dot {
+  fill: var(--k-brass);
+  stroke: var(--k-bg);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--k-brass) 80%, transparent));
+}
+.traj-end-dot { fill: var(--k-bg); stroke: var(--k-brass); stroke-width: 2; }
+.traj-end { fill: var(--k-brass); font-family: ui-monospace, monospace; font-size: 11px; font-weight: 700; }
+.traj-end-sub { fill: var(--k-muted); font-size: 7.5px; letter-spacing: 0.08em; }
+/* the tail fades in once the line has been drawn (animateTrajectory) */
+.traj-proj, .traj-end-dot, .traj-end, .traj-end-sub, .traj-dot { opacity: 0; transition: opacity 0.6s ease 1.6s; }
+.traj-shown { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .traj-proj, .traj-end-dot, .traj-end, .traj-end-sub, .traj-dot { transition: none; }
+}
+
+/* chips: week · month · vs last year */
+.chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+.chip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.1rem 0.75rem;
+  align-items: baseline;
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--k-border);
+  border-radius: 6px;
+  background: var(--k-surface);
+  color: var(--k-text);
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+.chip--link { cursor: pointer; transition: border-color var(--k-transition-fast); }
+.chip--link:hover, .chip--link:focus-visible { border-color: var(--k-brass); background: var(--k-surface); color: var(--k-text); }
+.chip-label { font-size: 0.72rem; font-variant: small-caps; letter-spacing: 0.1em; color: var(--k-muted); grid-column: 1; grid-row: 1; }
+.chip-value { font-size: 1.35rem; font-weight: 700; grid-column: 1; grid-row: 2; }
+.chip-sub { font-family: ui-monospace, monospace; font-size: 0.72rem; color: var(--k-muted); grid-column: 2; grid-row: 2; text-align: right; }
+.bullet {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  position: relative;
+  height: 4px;
+  margin-top: 0.4rem;
+  border-radius: 2px;
+  background: var(--k-border);
+  overflow: hidden;
+}
+.bullet i { position: absolute; top: 0; bottom: 0; }
+.bullet i.surplus { background: var(--k-surplus); }
+.bullet i.deficit { background: var(--k-deficit); }
+.bullet i.neutral { background: transparent; }
+.bullet::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--k-muted); }
+
+/* the week strip: seven tiny bar charts */
+.wk { margin-top: 1.5rem; }
+.wk-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.wk-head h3 { margin: 0; font-size: 0.78rem; color: var(--k-muted); font-weight: 500; }
+.wk-total { font-size: 0.85rem; }
+.wk-total .muted { font-weight: 400; }
+.wk-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.wd {
+  display: grid;
+  grid-template-rows: auto 64px auto;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0.5rem 0.6rem 0.45rem;
+  border: 1px solid var(--k-border);
+  border-radius: 6px;
+  background: var(--k-surface);
+  color: var(--k-text);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  font: inherit;
+  transition: border-color var(--k-transition-fast);
+}
+.wd:hover, .wd:focus-visible { border-color: var(--k-brass); background: var(--k-surface); color: var(--k-text); }
+.wd--today { border-color: var(--k-brass); box-shadow: inset 0 0 0 1px var(--k-brass); }
+.wd--weekend { background: color-mix(in srgb, var(--k-surface) 55%, var(--k-bg)); }
+.wd--empty { opacity: 0.65; }
+.wd-top { display: flex; justify-content: space-between; align-items: baseline; }
+.wd-dow { font-size: 0.68rem; font-variant: small-caps; letter-spacing: 0.1em; color: var(--k-muted); }
+.wd-num { font-size: 0.95rem; font-weight: 600; }
+.wd-chart { position: relative; border-bottom: 1px solid var(--k-border-strong); }
+.wd-chart--off { border-bottom-style: dashed; }
+.wd-target { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--k-muted); opacity: 0.6; }
+.wd-bar {
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 0;
+  border-radius: 3px 3px 0 0;
+  opacity: 0.85;
+  background-origin: border-box;
+  animation: wd-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes wd-grow { from { height: 0 !important; } }
+@media (prefers-reduced-motion: reduce) { .wd-bar { animation: none; } }
+.wd-bar.hm-ghost { border-width: 1px; border-style: dashed; opacity: 0.95; }
+.wd-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-family: ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.74rem;
+  min-height: 1.1rem;
+}
+.wd-nums { display: flex; justify-content: space-between; align-items: baseline; gap: 0.4rem; width: 100%; flex-wrap: wrap; }
+.wd-net { font-weight: 600; }
+.wd-dash { color: var(--k-muted); }
+
+/* quick-log: only while today is empty */
+.quick-log {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+.quick-log-label { font-size: 0.78rem; margin-right: 0.25rem; }
+
+/* vacation notches */
+.vac {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 1.5rem;
+}
+.vac-label { font-size: 0.78rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); }
+.vac-notches { display: flex; flex-wrap: wrap; gap: 4px; }
+.vac-notches i {
+  --fill: 100%;
+  --notch: 100%;
+  display: block;
+  width: 12px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid var(--k-vacation);
+  background: linear-gradient(90deg, var(--k-vacation) var(--fill), transparent var(--fill));
+  clip-path: inset(0 calc(100% - var(--notch)) 0 0 round 3px);
+  animation: vac-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.vac-notches i:nth-child(n) { animation-delay: calc(0.4s + 0.03s * var(--i, 0)); }
+.vac-notches i.vac-planned { border-style: dashed; background: color-mix(in srgb, var(--k-vacation) 18%, transparent); }
+.vac-notches i.vac-left { background: transparent; opacity: 0.5; }
+@keyframes vac-pop { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .vac-notches i { animation: none; } }
+.vac-sub { font-family: ui-monospace, monospace; font-size: 0.78rem; color: var(--k-muted); }
+
+.streak-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.5rem;
+  font-size: 0.8rem;
+  color: var(--k-muted);
+  margin-top: 1.25rem;
+}
+.streak-line b { color: var(--k-text); font-family: ui-monospace, monospace; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-num { font-size: 3.2rem; }
+}
+@media (max-width: 640px) {
+  .chips { grid-template-columns: 1fr; }
+  .wk-grid { gap: 0.25rem; }
+  .wd { padding: 0.35rem 0.3rem; grid-template-rows: auto 48px auto; }
+  .wd-top { flex-direction: column; align-items: flex-start; }
+  .wd-nums { flex-direction: column; gap: 0; }
+  .wd-foot { font-size: 0.68rem; }
+  .wd .day-pill { font-size: 0.55rem; padding: 0.05rem 0.25rem; letter-spacing: 0.03em; }
+  .vac-notches i { width: 9px; height: 14px; }
+}
+
+/* ================================================================
+   SETTINGS — section index + one card per section
+   ================================================================ */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 720px);
+  gap: 2.5rem;
+  align-items: start;
+}
+.settings-index {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.settings-index a {
+  color: var(--k-muted);
+  text-decoration: none;
+  padding: 0.35rem 0.75rem;
+  border-left: 2px solid transparent;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
+}
+.settings-index a:hover { color: var(--k-text); }
+.settings-index a.active { color: var(--k-brass); border-left-color: var(--k-brass); }
+.settings-content { min-width: 0; }
+.settings-card {
+  margin: 0 0 1.25rem;
+  padding: 0 1.25rem 1rem;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border);
+  border-top-color: var(--k-border-strong);
+  border-radius: 6px;
+  scroll-margin-top: 1rem;
+}
+.settings-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--k-border);
+  margin-bottom: 0.25rem;
+}
+.settings-card-head h3 { margin: 0; font-size: 1.05rem; }
+.settings-card-head p { margin: 0.1rem 0 0; font-size: 0.8rem; }
+.settings-card-head .btn-action { flex-shrink: 0; width: auto; margin: 0; }
+.settings-empty { margin: 0.75rem 0 0.25rem; font-size: 0.9rem; }
+
+/* a row: label + hint on the left, a control sized to its content on the right */
+.srow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 2rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent);
+}
+.srow:last-of-type { border-bottom: none; }
+.srow-key { margin: 0; font-size: 0.92rem; font-weight: 400; color: var(--k-text); }
+.srow-key small { display: block; font-size: 0.76rem; color: var(--k-muted); margin-top: 0.1rem; line-height: 1.35; }
+.srow-ctl { justify-self: end; display: flex; align-items: center; gap: 0.5rem; }
+.srow-ctl input, .srow-ctl select { margin: 0; font-size: 0.9rem; }
+.srow-ctl .unit { font-size: 0.8rem; color: var(--k-muted); font-family: ui-monospace, monospace; white-space: nowrap; }
+.ctl-num { width: 6rem !important; text-align: right; font-family: ui-monospace, monospace; }
+.ctl-time { width: 7.5rem !important; font-family: ui-monospace, monospace; }
+.ctl-date { width: 10.5rem !important; font-family: ui-monospace, monospace; }
+.ctl-text { width: 18rem !important; max-width: 100%; }
+.ctl-select { width: 14rem !important; max-width: 100%; }
+.srow-ctl input[type=checkbox] { margin: 0; }
+.settings-card .target-schedule { margin-top: 0.75rem; }
+.settings-card .work-week-picker { margin: 0; gap: 0.25rem; }
+.settings-card .work-week-day { width: 2.6rem; padding: 0.25rem 0; font-size: 0.72rem; }
+.settings-card .target-schedule > summary::after { display: none; }
+.settings-card .template-item { padding: 0.55rem 0; }
+.settings-card .template-item button { margin: 0; width: auto; }
+.settings-card .fun-zone-action { padding: 0.25rem 0; }
+
+@media (max-width: 860px) {
+  .settings-layout { grid-template-columns: 1fr; gap: 1rem; }
+  .settings-index { position: static; flex-direction: row; flex-wrap: wrap; gap: 0.25rem; }
+  .settings-index a { border-left: none; border-bottom: 2px solid transparent; padding: 0.25rem 0.6rem; }
+  .settings-index a.active { border-bottom-color: var(--k-brass); }
+  .srow { grid-template-columns: 1fr; gap: 0.4rem; }
+  .srow-ctl { justify-self: start; flex-wrap: wrap; }
+  .ctl-text, .ctl-select { width: 100% !important; }
+  .settings-card-head { flex-wrap: wrap; }
+}
+
+/* ================================================================
+   DAYS — dense table: row click edits, sticky header, month separators
+   ================================================================ */
+
+.days-header { flex-wrap: wrap; align-items: center; margin-bottom: 0.75rem; }
+.days-header .section-header-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.days-header .section-header-controls > * { margin: 0; }
+.days-year { width: auto; font-size: 0.85rem; height: 2rem; padding-top: 0; padding-bottom: 0; }
+.days-count { font-family: ui-monospace, monospace; font-size: 0.82rem; white-space: nowrap; }
+
+/* Sticky header needs the page to be the scroller: no overflow on the wrap while it fits. */
+.days-wrap { overflow: visible; }
+@media (max-width: 900px) { .days-wrap { overflow-x: auto; } }
+
+.days-table { width: 100%; font-size: 0.85rem; }
+.days-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--k-bg);
+  padding: 0.5rem 0.6rem;
+  font-size: 0.72rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  color: var(--k-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: inset 0 -1px 0 var(--k-border-strong);
+}
+.days-table th.num, .days-table td.num { text-align: right; }
+.days-table td { padding: 0.38rem 0.6rem; white-space: nowrap; vertical-align: middle; }
+.days-table td.dow { color: var(--k-muted); font-size: 0.72rem; font-variant: small-caps; letter-spacing: 0.08em; }
+.days-table tr.day-row { cursor: pointer; transition: background var(--k-transition-fast); }
+.days-table tr.day-row:hover { background: color-mix(in srgb, var(--k-brass) 7%, transparent); }
+.days-table tr.day-row:hover td:first-child { box-shadow: inset 2px 0 0 var(--k-brass); }
+.days-table tr.non-work td { opacity: 0.65; }
+.days-table th.notes-col { width: 34%; }
+.days-table td.notes-col, .days-table th.notes-col {
+  white-space: normal;
+  min-width: 16ch;
+  color: var(--k-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+.days-table td.notes-col code { font-size: 0.82em; background: var(--k-border); padding: 0.1em 0.35em; border-radius: 0.25em; }
+.days-table td.notes-col mark { background: color-mix(in srgb, var(--k-brass) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 0.1em; }
+.days-table .act-col { width: 2.25rem; text-align: center; padding-left: 0; padding-right: 0.4rem; }
+.row-edit {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--k-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--k-transition-fast), border-color var(--k-transition-fast), color var(--k-transition-fast);
+}
+.days-table tr.day-row:hover .row-edit, .row-edit:focus-visible { opacity: 1; }
+.row-edit:hover, .row-edit:focus-visible { border-color: var(--k-brass); color: var(--k-brass); background: transparent; }
+.days-table tr.month-sep td {
+  padding: 0.55rem 0.6rem 0.35rem;
+  background: var(--k-surface);
+  border-top: 1px solid var(--k-border-strong);
+  border-bottom: 1px solid var(--k-border-strong);
+  font-size: 0.78rem;
+  white-space: normal;
+}
+.month-sep-name { font-variant: small-caps; letter-spacing: 0.1em; font-weight: 600; color: var(--k-brass); font-size: 0.9rem; margin-right: 0.6rem; }
+.month-sep-sum { font-size: 0.78rem; color: var(--k-muted); }
+.month-sep-sum b { font-weight: 600; color: var(--k-text); }
+.month-sep-sum b.surplus { color: var(--k-surplus); }
+.month-sep-sum b.deficit { color: var(--k-deficit); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 640px) {
+  .days-table td.notes-col, .days-table th.notes-col { display: none; }
+  .row-edit { opacity: 1; }
+}
+
+/* ================================================================
+   ANALYTICS — the zoomable chart, the range ledger, histogram, records
+   ================================================================ */
+
+.an-head { margin: 2rem 0 0.6rem; flex-wrap: wrap; }
+.an-head h2 { font-size: 1.25rem; }
+.an-head .section-header-controls { display: flex; align-items: center; gap: 0.75rem; }
+.an-hint { font-size: 0.78rem; }
+.an-year { width: auto; margin: 0; font-size: 0.85rem; height: 2rem; padding-top: 0; padding-bottom: 0; }
+h2.an-h2 { font-size: 1.25rem; margin: 2rem 0 0.6rem; }
+section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
+
+/* the day tooltip */
+.hm-cell[data-date] { cursor: pointer; }
+.hm-cell[data-date]:hover { outline: 2px solid var(--k-brass); outline-offset: 0; }
+.hm-tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  max-width: 260px;
+  padding: 0.45rem 0.7rem;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.hm-tip b { font-family: ui-monospace, monospace; }
+.hm-tip-note { display: block; color: var(--k-muted); margin-top: 0.15rem; }
+.hm-tip-hint { display: block; color: var(--k-brass); margin-top: 0.25rem; font-size: 0.72rem; }
+
+/* chart + ledger */
+.an-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: 1.5rem;
+  align-items: start;
+}
+.an-chart-col { min-width: 0; }
+.an-chart-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.an-chart-head .seg-toggle { margin: 0; }
+.an-range { font-size: 0.8rem; color: var(--k-muted); margin-left: auto; }
+.an-reset { margin: 0; width: auto; padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+.an-chart-wrap { position: relative; user-select: none; touch-action: pan-y; }
+.an-chart { width: 100%; height: auto; display: block; overflow: visible; cursor: crosshair; }
+.an-grid { stroke: var(--k-border); stroke-width: 1; }
+.an-zero { stroke: var(--k-border-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.an-xl { fill: var(--k-muted); font-size: 9px; letter-spacing: 0.06em; text-anchor: middle; }
+.an-yl { fill: var(--k-muted); font-size: 9px; font-family: ui-monospace, monospace; text-anchor: end; }
+.an-area.surplus { fill: color-mix(in srgb, var(--k-surplus) 18%, transparent); }
+.an-area.deficit { fill: color-mix(in srgb, var(--k-deficit) 18%, transparent); }
+.an-area.neutral { fill: color-mix(in srgb, var(--k-muted) 14%, transparent); }
+.an-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.an-line.surplus { stroke: var(--k-surplus); }
+.an-line.deficit { stroke: var(--k-deficit); }
+.an-line.neutral { stroke: var(--k-muted); }
+.an-bar { opacity: 0.85; }
+.an-bar:hover { opacity: 1; }
+.an-bar.hm-surplus { fill: var(--k-surplus); }
+.an-bar.hm-deficit { fill: var(--k-deficit); }
+.an-bar.hm-neutral { fill: var(--k-muted); }
+.an-bar.hm-vacation { fill: var(--k-vacation); opacity: 0.55; }
+.an-bar.hm-sick { fill: var(--k-sick); opacity: 0.55; }
+.an-bar.hm-holiday { fill: var(--k-holiday); opacity: 0.55; }
+.an-bar.hm-flex { fill: var(--k-flex); opacity: 0.55; }
+.an-bar.hm-partial { fill: var(--k-vacation); opacity: 0.7; }
+.an-target { stroke: var(--k-brass); stroke-width: 1.5; stroke-dasharray: 4 3; opacity: 0.8; }
+.an-today { stroke: var(--k-brass); stroke-width: 1; opacity: 0.7; }
+.an-sel { fill: color-mix(in srgb, var(--k-brass) 18%, transparent); stroke: var(--k-brass); stroke-width: 1; stroke-dasharray: 3 2; }
+.an-hover-x { stroke: var(--k-muted); stroke-width: 1; stroke-dasharray: 2 2; }
+.an-hover-dot { fill: var(--k-brass); stroke: var(--k-bg); stroke-width: 2; }
+.an-hover-lbl { fill: var(--k-text); font-size: 10px; font-family: ui-monospace, monospace; }
+.an-brush {
+  position: relative;
+  height: 34px;
+  margin-top: 0.5rem;
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.an-brush:active { cursor: grabbing; }
+.an-brush-svg, .an-brush-svg svg { width: 100%; height: 100%; display: block; }
+.an-brush-line { fill: none; stroke: var(--k-muted); stroke-width: 1; }
+.an-brush-win {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--k-brass) 14%, transparent);
+  border-left: 2px solid var(--k-brass);
+  border-right: 2px solid var(--k-brass);
+  pointer-events: none;
+}
+.an-ledger {
+  border: 1px solid var(--k-border);
+  border-radius: 6px;
+  background: var(--k-surface);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+.an-ledger h3 { font-size: 0.78rem; color: var(--k-muted); font-weight: 500; margin: 0 0 0.5rem; }
+.an-presets { display: flex; flex-direction: column; gap: 0.1rem; margin: -0.25rem 0 0.75rem; }
+.an-presets button {
+  width: auto;
+  margin: 0;
+  text-align: left;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--k-muted);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.82rem;
+  font-variant: small-caps;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.an-presets button:hover { color: var(--k-text); background: transparent; }
+.an-presets button.on { color: var(--k-brass); border-left-color: var(--k-brass); background: transparent; }
+.an-lrow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent);
+}
+.an-lrow:last-child { border-bottom: none; }
+.an-lrow span:first-child { color: var(--k-muted); font-size: 0.78rem; white-space: nowrap; }
+.an-lrow b { font-weight: 600; }
+.an-lrow--big b { font-size: 1.25rem; }
+
+/* weekday + histogram side by side */
+.an-two { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.an-hist {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 110px;
+  margin-top: 0.75rem;
+  border-bottom: 1px solid var(--k-border-strong);
+}
+.an-hist i { flex: 1; display: block; border-radius: 3px 3px 0 0; min-height: 1px; }
+.an-hist i.up { background: var(--k-surplus); opacity: 0.85; }
+.an-hist i.down { background: var(--k-deficit); opacity: 0.85; }
+.an-hist i:hover { opacity: 1; }
+.an-hist-x { display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--k-muted); margin-top: 0.25rem; }
+
+/* years + records + export */
+.an-years { width: 100%; font-size: 0.85rem; }
+.an-years th { text-align: left; padding: 0.4rem 0.6rem; font-size: 0.72rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); font-weight: 500; }
+.an-years td { padding: 0.4rem 0.6rem; }
+.an-years th.num, .an-years td.num { text-align: right; }
+.an-records { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2.5rem; }
+.an-rec {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent);
+  font-size: 0.85rem;
+}
+.an-rec-label { color: var(--k-muted); font-size: 0.78rem; }
+.an-rec b { font-weight: 700; }
+.an-rec-when { font-size: 0.72rem; color: var(--k-muted); margin-left: 0.5rem; }
+.an-export { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.an-export [role="button"] { width: auto; margin: 0; }
+
+@media (max-width: 900px) {
+  .an-row { grid-template-columns: 1fr; }
+  .an-presets { flex-direction: row; flex-wrap: wrap; }
+  .an-records { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .an-two { grid-template-columns: 1fr; }
+  .weekday-times { font-size: 0.58rem; }
 }

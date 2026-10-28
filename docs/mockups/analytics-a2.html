@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Analytics mockup · A2 — Chart + ledger</title>
+<style>
+  /* ── tokens: copied from styles.css ───────────────────────────────────── */
+  :root {
+    --k-bg:#17140f; --k-surface:#1f1c16; --k-border:#3d3a33; --k-border-strong:#57524a;
+    --k-text:#ece6d7; --k-muted:#a49b87; --k-brass:#e0b341; --k-ink:#8ab0c4;
+    --k-surplus:#7db369; --k-deficit:#e07b63;
+    --k-work:#e0b341; --k-vacation:#8ab0c4; --k-sick:#d49b4a; --k-holiday:#516b77; --k-flex:#9b82c4;
+    --k-fast:150ms ease;
+  }
+  [data-theme="light"] {
+    --k-bg:#f4ede1; --k-surface:#faf4e8; --k-border:#d9cfbb; --k-border-strong:#b5a992;
+    --k-text:#1f1b15; --k-muted:#6d6353; --k-brass:#a8761a; --k-ink:#1a3a52;
+    --k-surplus:#3d6b2e; --k-deficit:#a23826;
+    --k-work:#a8761a; --k-vacation:#1a3a52; --k-sick:#b07022; --k-holiday:#516b77; --k-flex:#5c3a8a;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--k-bg); color:var(--k-text);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased;
+         transition:background var(--k-fast), color var(--k-fast); }
+  .num { font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace; font-variant-numeric:tabular-nums; }
+  h1,h2,h3,h4 { font-variant:small-caps; letter-spacing:.06em; margin:0; }
+  .wrap { max-width:1200px; margin:0 auto; padding:0 1.5rem 3rem; }
+  .muted { color:var(--k-muted); }
+  .surplus { color:var(--k-surplus); } .deficit { color:var(--k-deficit); } .neutral { color:var(--k-muted); }
+  a { color:var(--k-brass); }
+  button { font:inherit; }
+  .banner { background:color-mix(in srgb, var(--k-brass) 12%, var(--k-surface)); border:1px dashed var(--k-brass);
+            border-radius:6px; padding:.6rem 1rem; margin:1rem 0; font-size:.85rem; }
+  .banner strong { color:var(--k-brass); }
+
+  /* ── header: 5 tabs + controls (⌨ · settings · theme) ─────────────────── */
+  header.app { display:flex; align-items:center; gap:.5rem; padding:1.1rem 0 1rem; border-bottom:1px solid var(--k-border); margin-bottom:1.6rem; }
+  .brand { display:flex; align-items:center; gap:.75rem; margin-right:auto; }
+  .brand-logo { width:44px; height:44px; border-radius:.5rem; background:radial-gradient(circle at 35% 35%, var(--k-brass), #6b4f12 70%); box-shadow:inset 0 0 0 2px rgba(0,0,0,.25); }
+  .brand h1 { font-size:1.7rem; line-height:1; font-weight:800; }
+  .brand .subtitle { margin:.25rem 0 0; font-size:.85rem; color:var(--k-muted); }
+  nav.tabs { display:flex; gap:.25rem; }
+  nav.tabs a { color:var(--k-muted); text-decoration:none; font-variant:small-caps; letter-spacing:.05em; font-size:1.02rem;
+               padding:.4rem .85rem; border-bottom:2px solid transparent; cursor:pointer; transition:color var(--k-fast), border-color var(--k-fast); }
+  nav.tabs a:hover { color:var(--k-text); border-bottom-color:var(--k-border-strong); }
+  nav.tabs a.active { color:var(--k-brass); border-bottom-color:var(--k-brass); }
+  .controls { display:flex; align-items:center; gap:.4rem; margin-left:.75rem; }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:2rem; height:2rem; padding:0; border:1px solid var(--k-border);
+              border-radius:.375rem; background:transparent; color:var(--k-muted); cursor:pointer; transition:border-color var(--k-fast), color var(--k-fast); }
+  .icon-btn:hover { border-color:var(--k-text); color:var(--k-text); }
+  .icon-btn.kbd { color:var(--k-brass); font-size:1rem; }
+  /* R2 settings icon: an 8-tooth gear. Brass on dark, ink on light; quarter-turn on hover, slow spin while Settings is open. */
+  .gear { width:18px; height:18px; transition:transform .4s cubic-bezier(.2,.8,.2,1); }
+  .gear path { fill:none; stroke:currentColor; stroke-width:1.7; stroke-linejoin:round; }
+  .gear circle { fill:none; stroke:currentColor; stroke-width:1.5; }
+  .icon-btn.settings { color:var(--k-brass); }
+  [data-theme="light"] .icon-btn.settings { color:var(--k-ink); }
+  .icon-btn.settings:hover .gear { transform:rotate(45deg); }
+  .icon-btn.settings.active { border-color:var(--k-brass); box-shadow:0 0 0 2px color-mix(in srgb, var(--k-brass) 30%, transparent); }
+  .icon-btn.settings.active .gear { animation:gear-turn 6s linear infinite; }
+  @keyframes gear-turn { to { transform:rotate(360deg); } }
+  @media (max-width:719px) {
+    header.app { display:grid; grid-template-columns:1fr auto; grid-template-areas:"brand ctl" "tabs tabs"; row-gap:.75rem; border-bottom:none; }
+    .brand { grid-area:brand; } .controls { grid-area:ctl; margin:0; }
+    nav.tabs { grid-area:tabs; border-bottom:1px solid var(--k-border); padding-bottom:.25rem; gap:0; }
+    nav.tabs a { flex:1; text-align:center; padding:.4rem .15rem; font-size:.85rem; }
+    .brand-logo { width:36px; height:36px; }
+  }
+
+  /* ── pills & swatches ─────────────────────────────────────────────────── */
+  .day-pill { display:inline-block; padding:.1rem .45rem; border-radius:2px; font-size:.65rem; text-transform:uppercase; letter-spacing:.07em; font-weight:600; white-space:nowrap; }
+  .day-pill.work     { background:color-mix(in srgb, var(--k-work) 18%, transparent);     border:1px solid var(--k-work);     color:var(--k-work); }
+  .day-pill.vacation { background:color-mix(in srgb, var(--k-vacation) 18%, transparent); border:1px solid var(--k-vacation); color:var(--k-vacation); }
+  .day-pill.sick     { background:color-mix(in srgb, var(--k-sick) 18%, transparent);     border:1px solid var(--k-sick);     color:var(--k-sick); }
+  .day-pill.holiday  { background:color-mix(in srgb, var(--k-holiday) 18%, transparent);  border:1px solid var(--k-holiday);  color:var(--k-holiday); }
+  .day-pill.flex     { background:color-mix(in srgb, var(--k-flex) 18%, transparent);     border:1px solid var(--k-flex);     color:var(--k-flex); }
+  .day-pill.ghost    { border-style:dashed; background:transparent; }
+  .hm-surplus { background:var(--k-surplus); } .hm-deficit { background:var(--k-deficit); } .hm-neutral { background:var(--k-muted); }
+  .hm-vacation { background:var(--k-vacation); } .hm-holiday { background:var(--k-holiday); } .hm-sick { background:var(--k-sick); } .hm-flex { background:var(--k-flex); }
+  .hm-empty { background:transparent; border:1px dashed var(--k-border); }
+  .hm-ghost { background:transparent; border:1px dashed var(--k-vacation); }
+
+  .screen { display:none; } .screen.on { display:block; }
+
+  nav.tabs a .tab-key { color:var(--k-brass); }
+
+  /* ═════════════════════════ ANALYTICS — shared ═════════════════════ */
+  h2.sec { font-size:1.25rem; margin:2rem 0 .75rem; }
+  h2.sec small { font-variant:normal; letter-spacing:0; font-size:.78rem; color:var(--k-muted); font-weight:400; margin-left:.75rem; }
+  /* year at a glance: as in the app, plus a tooltip and a pointer */
+  .hm-wrap { position:relative; }
+  .hm { display:grid; gap:3px; grid-auto-flow:column; grid-template-rows:repeat(7, 13px) auto; }
+  .hm .cell { width:13px; height:13px; border-radius:2px; cursor:pointer; }
+  .hm .cell:hover { outline:2px solid var(--k-brass); outline-offset:0; }
+  .hm .cell.empty { background:transparent; border:1px solid var(--k-border); }
+  .hm .cell.s { background:var(--k-surplus); opacity:.85; } .hm .cell.d { background:var(--k-deficit); opacity:.85; } .hm .cell.n { background:var(--k-muted); opacity:.6; }
+  .hm .cell.v { background:var(--k-vacation); opacity:.75; } .hm .cell.k { background:var(--k-sick); opacity:.75; } .hm .cell.h { background:var(--k-holiday); opacity:.75; } .hm .cell.f { background:var(--k-flex); opacity:.75; }
+  .hm .cell.today { box-shadow:0 0 0 2px var(--k-brass); }
+  .hm .cell.we { opacity:.45; }
+  .hm .ml { font-size:.62rem; color:var(--k-muted); white-space:nowrap; line-height:1; grid-row:8; padding-top:4px; }
+  .hm-gap { width:8px; }
+  .hm-legend { display:flex; flex-wrap:wrap; gap:.35rem 1rem; font-size:.78rem; color:var(--k-muted); margin-bottom:.6rem; }
+  .hm-legend i { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:.3rem; }
+  .tip { position:fixed; z-index:20; pointer-events:none; background:var(--k-surface); border:1px solid var(--k-border-strong); border-radius:6px; padding:.45rem .7rem; font-size:.78rem; line-height:1.4; box-shadow:0 6px 18px rgba(0,0,0,.35); display:none; max-width:260px; }
+  .tip b { font-family:ui-monospace,monospace; } .tip .note { color:var(--k-muted); font-style:italic; display:block; margin-top:.15rem; }
+  .tip .hint { color:var(--k-brass); display:block; margin-top:.25rem; font-size:.72rem; }
+  /* the chart */
+  .chart-head { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:.5rem; }
+  .seg { display:inline-flex; border:1px solid var(--k-border-strong); border-radius:6px; overflow:hidden; }
+  .seg button { border:none; background:transparent; color:var(--k-muted); padding:.3rem .75rem; font-size:.8rem; cursor:pointer; font-variant:small-caps; letter-spacing:.06em; }
+  .seg button + button { border-left:1px solid var(--k-border-strong); }
+  .seg button.on { background:color-mix(in srgb, var(--k-brass) 18%, transparent); color:var(--k-brass); }
+  .chart-head .spacer { flex:1; }
+  .chart-head .range { font-family:ui-monospace,monospace; font-size:.8rem; color:var(--k-muted); }
+  .btn { border:1px solid var(--k-border-strong); background:transparent; color:var(--k-text); border-radius:6px; padding:.3rem .8rem; font-size:.8rem; cursor:pointer; }
+  .btn[disabled] { opacity:.35; cursor:default; }
+  .chart-wrap { position:relative; user-select:none; }
+  .chart { width:100%; height:auto; display:block; overflow:visible; cursor:crosshair; }
+  .chart .grid { stroke:var(--k-border); stroke-width:1; }
+  .chart .zero { stroke:var(--k-border-strong); stroke-width:1; stroke-dasharray:2 3; }
+  .chart .xl { fill:var(--k-muted); font-size:9px; letter-spacing:.06em; text-anchor:middle; }
+  .chart .yl { fill:var(--k-muted); font-size:9px; font-family:ui-monospace,monospace; text-anchor:end; }
+  .chart .area.surplus { fill:color-mix(in srgb, var(--k-surplus) 18%, transparent); } .chart .area.deficit { fill:color-mix(in srgb, var(--k-deficit) 18%, transparent); }
+  .chart .line { fill:none; stroke-width:2; stroke-linejoin:round; } .chart .line.surplus { stroke:var(--k-surplus); } .chart .line.deficit { stroke:var(--k-deficit); }
+  .chart .bar.s { fill:var(--k-surplus); opacity:.85; } .chart .bar.d { fill:var(--k-deficit); opacity:.85; } .chart .bar.n { fill:var(--k-muted); opacity:.6; }
+  .chart .bar.v { fill:var(--k-vacation); opacity:.55; } .chart .bar.h { fill:var(--k-holiday); opacity:.55; } .chart .bar.k { fill:var(--k-sick); opacity:.55; } .chart .bar.f { fill:var(--k-flex); opacity:.55; }
+  .chart .bar:hover { opacity:1; }
+  .chart .target { stroke:var(--k-brass); stroke-width:1.5; stroke-dasharray:4 3; opacity:.8; }
+  .chart .today { stroke:var(--k-brass); stroke-width:1; opacity:.7; }
+  .chart .sel { fill:color-mix(in srgb, var(--k-brass) 18%, transparent); stroke:var(--k-brass); stroke-width:1; stroke-dasharray:3 2; }
+  .chart .hover-x { stroke:var(--k-muted); stroke-width:1; stroke-dasharray:2 2; }
+  .chart .hover-dot { fill:var(--k-brass); stroke:var(--k-bg); stroke-width:2; }
+  .chart-hint { font-size:.74rem; color:var(--k-muted); margin-top:.35rem; }
+  .chart-hint kbd { font-family:inherit; border:1px solid var(--k-border-strong); border-radius:3px; padding:0 .3em; font-size:.7rem; }
+  /* brush: the whole history under the chart with the visible window on it */
+  .brush { position:relative; height:34px; margin-top:.5rem; border:1px solid var(--k-border); border-radius:4px; overflow:hidden; cursor:grab; }
+  .brush svg { width:100%; height:100%; display:block; }
+  .brush .win { position:absolute; top:0; bottom:0; background:color-mix(in srgb, var(--k-brass) 14%, transparent); border-left:2px solid var(--k-brass); border-right:2px solid var(--k-brass); }
+  /* range summary */
+  .rs { display:grid; grid-template-columns:repeat(5, minmax(0,1fr)); gap:.75rem; margin-top:1rem; }
+  .rs .c { border:1px solid var(--k-border); border-radius:6px; background:var(--k-surface); padding:.6rem .85rem; }
+  .rs .l { font-size:.7rem; font-variant:small-caps; letter-spacing:.1em; color:var(--k-muted); }
+  .rs .v { font-family:ui-monospace,monospace; font-variant-numeric:tabular-nums; font-size:1.3rem; font-weight:700; }
+  .rs .s { font-family:ui-monospace,monospace; font-size:.72rem; color:var(--k-muted); }
+  /* weekday + histogram */
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:2rem; }
+  .wk7 { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.4rem; }
+  .wk7 .d { text-align:center; }
+  .wk7 .bar { height:70px; position:relative; border-bottom:1px solid var(--k-border-strong); }
+  .wk7 .bar i { position:absolute; left:25%; right:25%; border-radius:3px 3px 0 0; }
+  .wk7 .bar i.s { background:var(--k-surplus); bottom:50%; } .wk7 .bar i.d { background:var(--k-deficit); top:50%; border-radius:0 0 3px 3px; }
+  .wk7 .bar::after { content:""; position:absolute; left:0; right:0; top:50%; border-top:1px dashed var(--k-muted); opacity:.6; }
+  .wk7 .n { font-size:.68rem; font-variant:small-caps; letter-spacing:.1em; color:var(--k-muted); margin-top:.3rem; }
+  .wk7 .v { font-family:ui-monospace,monospace; font-size:.78rem; }
+  .wk7 .t { font-family:ui-monospace,monospace; font-size:.68rem; color:var(--k-muted); }
+  .hist { display:flex; align-items:flex-end; gap:3px; height:110px; border-bottom:1px solid var(--k-border-strong); }
+  .hist i { flex:1; border-radius:3px 3px 0 0; min-height:1px; position:relative; }
+  .hist i.s { background:var(--k-surplus); opacity:.85; } .hist i.d { background:var(--k-deficit); opacity:.85; } .hist i.n { background:var(--k-muted); opacity:.6; }
+  .hist i:hover { opacity:1; }
+  .hist-x { display:flex; justify-content:space-between; font-family:ui-monospace,monospace; font-size:.68rem; color:var(--k-muted); margin-top:.25rem; }
+  .sub { font-size:.78rem; color:var(--k-muted); margin-top:.4rem; }
+  /* yearly table + records */
+  table.yr { border-collapse:collapse; width:100%; font-size:.85rem; }
+  table.yr th { text-align:left; padding:.4rem .6rem; font-size:.72rem; font-variant:small-caps; letter-spacing:.08em; color:var(--k-muted); font-weight:500; border-bottom:1px solid var(--k-border-strong); }
+  table.yr td { padding:.4rem .6rem; border-bottom:1px solid var(--k-border); font-family:ui-monospace,monospace; }
+  table.yr th.r, table.yr td.r { text-align:right; }
+  .export { display:flex; gap:.5rem; }
+  @media (max-width:760px) { .rs { grid-template-columns:repeat(2, 1fr); } .two { grid-template-columns:1fr; } }
+
+  /* A2 — chart + ledger: the chart left, the selected range as a ledger on the right with the presets */
+  .chart-row { display:grid; grid-template-columns:minmax(0, 1fr) 230px; gap:1.5rem; align-items:start; }
+  .chart { aspect-ratio: 620 / 300; }
+  .ledger { border:1px solid var(--k-border); border-radius:6px; background:var(--k-surface); padding:.75rem 1rem; font-size:.85rem; }
+  .ledger h3 { font-size:.78rem; color:var(--k-muted); font-weight:500; margin-bottom:.5rem; }
+  .ledger .presets { display:flex; flex-direction:column; gap:.1rem; margin:-.25rem 0 .75rem; }
+  .ledger .presets button { text-align:left; border:none; background:transparent; color:var(--k-muted); padding:.25rem .5rem; border-left:2px solid transparent; cursor:pointer; font-size:.82rem; font-variant:small-caps; letter-spacing:.06em; }
+  .ledger .presets button.on { color:var(--k-brass); border-left-color:var(--k-brass); }
+  .ledger .row { display:flex; justify-content:space-between; padding:.3rem 0; border-bottom:1px solid color-mix(in srgb, var(--k-border) 60%, transparent); }
+  .ledger .row:last-child { border-bottom:none; }
+  .ledger .row span:first-child { color:var(--k-muted); font-size:.78rem; }
+  .ledger .row b { font-family:ui-monospace,monospace; font-weight:600; }
+  .ledger .row.big b { font-size:1.25rem; }
+  .rs { display:none; }
+  .records { display:grid; grid-template-columns:1fr 1fr; gap:0 2.5rem; }
+  .records .r { display:flex; justify-content:space-between; align-items:baseline; gap:1rem; padding:.35rem 0; border-bottom:1px solid color-mix(in srgb, var(--k-border) 60%, transparent); font-size:.85rem; }
+  .records .r .l { color:var(--k-muted); font-size:.78rem; }
+  .records .r .v { font-family:ui-monospace,monospace; font-weight:700; }
+  .records .r .w { font-family:ui-monospace,monospace; font-size:.72rem; color:var(--k-muted); margin-left:.5rem; }
+  @media (max-width:900px) { .chart-row { grid-template-columns:1fr; } .ledger .presets { flex-direction:row; flex-wrap:wrap; } .records { grid-template-columns:1fr; } }
+</style></head>
+<body><div class="wrap">
+
+<header class="app">
+  <div class="brand"><div class="brand-logo"></div><div><h1>Kronos</h1><p class="subtitle">12.50h ahead overall</p></div></div>
+  <nav class="tabs">
+    <a href="#dashboard"  >Dashboard</a>
+    <a href="#plan"><span class="tab-key">P</span>lan</a>
+    <a href="#log"><span class="tab-key">L</span>og</a>
+    <a href="#days" ><span class="tab-key">D</span>ays</a>
+    <a href="#analytics" class="active"><span class="tab-key">A</span>nalytics</a>
+  </nav>
+  <div class="controls">
+    <button class="icon-btn kbd" title="Keyboard shortcuts (.)">⌨</button>
+    <button class="icon-btn settings"  title="Settings (S)" aria-label="Settings">
+      <svg class="gear" viewBox="-12 -12 24 24" aria-hidden="true"><path id="gear-path" d=""/><circle r="3.2"/></svg>
+    </button>
+    <button class="icon-btn theme" id="theme" title="Switch theme">☀</button>
+  </div>
+</header>
+
+<div class="banner"><strong>A2 — Chart + ledger.</strong> The chart with the selected range as a ledger beside it (presets included), records as two columns of lines. <strong>Try it:</strong> drag a rectangle on the chart, wheel over it, shift+drag to pan, drag the strip below it, double-click to reset. Invented data 2025-01-01 → 2026-10-28; the theme toggle works; the nav is inert.</div>
+
+<h2 class="sec">Year at a glance <small>hover a day, click to open it in Log</small></h2>
+<div class="hm-legend"><span><i style="background:var(--k-surplus)"></i>Surplus</span><span><i style="background:var(--k-deficit)"></i>Deficit</span><span><i style="background:var(--k-muted)"></i>On target</span><span><i style="background:var(--k-vacation)"></i>Vacation</span><span><i style="background:var(--k-sick)"></i>Sick</span><span><i style="background:var(--k-holiday)"></i>Holiday</span><span><i style="background:var(--k-flex)"></i>Flex</span><span><i style="border:1px solid var(--k-border)"></i>No entry</span></div>
+<div class="hm-wrap"><div class="hm" id="hm"></div></div>
+
+
+<h2 class="sec">Balance over time <small>drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset</small></h2>
+<div class="chart-row">
+  <div>
+    <div class="chart-head">
+      <div class="seg" id="mode"><button class="on" data-m="balance">Balance</button><button data-m="day">Per day</button><button data-m="month">Per month</button></div>
+      <span class="spacer"></span>
+      <span class="range" id="range"></span>
+      <button class="btn" id="reset" disabled>Reset zoom</button>
+    </div>
+    <div class="chart-wrap"><svg class="chart" id="chart" viewBox="0 0 620 300"></svg></div>
+    <div class="brush" id="brush"><svg id="brush-svg" viewBox="0 0 620 34" preserveAspectRatio="none"></svg><div class="win" id="brush-win"></div></div>
+  </div>
+  <div class="ledger">
+    <h3>Range</h3>
+    <div class="presets" id="presets"><button data-p="month">This month</button><button data-p="3m">3 months</button><button data-p="year" class="on">This year</button><button data-p="12m">12 months</button><button data-p="all">All</button></div>
+    <div id="ledger"></div>
+  </div>
+</div>
+<div class="rs" id="rs"></div>
+
+
+<div class="two">
+  <div>
+    <h2 class="sec">Weekday pattern <small>for the range shown</small></h2>
+    <div class="wk7" id="wk7"></div>
+    <p class="sub">Δ per work day, and the average start → end. When do I really arrive and leave?</p>
+  </div>
+  <div>
+    <h2 class="sec">Daily surplus <small>for the range shown</small></h2>
+    <div class="hist" id="hist"></div>
+    <div class="hist-x"><span>−3h</span><span>−2h</span><span>−1h</span><span>0</span><span>+1h</span><span>+2h</span><span>+3h</span></div>
+    <p class="sub" id="hist-sub"></p>
+  </div>
+</div>
+
+<h2 class="sec">Years</h2>
+<table class="yr"><thead><tr><th>Year</th><th class="r">Net</th><th class="r">Target</th><th class="r">Δ</th><th class="r">Carry-in</th><th class="r">Work days</th><th class="r">Off days</th></tr></thead><tbody id="yr"></tbody></table>
+
+<h2 class="sec">Records <small>for the range shown</small></h2>
+<div class="records" id="records"></div>
+
+<h2 class="sec">Export</h2>
+<div class="export"><button class="btn">↓ CSV</button><button class="btn">↓ JSON</button></div>
+<div class="tip" id="tip"></div>
+
+<script>
+const root = document.documentElement;
+document.getElementById('theme').onclick = () => { const t = root.dataset.theme === 'dark' ? 'light' : 'dark'; root.dataset.theme = t; document.getElementById('theme').textContent = t === 'dark' ? '☀' : '🌙'; };
+(() => { const n = 8, ro = 10, ri = 7.6, pts = []; for (let i = 0; i < n * 4; i++) { const a = (i / (n * 4)) * Math.PI * 2, r = (i % 4 < 2) ? ro : ri; pts.push([r * Math.cos(a), r * Math.sin(a)]); }
+  document.getElementById('gear-path').setAttribute('d', 'M' + pts.map(p => p.map(v => v.toFixed(2)).join(' ')).join('L') + 'Z'); })();
+
+// ── invented data: 2025-01-01 → today (2026-10-28) ─────────────────────────────
+const DAY = 86400000, TODAY = new Date(2026, 9, 28), START = new Date(2025, 0, 1), TARGET = 8;
+let seed = 11; const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const entries = []; // {date, t(ype), net, target, surplus, start, end, note}
+const NOTES = ['Release day — stayed for the deploy window', 'Dentist at 13:00', 'Sprint planning', 'Incident on prod', 'Left early, kid pickup', ''];
+for (let d = new Date(START); d <= TODAY; d = new Date(d.getTime() + DAY)) {
+  const dow = (d.getDay() + 6) % 7; if (dow >= 5) continue;
+  const r = rnd(); let t = 'work';
+  if (r < 0.025) t = 'sick'; else if (r < 0.07) t = 'vacation'; else if (r < 0.085) t = 'holiday'; else if (r < 0.095) t = 'flex';
+  if (d.getMonth() === 7 && d.getDate() >= 10 && d.getDate() <= 24) t = 'vacation';
+  if (t !== 'work') { entries.push({ date: iso(d), t, net: 0, target: t === 'flex' ? TARGET : 0, surplus: t === 'flex' ? -TARGET : 0, start: null, end: null, note: t === 'holiday' ? 'Fiesta' : '' }); continue; }
+  const startMin = 8 * 60 + 15 + Math.round((rnd() - 0.3) * 50) + (dow === 0 ? 10 : 0);
+  const netH = Math.round((TARGET + (rnd() - 0.42) * 2.2 + (dow === 4 ? -0.6 : 0) + (d.getMonth() >= 7 && d.getFullYear() === 2026 ? 0.35 : 0)) * 4) / 4;
+  const endMin = startMin + netH * 60 + 45;
+  const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+  entries.push({ date: iso(d), t, net: netH, target: TARGET, surplus: Math.round((netH - TARGET) * 100) / 100, start: hhmm(startMin), end: hhmm(endMin), note: rnd() < 0.12 ? NOTES[Math.floor(rnd() * NOTES.length)] : '' });
+}
+const byDate = Object.fromEntries(entries.map(e => [e.date, e]));
+let cum = 0; const cumAt = {}; for (const e of entries) { cum = Math.round((cum + e.surplus) * 100) / 100; cumAt[e.date] = cum; }
+const fmtH = h => (h > 0.01 ? '+' : h < -0.01 ? '−' : '±') + Math.abs(h).toFixed(2) + 'h';
+const cls = h => h > 0.01 ? 'surplus' : h < -0.01 ? 'deficit' : 'neutral';
+const tcls = e => e.t === 'work' ? (e.surplus > 0.01 ? 's' : e.surplus < -0.01 ? 'd' : 'n') : { vacation: 'v', sick: 'k', holiday: 'h', flex: 'f' }[e.t];
+const dlabel = d => d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+// ── year at a glance (2026), tooltip + click hint ─────────────────────────────
+(() => {
+  const hm = document.getElementById('hm'); let html = ''; let col = 1; const year = 2026;
+  for (let m = 0; m < 12; m++) {
+    const first = new Date(year, m, 1), days = new Date(year, m + 1, 0).getDate(); let c = col; let dow = (first.getDay() + 6) % 7;
+    for (let day = 1; day <= days; day++) {
+      const d = new Date(year, m, day), k = iso(d), e = byDate[k], we = dow >= 5;
+      html += `<div class="cell ${e ? tcls(e) : 'empty'}${we ? ' we' : ''}${k === iso(TODAY) ? ' today' : ''}" style="grid-row:${dow + 1};grid-column:${c}" data-d="${k}"></div>`;
+      dow++; if (dow === 7) { dow = 0; c++; }
+    }
+    if (dow !== 0) c++;
+    html += `<div class="ml" style="grid-column:${col} / span ${c - col}">${first.toLocaleDateString('en-US', { month: 'short' })}</div>`;
+    col = c + 1; html += `<div class="hm-gap" style="grid-column:${c};grid-row:1"></div>`;
+  }
+  hm.innerHTML = html;
+  const tip = document.getElementById('tip');
+  hm.addEventListener('mousemove', ev => {
+    const c = ev.target.closest('.cell'); if (!c) { tip.style.display = 'none'; return; }
+    const k = c.dataset.d, e = byDate[k], d = new Date(k + 'T12:00:00');
+    tip.innerHTML = e ? `<b>${dlabel(d)}</b><br>${e.t === 'work' ? `${e.start}–${e.end} · <b>${e.net}h</b> · <b class="${cls(e.surplus)}">${fmtH(e.surplus)}</b>` : `<span class="day-pill ${e.t}">${e.t}</span>`}${e.note ? `<span class="note">${e.note}</span>` : ''}<span class="hint">click → open in Log</span>`
+      : `<b>${dlabel(d)}</b><br><span class="muted">no entry</span><span class="hint">click → log it</span>`;
+    tip.style.display = 'block'; tip.style.left = (ev.clientX + 14) + 'px'; tip.style.top = (ev.clientY + 14) + 'px';
+  });
+  hm.addEventListener('mouseleave', () => tip.style.display = 'none');
+})();
+
+// ── the chart ──────────────────────────────────────────────────────────────────
+const W = 620, PADL = 40, PADR = 14, PADT = 14, PADB = 24;
+const svg = document.getElementById('chart'), H = +svg.getAttribute('viewBox').split(' ')[3];
+const state = { mode: 'balance', x0: +new Date(2026, 0, 1), x1: +TODAY + DAY, preset: 'year', drag: null, hover: null };
+const FULL = [+START, +TODAY + DAY];
+const X = t => PADL + (W - PADL - PADR) * (t - state.x0) / (state.x1 - state.x0);
+const T = x => state.x0 + (x - PADL) / (W - PADL - PADR) * (state.x1 - state.x0);
+function visible() { return entries.filter(e => { const t = +new Date(e.date + 'T00:00:00'); return t >= state.x0 && t < state.x1; }); }
+function months(e) { const m = {}; for (const x of e) { const k = x.date.slice(0, 7); (m[k] ||= { k, net: 0, target: 0, surplus: 0, days: 0 }); m[k].net += x.net; m[k].target += x.target; m[k].surplus += x.surplus; m[k].days++; } return Object.values(m); }
+function niceStep(span, n) { const raw = span / n; return [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find(v => v >= raw) || 1000; }
+function xTicks() {
+  const span = (state.x1 - state.x0) / DAY, out = [];
+  if (span > 400) { for (let y = new Date(state.x0).getFullYear(); y <= new Date(state.x1).getFullYear(); y++) for (let m = 0; m < 12; m += 3) { const t = +new Date(y, m, 1); if (t >= state.x0 && t <= state.x1) out.push([t, m === 0 ? String(y) : new Date(t).toLocaleDateString('en-US', { month: 'short' }).toUpperCase()]); } }
+  else if (span > 70) { for (let y = new Date(state.x0).getFullYear() - 1; y <= new Date(state.x1).getFullYear(); y++) for (let m = 0; m < 12; m++) { const t = +new Date(y, m, 1); if (t >= state.x0 && t <= state.x1) out.push([t, new Date(t).toLocaleDateString('en-US', { month: 'short' }).toUpperCase() + (m === 0 ? ' ' + y : '')]); } }
+  else if (span > 14) { for (let t = state.x0 - (state.x0 % DAY); t <= state.x1; t += DAY) { const d = new Date(t); if (d.getDay() === 1) out.push([t, d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })]); } }
+  else { for (let t = state.x0 - (state.x0 % DAY); t <= state.x1; t += DAY) { const d = new Date(t); out.push([t, d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })]); } }
+  return out;
+}
+function render() {
+  const vis = visible(), f = n => n.toFixed(1);
+  let lo = 0, hi = 0, s = '';
+  let series = [];
+  if (state.mode === 'balance') {
+    // the balance at the left edge of the window, then each logged day inside it
+    const before = entries.filter(e => +new Date(e.date + 'T00:00:00') < state.x0);
+    const open = before.length ? cumAt[before[before.length - 1].date] : 0;
+    series = [[state.x0, open], ...vis.map(e => [+new Date(e.date + 'T00:00:00') + DAY / 2, cumAt[e.date]])];
+    if (state.x1 > +TODAY) series.push([Math.min(state.x1, +TODAY + DAY / 2), series[series.length - 1][1]]); else series.push([state.x1, series[series.length - 1][1]]);
+    lo = Math.min(0, ...series.map(p => p[1])); hi = Math.max(0, ...series.map(p => p[1]));
+  } else if (state.mode === 'day') { lo = Math.min(0, ...vis.map(e => e.net)); hi = Math.max(TARGET, ...vis.map(e => e.net)); }
+  else { const ms = months(vis); lo = 0; hi = Math.max(1, ...ms.map(m => Math.max(m.net, m.target))); }
+  const span = Math.max(hi - lo, 2); lo -= span * 0.08; hi += span * 0.08;
+  const Y = v => PADT + (H - PADT - PADB) * (1 - (v - lo) / (hi - lo));
+  // grid + axes
+  const step = niceStep(hi - lo, 5);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) { s += `<line class="grid" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(v))}" y2="${f(Y(v))}"/><text class="yl" x="${PADL - 6}" y="${f(Y(v) + 3)}">${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}</text>`; }
+  for (const [t, l] of xTicks()) s += `<line class="grid" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><text class="xl" x="${f(X(t))}" y="${H - 8}">${l}</text>`;
+  if (lo < 0 && hi > 0) s += `<line class="zero" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(0))}" y2="${f(Y(0))}"/>`;
+  // series
+  if (state.mode === 'balance') {
+    const last = series[series.length - 1][1], tone = cls(last);
+    const path = series.map(([t, v], i) => `${i ? 'L' : 'M'}${f(X(t))} ${f(Y(v))}`).join('');
+    s += `<path class="area ${tone}" d="${path}L${f(X(series[series.length - 1][0]))} ${f(Y(0))}L${f(X(series[0][0]))} ${f(Y(0))}Z"/><path class="line ${tone}" d="${path}"/>`;
+  } else if (state.mode === 'day') {
+    const bw = Math.max(1, (W - PADL - PADR) / ((state.x1 - state.x0) / DAY) * 0.7);
+    for (const e of vis) { const t = +new Date(e.date + 'T00:00:00'), h = e.t === 'work' ? e.net : TARGET; s += `<rect class="bar ${tcls(e)}" data-d="${e.date}" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h))}" height="${f(Y(0) - Y(h))}"/>`; }
+    s += `<line class="target" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(TARGET))}" y2="${f(Y(TARGET))}"/>`;
+  } else {
+    for (const m of months(vis)) { const [y, mo] = m.k.split('-').map(Number); const t0 = Math.max(state.x0, +new Date(y, mo - 1, 1)), t1 = Math.min(state.x1, +new Date(y, mo, 1)); const x0 = X(t0) + 3, x1 = X(t1) - 3;
+      s += `<rect class="bar ${cls(m.surplus) === 'surplus' ? 's' : cls(m.surplus) === 'deficit' ? 'd' : 'n'}" data-m="${m.k}" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(m.net))}" height="${f(Y(0) - Y(m.net))}"/>`;
+      s += `<line class="target" x1="${f(x0)}" x2="${f(x1)}" y1="${f(Y(m.target))}" y2="${f(Y(m.target))}"/>`; }
+  }
+  if (+TODAY >= state.x0 && +TODAY <= state.x1) s += `<line class="today" x1="${f(X(+TODAY + DAY / 2))}" x2="${f(X(+TODAY + DAY / 2))}" y1="${PADT}" y2="${H - PADB}"/>`;
+  if (state.drag && state.drag.kind === 'select') { const a = Math.min(state.drag.a, state.drag.b), b = Math.max(state.drag.a, state.drag.b); s += `<rect class="sel" x="${f(a)}" y="${PADT}" width="${f(b - a)}" height="${H - PADT - PADB}"/>`; }
+  if (state.hover !== null && state.mode === 'balance') { const t = state.hover; let v = series[0][1]; for (const [pt, pv] of series) { if (pt <= t) v = pv; else break; } s += `<line class="hover-x" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><circle class="hover-dot" cx="${f(X(t))}" cy="${f(Y(v))}" r="3.5"/>`; }
+  svg.innerHTML = s;
+  // captions + the brush + everything driven by the range
+  const d0 = new Date(state.x0), d1 = new Date(state.x1 - 1);
+  document.getElementById('range').textContent = `${d0.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} – ${d1.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} · ${Math.round((state.x1 - state.x0) / DAY)} days`;
+  document.getElementById('reset').disabled = state.preset !== null;
+  document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', b.dataset.p === state.preset));
+  document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.m === state.mode));
+  const win = document.getElementById('brush-win'); win.style.left = ((state.x0 - FULL[0]) / (FULL[1] - FULL[0]) * 100) + '%'; win.style.width = ((state.x1 - state.x0) / (FULL[1] - FULL[0]) * 100) + '%';
+  renderRange(vis);
+}
+function renderBrush() {
+  const b = document.getElementById('brush-svg'); const lo = Math.min(0, ...Object.values(cumAt)), hi = Math.max(0, ...Object.values(cumAt));
+  const x = t => (t - FULL[0]) / (FULL[1] - FULL[0]) * W, y = v => 2 + 30 * (1 - (v - lo) / (hi - lo || 1));
+  let path = `M0 ${y(0).toFixed(1)}`; for (const e of entries) path += `L${x(+new Date(e.date + 'T00:00:00')).toFixed(1)} ${y(cumAt[e.date]).toFixed(1)}`;
+  b.innerHTML = `<path d="${path}" fill="none" stroke="var(--k-muted)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+}
+function renderRange(vis) {
+  const work = vis.filter(e => e.t === 'work'); const net = vis.reduce((a, e) => a + e.net, 0), target = vis.reduce((a, e) => a + e.target, 0), off = vis.length - work.length;
+  const r2 = n => Math.round(n * 100) / 100;
+  const cards = [['net worked', r2(net) + 'h', `${vis.length} logged days`], ['target', r2(target) + 'h', `${work.length} work days`], ['balance', fmtH(net - target), cls(net - target)], ['per work day', work.length ? fmtH((net - target) / work.length) : '—', 'average Δ'], ['off', off + ' days', `${vis.filter(e => e.t === 'vacation').length} vacation · ${vis.filter(e => e.t === 'sick').length} sick`]];
+  document.getElementById('rs').innerHTML = cards.map(([l, v, s]) => `<div class="c"><div class="l">${l}</div><div class="v ${l === 'balance' || l === 'per work day' ? cls(net - target) : ''}">${v}</div><div class="s">${s}</div></div>`).join('');
+  const led = document.getElementById('ledger'); if (led) led.innerHTML = `<div class="row big"><span>Balance</span><b class="${cls(net - target)}">${fmtH(net - target)}</b></div><div class="row"><span>Net worked</span><b>${r2(net)}h</b></div><div class="row"><span>Target</span><b>${r2(target)}h</b></div><div class="row"><span>Per work day</span><b class="${cls(net - target)}">${work.length ? fmtH((net - target) / work.length) : '—'}</b></div><div class="row"><span>Work days</span><b>${work.length}</b></div><div class="row"><span>Off</span><b>${off}</b></div><div class="row"><span>Vacation · sick</span><b>${vis.filter(e => e.t === 'vacation').length} · ${vis.filter(e => e.t === 'sick').length}</b></div>`;
+  // weekday pattern
+  const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], b = Array.from({ length: 7 }, () => ({ n: 0, s: 0, st: 0, en: 0 }));
+  const mins = t => +t.slice(0, 2) * 60 + +t.slice(3), hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+  for (const e of work) { const d = (new Date(e.date + 'T12:00:00').getDay() + 6) % 7; b[d].n++; b[d].s += e.surplus; b[d].st += mins(e.start); b[d].en += mins(e.end); }
+  const maxAbs = Math.max(0.5, ...b.map(x => x.n ? Math.abs(x.s / x.n) : 0));
+  document.getElementById('wk7').innerHTML = b.map((x, i) => { const avg = x.n ? x.s / x.n : 0, h = Math.abs(avg) / maxAbs * 50; return `<div class="d"><div class="bar">${x.n ? `<i class="${avg >= 0 ? 's' : 'd'}" style="height:${h}%"></i>` : ''}</div><div class="n">${DOW[i]}</div><div class="v ${cls(avg)}">${x.n ? fmtH(avg) : '—'}</div><div class="t">${x.n ? `${hhmm(x.st / x.n)}→${hhmm(x.en / x.n)}` : ''}</div></div>`; }).join('');
+  // histogram of daily surplus, 0.5h buckets from −3 to +3
+  const buckets = Array(12).fill(0); let clipped = 0;
+  for (const e of work) { const i = Math.floor((e.surplus + 3) / 0.5); if (i < 0 || i > 11) clipped++; else buckets[i]++; }
+  const mx = Math.max(1, ...buckets);
+  document.getElementById('hist').innerHTML = buckets.map((n, i) => { const lo = -3 + i * 0.5; return `<i class="${lo >= 0 ? 's' : 'd'}" style="height:${n / mx * 100}%" title="${fmtH(lo)} to ${fmtH(lo + 0.5)}: ${n} days"></i>`; }).join('');
+  const within = work.filter(e => Math.abs(e.surplus) <= 0.5).length;
+  document.getElementById('hist-sub').textContent = work.length ? `${work.length} work days · ${Math.round(within / work.length * 100)}% within ±30 min of the target${clipped ? ` · ${clipped} beyond ±3h` : ''}` : 'no work days in range';
+  // records
+  const longest = work.reduce((a, e) => !a || e.net > a.net ? e : a, null), shortest = work.reduce((a, e) => !a || e.net < a.net ? e : a, null);
+  const ms = months(vis), bestM = ms.reduce((a, m) => !a || m.surplus > a.surplus ? m : a, null), worstM = ms.reduce((a, m) => !a || m.surplus < a.surplus ? m : a, null), longM = ms.reduce((a, m) => !a || m.net > a.net ? m : a, null);
+  let streak = 0, best = 0; for (const e of vis) { if (cumAt[e.date] > 0) { streak++; best = Math.max(best, streak); } else streak = 0; }
+  const rec = [['Longest day', longest ? longest.net + 'h' : '—', longest?.date || ''], ['Shortest day', shortest ? shortest.net + 'h' : '—', shortest?.date || ''], ['Longest month', longM ? r2(longM.net) + 'h' : '—', longM?.k || ''], ['Most surplus month', bestM ? fmtH(bestM.surplus) : '—', bestM?.k || ''], ['Most deficit month', worstM ? fmtH(worstM.surplus) : '—', worstM?.k || ''], ['Longest positive streak', best + ' days', 'in the black'], ['Earliest start', work.length ? work.reduce((a, e) => e.start < a.start ? e : a).start : '—', work.length ? work.reduce((a, e) => e.start < a.start ? e : a).date : ''], ['Latest end', work.length ? work.reduce((a, e) => e.end > a.end ? e : a).end : '—', work.length ? work.reduce((a, e) => e.end > a.end ? e : a).date : '']];
+  document.getElementById('records').innerHTML = rec.map(([l, v, w]) => `<div class="r"><span class="l">${l}</span><span><span class="v">${v}</span><span class="w">${w}</span></span></div>`).join('');
+}
+// years table (always every year)
+(() => { const ys = {}; for (const e of entries) { const y = e.date.slice(0, 4); (ys[y] ||= { net: 0, target: 0, w: 0, o: 0 }); ys[y].net += e.net; ys[y].target += e.target; if (e.t === 'work') ys[y].w++; else ys[y].o++; }
+  let carry = 0; document.getElementById('yr').innerHTML = Object.keys(ys).sort().map(y => { const r = ys[y], d = r.net - r.target, row = `<tr><td>${y}</td><td class="r">${r.net.toFixed(2)}h</td><td class="r">${r.target.toFixed(2)}h</td><td class="r ${cls(d)}">${fmtH(d)}</td><td class="r">${carry ? fmtH(carry) : '—'}</td><td class="r">${r.w}</td><td class="r">${r.o}</td></tr>`; carry += d; return row; }).reverse().join(''); })();
+
+// ── interactions: rectangle zoom, wheel, shift-drag pan, double-click, presets, brush drag ──
+const pt = ev => { const r = svg.getBoundingClientRect(); return (ev.clientX - r.left) / r.width * W; };
+function setRange(x0, x1, preset = null) { const min = 7 * DAY; if (x1 - x0 < min) { const c = (x0 + x1) / 2; x0 = c - min / 2; x1 = c + min / 2; } state.x0 = Math.max(FULL[0], x0); state.x1 = Math.min(FULL[1], x1); state.preset = preset; render(); }
+svg.addEventListener('mousedown', ev => { ev.preventDefault(); const x = pt(ev); state.drag = { kind: ev.shiftKey ? 'pan' : 'select', a: x, b: x, x0: state.x0, x1: state.x1 }; });
+window.addEventListener('mousemove', ev => { if (!state.drag) return; const x = pt(ev); if (state.drag.kind === 'select') { state.drag.b = x; render(); } else { const dt = (x - state.drag.a) / (W - PADL - PADR) * (state.drag.x1 - state.drag.x0); state.x0 = state.drag.x0 - dt; state.x1 = state.drag.x1 - dt; state.preset = null; render(); } });
+window.addEventListener('mouseup', () => { if (!state.drag) return; const d = state.drag; state.drag = null; if (d.kind === 'select' && Math.abs(d.b - d.a) > 4) setRange(T(Math.min(d.a, d.b)), T(Math.max(d.a, d.b))); else render(); });
+svg.addEventListener('mousemove', ev => { if (state.drag) return; state.hover = T(pt(ev)); if (state.mode === 'balance') render(); });
+svg.addEventListener('mouseleave', () => { state.hover = null; render(); });
+svg.addEventListener('wheel', ev => { ev.preventDefault(); const t = T(pt(ev)), k = ev.deltaY < 0 ? 0.8 : 1.25; setRange(t - (t - state.x0) * k, t + (state.x1 - t) * k); }, { passive: false });
+svg.addEventListener('dblclick', () => applyPreset('year'));
+document.getElementById('reset').onclick = () => applyPreset('year');
+function applyPreset(p) {
+  const end = +TODAY + DAY, y = TODAY.getFullYear(), m = TODAY.getMonth();
+  const start = { month: +new Date(y, m, 1), '3m': +new Date(y, m - 2, 1), year: +new Date(y, 0, 1), '12m': +new Date(y - 1, m + 1, 1), all: FULL[0] }[p];
+  setRange(start, end, p);
+}
+document.querySelectorAll('#presets button').forEach(b => b.onclick = () => applyPreset(b.dataset.p));
+document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { state.mode = b.dataset.m; render(); });
+// brush: drag the window to pan, click outside it to centre there
+(() => { const br = document.getElementById('brush'); let drag = null;
+  br.addEventListener('mousedown', ev => { const r = br.getBoundingClientRect(); drag = { x: ev.clientX, w: r.width, x0: state.x0, x1: state.x1 }; });
+  window.addEventListener('mousemove', ev => { if (!drag) return; const dt = (ev.clientX - drag.x) / drag.w * (FULL[1] - FULL[0]); let x0 = drag.x0 + dt, x1 = drag.x1 + dt; if (x0 < FULL[0]) { x1 += FULL[0] - x0; x0 = FULL[0]; } if (x1 > FULL[1]) { x0 -= x1 - FULL[1]; x1 = FULL[1]; } state.x0 = x0; state.x1 = x1; state.preset = null; render(); });
+  window.addEventListener('mouseup', () => drag = null); })();
+renderBrush(); render();
+</script>
+</div></body></html>

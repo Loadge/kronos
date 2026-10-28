@@ -12,8 +12,6 @@ from app.schemas import (
     DailyTargetRow,
     DailyTargetScheduleIn,
     DailyTargetScheduleOut,
-    DashboardLayoutIn,
-    DashboardLayoutOut,
 )
 from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
@@ -23,7 +21,6 @@ from app.services.settings import (
     get_cumulative_start_date,
     get_daily_target_hours,
     get_daily_target_schedule,
-    get_dashboard_layout,
     get_default_end_time,
     get_default_start_time,
     get_holiday_country,
@@ -35,7 +32,6 @@ from app.services.settings import (
     set_cumulative_start_date,
     set_daily_target_hours,
     set_daily_target_schedule,
-    set_dashboard_layout,
     set_default_end_time,
     set_default_start_time,
     set_holiday_country,
@@ -123,18 +119,3 @@ def update_daily_target_schedule(
     set_daily_target_schedule(session, schedule)
     session.commit()
     return DailyTargetScheduleOut(rows=_schedule_rows(session))
-
-
-@router.get("/dashboard-layout", response_model=DashboardLayoutOut)
-def read_dashboard_layout(session: Session = Depends(get_session)) -> DashboardLayoutOut:
-    return DashboardLayoutOut(**get_dashboard_layout(session))
-
-
-@router.put("/dashboard-layout", response_model=DashboardLayoutOut)
-def update_dashboard_layout(
-    body: DashboardLayoutIn, session: Session = Depends(get_session)
-) -> DashboardLayoutOut:
-    layout = body.model_dump()
-    set_dashboard_layout(session, layout)
-    session.commit()
-    return DashboardLayoutOut(**layout)

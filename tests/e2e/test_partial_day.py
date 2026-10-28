@@ -2,7 +2,7 @@
 
 The Log form's "Time off" slider turns a leave day into a partial one, reveals the
 time fields for the hours worked, and the saved entry shows up with its hours on the
-Days table, the Week view, and the calendar cells. Dates use days 20–24 of the current
+Days table, the dashboard's week strip, and the calendar cells. Dates use days 20–24 of the current
 month so they don't collide with the other e2e modules (see test_log_form.py).
 """
 
@@ -168,25 +168,31 @@ class TestSaveAndDisplay:
         assert "hm-partial" in (cell.get_attribute("class") or "")
         assert "50%" in (cell.get_attribute("style") or "")
 
-        # Week view: navigate to the week containing the date.
-        page.goto(f"{base_url}/#week")
-        page.wait_for_selector(".week-grid", timeout=5000)
-        target = datetime.date.fromisoformat(date_str)
-        for _ in range(6):
-            if page.locator(f".week-day[aria-label*='{date_str}']").count():
-                break
-            today = datetime.date.today()
-            if target < today:
-                page.locator("button[aria-label='Previous week']").click()
-            else:
-                page.locator("button[aria-label='Next week']").click()
-            page.wait_for_timeout(200)
-        day = page.locator(f".week-day[aria-label*='{date_str}']")
+        # The dashboard's week strip shows only the current week: check it through a
+        # second partial day on this week's Monday (a future Monday is fine, the
+        # strip shows the whole week).
+        monday = datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())
+        with httpx.Client(base_url=base_url) as c:
+            c.delete(f"/api/entries/{monday.isoformat()}")
+            c.post(
+                "/api/entries",
+                json={
+                    "date": monday.isoformat(),
+                    "day_type": "vacation",
+                    "fraction": 0.5,
+                    "start_time": "09:00",
+                    "end_time": "13:00",
+                },
+            )
+        page.goto(f"{base_url}/#dashboard")
+        day = page.locator(f".wd[aria-label*='{monday.isoformat()}']")
         day.wait_for(timeout=5000)
         assert "VACATION · 4H" in day.inner_text().upper()
         assert "4h" in day.inner_text()
-        total = page.locator(".week-total").inner_text()
-        assert "0.5 work days, 0.5 off" in total
+        bar = day.locator(".wd-bar")
+        assert "hm-partial" in (bar.get_attribute("class") or "")
+        with httpx.Client(base_url=base_url) as c:
+            c.delete(f"/api/entries/{monday.isoformat()}")
 
     def test_dashboard_counts_are_fractional(self, page, base_url):
         # vacation_days_used only counts days up to today, so stay on or before it.
@@ -195,10 +201,13 @@ class TestSaveAndDisplay:
             c.put("/api/config", json={"vacation_budget_days": 22.5})
             c.post("/api/entries", json={"date": date_str, "day_type": "vacation", "fraction": 0.5})
         page.goto(f"{base_url}/#dashboard")
-        page.wait_for_selector(".summary-card .metric", timeout=5000)
-        month = page.locator(".summary-card", has_text="This month").inner_text()
-        assert "0.5 work days, 0.5 off" in month
-        vac = page.locator(".vacation-bar-wrap")
+        page.wait_for_selector(".chip", timeout=5000)
+        month = page.locator(".chip", has_text="this month")
+        assert "0.5 work days, 0.5 off" in (month.get_attribute("title") or "")
+        vac = page.locator(".vac")
         vac.wait_for(timeout=5000)
-        assert "0.5 / 22.5 days used" in vac.inner_text()
-        assert "22 days remaining" in vac.inner_text()
+        assert "0.5 used" in vac.inner_text()
+        assert "22 left of 22.5" in vac.inner_text()
+        # A half-day budget ends in a half notch; the half day used fills half a notch.
+        assert page.locator(".vac-notches i").count() == 23
+        assert "--fill:50%" in (page.locator(".vac-notches i").first.get_attribute("style") or "")

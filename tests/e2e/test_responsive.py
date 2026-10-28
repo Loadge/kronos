@@ -10,7 +10,7 @@ prior summary) so a future change that breaks it gets caught:
 - ``.log-layout``: single column below ``min-width: 900px``. At/above it, a
   280px calendar sidebar (``.log-col-left`` / ``.log-cal``) sits beside the
   form (``.log-form-card``).
-- ``.week-grid``: ``repeat(7, minmax(0,1fr))`` above ``max-width: 640px``
+- ``.wk-grid`` (the dashboard's week strip): seven columns at every width
   (seven same-row day cards). At/below it, a single stacked column of
   horizontally-laid-out day rows.
 - ``.heatmap-scroll``: ``overflow-x: auto`` — its content may be wider than
@@ -35,8 +35,8 @@ MOBILE = (375, 812)
 TABLET = (768, 1024)
 DESKTOP = (1280, 800)
 
-# Dashboard, Log, Week, Days, Analytics — per the no-overflow check's scope.
-OVERFLOW_TABS = ["dashboard", "log", "week", "days", "analytics"]
+# Dashboard (which holds the week strip), Log, Days, Analytics, Settings.
+OVERFLOW_TABS = ["dashboard", "log", "days", "analytics", "settings"]
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ class TestHeaderLayout:
         page.wait_for_load_state("networkidle")
 
         tabs = page.locator("nav[role='tablist'] a[role='tab']")
-        assert tabs.count() == 7  # Dashboard · Plan · Week · Log · Days · Analytics · Settings
+        assert tabs.count() == 5  # Dashboard · Plan · Log · Days · Analytics (Settings is the gear)
         for i in range(tabs.count()):
             assert tabs.nth(i).is_visible(), f"tab {i} not visible on mobile"
 
@@ -186,35 +186,23 @@ class TestLogLayout:
         assert cal_top < form_bottom and form_top < cal_bottom
 
 
-# ── 4. Week tab: 7-column row on desktop, stacked column on mobile ─────────────
+# ── 4. Week strip on the dashboard: seven columns on one row, at every width ──
 
 
-class TestWeekGrid:
-    def test_desktop_seven_columns_same_row(self, page, base_url):
-        page.set_viewport_size({"width": DESKTOP[0], "height": DESKTOP[1]})
-        page.goto(f"{base_url}/#week")
+class TestWeekStrip:
+    @pytest.mark.parametrize("width,height", [MOBILE, DESKTOP])
+    def test_seven_days_on_one_row(self, page, base_url, width, height):
+        page.set_viewport_size({"width": width, "height": height})
+        page.goto(f"{base_url}/#dashboard")
         page.wait_for_load_state("networkidle")
-        page.wait_for_selector(".week-day", timeout=5000)
+        page.wait_for_selector(".wd", timeout=5000)
 
-        cards = page.locator(".week-day")
+        cards = page.locator(".wd")
         assert cards.count() == 7
         tops = [cards.nth(i).bounding_box()["y"] for i in range(7)]
         assert max(tops) - min(tops) <= 5, f"day-card tops not aligned: {tops}"
-
-    def test_mobile_single_stacked_column(self, page, base_url):
-        page.set_viewport_size({"width": MOBILE[0], "height": MOBILE[1]})
-        page.goto(f"{base_url}/#week")
-        page.wait_for_load_state("networkidle")
-        page.wait_for_selector(".week-day", timeout=5000)
-
-        cards = page.locator(".week-day")
-        assert cards.count() == 7
-        boxes = [cards.nth(i).bounding_box() for i in range(7)]
-        for i in range(1, 7):
-            prev_bottom = boxes[i - 1]["y"] + boxes[i - 1]["height"]
-            assert boxes[i]["y"] >= prev_bottom - 1, (
-                f"week-day {i} is not below week-day {i - 1} (not a single stacked column)"
-            )
+        lefts = [cards.nth(i).bounding_box()["x"] for i in range(7)]
+        assert lefts == sorted(lefts), f"day cards out of order: {lefts}"
 
 
 # ── 5. Analytics heatmap: scrolls internally, never the page ───────────────────

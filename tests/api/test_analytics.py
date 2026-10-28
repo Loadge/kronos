@@ -217,3 +217,85 @@ class TestStreaks:
         data = client.get("/api/streaks?today=2026-04-14").json()
         assert data["total_logged_days"] == 1
         assert data["on_target_streak"] == 1
+
+
+class TestCumulativeSeries:
+    """The trajectory's data: one point per logged day, each equal to the as-of cumulative."""
+
+    def test_empty_year(self, client):
+        resp = client.get("/api/analytics/cumulative-series?year=2026")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["year"] == 2026
+        assert data["start"] == "2025-01-01"  # the default cumulative start
+        assert data["opening"] == 0.0
+        assert data["points"] == []
+
+    def test_points_are_running_totals_and_match_as_of(self, client, work_body):
+        _post_work(client, work_body, "2026-01-05", start="09:00", end="18:00")  # 8h → ±0
+        _post_work(client, work_body, "2026-01-06", start="09:00", end="19:00")  # 9h → +1
+        _post_nonwork(client, "2026-01-07", "flex")  # charges the full 8h target → −7
+        _post_work(client, work_body, "2026-01-08", start="09:00", end="17:30")  # 7.5h → −7.5
+
+        data = client.get("/api/analytics/cumulative-series?year=2026").json()
+        assert [p["date"] for p in data["points"]] == [
+            "2026-01-05",
+            "2026-01-06",
+            "2026-01-07",
+            "2026-01-08",
+        ]
+        assert [p["surplus_hours"] for p in data["points"]] == [0.0, 1.0, -7.0, -7.5]
+        for p in data["points"]:
+            as_of = client.get(f"/api/analytics/cumulative?as_of={p['date']}").json()
+            assert as_of["surplus_hours"] == p["surplus_hours"]
+
+    def test_previous_years_fold_into_opening(self, client, work_body):
+        _post_work(client, work_body, "2025-06-02", start="09:00", end="20:00")  # +2
+        _post_work(client, work_body, "2025-06-03", start="09:00", end="19:30")  # +1.5
+        _post_work(client, work_body, "2026-02-02", start="09:00", end="18:00")  # ±0
+
+        data = client.get("/api/analytics/cumulative-series?year=2026").json()
+        assert data["opening"] == 3.5
+        assert data["points"] == [{"date": "2026-02-02", "surplus_hours": 3.5}]
+        # Nothing before the cumulative start counts, in the opening or the points.
+        client.put("/api/config", json={"cumulative_start_date": "2025-06-03"})
+        data = client.get("/api/analytics/cumulative-series?year=2026").json()
+        assert data["start"] == "2025-06-03"
+        assert data["opening"] == 1.5
+
+    def test_annual_reset_starts_the_year_at_zero(self, client, work_body):
+        _post_work(client, work_body, "2025-06-02", start="09:00", end="20:00")  # +2
+        _post_work(client, work_body, "2026-02-02", start="09:00", end="19:00")  # +1
+        client.put("/api/config", json={"reset_annually": True})
+
+        data = client.get("/api/analytics/cumulative-series?year=2026").json()
+        assert data["start"] == "2026-01-01"
+        assert data["opening"] == 0.0
+        assert data["points"] == [{"date": "2026-02-02", "surplus_hours": 1.0}]
+        # The previous year is still its own series.
+        data = client.get("/api/analytics/cumulative-series?year=2025").json()
+        assert data["points"] == [{"date": "2025-06-02", "surplus_hours": 2.0}]
+
+    def test_whole_history(self, client, work_body):
+        _post_work(client, work_body, "2025-06-02", start="09:00", end="20:00")  # +2
+        _post_work(client, work_body, "2026-02-02", start="09:00", end="19:00")  # +1
+        data = client.get("/api/analytics/cumulative-series?all=true").json()
+        assert data["year"] is None
+        assert data["start"] == "2025-01-01"
+        assert [p["surplus_hours"] for p in data["points"]] == [2.0, 3.0]
+        # An annual reset restarts the running balance at each January 1st.
+        client.put("/api/config", json={"reset_annually": True})
+        data = client.get("/api/analytics/cumulative-series?all=true").json()
+        assert [p["surplus_hours"] for p in data["points"]] == [2.0, 1.0]
+        # Nothing before the cumulative start counts.
+        client.put(
+            "/api/config", json={"reset_annually": False, "cumulative_start_date": "2026-01-01"}
+        )
+        data = client.get("/api/analytics/cumulative-series?all=true").json()
+        assert [p["date"] for p in data["points"]] == ["2026-02-02"]
+
+    def test_defaults_to_the_current_year(self, client):
+        from datetime import date
+
+        data = client.get("/api/analytics/cumulative-series").json()
+        assert data["year"] == date.today().year

@@ -1,303 +1,364 @@
 <!-- ========================= SETTINGS ========================= -->
 <template x-if="tab==='settings'">
-<section aria-label="Settings">
-  <h2>Settings</h2>
-  <form @submit.prevent="saveSettings()">
-    <label>
-      Daily target hours
-      <input type="number" x-model.number="settingsForm.daily_target_hours"
-             min="0.1" max="24" step="0.1" required>
-      <small>Target hours for each WORK day. Non-work days contribute 0h to the target.</small>
-    </label>
+<section aria-label="Settings" class="settings-layout" x-init="$nextTick(() => initSettingsSpy($el))">
 
-    <!-- Date-effective target. Collapsed by default — the common case is one
-         target, edited via the field above. Open this only if your contract changed. -->
-    <details class="target-schedule">
-      <summary>Advanced: my contracted hours changed over time</summary>
-      <div class="target-schedule-body">
-        <small>
-          Each row sets the daily target from its date onward; the most recent row is your
-          current target. Kronos bills every logged day against the target in effect that
-          day, so cumulative totals stay correct across a contract change.
-        </small>
-        <template x-for="(row, i) in settingsForm.daily_target_schedule" :key="row._k">
-          <div class="target-schedule-row">
-            <label>
-              From
-              <input type="date" x-model="row.effective_from" required>
-            </label>
-            <label>
-              Hours / day
-              <input type="number" x-model.number="row.hours" min="0.1" max="24" step="0.1" required>
-            </label>
-            <button type="button" class="target-schedule-remove"
-                    @click="removeTargetChange(i)"
-                    :disabled="settingsForm.daily_target_schedule.length <= 1"
-                    aria-label="Remove this target change">✕</button>
-          </div>
-        </template>
-        <div class="target-schedule-actions">
-          <button type="button" class="btn-action-ghost" @click="addTargetChange()">+ Add a change</button>
-          <button type="button" class="btn-action" @click="saveDailyTargetSchedule()">Save timeline</button>
-        </div>
-      </div>
-    </details>
-
-    <label>
-      Cumulative tracking start date
-      <input type="date" x-model="settingsForm.cumulative_start_date" required>
-      <small>Running surplus/deficit is computed from this date onward.</small>
-    </label>
-    <label>
-      <input type="checkbox" x-model="settingsForm.reset_annually" role="switch">
-      <span>
-        Reset cumulative on January 1st each year
-        <small>When on, the cumulative clock resets to 0 at the start of every year. Previous years remain visible in the yearly breakdown.</small>
-      </span>
-    </label>
-    <div>
-      <label style="margin-bottom:0.4rem;display:block">Work week</label>
-      <div class="work-week-picker">
-        <template x-for="(day, i) in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']" :key="i">
-          <button type="button"
-                  :class="['work-week-day', settingsForm.work_week_days.includes(i) ? 'active' : '']"
-                  @click="toggleWorkDay(i)"
-                  :aria-pressed="settingsForm.work_week_days.includes(i)"
-                  x-text="day"></button>
-        </template>
-      </div>
-      <small>Days that count toward your work target. Used to estimate remaining work days in the forecast.</small>
-    </div>
-    <label>
-      Vacation budget (days / year)
-      <input type="number" x-model.number="settingsForm.vacation_budget_days"
-             min="0" max="365" step="0.5" required>
-      <small>Annual leave allowance, in half days if your contract has them (22.5). Kronos counts vacation days logged this calendar year — partial days by their share — and shows remaining days on the Dashboard.</small>
-    </label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
-      <label>
-        Default start time
-        <input type="time" x-model="settingsForm.default_start_time" required>
-        <small>Pre-filled in the Log form for new work entries.</small>
-      </label>
-      <label>
-        Default end time
-        <input type="time" x-model="settingsForm.default_end_time" required>
-        <small>Pre-filled in the Log form for new work entries.</small>
-      </label>
-    </div>
-
-    <!-- Profile: printed at the top of the timesheet (Days → PDF). All optional. -->
-    <h3 class="settings-subhead">Profile</h3>
-    <p class="muted settings-subhead-note">Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p>
-    <div class="profile-grid">
-      <label>
-        Name
-        <input type="text" x-model="settingsForm.profile_name" maxlength="120" placeholder="Your name" autocomplete="name">
-      </label>
-      <label>
-        Employer / client
-        <input type="text" x-model="settingsForm.profile_employer" maxlength="120" placeholder="Company">
-      </label>
-    </div>
-    <label>
-      Extra line
-      <input type="text" x-model="settingsForm.profile_extra" maxlength="160" placeholder="Employee nº, team, contract…">
-    </label>
-    <button type="submit" class="btn-action">Save settings</button>
-  </form>
-
-  <!-- ---- Day templates ---- -->
-  <div class="templates-section">
-    <h3>Day templates</h3>
-    <template x-if="templates.length === 0">
-      <p class="muted">No templates yet — go to <a @click.prevent="go('log')" role="button" class="outline compact">Log a day</a> and use "Save as template" below the form.</p>
+  <!-- Section index: scroll-spied on desktop, a row of chips on the phone -->
+  <nav class="settings-index" aria-label="Settings sections">
+    <template x-for="s in SETTINGS_SECTIONS" :key="s.id">
+      <a :href="'#' + s.id" :class="settingsActive === s.id ? 'active' : ''"
+         @click.prevent="settingsJump(s.id)" x-text="s.label"></a>
     </template>
-    <template x-for="t in templates" :key="t.id">
-      <div class="template-item">
+  </nav>
+
+  <div class="settings-content">
+
+    <!-- ── Work ──────────────────────────────────────────────────────────── -->
+    <form class="settings-card" id="settings-work" @submit.prevent="saveSettings('work')">
+      <div class="settings-card-head">
         <div>
-          <strong x-text="t.name"></strong>
-          <span class="muted" x-text="' · ' + t.start_time + '–' + t.end_time"></span>
-          <template x-if="t.breaks && t.breaks.length > 0">
-            <span class="muted" x-text="' · ' + t.breaks.reduce((s,b) => s+b.break_minutes,0) + ' min break'"></span>
-          </template>
+          <h3>Work</h3>
+          <p class="muted">What a normal day looks like, and where the running balance starts.</p>
         </div>
-        <button type="button" class="contrast outline compact" @click="deleteTemplate(t.id)">Delete</button>
+        <button type="submit" class="btn-action" :disabled="!settingsDirty('work')">Save work</button>
       </div>
-    </template>
-  </div>
-
-  <!-- ---- Public holidays ---- -->
-  <div class="holidays-section">
-    <h3>Public holidays</h3>
-    <p class="muted">Auto-populate official public holidays for <strong x-text="holidayYear"></strong> as <code>holiday</code> days. Existing dates are skipped — nothing is overwritten.</p>
-    <div class="holiday-controls">
-      <label>
-        Country
-        <select x-model="settingsForm.holiday_country" @change="onHolidayCountryChange()">
-          <option value="">Select a country…</option>
-          <template x-for="c in holidayCountries" :key="c.code">
-            <option :value="c.code" x-text="c.name"></option>
-          </template>
-        </select>
-      </label>
-      <label x-show="holidaySubdivisions.length > 0">
-        Region <span class="muted">(optional)</span>
-        <select x-model="settingsForm.holiday_region" @change="loadHolidayPreview()">
-          <option value="">National only</option>
-          <template x-for="code in holidaySubdivisions" :key="code">
-            <option :value="code" x-text="code"></option>
-          </template>
-        </select>
-      </label>
-    </div>
-
-    <!-- Mini-calendar preview of what will be imported -->
-    <template x-if="settingsForm.holiday_country && holidayPreview.length">
-      <div class="holiday-preview">
-        <div class="holiday-preview-head">
-          <strong x-text="holidayPreview.length + ' holidays in ' + holidayYear"></strong>
-          <span class="muted" x-text="holidayPreviewSummary()"></span>
+      <div class="srow">
+        <label class="srow-key" for="set-target">Daily target
+          <small>Hours per work day. Non-work days contribute 0h to the target.</small></label>
+        <div class="srow-ctl">
+          <input id="set-target" type="number" class="ctl-num" x-model.number="settingsForm.daily_target_hours" min="0.1" max="24" step="0.1" required>
+          <span class="unit">h / day</span>
         </div>
-        <div class="holiday-cal-grid">
-          <template x-for="m in holidayMonths()" :key="m.key">
-            <div class="holiday-cal">
-              <div class="holiday-cal-title" x-text="m.label"></div>
-              <div class="holiday-cal-days">
-                <template x-for="d in m.dow" :key="d">
-                  <span class="holiday-cal-dow" x-text="d.slice(0,1)"></span>
-                </template>
-                <template x-for="c in m.cells" :key="c.key">
-                  <span class="holiday-cal-day" :class="c.cls" :title="c.title" x-text="c.label"></span>
-                </template>
-              </div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-start">Default hours
+          <small>Pre-filled in the Log form for new work entries.</small></label>
+        <div class="srow-ctl">
+          <input id="set-start" type="time" class="ctl-time" x-model="settingsForm.default_start_time" required>
+          <span class="unit">–</span>
+          <input type="time" class="ctl-time" x-model="settingsForm.default_end_time" aria-label="Default end time" required>
+        </div>
+      </div>
+      <div class="srow">
+        <span class="srow-key">Work week
+          <small>Days that count toward the target; the forecast counts the remaining ones.</small></span>
+        <div class="srow-ctl">
+          <div class="work-week-picker" role="group" aria-label="Work week">
+            <template x-for="(day, i) in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']" :key="i">
+              <button type="button"
+                      :class="['work-week-day', settingsForm.work_week_days.includes(i) ? 'active' : '']"
+                      @click="toggleWorkDay(i)"
+                      :aria-pressed="settingsForm.work_week_days.includes(i)"
+                      x-text="day"></button>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-since">Cumulative since
+          <small>The running surplus / deficit starts on this date.</small></label>
+        <div class="srow-ctl">
+          <input id="set-since" type="date" class="ctl-date" x-model="settingsForm.cumulative_start_date" required>
+        </div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-reset">Reset on January 1st
+          <small>The cumulative clock restarts every year; past years stay in the yearly breakdown.</small></label>
+        <div class="srow-ctl">
+          <input id="set-reset" type="checkbox" role="switch" x-model="settingsForm.reset_annually">
+        </div>
+      </div>
+
+      <!-- Date-effective target. Collapsed: the common case is one target, edited above. -->
+      <details class="target-schedule">
+        <summary>Advanced: my contracted hours changed over time</summary>
+        <div class="target-schedule-body">
+          <small>
+            Each row sets the daily target from its date onward; the most recent row is your
+            current target. Kronos bills every logged day against the target in effect that
+            day, so cumulative totals stay correct across a contract change.
+          </small>
+          <template x-for="(row, i) in settingsForm.daily_target_schedule" :key="row._k">
+            <div class="target-schedule-row">
+              <label>
+                From
+                <input type="date" x-model="row.effective_from" required>
+              </label>
+              <label>
+                Hours / day
+                <input type="number" x-model.number="row.hours" min="0.1" max="24" step="0.1" required>
+              </label>
+              <button type="button" class="target-schedule-remove"
+                      @click="removeTargetChange(i)"
+                      :disabled="settingsForm.daily_target_schedule.length <= 1"
+                      aria-label="Remove this target change">✕</button>
             </div>
           </template>
-        </div>
-        <div class="holiday-legend muted">
-          <span class="holiday-legend-item"><span class="holiday-swatch is-holiday"></span> to import</span>
-          <span class="holiday-legend-item" x-show="holidayPreview.some(h => h.exists)"><span class="holiday-swatch is-logged"></span> already logged (skipped)</span>
-        </div>
-        <ul class="holiday-list">
-          <template x-for="h in holidayListItems()" :key="h.date">
-            <li>
-              <span class="holiday-list-date" x-text="h.label"></span>
-              —
-              <span x-text="h.name"></span>
-              <span class="holiday-list-regional" x-show="h.regional">regional</span>
-              <span class="holiday-list-logged" x-show="h.exists">already logged</span>
-            </li>
-          </template>
-        </ul>
-      </div>
-    </template>
-
-    <button type="button" class="secondary outline" @click="importHolidays()"
-            :aria-busy="holidayImporting"
-            :disabled="holidayImporting || !settingsForm.holiday_country || holidayNothingToImport()"
-            x-text="holidayImportLabel()"></button>
-    <p class="muted holiday-note">National + regional holidays only. Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local/municipal fiestas (e.g. a town's two local holidays) aren't in either — add those manually via the Log tab.</p>
-  </div>
-
-  <!-- ---- Fun zone ---- -->
-  <div class="fun-zone">
-    <h3 class="fun-zone-title">🎢 Fun zone</h3>
-
-    <!-- Wipe -->
-    <div class="fun-zone-action">
-      <div>
-        <strong>Wipe all data</strong>
-        <p class="muted">Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
-      </div>
-
-      <template x-if="!wipeConfirming">
-        <button class="btn-danger outline" @click="wipeConfirming = true; wipeInput = ''">
-          Wipe all data…
-        </button>
-      </template>
-
-      <template x-if="wipeConfirming">
-        <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
-          <label class="wipe-confirm-label">
-            Type <code>wipe data</code> to confirm
-            <input type="text" x-model="wipeInput"
-                   placeholder="wipe data"
-                   autocomplete="off"
-                   spellcheck="false">
-          </label>
-          <div class="wipe-confirm-actions">
-            <button class="btn-danger"
-                    :disabled="wipeInput !== 'wipe data'"
-                    @click="wipeData()">
-              Confirm wipe
-            </button>
-            <button class="secondary outline"
-                    @click="wipeConfirming = false; wipeInput = ''">
-              Cancel
-            </button>
+          <div class="target-schedule-actions">
+            <button type="button" class="btn-action-ghost" @click="addTargetChange()">+ Add a change</button>
+            <button type="button" class="btn-action" @click="saveDailyTargetSchedule()">Save timeline</button>
           </div>
         </div>
-      </template>
-    </div>
+      </details>
+    </form>
 
-    <hr class="fun-zone-divider">
-
-    <!-- Backup / Restore -->
-    <div class="fun-zone-action">
-      <div>
-        <strong>Backup &amp; restore</strong>
-        <p class="muted">Download a full snapshot of all entries + settings as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
-        <p class="muted"><em>Import CSV</em> adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped.</p>
+    <!-- ── Leave ─────────────────────────────────────────────────────────── -->
+    <form class="settings-card" id="settings-leave" @submit.prevent="saveSettings('leave')">
+      <div class="settings-card-head">
+        <div>
+          <h3>Leave</h3>
+          <p class="muted">Your annual allowance. The Dashboard shows what the year has left of it.</p>
+        </div>
+        <button type="submit" class="btn-action" :disabled="!settingsDirty('leave')">Save leave</button>
       </div>
-      <div class="backup-actions">
-        <button class="secondary outline" @click="downloadBackup()">↓ Download backup</button>
-        <button class="secondary outline" @click="$refs.restoreFileInput.click()">↑ Restore from file…</button>
-        <button class="secondary outline" @click="$refs.importCsvInput.click()">⇪ Import CSV…</button>
-        <input type="file" accept=".json,application/json" x-ref="restoreFileInput"
-               style="display:none" @change="restoreFromFile($event)">
-        <input type="file" accept=".csv,text/csv" x-ref="importCsvInput"
-               style="display:none" @change="importCsvFromFile($event)">
+      <div class="srow">
+        <label class="srow-key" for="set-budget">Vacation budget
+          <small>Days per year; halves allowed (22.5). Partial vacation days count by their share.</small></label>
+        <div class="srow-ctl">
+          <input id="set-budget" type="number" class="ctl-num" x-model.number="settingsForm.vacation_budget_days" min="0" max="365" step="0.5" required>
+          <span class="unit">days</span>
+        </div>
       </div>
-    </div>
+    </form>
 
-    <hr class="fun-zone-divider">
-
-    <!-- Seed -->
-    <div class="fun-zone-action">
-      <div>
-        <strong>Seed with sample data</strong>
-        <p class="muted">Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos or resetting after experiments. Settings are kept.</p>
+    <!-- ── Holidays ──────────────────────────────────────────────────────── -->
+    <div class="settings-card" id="settings-holidays">
+      <div class="settings-card-head">
+        <div>
+          <h3>Holidays</h3>
+          <p class="muted">Import <strong x-text="holidayYear"></strong>'s official public holidays as <code>holiday</code> days. Logged dates are skipped, nothing is overwritten.</p>
+        </div>
+        <button type="button" class="btn-action" @click="importHolidays()"
+                :aria-busy="holidayImporting"
+                :disabled="holidayImporting || !settingsForm.holiday_country || holidayNothingToImport()"
+                x-text="holidayImportLabel()"></button>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-country">Country</label>
+        <div class="srow-ctl">
+          <select id="set-country" class="ctl-select" x-model="settingsForm.holiday_country" @change="onHolidayCountryChange()">
+            <option value="">Select a country…</option>
+            <template x-for="c in holidayCountries" :key="c.code">
+              <option :value="c.code" x-text="c.name"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div class="srow" x-show="holidaySubdivisions.length > 0">
+        <label class="srow-key" for="set-region">Region
+          <small>Needed for the regional dates; without one only the holidays every region shares are imported.</small></label>
+        <div class="srow-ctl">
+          <select id="set-region" class="ctl-select" x-model="settingsForm.holiday_region" @change="loadHolidayPreview()">
+            <option value="">National only</option>
+            <template x-for="code in holidaySubdivisions" :key="code">
+              <option :value="code" x-text="code"></option>
+            </template>
+          </select>
+        </div>
       </div>
 
-      <template x-if="!seedConfirming">
-        <button class="secondary outline" @click="seedConfirming = true; seedInput = ''">
-          Seed sample data…
-        </button>
-      </template>
-
-      <template x-if="seedConfirming">
-        <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
-          <label class="wipe-confirm-label">
-            Type <code>seed data</code> to confirm
-            <input type="text" x-model="seedInput"
-                   placeholder="seed data"
-                   autocomplete="off"
-                   spellcheck="false">
-          </label>
-          <div class="wipe-confirm-actions">
-            <button class="secondary"
-                    :disabled="seedInput !== 'seed data'"
-                    @click="seedData()">
-              Confirm seed
-            </button>
-            <button class="secondary outline"
-                    @click="seedConfirming = false; seedInput = ''">
-              Cancel
-            </button>
+      <!-- Mini-calendar preview of what will be imported -->
+      <template x-if="settingsForm.holiday_country && holidayPreview.length">
+        <div class="holiday-preview">
+          <div class="holiday-preview-head">
+            <strong x-text="holidayPreview.length + ' holidays in ' + holidayYear"></strong>
+            <span class="muted" x-text="holidayPreviewSummary()"></span>
           </div>
+          <div class="holiday-cal-grid">
+            <template x-for="m in holidayMonths()" :key="m.key">
+              <div class="holiday-cal">
+                <div class="holiday-cal-title" x-text="m.label"></div>
+                <div class="holiday-cal-days">
+                  <template x-for="d in m.dow" :key="d">
+                    <span class="holiday-cal-dow" x-text="d.slice(0,1)"></span>
+                  </template>
+                  <template x-for="c in m.cells" :key="c.key">
+                    <span class="holiday-cal-day" :class="c.cls" :title="c.title" x-text="c.label"></span>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="holiday-legend muted">
+            <span class="holiday-legend-item"><span class="holiday-swatch is-holiday"></span> to import</span>
+            <span class="holiday-legend-item" x-show="holidayPreview.some(h => h.exists)"><span class="holiday-swatch is-logged"></span> already logged (skipped)</span>
+          </div>
+          <ul class="holiday-list">
+            <template x-for="h in holidayListItems()" :key="h.date">
+              <li>
+                <span class="holiday-list-date" x-text="h.label"></span>
+                —
+                <span x-text="h.name"></span>
+                <span class="holiday-list-regional" x-show="h.regional">regional</span>
+                <span class="holiday-list-logged" x-show="h.exists">already logged</span>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+      <p class="muted holiday-note">National + regional holidays only. Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local/municipal fiestas (e.g. a town's two local holidays) aren't in either — add those manually via the Log tab.</p>
+    </div>
+
+    <!-- ── Profile ───────────────────────────────────────────────────────── -->
+    <form class="settings-card" id="settings-profile" @submit.prevent="saveSettings('profile')">
+      <div class="settings-card-head">
+        <div>
+          <h3>Profile</h3>
+          <p class="muted">Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p>
+        </div>
+        <button type="submit" class="btn-action" :disabled="!settingsDirty('profile')">Save profile</button>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-name">Name</label>
+        <div class="srow-ctl"><input id="set-name" type="text" class="ctl-text" x-model="settingsForm.profile_name" maxlength="120" placeholder="Your name" autocomplete="name"></div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-employer">Employer / client</label>
+        <div class="srow-ctl"><input id="set-employer" type="text" class="ctl-text" x-model="settingsForm.profile_employer" maxlength="120" placeholder="Company"></div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-extra">Extra line</label>
+        <div class="srow-ctl"><input id="set-extra" type="text" class="ctl-text" x-model="settingsForm.profile_extra" maxlength="160" placeholder="Employee nº, team, contract…"></div>
+      </div>
+    </form>
+
+    <!-- ── Day templates ─────────────────────────────────────────────────── -->
+    <div class="settings-card" id="settings-templates">
+      <div class="settings-card-head">
+        <div>
+          <h3>Day templates</h3>
+          <p class="muted">Saved from the Log tab ("Save as template" under the form). One click fills a recurring shift.</p>
+        </div>
+      </div>
+      <template x-if="templates.length === 0">
+        <p class="muted settings-empty">No templates yet — <a @click.prevent="go('log')" href="#log">log a day</a> and use "Save as template" below the form.</p>
+      </template>
+      <template x-for="t in templates" :key="t.id">
+        <div class="template-item">
+          <div>
+            <strong x-text="t.name"></strong>
+            <span class="muted" x-text="' · ' + t.start_time + '–' + t.end_time"></span>
+            <template x-if="t.breaks && t.breaks.length > 0">
+              <span class="muted" x-text="' · ' + t.breaks.reduce((s,b) => s+b.break_minutes,0) + ' min break'"></span>
+            </template>
+          </div>
+          <button type="button" class="contrast outline compact" @click="deleteTemplate(t.id)">Delete</button>
         </div>
       </template>
     </div>
+
+    <!-- ── Fun zone: everything that moves data in bulk ──────────────────── -->
+    <div class="settings-card fun-zone" id="settings-data">
+      <div class="settings-card-head">
+        <div>
+          <h3 class="fun-zone-title">🎢 Fun zone</h3>
+          <p class="muted">Everything that moves data in bulk. The two that destroy ask you to type first.</p>
+        </div>
+      </div>
+
+      <div class="fun-zone-action">
+        <div>
+          <strong>Backup &amp; restore</strong>
+          <p class="muted">Download a full snapshot of all entries + settings as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
+        </div>
+        <div class="backup-actions">
+          <button type="button" class="secondary outline" @click="downloadBackup()">↓ Download backup</button>
+          <button type="button" class="secondary outline" @click="$refs.restoreFileInput.click()">↑ Restore from file…</button>
+          <input type="file" accept=".json,application/json" x-ref="restoreFileInput"
+                 style="display:none" @change="restoreFromFile($event)">
+        </div>
+      </div>
+
+      <hr class="fun-zone-divider">
+
+      <div class="fun-zone-action">
+        <div>
+          <strong>Import CSV</strong>
+          <p class="muted">Adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped.</p>
+        </div>
+        <div class="backup-actions">
+          <button type="button" class="secondary outline" @click="$refs.importCsvInput.click()">⇪ Import CSV…</button>
+          <input type="file" accept=".csv,text/csv" x-ref="importCsvInput"
+                 style="display:none" @change="importCsvFromFile($event)">
+        </div>
+      </div>
+
+      <hr class="fun-zone-divider">
+
+      <div class="fun-zone-action">
+        <div>
+          <strong>Seed with sample data</strong>
+          <p class="muted">Wipe all entries and repopulate with ~3 months of realistic sample days. Useful for demos or resetting after experiments. Settings are kept.</p>
+        </div>
+
+        <template x-if="!seedConfirming">
+          <button type="button" class="secondary outline" @click="seedConfirming = true; seedInput = ''">
+            Seed sample data…
+          </button>
+        </template>
+
+        <template x-if="seedConfirming">
+          <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
+            <label class="wipe-confirm-label">
+              Type <code>seed data</code> to confirm
+              <input type="text" x-model="seedInput"
+                     placeholder="seed data"
+                     autocomplete="off"
+                     spellcheck="false">
+            </label>
+            <div class="wipe-confirm-actions">
+              <button type="button" class="secondary"
+                      :disabled="seedInput !== 'seed data'"
+                      @click="seedData()">
+                Confirm seed
+              </button>
+              <button type="button" class="secondary outline"
+                      @click="seedConfirming = false; seedInput = ''">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <hr class="fun-zone-divider">
+
+      <div class="fun-zone-action">
+        <div>
+          <strong>Wipe all data</strong>
+          <p class="muted">Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
+        </div>
+
+        <template x-if="!wipeConfirming">
+          <button type="button" class="btn-danger outline" @click="wipeConfirming = true; wipeInput = ''">
+            Wipe all data…
+          </button>
+        </template>
+
+        <template x-if="wipeConfirming">
+          <div class="wipe-confirm" x-init="$nextTick(() => $el.querySelector('input[type=text]').focus())">
+            <label class="wipe-confirm-label">
+              Type <code>wipe data</code> to confirm
+              <input type="text" x-model="wipeInput"
+                     placeholder="wipe data"
+                     autocomplete="off"
+                     spellcheck="false">
+            </label>
+            <div class="wipe-confirm-actions">
+              <button type="button" class="btn-danger"
+                      :disabled="wipeInput !== 'wipe data'"
+                      @click="wipeData()">
+                Confirm wipe
+              </button>
+              <button type="button" class="secondary outline"
+                      @click="wipeConfirming = false; wipeInput = ''">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
   </div>
 </section>
 </template>

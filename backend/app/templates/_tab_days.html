@@ -1,10 +1,10 @@
 <!-- ========================= DAYS ========================= -->
 <template x-if="tab==='days'">
 <section aria-label="All logged days" x-init="$nextTick(() => scrollToToday())">
-  <header class="section-header">
+  <header class="section-header days-header">
     <h2>Days</h2>
     <div class="section-header-controls">
-      <select x-model="daysYear" style="width:auto">
+      <select x-model="daysYear" aria-label="Year" class="days-year">
         <option value="all">All years</option>
         <template x-for="y in yearsWithData()" :key="y">
           <option :value="y" x-text="y"></option>
@@ -17,7 +17,7 @@
           <button type="button" class="notes-search-clear" @click="notesQuery = ''" aria-label="Clear search">✕</button>
         </template>
       </div>
-      <span class="muted" x-text="sortedEntries().length + ' entries'"></span>
+      <span class="muted days-count" x-text="sortedEntries().length + ' entries'"></span>
       <button type="button" class="secondary outline compact pdf-btn" @click="openPdfModal()" title="Printable timesheet">PDF</button>
     </div>
   </header>
@@ -83,20 +83,21 @@
     </div>
   </template>
 
-  <!-- E2: skeleton while first fetch is in-flight -->
+  <!-- skeleton while the first fetch is in flight -->
   <template x-if="loading.days && !entries.length">
     <div class="table-wrap" aria-hidden="true">
-      <table>
+      <table class="days-table">
         <thead>
           <tr>
-            <th>Date</th><th>Type</th><th>Start</th><th>End</th>
-            <th>Breaks</th><th>Net</th><th>Target</th><th>Δ</th><th>Σ</th><th></th>
+            <th>Date</th><th></th><th>Type</th><th>Start</th><th>End</th>
+            <th>Breaks</th><th>Net</th><th>Target</th><th>Δ</th><th>Σ</th><th>Notes</th><th></th>
           </tr>
         </thead>
         <tbody>
           <template x-for="i in [1,2,3,4,5]" :key="i">
             <tr class="skel-row">
               <td><div class="skel-line"></div></td>
+              <td></td>
               <td><div class="skel-pill"></div></td>
               <td><div class="skel-line skel-short"></div></td>
               <td><div class="skel-line skel-short"></div></td>
@@ -105,6 +106,7 @@
               <td><div class="skel-line skel-short"></div></td>
               <td><div class="skel-line skel-short"></div></td>
               <td><div class="skel-line skel-short"></div></td>
+              <td><div class="skel-line"></div></td>
               <td></td>
             </tr>
           </template>
@@ -118,59 +120,69 @@
     <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
   </template>
 
+  <!-- Dense table: the whole row opens the day in Log (✎ is the focusable target), notes are
+       always visible in the last column, a separator with its subtotal opens every month while
+       sorted by date. One <tbody> per row keeps the `day-row-<date>` anchor for scrollToToday. -->
   <template x-if="entries.length">
-    <div class="table-wrap">
-      <table>
+    <div class="table-wrap days-wrap">
+      <table class="days-table">
         <thead>
           <tr>
             <th @click="sortBy('date')" class="sortable" role="columnheader" tabindex="0"
                 :aria-sort="sortKey==='date' ? (sortDir==='asc' ? 'ascending' : 'descending') : 'none'"
                 @keydown.enter.prevent="sortBy('date')" @keydown.space.prevent="sortBy('date')">Date</th>
+            <th></th>
             <th>Type</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Breaks</th>
-            <th @click="sortBy('net_hours')" class="sortable" role="columnheader" tabindex="0"
+            <th class="num">Start</th>
+            <th class="num">End</th>
+            <th class="num">Breaks</th>
+            <th @click="sortBy('net_hours')" class="sortable num" role="columnheader" tabindex="0"
                 :aria-sort="sortKey==='net_hours' ? (sortDir==='asc' ? 'ascending' : 'descending') : 'none'"
                 @keydown.enter.prevent="sortBy('net_hours')" @keydown.space.prevent="sortBy('net_hours')">Net</th>
-            <th>Target</th>
-            <th>Δ</th>
-            <th title="Running cumulative surplus from the start of the period">Σ</th>
-            <th></th>
+            <th class="num">Target</th>
+            <th class="num">Δ</th>
+            <th class="num" title="Running cumulative surplus from the start of the period">Σ</th>
+            <th class="notes-col">Notes</th>
+            <th class="act-col"><span class="visually-hidden">Edit</span></th>
           </tr>
         </thead>
-        <!-- One <tbody> per entry so we can inject a notes sub-row without a wrapper element -->
-        <template x-for="e in sortedEntries()" :key="e.date">
-          <tbody :id="'day-row-' + e.date" :class="{ 'today-row': e._isAnchor }">
-            <!-- E2: _saving flag → dim row while API call is in-flight -->
-            <tr :class="[e.day_type !== 'work' ? 'non-work' : '', e._saving ? 'row-saving' : '']">
-              <td x-text="e.date"></td>
-              <td><span class="day-pill" :class="e.day_type" x-text="pillLabel(e)"></span></td>
-              <td x-text="e.start_time || '—'"></td>
-              <td x-text="e.end_time || '—'"></td>
-              <td x-text="e.total_break_minutes ? e.total_break_minutes + 'm' : '—'"></td>
-              <td x-text="e.net_hours + 'h'"></td>
-              <td x-text="e.target_hours + 'h'"></td>
-              <td :class="surplusClass(e.surplus_hours)" x-text="formatSurplus(e.surplus_hours)"></td>
-              <td :class="surplusClass(e._cumulative)" x-text="formatSurplus(e._cumulative)"></td>
-              <td>
-                <div class="row-actions">
-                  <template x-if="e.notes">
-                    <button type="button" class="notes-btn" :class="notesExpanded[e.date] ? 'active' : ''"
-                            @click="toggleNotes(e.date)" title="Toggle notes">📝</button>
+        <template x-for="r in daysRows()" :key="r.key">
+          <tbody :id="r.kind === 'entry' ? 'day-row-' + r.e.date : null"
+                 :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor }">
+            <template x-if="r.kind === 'sep'">
+              <tr class="month-sep">
+                <td colspan="12">
+                  <span class="month-sep-name" x-text="r.label"></span>
+                  <span class="month-sep-sum metric">
+                    <span x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span> ·
+                    <b x-text="r.net + 'h'"></b> / <span x-text="r.target + 'h'"></span> ·
+                    <b :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></b>
+                  </span>
+                </td>
+              </tr>
+            </template>
+            <template x-if="r.kind === 'entry'">
+              <tr class="day-row" :class="[r.e.day_type !== 'work' ? 'non-work' : '', r.e._saving ? 'row-saving' : '']"
+                  @click="editEntry(r.e)" :title="'Edit ' + r.e.date">
+                <td class="metric" x-text="r.e.date"></td>
+                <td class="dow" x-text="r.e._dow"></td>
+                <td><span class="day-pill" :class="r.e.day_type" x-text="pillLabel(r.e)"></span></td>
+                <td class="num metric" x-text="r.e.start_time || '—'"></td>
+                <td class="num metric" x-text="r.e.end_time || '—'"></td>
+                <td class="num metric" x-text="r.e.total_break_minutes ? r.e.total_break_minutes + 'm' : '—'"></td>
+                <td class="num metric" x-text="r.e.net_hours + 'h'"></td>
+                <td class="num metric" x-text="r.e.target_hours + 'h'"></td>
+                <td class="num metric" :class="surplusClass(r.e.surplus_hours)" x-text="formatSurplus(r.e.surplus_hours)"></td>
+                <td class="num metric" :class="surplusClass(r.e._cumulative)" x-text="formatSurplus(r.e._cumulative)"></td>
+                <td class="notes-col" x-html="r.e.notes ? highlightNotes(r.e.notes, notesQuery) : ''"></td>
+                <td class="act-col" @click.stop>
+                  <template x-if="!r.e._saving">
+                    <button type="button" class="row-edit" @click="editEntry(r.e)" aria-label="Edit" :title="'Edit ' + r.e.date">✎</button>
                   </template>
-                  <template x-if="!e._saving">
-                    <button type="button" class="secondary outline compact" @click="editEntry(e)">Edit</button>
-                  </template>
-                  <template x-if="e._saving">
+                  <template x-if="r.e._saving">
                     <span class="saving-indicator" aria-label="Saving…">⏳</span>
                   </template>
-                </div>
-              </td>
-            </tr>
-            <template x-if="(notesExpanded[e.date] || notesQuery.trim()) && e.notes">
-              <tr class="notes-row">
-                <td colspan="10" x-html="highlightNotes(e.notes, notesQuery)"></td>
+                </td>
               </tr>
             </template>
           </tbody>

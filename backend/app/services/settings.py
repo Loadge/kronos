@@ -25,7 +25,6 @@ DEFAULT_START_TIME = "default_start_time"
 DEFAULT_END_TIME = "default_end_time"
 HOLIDAY_COUNTRY = "holiday_country"
 HOLIDAY_REGION = "holiday_region"
-DASHBOARD_LAYOUT = "dashboard_layout"
 # Profile: who the printable timesheet is for. All optional free text.
 PROFILE_NAME = "profile_name"
 PROFILE_EMPLOYER = "profile_employer"
@@ -34,11 +33,6 @@ PROFILE_EXTRA = "profile_extra"
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 _DEFAULT_START_TIME = "09:00"
 _DEFAULT_END_TIME = "17:00"
-_DEFAULT_DASHBOARD_LAYOUT = {
-    "hero": ["week", "month", "cumulative"],
-    "tiles": ["yoy", "logging_streak", "on_target_streak"],
-    "aux": ["forecast", "quick_log", "vacation"],
-}
 
 
 def _get(session: Session, key: str, default: str) -> str:
@@ -194,17 +188,6 @@ def get_profile(session: Session) -> dict[str, str]:
 def set_profile_field(session: Session, key: str, value: str) -> None:
     assert key in (PROFILE_NAME, PROFILE_EMPLOYER, PROFILE_EXTRA)
     _set(session, key, value.strip())
-
-
-def get_dashboard_layout(session: Session) -> dict[str, list[str]]:
-    raw = _get(session, DASHBOARD_LAYOUT, "")
-    if not raw:
-        return {k: list(v) for k, v in _DEFAULT_DASHBOARD_LAYOUT.items()}
-    return json.loads(raw)
-
-
-def set_dashboard_layout(session: Session, layout: dict[str, list[str]]) -> None:
-    _set(session, DASHBOARD_LAYOUT, json.dumps(layout))
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:

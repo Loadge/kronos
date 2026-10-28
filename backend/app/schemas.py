@@ -145,6 +145,20 @@ class DashboardOut(BaseModel):
     planned_flex_hours: float = 0.0
 
 
+class CumulativePointOut(BaseModel):
+    date: date_
+    surplus_hours: float  # running balance after this day's entry
+
+
+class CumulativeSeriesOut(BaseModel):
+    """The cumulative balance day by day within one year — the dashboard's trajectory."""
+
+    year: int | None  # None for the whole history (`all=true`)
+    start: date_  # effective cumulative start for that year (Jan 1 when reset_annually)
+    opening: float  # balance carried into the year from `start`; 0 when `start` is in the year
+    points: list[CumulativePointOut]  # one per logged day, ascending
+
+
 class StreaksOut(BaseModel):
     logging_streak: int
     on_target_streak: int
@@ -260,18 +274,6 @@ class ConfigIn(BaseModel):
     profile_name: str | None = Field(default=None, max_length=120)
     profile_employer: str | None = Field(default=None, max_length=120)
     profile_extra: str | None = Field(default=None, max_length=160)
-
-
-class DashboardLayoutOut(BaseModel):
-    hero: list[str]
-    tiles: list[str]
-    aux: list[str]
-
-
-class DashboardLayoutIn(BaseModel):
-    hero: list[str] = Field(..., min_length=1)
-    tiles: list[str] = Field(..., min_length=1)
-    aux: list[str] = Field(..., min_length=1)
 
 
 BACKUP_VERSION = 2  # 2: entries carry `fraction`; 1: whole days only

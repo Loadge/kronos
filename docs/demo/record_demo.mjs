@@ -112,12 +112,12 @@ async function main() {
   await page.waitForTimeout(1500); // analytics fetches + charts settle
   await hold(1.0);
 
-  // -- Scene 3 -- cumulative trend chart -----------------------------------
-  await scrollToHeading('Cumulative trend', 1.2, 60);
+  // -- Scene 3 -- the balance over time (the zoomable chart) ----------------
+  await scrollToHeading('Balance over time', 1.2, 60);
   await hold(0.5);
 
-  // -- Scene 4 -- monthly breakdown -----------------------------------------
-  await scrollToHeading('Monthly breakdown', 1.2);
+  // -- Scene 4 -- weekday pattern + daily surplus ---------------------------
+  await scrollToHeading('Weekday pattern', 1.2);
   await hold(0.5);
 
   // -- Scene 5 -- Year at a glance (the hero shot) --------------------------

@@ -10,6 +10,7 @@ Each check is a plain GET with a 10 s timeout, run in this order:
     /api/config                     200, JSON object
     /api/dashboard                  200, JSON object containing key "cumulative"
     /api/entries                    200, JSON list
+    /api/analytics/cumulative-series 200, JSON object containing a "points" list
     /api/analytics/monthly          200, JSON list
     /api/analytics/yearly           200, JSON list
     /api/analytics/records          200, JSON object
@@ -150,6 +151,20 @@ def check_api_entries(status: int, body: bytes) -> str | None:
     return _check_json(status, body, list)
 
 
+def check_api_cumulative_series(status: int, body: bytes) -> str | None:
+    """The dashboard's trajectory: a year, an opening balance and a list of points."""
+    if (err := _expected_200(status)) is not None:
+        return err
+    data, err = _parse_json(body)
+    if err is not None:
+        return err
+    if not isinstance(data, dict):
+        return f"expected JSON object, got {type(data).__name__}"
+    if not isinstance(data.get("points"), list):
+        return 'JSON object has no "points" list'
+    return None
+
+
 def check_api_monthly(status: int, body: bytes) -> str | None:
     return _check_json(status, body, list)
 
@@ -209,6 +224,7 @@ CHECKS: list[tuple[str, Validator]] = [
     ("/api/config", check_api_config),
     ("/api/dashboard", check_api_dashboard),
     ("/api/entries", check_api_entries),
+    ("/api/analytics/cumulative-series", check_api_cumulative_series),
     ("/api/analytics/monthly", check_api_monthly),
     ("/api/analytics/yearly", check_api_yearly),
     ("/api/analytics/records", check_api_records),

@@ -20,9 +20,9 @@ class TestTabSwitching:
         active = page.locator("nav button.active, nav [role='tab'][aria-selected='true']").first
         assert "dashboard" in active.inner_text().lower() or active.count() > 0
 
-        # The summary section must be visible (contains at least one metric card)
-        page.wait_for_selector(".summary-card", timeout=5000)
-        assert page.locator(".summary-card").count() >= 1
+        # The hero (cumulative balance) and the three chips must be visible
+        page.wait_for_selector(".hero-num", timeout=5000)
+        assert page.locator(".chip").count() == 3
 
     def test_can_navigate_to_log_tab(self, page, base_url):
         page.goto(base_url)
@@ -52,7 +52,7 @@ class TestTabSwitching:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        page.click("text=Settings")
+        page.get_by_role("button", name="Settings").click()  # the gear next to the theme toggle
         page.wait_for_url("**/#settings", timeout=3000)
 
         # Settings form must have target hours input
@@ -106,3 +106,74 @@ class TestPageLoad:
         assert link.count() == 1
         href = link.get_attribute("href")
         assert href is not None and "manifest" in href
+
+
+class TestClickingATabLeavesNoCaret:
+    """A click focuses the tab and used to leave a collapsed text selection inside it, which
+    Chrome on Windows paints as a blinking caret after the label. Labels are unselectable
+    now and the caret colour transparent: neither condition may come back."""
+
+    @pytest.mark.parametrize("name", ["Plan", "Log", "Days", "Analytics", "Dashboard"])
+    def test_tab_click(self, page, base_url, name):
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        page.get_by_role("tab", name=name).click()
+        page.wait_for_timeout(200)
+        state = page.evaluate(
+            """() => {
+                const s = window.getSelection(), a = document.activeElement;
+                return {
+                    selection: s.type,
+                    inside: !!s.anchorNode && a.contains(s.anchorNode),
+                    caret: getComputedStyle(a).caretColor,
+                    select: getComputedStyle(a).userSelect,
+                };
+            }"""
+        )
+        assert state["select"] == "none", state
+        assert state["caret"] == "rgba(0, 0, 0, 0)", state
+        assert not (state["selection"] == "Caret" and state["inside"]), state
+
+
+class TestEscapeGoesHome:
+    """Escape from any tab returns to the Dashboard, after dismissing what is in front of
+    it: an overlay, the field being typed in, an edit in progress."""
+
+    @pytest.mark.parametrize("tab", ["plan", "log", "days", "analytics", "settings"])
+    def test_escape_from_every_tab(self, page, base_url, tab):
+        page.goto(f"{base_url}/#{tab}")
+        page.wait_for_load_state("networkidle")
+        page.evaluate("() => document.activeElement.blur()")  # the page, not a field
+        page.keyboard.press("Escape")
+        page.wait_for_url("**/#dashboard", timeout=3000)
+        page.wait_for_selector(".hero-num", timeout=5000)
+
+    def test_escape_on_the_dashboard_stays(self, page, base_url):
+        page.goto(f"{base_url}/#dashboard")
+        page.wait_for_selector(".hero-num", timeout=5000)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        assert page.url.endswith("#dashboard")
+
+    def test_escape_leaves_a_field_first(self, page, base_url):
+        page.goto(f"{base_url}/#days")
+        page.wait_for_load_state("networkidle")
+        search = page.locator(".notes-search")
+        search.click()
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        assert page.url.endswith("#days")  # first Escape only leaves the field
+        assert page.evaluate("() => document.activeElement === document.body")
+        page.keyboard.press("Escape")
+        page.wait_for_url("**/#dashboard", timeout=3000)
+
+    def test_escape_closes_the_palette_first(self, page, base_url):
+        page.goto(f"{base_url}/#days")
+        page.wait_for_load_state("networkidle")
+        page.keyboard.press(".")
+        page.wait_for_selector(".palette", timeout=3000)
+        page.keyboard.press("Escape")
+        page.wait_for_function("() => !document.querySelector('.palette')", timeout=3000)
+        assert page.url.endswith("#days")
+        page.keyboard.press("Escape")
+        page.wait_for_url("**/#dashboard", timeout=3000)

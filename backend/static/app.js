@@ -27,14 +27,9 @@ function app() {
     streakStats: null,
     MILESTONES: [30, 100, 365],
 
-    // ---------- dashboard layout: draggable + persisted (redesign) -------
-    dashboardLayout: {
-      hero: ['week', 'month', 'cumulative'],
-      tiles: ['yoy', 'logging_streak', 'on_target_streak'],
-      aux: ['forecast', 'quick_log', 'vacation'],
-    },
-    _dashboardLayoutLoaded: false,
-    _dashboardSortables: [],
+    // ---------- dashboard trajectory ------------------------------------
+    series: null,                  // /api/analytics/cumulative-series for this year
+    traj: { svg: '', aria: '' },   // the chart as markup (see buildTrajectory)
 
     // ---------- log form ------------------------------------------------
     // leave_hours: hours of leave on a non-work day, null for work days.
@@ -46,8 +41,8 @@ function app() {
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
 
-    // ---------- week view -----------------------------------------------
-    weekStart: '', // ISO date of the Monday of the displayed week; set in init()
+    // ---------- week strip (dashboard) ----------------------------------
+    weekStart: '', // ISO date of this week's Monday; set in init()
 
     // ---------- time-off planner ----------------------------------------
     plans: [],            // every draft (all years); the Plan tab filters by planYear
@@ -73,15 +68,38 @@ function app() {
     nowDisplay: '',
 
     // ---------- analytics -----------------------------------------------
-    monthly: [],
     yearly: [],
     yoy: null,
-    records: null,
-    analyticsYear: String(new Date().getFullYear()),
+    analyticsYear: String(new Date().getFullYear()),  // the year at a glance
+    anSeries: null,                                   // /api/analytics/cumulative-series?all=true
+    // The zoomable chart: the visible range [x0, x1) in ms, the series shown, the active
+    // preset (null once zoomed by hand), and the interaction in progress.
+    an: { mode: 'balance', x0: 0, x1: 0, preset: 'year', drag: null, hover: null, pinch: null },
+    anChart: { svg: '', brush: '', aria: '' },
+    AN_PRESETS: [
+      { id: 'month', label: 'This month' },
+      { id: '3m',    label: '3 months' },
+      { id: 'year',  label: 'This year' },
+      { id: '12m',   label: '12 months' },
+      { id: 'all',   label: 'All' },
+    ],
+    hmTip: { show: false, x: 0, y: 0, title: '', body: '', note: '', hint: '' },
 
     // ---------- settings ------------------------------------------------
     settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '' },
     _scheduleKeySeq: 0,  // stable keys for the date-effective target rows
+    _settingsSaved: null,  // the form as last loaded / saved, for the per-section dirty flags
+    // Settings is one long page with a section index; each section saves its own fields.
+    SETTINGS_SECTIONS: [
+      { id: 'work',      label: 'Work',      fields: ['daily_target_hours', 'default_start_time', 'default_end_time', 'work_week_days', 'cumulative_start_date', 'reset_annually'] },
+      { id: 'leave',     label: 'Leave',     fields: ['vacation_budget_days'] },
+      { id: 'holidays',  label: 'Holidays',  fields: [] },
+      { id: 'profile',   label: 'Profile',   fields: ['profile_name', 'profile_employer', 'profile_extra'] },
+      { id: 'templates', label: 'Templates', fields: [] },
+      { id: 'data',      label: 'Data',      fields: [] },
+    ],
+    settingsActive: 'work',
+    _settingsSpy: null,
 
     // ---------- public holidays ------------------------------------------
     holidayCountries: [],
@@ -93,9 +111,6 @@ function app() {
     // ---------- day templates (server-side) -----------------------------
     templates: [],
     _tplName: '',
-
-    // ---------- notes expansion (days table) ----------------------------
-    notesExpanded: {},
 
     // ---------- fun zone ------------------------------------------------
     wipeConfirming: false,
@@ -135,7 +150,7 @@ function app() {
       // Apply persisted theme before first render
       document.documentElement.setAttribute('data-theme', this.theme);
 
-      const TABS = ['dashboard', 'plan', 'week', 'log', 'days', 'analytics', 'settings'];
+      const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
 
@@ -157,11 +172,15 @@ function app() {
           return;
         }
 
-        // Escape — dismiss in priority order
+        // Escape — dismiss in priority order: an overlay, then the field you are in, then
+        // an edit in progress, then the tab itself: Escape from any tab goes home.
         if (e.key === 'Escape') {
-          if (this.palette.open)                    { this.closePalette(); return; }
+          if (this.palette.open)                      { this.closePalette(); return; }
+          if (this.bulkModal.open)                    { this.closeBulkModal(); return; }
+          if (this.pdfModal.open)                     { this.pdfModal.open = false; return; }
+          if (inInput)                                { e.target.blur(); return; }
           if (this.tab === 'log' && this.editingDate) { this.openNewEntry(); return; }
-          if (this.tab === 'log')                   { this.go('dashboard'); return; }
+          if (this.tab !== 'dashboard')               { this.go('dashboard'); return; }
           return;
         }
 
@@ -170,7 +189,6 @@ function app() {
 
         switch (e.key) {
           case 'p': case 'P': e.preventDefault(); this.go('plan');      break;
-          case 'w': case 'W': e.preventDefault(); this.go('week');      break;
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
           case 'd': case 'D': e.preventDefault(); this.go('days');      break;
           case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
@@ -206,9 +224,8 @@ function app() {
       if (location.hash.replace('#', '') !== t) location.hash = t;
       this.error = null;
       this.notesQuery = '';
-      if (t === 'dashboard') { await this.loadDashboard(); this.$nextTick(() => this.initDashboardSortables()); }
+      if (t === 'dashboard') await this.loadDashboard();
       else if (t === 'plan') await this.loadPlan();
-      else if (t === 'week') { this.ensureWeekStart(); await this.loadDays(); }
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
@@ -346,9 +363,6 @@ function app() {
       const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // Replace only in text nodes (skip content inside HTML tags).
       return html.replace(new RegExp(`(${escaped})(?![^<]*>)`, 'gi'), '<mark>$1</mark>');
-    },
-    toggleNotes(date) {
-      this.notesExpanded = { ...this.notesExpanded, [date]: !this.notesExpanded[date] };
     },
 
     // =====================================================================
@@ -658,14 +672,13 @@ function app() {
     // command palette
     // =====================================================================
     _COMMANDS: [
-      { id: 'dashboard', label: 'Dashboard',     hint: '1'     },
-      { id: 'plan',      label: 'Plan time off', hint: 'P'     },
-      { id: 'week',      label: 'Week',          hint: 'W'     },
-      { id: 'log',       label: 'Log new entry', hint: '2 · L' },
-      { id: 'days',      label: 'Days',          hint: '3'     },
-      { id: 'pdf',       label: 'PDF timesheet', hint: ''      },
-      { id: 'analytics', label: 'Analytics',     hint: '4 · A' },
-      { id: 'settings',  label: 'Settings',      hint: '5 · S' },
+      { id: 'dashboard', label: 'Dashboard',     hint: 'Esc' },
+      { id: 'plan',      label: 'Plan time off', hint: 'P'   },
+      { id: 'log',       label: 'Log new entry', hint: 'L'   },
+      { id: 'days',      label: 'Days',          hint: 'D'   },
+      { id: 'pdf',       label: 'PDF timesheet', hint: ''    },
+      { id: 'analytics', label: 'Analytics',     hint: 'A'   },
+      { id: 'settings',  label: 'Settings',      hint: 'S'   },
     ],
 
     openPalette() {
@@ -842,17 +855,27 @@ function app() {
     async loadDashboard() {
       this.loading.dashboard = true;
       try {
-        this.dashboard = await this.api('GET', '/api/dashboard');
-        const h = this.dashboard.cumulative.surplus_hours;
+        const year = new Date().getFullYear();
+        const [dashboard, series, yoy] = await Promise.all([
+          this.api('GET', '/api/dashboard'),
+          this.api('GET', `/api/analytics/cumulative-series?year=${year}`),
+          this.api('GET', '/api/analytics/yoy').catch(() => null),
+        ]);
+        await this.loadDays();   // entries + drafts: the week strip and quick-log read them
+        this.weekStart = this._mondayIso(new Date());
+        this.series = series;
+        this.yoy = yoy;
+        this.dashboard = dashboard;
+        const h = dashboard.cumulative.surplus_hours;
         const abs = Math.abs(h).toFixed(2);
         if (h > 0.01) this.subtitle = `${abs}h ahead overall`;
         else if (h < -0.01) this.subtitle = `${abs}h behind overall`;
         else this.subtitle = 'on target';
-        this.$nextTick(() => this.tickUpDashboard()); // W1
+        this.traj = this.buildTrajectory();
+        this.$nextTick(() => this.tickUpDashboard());
       } catch (e) { this.error = e.message; }
       finally { this.loading.dashboard = false; }
       this.loadStreaks();
-      if (!this._dashboardLayoutLoaded) this.loadDashboardLayout();
     },
 
     // streaks & milestones
@@ -872,102 +895,178 @@ function app() {
       }
     },
 
-    // =====================================================================
-    // dashboard layout — draggable cards/tiles/blocks (redesign)
-    // =====================================================================
-    async loadDashboardLayout() {
-      this._dashboardLayoutLoaded = true;
-      try {
-        this.dashboardLayout = await this.api('GET', '/api/config/dashboard-layout');
-      } catch (e) { /* keep the built-in default order */ }
+    // ---------- hero captions --------------------------------------------
+    // "Jan 2025": where the cumulative starts, as a caption rather than a sentence.
+    sinceLabel() {
+      const d = this.dashboard?.cumulative_start_date;
+      if (!d) return '';
+      return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    },
+    // "Tue 27 Oct · 08:42" — today and the live clock, in one chip.
+    todayChip() {
+      const d = this.dashboard ? new Date(this.dashboard.today + 'T12:00:00') : new Date();
+      const label = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      return this.nowDisplay ? `${label} · ${this.nowDisplay}` : label;
+    },
+    // "12.5 work days, 2 off" — the counts the old cards printed, now a tooltip.
+    daysTitle(period) {
+      return `${this.fmtDays(period.work_days)} work days, ${this.fmtDays(period.non_work_days)} off`;
+    },
+    yoyDelta() {
+      if (!this.yoy) return 0;
+      return Math.round((this.yoy.this_year.surplus_hours - this.yoy.last_year.surplus_hours) * 100) / 100;
+    },
+    // A bullet bar centred on zero: the fill grows right for a surplus, left for a deficit.
+    bulletStyle(hours, range) {
+      const w = Math.min(50, Math.abs(hours) / Math.max(range, Math.abs(hours)) * 50);
+      return hours < 0 ? `left:${50 - w}%;width:${w}%` : `left:50%;width:${w}%`;
+    },
+    todayEntry() {
+      const today = this.todayIso();
+      return this.entries.find(e => e.date === today) || null;
     },
 
-    async saveDashboardLayout() {
-      try {
-        await this.api('PUT', '/api/config/dashboard-layout', this.dashboardLayout);
-      } catch (e) { this.error = e.message; }
-    },
+    // ---------- the trajectory ------------------------------------------
+    // The cumulative balance day by day this year (solid), then a dashed line from today
+    // to Dec 31 at the forecast's value. Built as markup: x-for cannot live inside <svg>.
+    buildTrajectory() {
+      const W = 620, H = 190, padL = 34, padR = 112, padT = 18, padB = 22;
+      const today = new Date((this.dashboard?.today || this.todayIso()) + 'T12:00:00');
+      const year = today.getFullYear();
+      const jan1 = new Date(year, 0, 1);
+      const daysInYear = (new Date(year, 11, 31) - jan1) / 86400000 + 1;
+      const dayOf = iso => Math.round((new Date(iso + 'T12:00:00') - new Date(year, 0, 1, 12)) / 86400000);
+      const todayIdx = dayOf(this._dateIso(today));
+      const todayIso = this._dateIso(today);
 
-    visibleHero() {
-      return this.dashboardLayout.hero;
-    },
-    heroCardClass(id) {
-      if (id === 'week') return 'summary-card summary-card--link';
-      if (id === 'cumulative') {
-        const sc = this.surplusClass(this.dashboard.cumulative.surplus_hours);
-        return 'summary-card cumulative' + (sc !== 'neutral' ? ' pulse-' + sc : '');
+      const s = this.series || { opening: 0, points: [], start: `${year}-01-01` };
+      const opening = s.opening || 0;
+      const startIdx = Math.max(0, s.start >= `${year}-01-01` ? dayOf(s.start) : 0);
+      // Series: (startIdx, opening) then one point per logged day up to today.
+      const pts = [[startIdx, opening]];
+      for (const p of s.points) {
+        if (p.date > todayIso) break;
+        pts.push([dayOf(p.date), p.surplus_hours]);
       }
-      return 'summary-card';
+      const current = this.dashboard ? this.dashboard.cumulative.surplus_hours : pts[pts.length - 1][1];
+      pts.push([todayIdx, current]);
+      const fc = this.forecast();
+      const projected = fc ? fc.projected : null;
+
+      // Scale: always show zero; pad so the line never kisses the frame.
+      const values = pts.map(p => p[1]).concat(projected === null ? [] : [projected], [0]);
+      let lo = Math.min(...values), hi = Math.max(...values);
+      const span = Math.max(hi - lo, 4);
+      lo -= span * 0.12; hi += span * 0.12;
+      const x = d => padL + (W - padL - padR) * d / (daysInYear - 1);
+      const y = v => padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo));
+      const f = n => n.toFixed(1);
+
+      // Ticks on the y axis: a "nice" step giving 3–5 labels.
+      const rawStep = (hi - lo) / 5;
+      const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find(v => v >= rawStep) || 1000;
+      const ticks = [];
+      for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) ticks.push(v);
+
+      const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      let svg = `<svg class="traj" viewBox="0 0 ${W} ${H}" aria-hidden="true">`;
+      for (let m = 0; m < 12; m++) {
+        const d0 = dayOf(this._dateIso(new Date(year, m, 1)));
+        const d1 = m === 11 ? daysInYear - 1 : dayOf(this._dateIso(new Date(year, m + 1, 1)));
+        svg += `<line class="traj-month" x1="${f(x(d0))}" y1="${padT}" x2="${f(x(d0))}" y2="${H - padB}"/>`;
+        svg += `<text class="traj-mlabel" x="${f(x((d0 + d1) / 2))}" y="${H - 6}">${MONTHS[m]}</text>`;
+      }
+      for (const v of ticks) svg += `<text class="traj-ylabel" x="${padL - 6}" y="${f(y(v) + 3)}">${v > 0 ? '+' : ''}${v}</text>`;
+      svg += `<line class="traj-zero" x1="${padL}" y1="${f(y(0))}" x2="${W - padR}" y2="${f(y(0))}"/>`;
+      const line = pts.map(([d, v], i) => `${i ? 'L' : 'M'}${f(x(d))} ${f(y(v))}`).join('');
+      const tone = current > 0.01 ? 'surplus' : current < -0.01 ? 'deficit' : 'neutral';
+      svg += `<path class="traj-area ${tone}" d="${line}L${f(x(todayIdx))} ${f(y(0))}L${f(x(startIdx))} ${f(y(0))}Z"/>`;
+      svg += `<path class="traj-line ${tone}" d="${line}"/>`;
+      svg += `<line class="traj-today" x1="${f(x(todayIdx))}" y1="${padT}" x2="${f(x(todayIdx))}" y2="${H - padB}"/>`;
+      if (projected !== null) {
+        const ex = x(daysInYear - 1), ey = y(projected);
+        svg += `<path class="traj-proj" d="M${f(x(todayIdx))} ${f(y(current))}L${f(ex)} ${f(ey)}"/>`;
+        svg += `<circle class="traj-end-dot" cx="${f(ex)}" cy="${f(ey)}" r="3.5"/>`;
+        svg += `<text class="traj-end" x="${f(ex + 8)}" y="${f(ey + 1)}">${this.formatSurplus(projected)}</text>`;
+        svg += `<text class="traj-end-sub" x="${f(ex + 8)}" y="${f(ey + 11)}">DEC 31 · AT THIS RATE</text>`;
+      }
+      svg += `<circle class="traj-dot" cx="${f(x(todayIdx))}" cy="${f(y(current))}" r="4"/>`;
+      svg += '</svg>';
+
+      const aria = projected === null
+        ? `Cumulative balance this year: ${this.formatSurplus(current)} today.`
+        : `Cumulative balance this year: ${this.formatSurplus(current)} today, ${this.formatSurplus(projected)} by December 31 at this rate.`;
+      return { svg, aria };
     },
-    visibleTiles() {
-      return this.dashboardLayout.tiles.filter(id => {
-        if (id === 'yoy') return !!this.yoy;
-        return !!this.streakStats;
+
+    // Draw the line from Jan 1 to today, then fade the projection in after it.
+    animateTrajectory(wrap) {
+      const line = wrap.querySelector('.traj-line');
+      if (!line) return;
+      const tail = wrap.querySelectorAll('.traj-proj, .traj-end-dot, .traj-end, .traj-end-sub, .traj-dot');
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        tail.forEach(el => el.classList.add('traj-shown'));
+        return;
+      }
+      const L = line.getTotalLength();
+      line.style.strokeDasharray = String(L);
+      line.style.strokeDashoffset = String(L);
+      line.style.transition = 'none';
+      requestAnimationFrame(() => {
+        line.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.3,.7,.3,1) .1s';
+        line.style.strokeDashoffset = '0';
+        tail.forEach(el => el.classList.add('traj-shown'));
       });
     },
-    visibleAux() {
-      return this.dashboardLayout.aux.filter(id => {
-        if (id === 'forecast') return !!this.forecast();
-        if (id === 'vacation') return !!this.vacationStatus();
-        return true;
-      });
+
+    // ---------- week strip -----------------------------------------------
+    // Bar heights as a share of the strip's axis: the tallest of the week's days or
+    // 1.25 × the target, so a normal day sits at four fifths and a long one still fits.
+    weekAxisHours() {
+      const days = this.weekDays();
+      const target = Math.max(...days.map(d => d.target), this.dashboard?.daily_target_hours || 8);
+      const tallest = Math.max(...days.map(d => d.barHours || 0));
+      return Math.max(target * 1.25, tallest);
+    },
+    weekBarPct(hours) {
+      const axis = this.weekAxisHours();
+      return axis ? Math.min(100, Math.round(hours / axis * 1000) / 10) : 0;
     },
 
-    // Re-created every time the Dashboard tab mounts (its whole subtree is
-    // torn down by x-if when navigating away, taking prior instances with it).
-    initDashboardSortables() {
-      if (!window.Sortable) return;
-      this._dashboardSortables.forEach(s => s.destroy());
-      this._dashboardSortables = [];
-
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const attach = (el, key) => {
-        if (!el) return;
-        // Native HTML5 drag (no forceFallback): the browser renders its own floating
-        // drag image from the source element and moves it with the cursor, so there's
-        // no DOM clone for Alpine's mutation observer to choke on (forceFallback clones
-        // the node — including its x-for/x-if directives — into document.body outside
-        // Alpine's reactive scope, which threw "id is not defined" on every clone).
-        let preDragOrder = [];
-        this._dashboardSortables.push(new Sortable(el, {
-          animation: reduceMotion ? 0 : 180,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-          handle: '.drag-handle',
-          ghostClass: 'kr-drag-ghost',
-          chosenClass: 'kr-drag-chosen',
-          dragClass: 'kr-drag-dragging',
-          onStart: () => { preDragOrder = this._realChildren(el); },
-          onEnd: () => {
-            const newOrder = this._realChildren(el).map(c => c.dataset.id);
-            // Sortable just moved the real DOM nodes to reflect the drop — but Alpine's
-            // x-for has no idea that happened; it still thinks the DOM matches the
-            // order from its last render. If we leave Sortable's move in place and ALSO
-            // let Alpine reorder once we update dashboardLayout below, Alpine computes
-            // its moves against a now-stale assumption of "current" positions and can
-            // land cards anywhere — right, back where they started, or somewhere else
-            // entirely (exactly the flakiness reported). So put the DOM back exactly
-            // as Alpine last knew it first, then update state and let Alpine perform
-            // the one real, correctly-informed move.
-            preDragOrder.forEach(node => el.appendChild(node));
-            this._persistDashboardOrder(key, newOrder);
-          },
-        }));
-      };
-      attach(this.$refs.heroGrid, 'hero');
-      attach(this.$refs.tileGrid, 'tiles');
-      attach(this.$refs.auxStack, 'aux');
+    // ---------- vacation notches ----------------------------------------
+    // Drafted vacation after today, this year, on dates still free.
+    plannedVacationDays() {
+      const today = this.todayIso();
+      const year = today.slice(0, 4);
+      let days = 0;
+      for (const p of this.plans) {
+        if (p.exists || p.day_type !== 'vacation' || p.date <= today || !p.date.startsWith(year)) continue;
+        days += p.fraction ?? 1;
+      }
+      return Math.round(days * 100) / 100;
     },
-
-    // Real (data-id-bearing) children of a Sortable container, in current DOM order —
-    // excludes the inert x-for <template> marker Alpine leaves behind as a sibling.
-    _realChildren(el) {
-      return Array.from(el.children).filter(c => c.dataset && c.dataset.id);
+    vacationLeftAfterPlan() {
+      const v = this.vacationStatus();
+      if (!v) return 0;
+      return Math.max(0, Math.round((v.remaining - this.plannedVacationDays()) * 100) / 100);
     },
-
-    _persistDashboardOrder(key, visibleIds) {
-      const hiddenIds = this.dashboardLayout[key].filter(id => !visibleIds.includes(id));
-      this.dashboardLayout[key] = [...visibleIds, ...hiddenIds];
-      this.saveDashboardLayout();
+    // One notch per budgeted day: used (filled, a fraction fills part of it), planned (dashed), left (hollow).
+    vacationNotches() {
+      const v = this.vacationStatus();
+      if (!v) return [];
+      const used = v.used, planned = this.plannedVacationDays();
+      const total = Math.ceil(v.budget);
+      const notches = [];
+      for (let i = 0; i < total; i++) {
+        let kind = 'left', style = '';
+        if (i + 1 <= used) kind = 'used';
+        else if (i < used) { kind = 'part'; style = `--fill:${Math.round((used - i) * 100)}%`; }
+        else if (i < used + planned) kind = 'planned';
+        // The last notch of a half-day budget (22.5) is itself a half.
+        if (i === total - 1 && v.budget % 1) style += (style ? ';' : '') + `--notch:${Math.round((v.budget % 1) * 100)}%`;
+        notches.push({ i, kind, style });
+      }
+      return notches;
     },
 
     // W1 — animate the three metric values from 0 → real (ease-out cubic, 600ms)
@@ -978,13 +1077,17 @@ function app() {
         month:      Math.abs(this.dashboard.month.surplus_hours),
         cumulative: Math.abs(this.dashboard.cumulative.surplus_hours),
       };
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Unchanged numbers (a background refresh) or a dashboard that isn't showing: no show.
+      const settled = this.animWeek === targets.week && this.animMonth === targets.month && this.animCumulative === targets.cumulative;
+      if (settled || this.tab !== 'dashboard' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         this.animWeek = targets.week; this.animMonth = targets.month; this.animCumulative = targets.cumulative;
         return;
       }
       this.animWeek = 0; this.animMonth = 0; this.animCumulative = 0;
       const start = performance.now();
+      const token = (this._tickToken = (this._tickToken || 0) + 1);
       const tick = (now) => {
+        if (token !== this._tickToken) return;  // a newer animation took over
         const t = Math.min(1, (now - start) / 600);
         const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
         this.animWeek       = targets.week       * e;
@@ -1111,10 +1214,10 @@ function app() {
       }
     },
 
-    // ── Week view ───────────────────────────────────────────────────────────────
+    // ── Week strip (dashboard) ──────────────────────────────────────────────────
     // All figures come straight from /api/entries — summing a week's entries
-    // reproduces the backend's `summarize()`, so this stays in lock-step with the
-    // Dashboard "This week" card without a dedicated endpoint.
+    // reproduces the backend's `summarize()`, so the strip's total stays in lock-step
+    // with the "This week" chip without a dedicated endpoint.
 
     // Local-date ISO (avoids the UTC drift of toISOString on date-only values).
     _dateIso(d) {
@@ -1133,20 +1236,6 @@ function app() {
       if (!this.weekStart) this.weekStart = this._mondayIso(new Date());
     },
 
-    weekIsCurrent() {
-      return this.weekStart === this._mondayIso(new Date());
-    },
-
-    _weekShift(deltaDays) {
-      const base = new Date(this.weekStart + 'T00:00:00');
-      this.weekStart = this._dateIso(
-        new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays)
-      );
-    },
-    weekPrev() { this.ensureWeekStart(); this._weekShift(-7); },
-    weekNext() { this.ensureWeekStart(); this._weekShift(7); },
-    weekThis() { this.weekStart = this._mondayIso(new Date()); },
-
     // Seven day objects (Mon→Sun) for the displayed week.
     weekDays() {
       this.ensureWeekStart();
@@ -1162,8 +1251,12 @@ function app() {
         const iso = this._dateIso(d);
         const entry = entryMap[iso] || null;
         const draft = entry ? null : (drafts[iso] || null);
+        // The bar: hours worked plus hours off, so a day off stands as tall as a day worked.
+        const barHours = entry ? Math.round((entry.net_hours + (entry.leave_hours || 0)) * 100) / 100 : 0;
+        const target = entry ? Math.round((entry.target_hours + (entry.leave_hours || 0)) * 100) / 100
+          : (this.dashboard?.daily_target_hours || 8);
         days.push({
-          iso, label: DOW[i], dayNum: d.getDate(), entry, draft,
+          iso, label: DOW[i], dayNum: d.getDate(), entry, draft, barHours, target,
           cls: this.dayCellCls(entry, draft), style: this.entryCellStyle(entry),
           isToday: iso === todayStr, isWeekend: i >= 5, isFuture: iso > todayStr,
         });
@@ -1178,7 +1271,7 @@ function app() {
       const sameMonth = base.getMonth() === end.getMonth();
       const startLabel = base.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       const endLabel = end.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
-      return `${startLabel} – ${endLabel}, ${end.getFullYear()}`;
+      return `${startLabel} – ${endLabel}`;
     },
 
     // Week totals — sums the logged entries only, matching the backend summary.
@@ -1399,6 +1492,7 @@ function app() {
         leave_hours: e.day_type === 'work' ? null : e.leave_hours,
       };
       this.tab = 'log';
+      if (location.hash.replace('#', '') !== 'log') location.hash = 'log';  // as go() does
       this.error = null;
     },
 
@@ -1592,12 +1686,50 @@ function app() {
       const today = new Date().toISOString().slice(0, 10);
       const anchorDate = byDate.filter(e => e.date <= today).slice(-1)[0]?.date ?? null;
 
+      const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       return byDate.sort((a, b) => {
         const av = a[k]; const bv = b[k];
         if (av < bv) return -1 * dir;
         if (av > bv) return 1 * dir;
         return 0;
-      }).map(e => ({ ...e, _cumulative: cumMap[e.date], _isAnchor: e.date === anchorDate }));
+      }).map(e => ({
+        ...e,
+        _cumulative: cumMap[e.date],
+        _isAnchor: e.date === anchorDate,
+        _dow: DOW[new Date(e.date + 'T12:00:00').getDay()],
+      }));
+    },
+
+    // The table's rows: entries, with a separator (and that month's subtotal) ahead of each
+    // month while sorted by date — under a net-hours sort a month boundary means nothing.
+    daysRows() {
+      const entries = this.sortedEntries();
+      if (this.sortKey !== 'date') return entries.map(e => ({ kind: 'entry', key: e.date, e }));
+      const totals = {};
+      for (const e of entries) {
+        const ym = e.date.slice(0, 7);
+        const m = (totals[ym] ||= { count: 0, net: 0, target: 0, surplus: 0 });
+        m.count++; m.net += e.net_hours; m.target += e.target_hours; m.surplus += e.surplus_hours;
+      }
+      const rows = [];
+      let current = null;
+      for (const e of entries) {
+        const ym = e.date.slice(0, 7);
+        if (ym !== current) {
+          current = ym;
+          const m = totals[ym];
+          rows.push({
+            kind: 'sep', key: 'sep-' + ym,
+            label: new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+            count: m.count,
+            net: Math.round(m.net * 100) / 100,
+            target: Math.round(m.target * 100) / 100,
+            surplus: Math.round(m.surplus * 100) / 100,
+          });
+        }
+        rows.push({ kind: 'entry', key: e.date, e });
+      }
+      return rows;
     },
 
     scrollToToday() {
@@ -1612,11 +1744,6 @@ function app() {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('today-flash');
       setTimeout(() => el.classList.remove('today-flash'), 2400);
-    },
-
-    filteredMonthly() {
-      if (this.analyticsYear === 'all') return this.monthly;
-      return this.monthly.filter(m => m.year === Number(this.analyticsYear));
     },
 
     // Projected year-end surplus based on current average daily surplus.
@@ -1688,109 +1815,382 @@ function app() {
       return rows.reverse(); // newest first for display
     },
 
-    // Average surplus per weekday (Mon–Sun) across all logged work days.
-    weekdayPattern() {
-      if (!this.entries.length) return null;
-      const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const buckets = Array.from({ length: 7 }, () => ({ sum: 0, count: 0 }));
-      for (const e of this.entries) {
-        if (e.day_type !== 'work') continue;
-        const dow = (new Date(e.date + 'T12:00:00').getDay() + 6) % 7; // Mon=0
-        buckets[dow].sum += e.surplus_hours;
-        buckets[dow].count++;
+    // =====================================================================
+    // analytics — the range
+    // =====================================================================
+    // Entries inside the chart's visible range, ascending.
+    anVisible() {
+      const { x0, x1 } = this.an;
+      return this.entries
+        .filter(e => { const t = this._ms(e.date); return t >= x0 && t < x1; })
+        .sort((a, b) => (a.date < b.date ? -1 : 1));
+    },
+    _ms(iso) { return +new Date(iso + 'T00:00:00'); },
+    _r2(n) { return Math.round(n * 100) / 100; },
+
+    anSummary() {
+      const vis = this.anVisible();
+      if (!vis.length) return null;
+      let net = 0, target = 0, workDays = 0, offDays = 0, vacation = 0, sick = 0;
+      for (const e of vis) {
+        net += e.net_hours; target += e.target_hours;
+        const off = e.day_type === 'work' ? 0 : e.fraction;
+        workDays += 1 - off; offDays += off;
+        if (e.day_type === 'vacation') vacation += e.fraction;
+        if (e.day_type === 'sick') sick += e.fraction;
       }
+      const surplus = this._r2(net - target);
+      return {
+        net: this._r2(net), target: this._r2(target), surplus,
+        perDay: workDays ? this._r2(surplus / workDays) : 0,
+        workDays: this._r2(workDays), offDays: this._r2(offDays),
+        vacation: this._r2(vacation), sick: this._r2(sick), logged: vis.length,
+      };
+    },
+
+    // Average Δ per weekday (Mon–Sun) over the work days in range, and when they start and end.
+    weekdayPattern() {
+      const work = this.anVisible().filter(e => e.day_type === 'work');
+      if (!work.length) return null;
+      const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const buckets = Array.from({ length: 7 }, () => ({ sum: 0, count: 0, start: 0, end: 0, timed: 0 }));
+      const mins = s => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
+      const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+      for (const e of work) {
+        const dow = (new Date(e.date + 'T12:00:00').getDay() + 6) % 7; // Mon=0
+        const b = buckets[dow];
+        b.sum += e.surplus_hours; b.count++;
+        if (e.start_time && e.end_time) { b.start += mins(e.start_time); b.end += mins(e.end_time); b.timed++; }
+      }
+      const maxAbs = Math.max(0.25, ...buckets.map(b => b.count ? Math.abs(b.sum / b.count) : 0));
       return labels.map((label, i) => {
-        const { sum, count } = buckets[i];
+        const { sum, count, start, end, timed } = buckets[i];
         const avg = count ? Math.round((sum / count) * 100) / 100 : null;
-        const cls = avg === null ? 'hm-empty'
-          : avg > 0.1 ? 'hm-surplus'
-          : avg < -0.1 ? 'hm-deficit'
-          : 'hm-neutral';
         // One decimal everywhere; the sign follows the rounded value, so a tiny
         // average reads 0.0h rather than −0.0h.
         const r = avg === null ? null : Math.round(avg * 10) / 10;
         const text = r === null ? '—' : `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}h`;
-        return { label, avg, cls, count, text,
-          title: avg === null ? `${label}: no data` : `${label}: avg ${text} (${count} days)` };
+        const times = timed ? `${hhmm(start / timed)}\n${hhmm(end / timed)}` : '';
+        const barStyle = avg === null ? '' : `height:${Math.round(Math.abs(avg) / maxAbs * 50)}%`;
+        return { label, avg, count, text, times, barStyle,
+          title: avg === null ? `${label}: no data` : `${label}: avg ${text} (${count} days)${times ? ' · ' + times.replace('\n', '→') : ''}` };
       });
     },
 
-    // ── Chart helpers ────────────────────────────────────────────────
-
-    // Cumulative surplus trend line from monthly data.
-    // Returns geometry for an SVG polyline (560×70 viewBox).
-    trendLine() {
-      if (!this.monthly.length) return null;
-      const rows = [...this.monthly].sort((a, b) =>
-        a.year !== b.year ? a.year - b.year : a.month - b.month
-      );
-      let cum = 0;
-      const pts = rows.map(r => {
-        cum = Math.round((cum + r.surplus_hours) * 100) / 100;
-        return { label: r.label, value: cum };
+    // Daily surplus of the work days in range, in half-hour buckets from −3h to +3h.
+    anHistogram() {
+      const work = this.anVisible().filter(e => e.day_type === 'work');
+      if (!work.length) return null;
+      const counts = Array(12).fill(0);
+      let clipped = 0, within = 0;
+      for (const e of work) {
+        const i = Math.floor((e.surplus_hours + 3) / 0.5);
+        if (i < 0 || i > 11) clipped++; else counts[i]++;
+        if (Math.abs(e.surplus_hours) <= 0.5) within++;
+      }
+      const max = Math.max(1, ...counts);
+      const buckets = counts.map((n, i) => {
+        const lo = -3 + i * 0.5;
+        return { lo, pct: Math.round(n / max * 100), title: `${this.formatSurplus(lo)} to ${this.formatSurplus(lo + 0.5)}: ${n} day${n !== 1 ? 's' : ''}` };
       });
-      const values = pts.map(p => p.value);
-      const min = Math.min(0, ...values);
-      const max = Math.max(0, ...values);
-      const range = max - min || 1;
-      const W = 560, H = 70, PAD = 6;
-      const iW = W - PAD * 2, iH = H - PAD * 2;
-      const toX = i => PAD + (pts.length < 2 ? iW / 2 : (i / (pts.length - 1)) * iW);
-      const toY = v => PAD + iH - ((v - min) / range) * iH;
-      const zeroY = toY(0);
-      const coords = pts.map((p, i) => [toX(i), toY(p.value)]);
-      const polyline = coords.map(([x, y]) => `${x},${y}`).join(' ');
-      const area = pts.length > 1
-        ? `M${coords[0][0]},${zeroY}` + coords.map(([x, y]) => ` L${x},${y}`).join('') +
-          ` L${coords[coords.length - 1][0]},${zeroY}Z`
-        : '';
-      const last = { x: coords[coords.length - 1][0], y: coords[coords.length - 1][1], value: pts[pts.length - 1].value };
-      const cls = last.value > 0.01 ? 'surplus' : last.value < -0.01 ? 'deficit' : 'neutral';
-      return { W, H, polyline, area, zeroY, last, cls };
+      const caption = `${work.length} work day${work.length !== 1 ? 's' : ''} · ${Math.round(within / work.length * 100)}% within ±30 min of the target`
+        + (clipped ? ` · ${clipped} beyond ±3h` : '');
+      return { buckets, caption };
     },
 
-    // Monthly bar chart from filteredMonthly().
-    // Returns geometry for an SVG bar chart (560×100 viewBox).
-    monthlyChartBars() {
-      const rows = this.filteredMonthly();
-      if (!rows.length) return null;
-      const W = 560, H = 100;
-      const PL = 4, PR = 4, PT = 6, PB = 22;
-      const plotW = W - PL - PR, plotH = H - PT - PB;
-      const maxVal = Math.max(...rows.map(r => Math.max(r.net_hours, r.target_hours)), 1);
-      const barW = plotW / rows.length;
-      const gap = Math.max(1, barW * 0.2);
-      const scaleH = v => (v / maxVal) * plotH;
-      return {
-        W, H,
-        targetY: PT + plotH - scaleH(rows[0].target_hours),
-        bars: rows.map((r, i) => ({
-          x: PL + i * barW + gap / 2,
-          y: PT + plotH - scaleH(r.net_hours),
-          w: barW - gap,
-          h: Math.max(scaleH(r.net_hours), 0),
-          lx: PL + i * barW + barW / 2,
-          ly: H - 6,
-          label: r.label.slice(5),
-          cls: r.surplus_hours > 0.01 ? 'surplus' : r.surplus_hours < -0.01 ? 'deficit' : 'neutral',
-          targetY: PT + plotH - scaleH(r.target_hours),
-        })),
+    // Months in range: { key, net, target, surplus }.
+    anMonths(vis) {
+      const m = {};
+      for (const e of vis) {
+        const k = e.date.slice(0, 7);
+        const row = (m[k] ||= { key: k, net: 0, target: 0, surplus: 0 });
+        row.net += e.net_hours; row.target += e.target_hours; row.surplus += e.surplus_hours;
+      }
+      return Object.values(m).map(r => ({ ...r, net: this._r2(r.net), target: this._r2(r.target), surplus: this._r2(r.surplus) }));
+    },
+
+    // Records for the range. "Worst" rows only when negative: a positive "most deficit month"
+    // is not bad (the user's rule, 2026-10-02).
+    anRecords() {
+      const vis = this.anVisible();
+      if (!vis.length) return [];
+      const work = vis.filter(e => e.day_type === 'work');
+      const best = (arr, key) => arr.reduce((a, x) => (!a || x[key] > a[key] ? x : a), null);
+      const worst = (arr, key) => arr.reduce((a, x) => (!a || x[key] < a[key] ? x : a), null);
+      const months = this.anMonths(vis);
+      const years = {};
+      for (const e of vis) { const y = e.date.slice(0, 4); years[y] = this._r2((years[y] || 0) + e.surplus_hours); }
+      const yearRows = Object.entries(years).map(([label, surplus]) => ({ label, surplus }));
+      // Longest run of days with the running balance above zero, within the range.
+      let run = 0, bestRun = 0, cum = 0;
+      for (const e of vis) { cum += e.surplus_hours; if (cum > 0.005) { run++; bestRun = Math.max(bestRun, run); } else run = 0; }
+      const timed = work.filter(e => e.start_time && e.end_time);
+      const rows = [];
+      const add = (label, value, when, cls) => rows.push({ label, value, when, cls });
+      const longest = best(work, 'net_hours'), shortest = worst(work, 'net_hours');
+      if (longest) add('Longest day', longest.net_hours + 'h', longest.date);
+      if (shortest) add('Shortest day', shortest.net_hours + 'h', shortest.date);
+      const lm = best(months, 'net'), sm = best(months, 'surplus'), dm = worst(months, 'surplus');
+      if (lm) add('Longest month', lm.net + 'h', lm.key);
+      if (sm) add('Most surplus month', this.formatSurplus(sm.surplus), sm.key, this.surplusClass(sm.surplus));
+      if (dm && dm.surplus < 0) add('Most deficit month', this.formatSurplus(dm.surplus), dm.key, 'deficit');
+      add('Longest positive streak', `${bestRun} day${bestRun !== 1 ? 's' : ''}`, 'in the black', bestRun ? 'surplus' : '');
+      const by = best(yearRows, 'surplus'), wy = worst(yearRows, 'surplus');
+      if (by) add('Best year', this.formatSurplus(by.surplus), by.label, this.surplusClass(by.surplus));
+      if (wy && wy.surplus < 0) add('Worst year', this.formatSurplus(wy.surplus), wy.label, 'deficit');
+      if (timed.length) {
+        const early = timed.reduce((a, e) => (e.start_time < a.start_time ? e : a));
+        const late = timed.reduce((a, e) => (e.end_time > a.end_time ? e : a));
+        add('Earliest start', early.start_time, early.date);
+        add('Latest end', late.end_time, late.date);
+      }
+      return rows;
+    },
+
+    // =====================================================================
+    // analytics — the chart
+    // =====================================================================
+    AN_W: 620, AN_H: 300, AN_PADL: 40, AN_PADR: 14, AN_PADT: 14, AN_PADB: 24,
+    DAY_MS: 86400000,
+
+    // The whole history: from the cumulative start or the first entry, to tomorrow.
+    anFull() {
+      const today = this._ms(this.todayIso());
+      const first = this.entries.length ? Math.min(...this.entries.map(e => this._ms(e.date))) : today;
+      const start = this.anSeries ? Math.min(first, this._ms(this.anSeries.start)) : first;
+      return [Math.min(start, today - 30 * this.DAY_MS), today + this.DAY_MS];
+    },
+    anX(t) { return this.AN_PADL + (this.AN_W - this.AN_PADL - this.AN_PADR) * (t - this.an.x0) / (this.an.x1 - this.an.x0); },
+    anT(x) { return this.an.x0 + (x - this.AN_PADL) / (this.AN_W - this.AN_PADL - this.AN_PADR) * (this.an.x1 - this.an.x0); },
+
+    anSetRange(x0, x1, preset = null) {
+      const [f0, f1] = this.anFull();
+      const min = 7 * this.DAY_MS;
+      if (x1 - x0 < min) { const c = (x0 + x1) / 2; x0 = c - min / 2; x1 = c + min / 2; }
+      if (x0 < f0) { x1 += f0 - x0; x0 = f0; }
+      if (x1 > f1) { x0 -= x1 - f1; x1 = f1; }
+      this.an.x0 = Math.max(f0, x0); this.an.x1 = Math.min(f1, x1); this.an.preset = preset;
+      this.anRender();
+    },
+    anPreset(p) {
+      const today = new Date(this.todayIso() + 'T00:00:00'), y = today.getFullYear(), m = today.getMonth();
+      const end = +today + this.DAY_MS;
+      const start = {
+        month: +new Date(y, m, 1), '3m': +new Date(y, m - 2, 1), year: +new Date(y, 0, 1),
+        '12m': +new Date(y - 1, m + 1, 1), all: this.anFull()[0],
+      }[p];
+      this.anSetRange(start, end, p);
+    },
+    anSetMode(mode) { this.an.mode = mode; this.anRender(); },
+    anRangeLabel() {
+      if (!this.an.x1) return '';
+      const f = d => d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      const days = Math.round((this.an.x1 - this.an.x0) / this.DAY_MS);
+      return `${f(new Date(this.an.x0))} – ${f(new Date(this.an.x1 - 1))} · ${days} days`;
+    },
+    anBrushWinStyle() {
+      const [f0, f1] = this.anFull();
+      return `left:${(this.an.x0 - f0) / (f1 - f0) * 100}%;width:${(this.an.x1 - this.an.x0) / (f1 - f0) * 100}%`;
+    },
+
+    // Axis labels that fit the span: quarters, months, Mondays, or days.
+    anXTicks() {
+      const { x0, x1 } = this.an, span = (x1 - x0) / this.DAY_MS, out = [];
+      const y0 = new Date(x0).getFullYear(), y1 = new Date(x1).getFullYear();
+      const mon = t => new Date(t).toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+      if (span > 400) {
+        for (let y = y0; y <= y1; y++) for (let m = 0; m < 12; m += 3) { const t = +new Date(y, m, 1); if (t >= x0 && t <= x1) out.push([t, m === 0 ? String(y) : mon(t)]); }
+      } else if (span > 70) {
+        for (let y = y0 - 1; y <= y1; y++) for (let m = 0; m < 12; m++) { const t = +new Date(y, m, 1); if (t >= x0 && t <= x1) out.push([t, mon(t) + (m === 0 ? ' ' + y : '')]); }
+      } else {
+        const day0 = new Date(x0); day0.setHours(0, 0, 0, 0);
+        for (let d = day0; +d <= x1; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+          if (span <= 14 || d.getDay() === 1) out.push([+d, d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })]);
+        }
+      }
+      return out;
+    },
+
+    anRender() {
+      if (!this.an.x1) return;
+      const W = this.AN_W, H = this.AN_H, PADL = this.AN_PADL, PADR = this.AN_PADR, PADT = this.AN_PADT, PADB = this.AN_PADB;
+      const f = n => n.toFixed(1), X = t => this.anX(t), DAY = this.DAY_MS;
+      const vis = this.anVisible(), target = this.dashboard?.daily_target_hours || this.settingsForm.daily_target_hours || 8;
+      const today = this._ms(this.todayIso());
+      let lo = 0, hi = 0, series = [], s = '';
+      if (this.an.mode === 'balance') {
+        // the balance at the left edge of the window, then each logged day inside it
+        const pts = (this.anSeries?.points || []);
+        let open = this.anSeries?.opening || 0;
+        for (const p of pts) { if (this._ms(p.date) < this.an.x0) open = p.surplus_hours; else break; }
+        series = [[this.an.x0, open]];
+        for (const p of pts) { const t = this._ms(p.date); if (t >= this.an.x0 && t < this.an.x1) series.push([t + DAY / 2, p.surplus_hours]); }
+        const last = series[series.length - 1][1];
+        series.push([Math.min(this.an.x1, today + DAY / 2), last]);
+        lo = Math.min(0, ...series.map(p => p[1])); hi = Math.max(0, ...series.map(p => p[1]));
+      } else if (this.an.mode === 'day') {
+        lo = 0; hi = Math.max(target, ...vis.map(e => e.net_hours + (e.leave_hours || 0)));
+      } else {
+        lo = 0; hi = Math.max(1, ...this.anMonths(vis).map(m => Math.max(m.net, m.target)));
+      }
+      const span = Math.max(hi - lo, 2); lo -= span * 0.08; hi += span * 0.08;
+      const Y = v => PADT + (H - PADT - PADB) * (1 - (v - lo) / (hi - lo));
+      const rawStep = (hi - lo) / 5;
+      const step = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find(v => v >= rawStep) || 1000;
+      for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+        s += `<line class="an-grid" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(v))}" y2="${f(Y(v))}"/><text class="an-yl" x="${PADL - 6}" y="${f(Y(v) + 3)}">${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}</text>`;
+      }
+      for (const [t, l] of this.anXTicks()) s += `<line class="an-grid" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><text class="an-xl" x="${f(X(t))}" y="${H - 8}">${l}</text>`;
+      if (lo < 0 && hi > 0) s += `<line class="an-zero" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(0))}" y2="${f(Y(0))}"/>`;
+      if (this.an.mode === 'balance') {
+        const last = series[series.length - 1][1], tone = this.surplusClass(last);
+        const path = series.map(([t, v], i) => `${i ? 'L' : 'M'}${f(X(t))} ${f(Y(v))}`).join('');
+        s += `<path class="an-area ${tone}" d="${path}L${f(X(series[series.length - 1][0]))} ${f(Y(0))}L${f(X(series[0][0]))} ${f(Y(0))}Z"/><path class="an-line ${tone}" d="${path}"/>`;
+      } else if (this.an.mode === 'day') {
+        const bw = Math.max(1, (W - PADL - PADR) / ((this.an.x1 - this.an.x0) / DAY) * 0.7);
+        for (const e of vis) {
+          const t = this._ms(e.date), h = e.net_hours + (e.leave_hours || 0);
+          const style = this.entryCellStyle(e);
+          s += `<rect class="an-bar ${this.entryCellCls(e)}" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h))}" height="${f(Math.max(0, Y(0) - Y(h)))}"${style ? ` style="${style.replace(/"/g, "'")}"` : ''}><title>${e.date} · ${this.pillLabel(e)} · ${e.net_hours}h · ${this.formatSurplus(e.surplus_hours)}</title></rect>`;
+        }
+        s += `<line class="an-target" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(target))}" y2="${f(Y(target))}"/>`;
+      } else {
+        for (const m of this.anMonths(vis)) {
+          const [y, mo] = m.key.split('-').map(Number);
+          const t0 = Math.max(this.an.x0, +new Date(y, mo - 1, 1)), t1 = Math.min(this.an.x1, +new Date(y, mo, 1));
+          const x0 = X(t0) + 3, x1 = X(t1) - 3;
+          s += `<rect class="an-bar hm-${this.surplusClass(m.surplus)}" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(m.net))}" height="${f(Math.max(0, Y(0) - Y(m.net)))}"><title>${m.key} · ${m.net}h / ${m.target}h · ${this.formatSurplus(m.surplus)}</title></rect>`;
+          s += `<line class="an-target" x1="${f(x0)}" x2="${f(x1)}" y1="${f(Y(m.target))}" y2="${f(Y(m.target))}"/>`;
+        }
+      }
+      if (today >= this.an.x0 && today <= this.an.x1) s += `<line class="an-today" x1="${f(X(today + DAY / 2))}" x2="${f(X(today + DAY / 2))}" y1="${PADT}" y2="${H - PADB}"/>`;
+      const d = this.an.drag;
+      if (d && d.kind === 'select') { const a = Math.min(d.a, d.b), b = Math.max(d.a, d.b); s += `<rect class="an-sel" x="${f(a)}" y="${PADT}" width="${f(b - a)}" height="${H - PADT - PADB}"/>`; }
+      if (this.an.hover !== null && this.an.mode === 'balance' && !d) {
+        const t = this.an.hover; let v = series[0][1]; for (const [pt, pv] of series) { if (pt <= t) v = pv; else break; }
+        s += `<line class="an-hover-x" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><circle class="an-hover-dot" cx="${f(X(t))}" cy="${f(Y(v))}" r="3.5"/>`;
+        s += `<text class="an-hover-lbl" x="${f(Math.min(X(t) + 8, W - PADR - 70))}" y="${f(Y(v) - 8)}">${this.formatSurplus(v)} · ${new Date(t).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</text>`;
+      }
+      const svg = `<svg class="an-chart" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
+      const sum = this.anSummary();
+      const aria = `${this.anRangeLabel()}: ${sum ? this.formatSurplus(sum.surplus) + ' over ' + sum.net + 'h worked' : 'nothing logged'}.`;
+      this.anChart = { svg, brush: this.anChart.brush, aria };
+    },
+
+    // The strip under the chart: the whole history's balance, once per load.
+    anRenderBrush() {
+      const pts = this.anSeries?.points || [];
+      const [f0, f1] = this.anFull();
+      const vals = pts.map(p => p.surplus_hours).concat([0]);
+      const lo = Math.min(...vals), hi = Math.max(...vals);
+      const x = t => (t - f0) / (f1 - f0) * 620, y = v => 2 + 30 * (1 - (v - lo) / (hi - lo || 1));
+      let path = `M${x(f0).toFixed(1)} ${y(0).toFixed(1)}`;
+      for (const p of pts) path += `L${x(this._ms(p.date)).toFixed(1)} ${y(p.surplus_hours).toFixed(1)}`;
+      this.anChart.brush = `<svg viewBox="0 0 620 34" preserveAspectRatio="none" aria-hidden="true"><path d="${path}" class="an-brush-line" vector-effect="non-scaling-stroke"/></svg>`;
+    },
+
+    // Pointer handling, attached once to the wrap (the svg inside is replaced on every render):
+    // drag = rectangle zoom, shift+drag = pan, wheel = zoom at the cursor, double-click = reset;
+    // on touch one finger pans and two pinch. The brush strip pans by dragging its window.
+    anInit(wrap) {
+      const px = ev => { const r = wrap.querySelector('svg')?.getBoundingClientRect(); return r ? (ev.clientX - r.left) / r.width * this.AN_W : 0; };
+      const pointers = new Map();
+      wrap.addEventListener('pointerdown', ev => {
+        if (ev.button !== undefined && ev.button !== 0) return;
+        wrap.setPointerCapture(ev.pointerId);
+        pointers.set(ev.pointerId, ev.clientX);
+        if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          this.an.pinch = { d: Math.abs(a - b), x0: this.an.x0, x1: this.an.x1 };
+          this.an.drag = null;
+          return;
+        }
+        const x = px(ev);
+        const pan = ev.shiftKey || ev.pointerType === 'touch';
+        this.an.drag = { kind: pan ? 'pan' : 'select', a: x, b: x, x0: this.an.x0, x1: this.an.x1 };
+        ev.preventDefault();
+      });
+      wrap.addEventListener('pointermove', ev => {
+        if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, ev.clientX);
+        if (this.an.pinch && pointers.size === 2) {
+          const [a, b] = [...pointers.values()], d = Math.abs(a - b) || 1;
+          const k = this.an.pinch.d / d, c = (this.an.pinch.x0 + this.an.pinch.x1) / 2, half = (this.an.pinch.x1 - this.an.pinch.x0) / 2 * k;
+          this.anSetRange(c - half, c + half);
+          return;
+        }
+        const d = this.an.drag;
+        if (d) {
+          const x = px(ev);
+          if (d.kind === 'select') { d.b = x; this.anRender(); }
+          else {
+            const dt = (x - d.a) / (this.AN_W - this.AN_PADL - this.AN_PADR) * (d.x1 - d.x0);
+            this.anSetRange(d.x0 - dt, d.x1 - dt);
+          }
+          return;
+        }
+        if (ev.pointerType !== 'touch') { this.an.hover = this.anT(px(ev)); if (this.an.mode === 'balance') this.anRender(); }
+      });
+      const up = ev => {
+        pointers.delete(ev.pointerId);
+        if (pointers.size < 2) this.an.pinch = null;
+        const d = this.an.drag;
+        if (!d) return;
+        this.an.drag = null;
+        if (d.kind === 'select' && Math.abs(d.b - d.a) > 4) this.anSetRange(this.anT(Math.min(d.a, d.b)), this.anT(Math.max(d.a, d.b)));
+        else this.anRender();
       };
+      wrap.addEventListener('pointerup', up);
+      wrap.addEventListener('pointercancel', up);
+      wrap.addEventListener('pointerleave', () => { if (!this.an.drag) { this.an.hover = null; this.anRender(); } });
+      wrap.addEventListener('wheel', ev => {
+        ev.preventDefault();
+        const t = this.anT(px(ev)), k = ev.deltaY < 0 ? 0.8 : 1.25;
+        this.anSetRange(t - (t - this.an.x0) * k, t + (this.an.x1 - t) * k);
+      }, { passive: false });
+      wrap.addEventListener('dblclick', () => this.anPreset('year'));
+      // the brush strip
+      this.$nextTick(() => {
+        const brush = this.$refs.anBrush;
+        if (!brush) return;
+        let drag = null;
+        brush.addEventListener('pointerdown', ev => { brush.setPointerCapture(ev.pointerId); drag = { x: ev.clientX, w: brush.getBoundingClientRect().width, x0: this.an.x0, x1: this.an.x1 }; ev.preventDefault(); });
+        brush.addEventListener('pointermove', ev => {
+          if (!drag) return;
+          const [f0, f1] = this.anFull();
+          const dt = (ev.clientX - drag.x) / drag.w * (f1 - f0);
+          this.anSetRange(drag.x0 + dt, drag.x1 + dt);
+        });
+        const end = () => { drag = null; };
+        brush.addEventListener('pointerup', end); brush.addEventListener('pointercancel', end);
+      });
     },
 
-    // Renders the bar chart as an SVG string (avoids x-for-inside-svg Alpine issue).
-    renderBarChart() {
-      const d = this.monthlyChartBars();
-      if (!d) return '';
-      const bars = d.bars.map(b =>
-        `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" class="chart-bar chart-bar--${b.cls}" rx="1"></rect>` +
-        `<text x="${b.lx}" y="${b.ly}" class="chart-label" text-anchor="middle">${b.label}</text>`
-      ).join('');
-      return `<svg viewBox="0 0 ${d.W} ${d.H}" width="100%" height="${d.H}" class="chart-svg" aria-hidden="true" preserveAspectRatio="none">` +
-        `<line x1="0" y1="${d.targetY}" x2="${d.W}" y2="${d.targetY}" class="chart-target"></line>` +
-        bars +
-        `</svg>` +
-        `<p class="muted chart-caption">Net hours per month — dashed line = daily target × work days</p>`;
+    // ── year at a glance: tooltip + click ──────────────────────────────────
+    hmHover(ev) {
+      const cell = ev.target.closest('.hm-cell');
+      if (!cell || !cell.dataset.date) { this.hmTip.show = false; return; }
+      const date = cell.dataset.date;
+      const e = this.entries.find(x => x.date === date), draft = this.draftMap()[date];
+      const d = new Date(date + 'T12:00:00');
+      const title = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      let body = '', note = '', hint = 'click → log it';
+      if (e) {
+        const pill = `<span class="day-pill ${e.day_type}">${this.pillLabel(e)}</span>`;
+        const hours = `${e.start_time || '—'}–${e.end_time || '—'} · <b>${e.net_hours}h</b> · <b class="${this.surplusClass(e.surplus_hours)}">${this.formatSurplus(e.surplus_hours)}</b>`;
+        body = e.day_type === 'work' ? hours : this.isPartial(e) ? `${pill} · ${hours}` : pill;
+        note = e.notes || '';
+        hint = 'click → open in Log';
+      } else if (draft) {
+        body = `<span class="day-pill ghost ${draft.day_type}">${draft.day_type}</span> · planned`;
+        note = draft.notes || '';
+      } else {
+        body = '<span class="muted">no entry</span>';
+      }
+      this.hmTip = { show: true, x: Math.min(window.innerWidth - 280, ev.clientX + 14), y: ev.clientY + 14, title, body, note, hint };
+    },
+    hmClick(ev) {
+      const cell = ev.target.closest('.hm-cell');
+      if (cell && cell.dataset.date) { this.hmTip.show = false; this.openDayInLog(cell.dataset.date); }
     },
 
     // ISO-8601 week number for a given date.
@@ -1902,18 +2302,17 @@ function app() {
     async loadAnalytics() {
       this.loading.analytics = true;
       try {
-        const [monthly, yearly, records, yoy] = await Promise.all([
-          this.api('GET', '/api/analytics/monthly'),
+        const [yearly, series] = await Promise.all([
           this.api('GET', '/api/analytics/yearly'),
-          this.api('GET', '/api/analytics/records'),
-          this.api('GET', '/api/analytics/yoy'),
+          this.api('GET', '/api/analytics/cumulative-series?all=true'),
         ]);
-        this.monthly = monthly;
         this.yearly = yearly;
-        this.records = records;
-        this.yoy = yoy;
-        // Entries needed for the heatmap; load lazily if not already in memory
+        this.anSeries = series;
+        // Entries feed the heatmap and everything the chart's range drives.
         if (!this.entries.length) await this.loadDays();
+        if (!this.yearsWithData().includes(this.analyticsYear)) this.analyticsYear = this.yearsWithData()[0] || this.analyticsYear;
+        this.anRenderBrush();
+        if (this.an.preset) this.anPreset(this.an.preset); else this.anSetRange(this.an.x0, this.an.x1);
       } catch (e) { this.error = e.message; }
       finally { this.loading.analytics = false; }
     },
@@ -1929,17 +2328,46 @@ function app() {
         // the wrong <input> when a middle row is removed.
         cfg.daily_target_schedule = this._keyedSchedule(cfg.daily_target_schedule);
         this.settingsForm = { ...cfg };
+        this._settingsSaved = JSON.parse(JSON.stringify(cfg));
       } catch (e) { this.error = e.message; }
       finally { this.loading.settings = false; }
     },
 
-    async saveSettings() {
+    // Save one section's fields (its button), or every dirty field (Ctrl+Enter).
+    async saveSettings(section) {
+      const sections = section ? this.SETTINGS_SECTIONS.filter(s => s.id === section) : this.SETTINGS_SECTIONS;
+      const body = {};
+      for (const s of sections) for (const k of s.fields) body[k] = this.settingsForm[k];
       try {
-        await this.api('PUT', '/api/config', this.settingsForm);
-        await this.loadDashboard();
+        await this.api('PUT', '/api/config', body);
+        for (const k of Object.keys(body)) this._settingsSaved[k] = JSON.parse(JSON.stringify(body[k]));
         this.showToast('Settings saved', 'neutral');
-        this.go('dashboard');
+        this.loadDashboard();  // the target or the start date may have moved every number
       } catch (e) { this.error = e.message; }
+    },
+
+    settingsDirty(section) {
+      if (!this._settingsSaved) return false;
+      const s = this.SETTINGS_SECTIONS.find(x => x.id === section);
+      return s.fields.some(k => JSON.stringify(this.settingsForm[k]) !== JSON.stringify(this._settingsSaved[k]));
+    },
+
+    // The index follows the scroll: the topmost card in view is the active section.
+    initSettingsSpy(root) {
+      if (this._settingsSpy) this._settingsSpy.disconnect();
+      const cards = [...root.querySelectorAll('.settings-card[id]')];
+      if (!('IntersectionObserver' in window) || !cards.length) return;
+      const visible = new Map();
+      this._settingsSpy = new IntersectionObserver(entries => {
+        for (const en of entries) visible.set(en.target.id, en.isIntersecting);
+        const first = cards.find(c => visible.get(c.id));
+        if (first) this.settingsActive = first.id.replace('settings-', '');
+      }, { rootMargin: '-10% 0px -60% 0px', threshold: 0 });
+      cards.forEach(c => this._settingsSpy.observe(c));
+    },
+    settingsJump(id) {
+      this.settingsActive = id;
+      document.getElementById('settings-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
 
     // ---------- date-effective daily target ------------------------------
@@ -2229,8 +2657,7 @@ function app() {
 
     _resetCachedViews() {
       this.entries = [];
-      this.monthly = [];
-      this.records = null;
+      this.anSeries = null;
     },
 
     // =====================================================================

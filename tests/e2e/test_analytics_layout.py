@@ -18,12 +18,11 @@ import pytest
 pytestmark = pytest.mark.e2e
 
 EXPECTED_ORDER = [
-    "Analytics",
     "Year at a glance",
-    "Cumulative trend",
-    "Monthly breakdown",
-    "Yearly breakdown",
+    "Balance over time",
     "Weekday pattern",
+    "Daily surplus",
+    "Years",
     "Records",
     "Export",
 ]

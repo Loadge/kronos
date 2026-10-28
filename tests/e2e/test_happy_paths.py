@@ -78,6 +78,12 @@ def _clean(base_url):
     _wipe(base_url)
 
 
+def _weekday(iso: str) -> str:
+    import datetime
+
+    return datetime.date.fromisoformat(iso).strftime("%a").lower()
+
+
 def _cell(row, index: int):
     return row.locator("td").nth(index)
 
@@ -128,27 +134,32 @@ class TestFullWorkDayJourney:
         # verify) is the lowercase day_type.
         assert pill.text_content() == "work"
         assert "work" in (pill.get_attribute("class") or "")
-        assert _cell(row, 5).inner_text() == "9h"  # Net
-        assert _cell(row, 6).inner_text() == "8h"  # Target
-        delta_cell = _cell(row, 7)
+        assert _cell(row, 1).inner_text().lower() == _weekday(WORK_DATE)
+        assert _cell(row, 6).inner_text() == "9h"  # Net
+        assert _cell(row, 7).inner_text() == "8h"  # Target
+        delta_cell = _cell(row, 8)
         assert delta_cell.inner_text() == "+1.00h"
         assert "surplus" in (delta_cell.get_attribute("class") or "")
 
-        # ── Dashboard: "This month" card reflects the new entry ──
+        # ── Dashboard: the "this month" chip reflects the new entry ──
         page.get_by_role("tab", name="Dashboard").click()
-        month_card = page.locator("article[data-id='month']")
-        month_card.wait_for(timeout=5000)
-        month_text = month_card.inner_text()
-        assert "Surplus" in month_text
-        assert "9h worked" in month_text
-        assert "8h target" in month_text
-        assert "1 work days" in month_text
-        assert "0 off" in month_text
+        month_chip = page.locator(".chip", has_text="this month")
+        month_chip.wait_for(timeout=5000)
+        # The values tick up from zero on mount: wait for the month chip to land.
+        page.wait_for_function(
+            "() => [...document.querySelectorAll('.chip')]"
+            ".some(c => c.innerText.includes('this month') && c.innerText.includes('+1.00h'))",
+            timeout=5000,
+        )
+        month_text = month_chip.inner_text()
+        assert "+1.00h" in month_text
+        assert "9h / 8h" in month_text
+        assert "1 work days, 0 off" in (month_chip.get_attribute("title") or "")
 
         # ── Analytics: heatmap cell carries the surplus color class ──
         page.get_by_role("tab", name="Analytics").click()
         page.wait_for_selector(".hm-cell", timeout=5000)
-        cell = page.locator(f".hm-cell[title='{WORK_DATE} · work · +1h']")
+        cell = page.locator(f".hm-cell[aria-label='{WORK_DATE} · work · +1h']")
         cell.wait_for(timeout=5000)
         assert "hm-surplus" in (cell.get_attribute("class") or "")
 
@@ -166,7 +177,7 @@ class TestEditEntryJourney:
         page.wait_for_selector(f"#day-row-{EDIT_DATE}", timeout=5000)
 
         row = page.locator(f"#day-row-{EDIT_DATE}")
-        assert _cell(row, 5).inner_text() == "8h"  # sanity: pre-edit net
+        assert _cell(row, 6).inner_text() == "8h"  # sanity: pre-edit net
 
         row.get_by_role("button", name="Edit").click()
 
@@ -184,9 +195,9 @@ class TestEditEntryJourney:
         row = page.locator(f"#day-row-{EDIT_DATE}")
         row.get_by_role("button", name="Edit").wait_for(timeout=5000)
 
-        assert _cell(row, 3).inner_text() == "18:00"  # End
-        assert _cell(row, 5).inner_text() == "9h"  # Net
-        assert _cell(row, 7).inner_text() == "+1.00h"  # Delta
+        assert _cell(row, 4).inner_text() == "18:00"  # End
+        assert _cell(row, 6).inner_text() == "9h"  # Net
+        assert _cell(row, 8).inner_text() == "+1.00h"  # Delta
 
 
 class TestDeleteEntryJourney:
@@ -253,11 +264,11 @@ class TestNonWorkDayTypes:
         assert day_type in (pill.get_attribute("class") or "")
         # Non-work days contribute 0h to net/target — same convention as
         # the work-day journey's exact-string checks.
-        assert _cell(row, 5).inner_text() == "0h"
+        assert _cell(row, 6).inner_text() == "0h"
 
         page.get_by_role("tab", name="Analytics").click()
         page.wait_for_selector(".hm-cell", timeout=5000)
-        cell = page.locator(f".hm-cell[title='{iso_date} · {day_type} · 0h']")
+        cell = page.locator(f".hm-cell[aria-label='{iso_date} · {day_type} · 0h']")
         cell.wait_for(timeout=5000)
         assert f"hm-{day_type}" in (cell.get_attribute("class") or "")
 
@@ -275,14 +286,14 @@ class TestSettingsPersistence:
         target_input = page.locator("input[type='number']").first
         target_input.fill("6.5")
 
-        page.get_by_role("button", name="Save settings").click()
-        page.wait_for_url("**/#dashboard", timeout=5000)
+        page.get_by_role("button", name="Save work").click()
+        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
 
         # Force a real reload — a fresh JS app instance re-fetching config,
         # not just Alpine state that never left the page.
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.get_by_role("tab", name="Settings").click()
+        page.get_by_role("button", name="Settings").click()
         page.wait_for_selector("input[type='number']", timeout=5000)
 
         target_input = page.locator("input[type='number']").first

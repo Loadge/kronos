@@ -183,11 +183,11 @@ class TestPage:
 
     def test_profile_from_settings_prints_in_the_header(self, page, base_url):
         page.goto(f"{base_url}/#settings")
-        page.wait_for_selector(".profile-grid input", timeout=5000)
-        page.locator(".profile-grid input").nth(0).fill("Juan Pérez")
-        page.locator(".profile-grid input").nth(1).fill("ACME")
-        page.locator("button", has_text="Save settings").click()
-        page.wait_for_url("**/#dashboard", timeout=5000)
+        page.wait_for_selector("#set-name", timeout=5000)
+        page.locator("#set-name").fill("Juan Pérez")
+        page.locator("#set-employer").fill("ACME")
+        page.locator("button", has_text="Save profile").click()
+        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
         with httpx.Client(base_url=base_url) as c:
             assert c.get("/api/config").json()["profile_name"] == "Juan Pérez"
         page.goto(f"{base_url}/timesheet")

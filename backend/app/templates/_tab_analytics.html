@@ -1,19 +1,19 @@
 <!-- ========================= ANALYTICS ========================= -->
 <template x-if="tab==='analytics'">
-<section aria-label="Analytics">
+<section aria-label="Analytics" @mouseleave="hmTip.show = false">
 
-  <!-- Year filter -->
-  <div class="section-header">
-    <h2>Analytics</h2>
-    <select x-model="analyticsYear" style="width:auto">
-      <option value="all">All years</option>
-      <template x-for="y in yearsWithData()" :key="y">
-        <option :value="y" x-text="y"></option>
-      </template>
-    </select>
+  <!-- ── Year at a glance: always a whole year; hover a day, click to open it in Log ── -->
+  <div class="section-header an-head">
+    <h2>Year at a glance</h2>
+    <div class="section-header-controls">
+      <span class="muted an-hint">hover a day · click to open it in Log</span>
+      <select x-model="analyticsYear" class="an-year" aria-label="Year">
+        <template x-for="y in yearsWithData()" :key="y">
+          <option :value="y" x-text="y"></option>
+        </template>
+      </select>
+    </div>
   </div>
-
-  <h2>Year at a glance</h2>
   <template x-if="heatmapCells()">
     <div>
       <div class="heatmap-legend">
@@ -30,11 +30,13 @@
       </div>
       <div class="heatmap-scroll">
         <div class="heatmap"
-             :style="`grid-template-columns: ${heatmapCells().colTemplate}`">
+             :style="`grid-template-columns: ${heatmapCells().colTemplate}`"
+             @mousemove="hmHover($event)" @mouseleave="hmTip.show = false" @click="hmClick($event)">
           <template x-for="cell in heatmapCells().cells" :key="cell.key">
             <div :class="cell.type === 'label' ? 'hm-month-label' : cell.type === 'week' ? 'hm-week-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
                  :style="`grid-row: ${cell.row}; grid-column: ${cell.col};` + (cell.style || '')"
-                 :title="cell.title || ''"
+                 :aria-label="cell.title || null"
+                 :data-date="cell.type === 'day' ? cell.date : null"
                  x-text="cell.type === 'label' || cell.type === 'week' ? cell.label : ''"></div>
           </template>
         </div>
@@ -42,200 +44,170 @@
     </div>
   </template>
   <template x-if="!heatmapCells()">
-    <p class="muted">Visit the Days tab first to load entry data.</p>
+    <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
   </template>
-
-  <h2>Cumulative trend</h2>
-  <template x-if="trendLine()">
-    <div class="chart-wrap">
-      <svg :viewBox="`0 0 ${trendLine().W} ${trendLine().H}`"
-           width="100%" :height="trendLine().H" class="chart-svg" aria-hidden="true" preserveAspectRatio="none">
-        <!-- zero reference line -->
-        <line x1="0" :y1="trendLine().zeroY" :x2="trendLine().W" :y2="trendLine().zeroY"
-              class="chart-zero"></line>
-        <!-- area fill -->
-        <path :d="trendLine().area" :class="`chart-area chart-area--${trendLine().cls}`"></path>
-        <!-- trend line -->
-        <polyline :points="trendLine().polyline" :class="`chart-line chart-line--${trendLine().cls}`"></polyline>
-        <!-- end dot -->
-        <circle :cx="trendLine().last.x" :cy="trendLine().last.y" r="4"
-                :class="`chart-dot chart-dot--${trendLine().cls}`"></circle>
-      </svg>
-      <p class="muted chart-caption">
-        Cumulative surplus/deficit · all months
-        (<span :class="trendLine().cls" x-text="(trendLine().last.value > 0 ? '+' : '') + trendLine().last.value + 'h'"></span> total)
-      </p>
-    </div>
-  </template>
-  <template x-if="!trendLine() && monthly.length === 0">
-    <p class="muted">No data yet.</p>
-  </template>
-
-  <h2>Monthly breakdown</h2>
-  <!-- x-for inside <svg> doesn't work in Alpine (SVG parser treats <template> differently).
-       We render the bar chart as a string via x-html instead. -->
-  <div class="chart-wrap" x-html="renderBarChart()"></div>
-  <template x-if="filteredMonthly().length === 0">
-    <p class="muted">No data for this period.</p>
-  </template>
-  <div class="month-grid" x-show="filteredMonthly().length">
-    <template x-for="row in filteredMonthly()" :key="row.label">
-      <article class="month-card" :class="'month-card--' + surplusClass(row.surplus_hours)">
-        <div class="month-card-label" x-text="row.label"></div>
-        <div class="month-card-surplus" :class="surplusClass(row.surplus_hours)"
-             x-text="formatSurplus(row.surplus_hours)"></div>
-        <div class="month-card-detail">
-          <span x-text="row.net_hours + 'h'"></span>
-          <span class="muted"> / </span>
-          <span x-text="row.target_hours + 'h'"></span>
-        </div>
-        <div class="month-card-days muted"
-             x-text="row.work_days + 'w · ' + row.non_work_days + ' off'"></div>
-      </article>
-    </template>
+  <!-- the day tooltip: follows the pointer over the heatmap -->
+  <div class="hm-tip" x-show="hmTip.show" :style="`left:${hmTip.x}px;top:${hmTip.y}px`" role="tooltip">
+    <b x-text="hmTip.title"></b>
+    <div x-html="hmTip.body"></div>
+    <template x-if="hmTip.note"><i class="hm-tip-note" x-text="hmTip.note"></i></template>
+    <span class="hm-tip-hint" x-text="hmTip.hint"></span>
   </div>
 
-  <h2>Yearly breakdown</h2>
+  <!-- ── Balance over time: the zoomable chart, with the visible range as a ledger ── -->
+  <div class="section-header an-head">
+    <h2>Balance over time</h2>
+    <span class="muted an-hint">drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset</span>
+  </div>
+  <div class="an-row">
+    <div class="an-chart-col">
+      <div class="an-chart-head">
+        <div class="seg-toggle" role="radiogroup" aria-label="Series">
+          <button type="button" role="radio" :aria-checked="an.mode === 'balance' ? 'true' : 'false'" :class="an.mode === 'balance' ? 'on' : ''" @click="anSetMode('balance')">Balance</button>
+          <button type="button" role="radio" :aria-checked="an.mode === 'day' ? 'true' : 'false'" :class="an.mode === 'day' ? 'on' : ''" @click="anSetMode('day')">Per day</button>
+          <button type="button" role="radio" :aria-checked="an.mode === 'month' ? 'true' : 'false'" :class="an.mode === 'month' ? 'on' : ''" @click="anSetMode('month')">Per month</button>
+        </div>
+        <span class="an-range metric" x-text="anRangeLabel()"></span>
+        <button type="button" class="secondary outline compact an-reset" @click="anPreset('year')" :disabled="an.preset !== null">Reset zoom</button>
+      </div>
+      <!-- Built as markup (x-for cannot live inside <svg>); pointer events attached once by anInit. -->
+      <div class="an-chart-wrap" x-init="anInit($el)" x-html="anChart.svg" role="img" :aria-label="anChart.aria"></div>
+      <!-- the whole history under the chart, with the visible window on it: drag it to pan -->
+      <div class="an-brush" x-ref="anBrush" title="The whole history — drag the window to pan">
+        <div class="an-brush-svg" x-html="anChart.brush"></div>
+        <div class="an-brush-win" :style="anBrushWinStyle()"></div>
+      </div>
+    </div>
+    <aside class="an-ledger" aria-label="Range">
+      <h3>Range</h3>
+      <div class="an-presets" role="radiogroup" aria-label="Range presets">
+        <template x-for="p in AN_PRESETS" :key="p.id">
+          <button type="button" role="radio" :aria-checked="an.preset === p.id ? 'true' : 'false'" :class="an.preset === p.id ? 'on' : ''" @click="anPreset(p.id)" x-text="p.label"></button>
+        </template>
+      </div>
+      <template x-if="anSummary()">
+        <div class="an-ledger-rows">
+          <div class="an-lrow an-lrow--big"><span>Balance</span><b class="metric" :class="surplusClass(anSummary().surplus)" x-text="formatSurplus(anSummary().surplus)"></b></div>
+          <div class="an-lrow"><span>Net worked</span><b class="metric" x-text="anSummary().net + 'h'"></b></div>
+          <div class="an-lrow"><span>Target</span><b class="metric" x-text="anSummary().target + 'h'"></b></div>
+          <div class="an-lrow"><span>Per work day</span><b class="metric" :class="surplusClass(anSummary().perDay)" x-text="anSummary().workDays ? formatSurplus(anSummary().perDay) : '—'"></b></div>
+          <div class="an-lrow"><span>Work days</span><b class="metric" x-text="fmtDays(anSummary().workDays)"></b></div>
+          <div class="an-lrow"><span>Off</span><b class="metric" x-text="fmtDays(anSummary().offDays)"></b></div>
+          <div class="an-lrow"><span>Vacation · sick</span><b class="metric" x-text="fmtDays(anSummary().vacation) + ' · ' + fmtDays(anSummary().sick)"></b></div>
+          <div class="an-lrow"><span>Logged days</span><b class="metric" x-text="anSummary().logged"></b></div>
+        </div>
+      </template>
+    </aside>
+  </div>
+
+  <div class="an-two">
+    <div>
+      <div class="section-header an-head">
+        <h2>Weekday pattern</h2>
+        <span class="muted an-hint">for the range shown</span>
+      </div>
+      <template x-if="weekdayPattern()">
+        <div>
+          <div class="weekday-grid">
+            <template x-for="cell in weekdayPattern()" :key="cell.label">
+              <div class="weekday-cell" :title="cell.title">
+                <div class="weekday-bar">
+                  <template x-if="cell.avg !== null">
+                    <i :class="cell.avg >= 0 ? 'up' : 'down'" :style="cell.barStyle"></i>
+                  </template>
+                </div>
+                <div class="weekday-label" x-text="cell.label"></div>
+                <div class="weekday-avg"
+                     :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
+                     x-text="cell.text"></div>
+                <div class="weekday-times metric" x-text="cell.times"></div>
+              </div>
+            </template>
+          </div>
+          <p class="muted chart-caption">Δ per work day, and the average start → end. When do I really arrive and leave?</p>
+        </div>
+      </template>
+      <template x-if="!weekdayPattern()">
+        <p class="muted">No work days in this range.</p>
+      </template>
+    </div>
+    <div>
+      <div class="section-header an-head">
+        <h2>Daily surplus</h2>
+        <span class="muted an-hint">for the range shown</span>
+      </div>
+      <template x-if="anHistogram()">
+        <div>
+          <div class="an-hist">
+            <template x-for="b in anHistogram().buckets" :key="b.lo">
+              <i :class="b.lo >= 0 ? 'up' : 'down'" :style="'height:' + b.pct + '%'" :title="b.title"></i>
+            </template>
+          </div>
+          <div class="an-hist-x metric"><span>−3h</span><span>−2h</span><span>−1h</span><span>0</span><span>+1h</span><span>+2h</span><span>+3h</span></div>
+          <p class="muted chart-caption" x-text="anHistogram().caption"></p>
+        </div>
+      </template>
+      <template x-if="!anHistogram()">
+        <p class="muted">No work days in this range.</p>
+      </template>
+    </div>
+  </div>
+
+  <h2 class="an-h2">Years</h2>
   <template x-if="yearly.length === 0">
     <p class="muted">No data yet.</p>
   </template>
   <div class="table-wrap" x-show="yearly.length">
-    <table>
+    <table class="an-years">
       <thead>
         <tr>
           <th>Year</th>
-          <th>Net</th>
-          <th>Target</th>
-          <th>Δ</th>
-          <th title="Accumulated surplus carried in from all prior years">Carry-in</th>
-          <th>Work days</th>
-          <th>Off days</th>
+          <th class="num">Net</th>
+          <th class="num">Target</th>
+          <th class="num">Δ</th>
+          <th class="num" title="Accumulated surplus carried in from all prior years">Carry-in</th>
+          <th class="num">Work days</th>
+          <th class="num">Off days</th>
         </tr>
       </thead>
       <tbody>
         <template x-for="row in yearlyWithCarryover()" :key="row.year">
           <tr>
-            <td x-text="row.label"></td>
-            <td x-text="row.net_hours + 'h'"></td>
-            <td x-text="row.target_hours + 'h'"></td>
-            <td :class="surplusClass(row.surplus_hours)"
+            <td class="metric" x-text="row.label"></td>
+            <td class="num metric" x-text="row.net_hours + 'h'"></td>
+            <td class="num metric" x-text="row.target_hours + 'h'"></td>
+            <td class="num metric" :class="surplusClass(row.surplus_hours)"
                 x-text="formatSurplus(row.surplus_hours)"></td>
-            <td :class="surplusClass(row.carry_in)"
+            <td class="num metric" :class="surplusClass(row.carry_in)"
                 x-text="row.carry_in !== 0 ? formatSurplus(row.carry_in) : '—'"></td>
-            <td x-text="row.work_days"></td>
-            <td x-text="row.non_work_days"></td>
+            <td class="num metric" x-text="row.work_days"></td>
+            <td class="num metric" x-text="row.non_work_days"></td>
           </tr>
         </template>
       </tbody>
     </table>
   </div>
 
-  <h2>Weekday pattern</h2>
-  <template x-if="weekdayPattern()">
-    <div>
-      <div class="weekday-grid">
-        <template x-for="cell in weekdayPattern()" :key="cell.label">
-          <div class="weekday-cell" :title="cell.title">
-            <div class="weekday-swatch" :class="cell.cls"></div>
-            <div class="weekday-label" x-text="cell.label"></div>
-            <div class="weekday-avg"
-                 :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
-                 x-text="cell.text"></div>
-          </div>
-        </template>
-      </div>
-      <p class="muted chart-caption">Average surplus/deficit per weekday across all logged work days</p>
-    </div>
-  </template>
-  <template x-if="!weekdayPattern()">
-    <p class="muted">No work days logged yet.</p>
-  </template>
-
-  <h2>Records</h2>
-  <template x-if="records">
-    <div class="summary-grid">
-      <article class="summary-card small">
-        <h3>Longest day</h3>
-        <template x-if="records.longest_work_day">
-          <div>
-            <div class="metric" x-text="records.longest_work_day.net_hours + 'h'"></div>
-            <div class="sub" x-text="records.longest_work_day.date"></div>
-          </div>
-        </template>
-        <template x-if="!records.longest_work_day"><p class="muted">—</p></template>
-      </article>
-      <article class="summary-card small">
-        <h3>Shortest day</h3>
-        <template x-if="records.shortest_work_day">
-          <div>
-            <div class="metric" x-text="records.shortest_work_day.net_hours + 'h'"></div>
-            <div class="sub" x-text="records.shortest_work_day.date"></div>
-          </div>
-        </template>
-        <template x-if="!records.shortest_work_day"><p class="muted">—</p></template>
-      </article>
-      <article class="summary-card small">
-        <h3>Longest month</h3>
-        <template x-if="records.longest_month">
-          <div>
-            <div class="metric" x-text="records.longest_month.net_hours + 'h'"></div>
-            <div class="sub" x-text="records.longest_month.label"></div>
-          </div>
-        </template>
-        <template x-if="!records.longest_month"><p class="muted">—</p></template>
-      </article>
-      <article class="summary-card small">
-        <h3>Most surplus month</h3>
-        <template x-if="records.most_surplus_month">
-          <div>
-            <div class="metric surplus"
-                 x-text="formatSurplus(records.most_surplus_month.surplus_hours)"></div>
-            <div class="sub" x-text="records.most_surplus_month.label"></div>
-          </div>
-        </template>
-        <template x-if="!records.most_surplus_month"><p class="muted">—</p></template>
-      </article>
-      <!-- Only a negative value is a "worst" worth showing (2026-10-02). -->
-      <template x-if="records.most_deficit_month && records.most_deficit_month.surplus_hours < 0">
-        <article class="summary-card small">
-          <h3>Most deficit month</h3>
-          <div class="metric deficit"
-               x-text="formatSurplus(records.most_deficit_month.surplus_hours)"></div>
-          <div class="sub" x-text="records.most_deficit_month.label"></div>
-        </article>
-      </template>
-      <article class="summary-card small">
-        <h3>Longest positive streak</h3>
-        <div>
-          <div class="metric surplus" x-text="records.longest_positive_streak"></div>
-          <div class="sub">consecutive days in the black</div>
+  <div class="section-header an-head">
+    <h2>Records</h2>
+    <span class="muted an-hint">for the range shown</span>
+  </div>
+  <template x-if="anRecords().length">
+    <div class="an-records">
+      <template x-for="r in anRecords()" :key="r.label">
+        <div class="an-rec">
+          <span class="an-rec-label" x-text="r.label"></span>
+          <span><b class="metric" :class="r.cls || ''" x-text="r.value"></b><span class="an-rec-when metric" x-text="r.when"></span></span>
         </div>
-      </article>
-      <article class="summary-card small">
-        <h3>Best year</h3>
-        <template x-if="records.best_year">
-          <div>
-            <div class="metric surplus"
-                 x-text="formatSurplus(records.best_year.surplus_hours)"></div>
-            <div class="sub" x-text="records.best_year.label"></div>
-          </div>
-        </template>
-        <template x-if="!records.best_year"><p class="muted">—</p></template>
-      </article>
-      <!-- Only a negative value is a "worst" worth showing (2026-10-02). -->
-      <template x-if="records.worst_year && records.worst_year.surplus_hours < 0">
-        <article class="summary-card small">
-          <h3>Worst year</h3>
-          <div class="metric deficit"
-               x-text="formatSurplus(records.worst_year.surplus_hours)"></div>
-          <div class="sub" x-text="records.worst_year.label"></div>
-        </article>
       </template>
     </div>
   </template>
+  <template x-if="!anRecords().length">
+    <p class="muted">Nothing logged in this range.</p>
+  </template>
 
-  <h2>Export</h2>
-  <p>
+  <h2 class="an-h2">Export</h2>
+  <p class="an-export">
     <a href="/api/export.csv" role="button" class="secondary outline" download>Download CSV</a>
     <a href="/api/export.json" role="button" class="secondary outline" download>Download JSON</a>
   </p>

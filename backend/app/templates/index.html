@@ -17,7 +17,6 @@
   <!-- Apply persisted theme before first paint to avoid flash -->
   <script>(function(){var t=localStorage.getItem('k-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="/static/app.js" defer></script>
-  <script src="/static/vendor/sortable.min.js" defer></script>
   <script src="/static/vendor/alpine.min.js" defer></script>
 </head>
 <body>
@@ -37,28 +36,35 @@
     </div>
     <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
       <a role="tab" :tabindex="tab==='dashboard' ? 0 : -1" :aria-selected="tab==='dashboard'" @click.prevent="go('dashboard')" @keydown.enter.prevent="go('dashboard')" @keydown.space.prevent="go('dashboard')">Dashboard</a>
-      <a role="tab" :tabindex="tab==='plan' ? 0 : -1"      :aria-selected="tab==='plan'"      @click.prevent="go('plan')"      @keydown.enter.prevent="go('plan')"      @keydown.space.prevent="go('plan')">Plan</a>
-      <a role="tab" :tabindex="tab==='week' ? 0 : -1"      :aria-selected="tab==='week'"      @click.prevent="go('week')"      @keydown.enter.prevent="go('week')"      @keydown.space.prevent="go('week')">Week</a>
-      <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')">Log</a>
-      <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')">Days</a>
-      <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')">Analytics</a>
-      <a role="tab" :tabindex="tab==='settings' ? 0 : -1"  :aria-selected="tab==='settings'"  @click.prevent="go('settings')"  @keydown.enter.prevent="go('settings')"  @keydown.space.prevent="go('settings')">Settings</a>
+      <a role="tab" :tabindex="tab==='plan' ? 0 : -1"      :aria-selected="tab==='plan'"      @click.prevent="go('plan')"      @keydown.enter.prevent="go('plan')"      @keydown.space.prevent="go('plan')"><span class="tab-key">P</span>lan</a>
+      <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')"><span class="tab-key">L</span>og</a>
+      <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')"><span class="tab-key">D</span>ays</a>
+      <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')"><span class="tab-key">A</span>nalytics</a>
     </nav>
     <div class="header-controls">
       <div class="shortcut-wrap">
         <button class="shortcut-btn" @click="openPalette()" aria-label="Keyboard shortcuts">⌨</button>
         <div class="shortcut-tooltip" role="tooltip">
           <div class="shortcut-row"><kbd>P</kbd><span>Plan</span></div>
-          <div class="shortcut-row"><kbd>W</kbd><span>Week</span></div>
           <div class="shortcut-row"><kbd>L</kbd><span>Log</span></div>
           <div class="shortcut-row"><kbd>D</kbd><span>Days</span></div>
           <div class="shortcut-row"><kbd>A</kbd><span>Analytics</span></div>
           <div class="shortcut-row"><kbd>S</kbd><span>Settings</span></div>
           <div class="shortcut-row"><kbd>.</kbd><span>Command palette</span></div>
           <div class="shortcut-row"><kbd>Ctrl+↵</kbd><span>Save form</span></div>
-          <div class="shortcut-row"><kbd>Esc</kbd><span>Dismiss</span></div>
+          <div class="shortcut-row"><kbd>Esc</kbd><span>Dismiss, or back to Dashboard</span></div>
         </div>
       </div>
+      <!-- Settings lives behind the gear, not in the tab bar: an eight-tooth cog that
+           quarter-turns on hover and keeps turning while Settings is open. -->
+      <button class="theme-toggle settings-btn" :class="tab === 'settings' ? 'is-open' : ''"
+              @click="go('settings')" aria-label="Settings" title="Settings (S)"
+              :aria-current="tab === 'settings' ? 'page' : null">
+        <svg class="gear" viewBox="-12 -12 24 24" aria-hidden="true">
+          <path d="M10.00 0.00L9.81 1.95L7.02 2.91L6.32 4.22L7.07 7.07L5.56 8.31L2.91 7.02L1.48 7.45L0.00 10.00L-1.95 9.81L-2.91 7.02L-4.22 6.32L-7.07 7.07L-8.31 5.56L-7.02 2.91L-7.45 1.48L-10.00 0.00L-9.81 -1.95L-7.02 -2.91L-6.32 -4.22L-7.07 -7.07L-5.56 -8.31L-2.91 -7.02L-1.48 -7.45L-0.00 -10.00L1.95 -9.81L2.91 -7.02L4.22 -6.32L7.07 -7.07L8.31 -5.56L7.02 -2.91L7.45 -1.48Z" class="gear-teeth"/>
+          <circle r="3.2"/>
+        </svg>
+      </button>
       <button class="theme-toggle" @click="toggleTheme()"
               :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
               :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
@@ -80,7 +86,6 @@
 
   {% include "_tab_dashboard.html" %}
   {% include "_tab_plan.html" %}
-  {% include "_tab_week.html" %}
   {% include "_tab_log.html" %}
   {% include "_tab_days.html" %}
   {% include "_tab_analytics.html" %}

@@ -14,6 +14,8 @@ from app.config import TIMEZONE
 from app.database import get_session
 from app.models import DayType, Plan, WorkEntry
 from app.schemas import (
+    CumulativePointOut,
+    CumulativeSeriesOut,
     DashboardOut,
     MonthlyBreakdownRow,
     PeriodSummaryOut,
@@ -35,8 +37,10 @@ from app.services.computations import (
     summarize,
 )
 from app.services.settings import (
+    get_cumulative_start_date,
     get_daily_target_schedule,
     get_effective_cumulative_start,
+    get_reset_annually,
     get_vacation_budget_days,
     get_work_week_days,
 )
@@ -180,6 +184,63 @@ def cumulative_as_of(
     start = get_effective_cumulative_start(session, as_of)
     entries = _entries_between(session, start, as_of)
     return _period_out(summarize(entries, schedule))
+
+
+@router.get("/api/analytics/cumulative-series", response_model=CumulativeSeriesOut)
+def cumulative_series(
+    year: int | None = Query(None, description="Calendar year; defaults to the current one."),
+    all: bool = Query(False, description="The whole history from the cumulative start instead."),
+    session: Session = Depends(get_session),
+) -> CumulativeSeriesOut:
+    """Running balance after each logged day of `year`, from the effective cumulative start.
+
+    Each point equals `GET /api/analytics/cumulative?as_of=<date>` for that date, so the
+    last point of the year matches the Dashboard's cumulative card; entries before Jan 1
+    fold into `opening`. One call instead of one per day — the trajectory chart's data.
+    With `all=true` the series runs from the cumulative start to the last entry, restarting
+    at zero each January 1st when the cumulative resets annually (the Analytics chart).
+    """
+    if all:
+        return _whole_history(session)
+    year = year or local_today().year
+    jan1, dec31 = date(year, 1, 1), date(year, 12, 31)
+    start = get_effective_cumulative_start(session, dec31)
+    schedule = get_daily_target_schedule(session)
+    entries = _entries_between(session, start, dec31)
+
+    before = [e for e in entries if e.date < jan1]
+    opening = summarize(before, schedule).surplus_hours if before else 0.0
+
+    running = opening
+    points: list[CumulativePointOut] = []
+    for e in entries:
+        if e.date < jan1:
+            continue
+        # Summed unrounded, rounded per point: the last point then equals summarize()
+        # over the same entries instead of drifting by a cent per step.
+        running += daily_net_hours(e) - daily_target_for(e, schedule)
+        points.append(CumulativePointOut(date=e.date, surplus_hours=round(running, 2)))
+
+    return CumulativeSeriesOut(year=year, start=start, opening=round(opening, 2), points=points)
+
+
+def _whole_history(session: Session) -> CumulativeSeriesOut:
+    schedule = get_daily_target_schedule(session)
+    start = get_cumulative_start_date(session)
+    reset = get_reset_annually(session)
+    entries = [
+        e for e in session.scalars(select(WorkEntry).order_by(WorkEntry.date)) if e.date >= start
+    ]
+    running = 0.0
+    year = None
+    points: list[CumulativePointOut] = []
+    for e in entries:
+        if reset and year is not None and e.date.year != year:
+            running = 0.0
+        year = e.date.year
+        running += daily_net_hours(e) - daily_target_for(e, schedule)
+        points.append(CumulativePointOut(date=e.date, surplus_hours=round(running, 2)))
+    return CumulativeSeriesOut(year=None, start=start, opening=0.0, points=points)
 
 
 @router.get("/api/analytics/monthly", response_model=list[MonthlyBreakdownRow])

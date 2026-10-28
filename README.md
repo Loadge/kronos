@@ -7,7 +7,7 @@ Single-user. No auth. One SQLite file. Runs as a Docker container behind your ow
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-521%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-523%20passing-brightgreen.svg)](#tests)
 
 ![Kronos dashboard and analytics](docs/demo.gif)
 
@@ -59,20 +59,31 @@ Log a day in a few seconds, then get out of the way.
   leaves. Drafts don't touch the numbers until you commit them, block by block, with their notes.
   They show as dashed ghost days on every calendar, and the dashboard forecast counts them
   instead of assuming you'll take the whole remaining budget
-- **Analytics tab** — a year-at-a-glance heatmap first, then the cumulative trend chart,
-  monthly and yearly breakdowns, average surplus per weekday, and records (longest day, best
-  month, best/worst year)
+- **Analytics tab** — a year-at-a-glance heatmap first (hover a day for its hours, Δ and
+  note; click to open it in Log), then the **balance over time**: a chart you zoom by drawing a
+  rectangle on it (wheel zooms at the cursor, shift+drag and the strip below pan, double-click
+  resets; pinch and drag on the phone), with presets from *this month* to *all*, and a switch
+  between the cumulative balance, net hours per day and per month. Whatever range the chart
+  shows drives the rest of the page: the range's totals in a ledger, the weekday pattern (Δ and
+  average start → end), the distribution of daily surplus, and the records. The yearly table
+  keeps carry-in between years
 
 ### The app itself
 
-- **Draggable dashboard** — reorder the summary cards, streak tiles, and forecast/quick-log
-  blocks; the layout persists server-side, not in your browser
+- **Dashboard** — one number (the cumulative balance) next to its **trajectory**: the balance
+  day by day this year, then a dashed line to where it lands on Dec 31 at this rate. Week,
+  month and *vs last year* as three chips; the current week as a strip of seven tiny bar
+  charts (a day opens in Log); the vacation budget as notches (used · planned · left);
+  quick-log pills only while today has no entry
 - **Logging and on-target streaks**, with milestone toasts at 30 / 100 / 365 days
 - **Plan tab** — a year strip of twelve mini months picks the working month; click or drag to
   draft, one ledger for drafts and the time off already logged ahead (commit, remove, delete,
   or open a day in the Log tab from there; logged and past days on its calendar open in Log too)
-- **Week view** for the current week at a glance; **Log** tab driven by a calendar picker;
-  **Days** tab for the full searchable history
+- **Log** tab driven by a calendar picker; **Days** tab for the full searchable history — a
+  dense table, a row opens its day, a separator with the subtotal per month, notes always
+  visible in the last column
+- **Settings** behind the gear next to the theme toggle: one page, a section index, a card per
+  section that saves its own fields
 - **Command palette** (<kbd>.</kbd>), keyboard shortcuts, dark and light themes
 - **PWA-installable**, with a service worker for the app shell
 - **CSV import/export** and full JSON backup/restore
@@ -87,10 +98,10 @@ Log a day in a few seconds, then get out of the way.
 
 | Key | |
 |---|---|
-| <kbd>P</kbd> <kbd>W</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>S</kbd> | Plan · Week · Log · Days · Analytics · Settings |
+| <kbd>P</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>S</kbd> | Plan · Log · Days · Analytics · Settings — the accented first letter of a tab is its key |
 | <kbd>.</kbd> | Command palette |
 | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Save the current form |
-| <kbd>Esc</kbd> | Dismiss / back out |
+| <kbd>Esc</kbd> | Close an overlay, leave a field, cancel an edit — otherwise back to the Dashboard from any tab |
 
 ---
 
@@ -99,7 +110,7 @@ Log a day in a few seconds, then get out of the way.
 | Layer | Tech |
 |---|---|
 | Backend | FastAPI · SQLAlchemy 2 · Alembic · Pydantic |
-| Frontend | Jinja2 · Alpine.js · Pico CSS · Chart.js · SortableJS |
+| Frontend | Jinja2 · Alpine.js · Pico CSS — the charts are hand-drawn SVG |
 | Storage | One SQLite file (WAL mode) on a Docker volume |
 | Vendored | Every JS/CSS dependency lives in `backend/static/vendor/` — **no build step, no CDN calls, no npm** |
 
@@ -177,15 +188,6 @@ in the `settings` key-value table:
 | `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Log tab |
 | `holiday_country` · `holiday_region` | *(none)* | Selection remembered for holiday import |
 | `profile_name` · `profile_employer` · `profile_extra` | *(empty)* | Printed in the timesheet header; blank lines are left out |
-| `dashboard_layout` | see below | Card/tile/block order for the drag-to-reorder groups |
-
-```json
-{
-  "hero":  ["week", "month", "cumulative"],
-  "tiles": ["yoy", "logging_streak", "on_target_streak"],
-  "aux":   ["forecast", "quick_log", "vacation"]
-}
-```
 
 ### A note on the target timeline
 
@@ -244,6 +246,7 @@ Interactive docs at `/docs` once it's running.
 | `GET /api/dashboard` | Week + month + cumulative summary |
 | `GET /api/streaks` | Logging streak, on-target streak, all-time days logged |
 | `GET /api/analytics/cumulative?as_of=` | Balance as of a date (API only — no UI since 2026-10-01) |
+| `GET /api/analytics/cumulative-series?year=` · `?all=true` | The balance after each logged day of a year, plus what was carried into it (the dashboard's trajectory) — or the whole history, restarting each January 1st when the cumulative resets annually (the Analytics chart) |
 | `GET /api/analytics/monthly` · `/yearly` | One row per calendar month / year |
 | `GET /api/analytics/records` | Longest day, best month, longest streak, best/worst year |
 | `GET /api/analytics/yoy` | This year vs. the same period last year |
@@ -254,7 +257,6 @@ Interactive docs at `/docs` once it's running.
 |---|---|
 | `GET · PUT /api/config` | All app-level settings |
 | `GET · PUT /api/config/daily-target-schedule` | The date-effective target timeline |
-| `GET · PUT /api/config/dashboard-layout` | Card/tile/block order |
 
 **Data in and out**
 
@@ -296,7 +298,7 @@ make e2e              # Playwright end-to-end suite (see below)
 make check            # lint, then test, then e2e — what to run before a deploy
 ```
 
-**521 passing**, across four suites:
+**523 passing**, across four suites:
 
 | Suite | |
 |---|---|
@@ -308,10 +310,14 @@ make check            # lint, then test, then e2e — what to run before a deplo
 
 ### End-to-end
 
-93 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
-viewport/responsive checks, the Analytics section order, the partial-leave slider, the planner
-(click, drag, commit, notes, delete, opening days in Log, ghosts on the Log calendar), the
-timesheet picker and page (including Chromium's own PDF printer), and the smoke script itself. Excluded
+123 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
+viewport/responsive checks, the dashboard (hero, trajectory, week strip, quick-log, vacation
+notches), Settings sections saving on their own, the Days table (month separators, row click,
+notes), the Analytics chart (rectangle and wheel zoom, reset, presets, series switch, the range
+driving the ledger, weekday times, histogram and records, the heatmap tooltip and click), the
+Analytics section order, keyboard rules (Escape, no caret after a tab click), the partial-leave slider, the planner (click, drag, commit,
+notes, delete, opening days in Log, ghosts on the Log calendar), the timesheet picker and page
+(including Chromium's own PDF printer), and the smoke script itself. Excluded
 from `make test` and from the Docker build (no browser in the image), so `deploy.sh` and
 `deploy-staging.sh` run them locally and abort if they fail or collect nothing.
 
@@ -334,6 +340,20 @@ pass. Both deploy scripts run it after the container is healthy and fail if it d
 ```sh
 python bin/smoke.py https://kronos.example.com   # or: make smoke SMOKE_URL=...
 ```
+
+### Reviewing a checkout in one go
+
+`bin/review_sandbox.sh` runs what a review needs — ruff, the pytest suites, an Alembic
+upgrade/downgrade round trip, `--e2e` for the Playwright suite — and with `--serve` seeds a
+throwaway demo DB and serves the app on `http://localhost:8799` (`--quick` skips straight to
+that). Made for the Taiga sandbox: no Docker, no network, never touches `data/`.
+
+```sh
+bash review_sandbox.sh kronos_coding_behaviors --e2e     # every check on that folder
+bash review_sandbox.sh kronos_coding_behaviors --quick   # just look at it on :8799
+```
+
+Without a folder it takes `./kronos_coding_behaviors` if there is one, else its own checkout.
 
 ### kctl — a disposable Kronos for verifying changes
 
@@ -394,7 +414,7 @@ kronos/
 │   ├── BUILD_PHASES_ARCHIVE.md  # completed phases: what was decided and why
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
-├── bin/                  # smoke.py (post-deploy checks) · kctl.py (disposable instance)
+├── bin/                  # smoke.py (post-deploy checks) · kctl.py (disposable instance) · review_sandbox.sh (all checks, or serve on :8799)
 ├── deploy.sh             # one-command deploy to a remote Docker host over SSH
 ├── Dockerfile            # base → test (pytest, no e2e) → runtime; red tests = no image
 ├── docker-compose.yml
