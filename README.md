@@ -232,7 +232,7 @@ a CSV without it imports as whole days.
 
 ## The CLI
 
-`bin/kronos.py` is how an agent — an agentic coder, a chat bot such as Anselmo — reads and logs days without
+`bin/kronos.py` is how an agent — an agentic coder, a chat bot — reads and logs days without
 clicking the UI or touching the database. It talks **only to the HTTP API** of a running Kronos
 and needs nothing beyond the standard library.
 

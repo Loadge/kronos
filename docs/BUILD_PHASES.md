@@ -34,9 +34,95 @@ it for the history of a decision, not by default). This file keeps only open and
 
 ## Open phases
 
-Suggested order (2026-10-31, 31, 32 and 33 built): 28 next (Anselmo logs through the CLI
-Phase 32 delivered); 29 any time, and before next October; 30 only if logging from the phone
-outside the LAN turns out to be common.
+Suggested order (2026-11-01, 31, 32 and 33 built): 34 then 35 (freelance hours, then what they
+add up to); 28 after them (Anselmo logs through the CLI Phase 32 delivered); 29 any time, and
+before next October; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phases 34 and 35 — Freelance hours in Kronos (planned, 2026-11-01)
+
+**Why.** Besides the job Kronos tracks, Miguel now also works as a freelancer (autónomo), by the
+hour and outside his working hours, for clients that may pay in US dollars. A separate app (not in
+this repository) did the sums for that side: a rate calculator with the Spanish taxes of a
+freelancer. That app is being retired, and Kronos becomes
+the one place for both: what he worked, as an employee and as a freelancer, and what the freelance
+part is really worth after Social Security and income tax. The decision this serves is a real one:
+whether, in a year or two, the freelance work could replace the job.
+
+**What already exists for this.** The tax engine was moved in before these phases and is the single
+source of every tax figure: `backend/app/services/tax.py` with the 2026 figures in
+`backend/app/data/fiscal_es.json` (RETA cuota by tramos or the tarifa plana; IRPF by the state +
+Andalusian scales; with a salary, the freelance income is taxed at the marginal rate on top of it;
+the 130 apart from what is left for the Renta; the pluriactividad refund; a year without its own
+block uses the latest earlier one), and `GET /api/fx` (`backend/app/services/fx.py`), the ECB's
+EUR/USD reference rate, fetched only when asked and at most once an hour. `tests/unit/test_tax.py`
+works two reference cases by hand (a few hours a day on top of a salary, and full time with no
+salary); read it, and the module docstring for what is not modelled.
+
+**How to approach it.** These two phases describe outcomes and the decisions Miguel already took;
+the shape of the screens, the names, the data model and the order of the work are the
+implementer's to design, and a better idea than the one written here is welcome, said out loud
+before it is built. Where this text is silent, make a choice and say why; where a choice would
+change what Miguel sees or stores, ask first.
+
+#### Phase 34 — Freelance hours next to the working day
+
+A day can be mixed: 4 h worked as an employee, half a day of paid vacation, and 3 h of freelance
+work in the evening. Kronos must log that day easily and show it truthfully.
+
+- **Freelance hours are blocks of their own**, several per day if need be, each with hours (or a
+  start and an end) and a note. They never count towards the employee's daily target, balance,
+  streaks or the printable timesheet: that sheet goes to the employer and must not change.
+- **Every block has a rate.** Settings hold income sources (name, hourly rate, currency EUR or USD;
+  one is the default). A block takes the rate and currency of its source when it is saved, so a new
+  rate never rewrites the past. A USD block also keeps the ECB rate of its own date, taken once when
+  it is saved (a weekend or holiday takes the last published day) and editable by hand; it is never
+  fetched again. Today's `/api/fx` only knows the latest rate: extending it to the rate of a date
+  is part of this phase, with the same discipline (fetched on demand, never on a timer).
+- **The Log tab is where this must feel good.** Adding, adjusting and removing a block on a day
+  that already has employee hours should be quick on a phone too. How it looks is open.
+- **Settings get a first level.** Today the gear opens one list (Work, Leave, Holidays, Profile,
+  Templates, Data) beside the content. It becomes three groups: **Employee** (Work, Leave, Holidays,
+  Profile, Templates), **Freelance** (income sources and rates, taxes, currency) and **General**
+  (Data). On a phone the two levels must still fit (Miguel suggested two dropdowns above the
+  content).
+- **Taxes are per year** (Freelance → taxes): the gross salary of the job held at the same time,
+  the tarifa plana, the 20 % start-up reduction and the share of each payment set aside for the
+  tax office (40 % by default). A year without values of its own uses the latest earlier year's.
+  The region is Andalucía, the only one in `fiscal_es.json`.
+- Backups, restore and the CSV export carry everything new (the backup fidelity test must keep
+  passing with freelance data in it).
+- Decided not to do: no check that a freelance block overlaps the employee hours of that day.
+
+#### Phase 35 — What the freelance hours add up to
+
+- **A Freelance tab.** Two parts:
+  - *This year, for real*: gross income in euros, hours, average EUR/h, and, quarter by quarter,
+    the 130 to pay (20 % of the net yield accumulated since 1 January, less what earlier quarters
+    already paid) with its deadline; a projection to the end of the year from planned freelance
+    hours per week and weeks off (two settings).
+  - *Calculator*: hourly ⇄ daily ⇄ net yearly, three linked fields that drive each other; rates in
+    EUR or USD with the rate on view (the ECB's, or one typed by hand); every assumption on view
+    and editable (billable days, 220 by default, or the calendar's; hours per day; salary; the
+    switches), starting from the year's real values; how the IRPF is paid ("the 20 % goes every
+    quarter, the rest in the Renta"); "estimate: check with an adviser". The two reference cases
+    of `tests/unit/test_tax.py` must come out to the cent.
+- **The Dashboard** gets a freelance card, only when an income source exists: hours and gross
+  income this week and this month, and how much to set aside. The employee hero stays as it is.
+- **Analytics** separates the hours (employee and freelance stacked in the chart, a switch on the
+  heatmap) and adds freelance income per month and the effective EUR/h before and after tax. The
+  salary is not logged day by day, so there is no employee income here.
+- The `/api/fx` discipline holds everywhere: the page asks when the user navigates to a view that
+  needs a rate or changes a currency option; never on a timer.
+
+**Constraints (both phases).**
+- One source of tax maths: `tax.py` and `fiscal_es.json`. The browser shows what the API computes
+  and keeps no copy of the formulas; a tax figure in a test is worked out by hand in a comment.
+- The printable timesheet and the employee balance must not move because of freelance data.
+- The repository is publicly mirrored: no personal data, salaries, clients or schedules in code,
+  fixtures or docs.
+- Existing tests are updated when behaviour changes on purpose, never weakened; the hygiene tests
+  (models ⇔ migrations, no phase numbers in code, one line ending per file) keep passing; new
+  behaviour gets tests that fail without it.
 
 ### Phase 28 — Log Without Typing (idea, spike first)
 
