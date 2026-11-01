@@ -9,8 +9,8 @@ env/
 .pytest_cache/
 .ruff_cache/
 
-# App data
-data/
+# App data (the SQLite directory at the root; backend/app/data holds versioned tables)
+/data/
 *.db
 *.db-wal
 *.db-shm

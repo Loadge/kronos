@@ -75,6 +75,8 @@ def live_server():
         **os.environ,
         "DATABASE_URL": db_url,
         "PYTHONPATH": str(BACKEND_DIR),
+        # never the ECB from a test: GET /api/fx answers "unavailable"
+        "KRONOS_FX_URL": "",
     }
 
     # Run alembic migrations against the temp DB before starting the server

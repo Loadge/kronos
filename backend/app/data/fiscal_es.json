@@ -1,0 +1,71 @@
+{
+  "_about": "Spanish tax and Social Security figures Kronos uses, one block per year. A year without a block uses the latest earlier one (and the page says so). Estimates for planning: verify with an adviser. To add a year, copy the latest block, change what the BOE / Seguridad Social / the region changed, and update the sources.",
+  "years": {
+    "2026": {
+      "reta": {
+        "_source": "https://www.seg-social.es/wps/portal/wss/internet/HerramientasWeb/9d2fd4f1-ab0f-42a6-8d10-2e74b378ee24 (2026 table, RD-ley 3/2026); rate 28.30 CC + 1.30 CP + 0.90 cese + 0.10 FP + 0.90 MEI",
+        "rate": 0.315,
+        "cc_rate": 0.283,
+        "generic_expenses": 0.07,
+        "tramos": [
+          [670.0, 653.59],
+          [900.0, 718.95],
+          [1166.7, 849.67],
+          [1300.0, 950.98],
+          [1500.0, 960.78],
+          [1700.0, 960.78],
+          [1850.0, 1143.79],
+          [2030.0, 1209.15],
+          [2330.0, 1274.51],
+          [2760.0, 1356.21],
+          [3190.0, 1437.91],
+          [3620.0, 1519.61],
+          [4050.0, 1601.31],
+          [6000.0, 1732.03],
+          [null, 1928.1]
+        ],
+        "_tramos": "[upper limit of the monthly net yield (null: no limit), minimum base of that tramo], EUR/month",
+        "tarifa_plana_monthly": 88.64,
+        "_tarifa_plana": "80 EUR + MEI, first 12 months of a first alta (secondary sources: holded.com, taxdown.es)",
+        "pluriactividad_limit": 17323.68,
+        "_pluriactividad": "Refund of 50% of the common-contingency contributions (employment + RETA) above this limit, capped at 50% of the RETA common-contingency contributions (Orden PJC/297/2026 art. 18.8, as quoted by autonomosyemprendedor.es)"
+      },
+      "employee_ss": {
+        "_source": "Regimen General 2026, worker share: 4.70 CC + 1.55 desempleo + 0.10 FP + 0.15 MEI; employer + worker common contingencies 23.60 + 4.70; maximum base 5101.20 EUR/month",
+        "rate": 0.065,
+        "cc_rate": 0.283,
+        "base_max_annual": 61214.4
+      },
+      "irpf": {
+        "_source": "State scale art. 63 LIRPF (unchanged since 2021); Andalucia art. 23 and 23 bis Ley 5/2021 (Hacienda, Tributacion autonomica 2026, table 3); expenses art. 30 RIRPF; start-up reduction art. 32.3 LIRPF; pago fraccionado art. 110 RIRPF",
+        "state_scale": [
+          [12450.0, 0.095],
+          [20200.0, 0.12],
+          [35200.0, 0.15],
+          [60000.0, 0.185],
+          [300000.0, 0.225],
+          [null, 0.245]
+        ],
+        "state_minimum": 5550.0,
+        "regions": {
+          "andalucia": {
+            "name": "Andalucía",
+            "scale": [
+              [13000.0, 0.095],
+              [21100.0, 0.12],
+              [35200.0, 0.15],
+              [60000.0, 0.185],
+              [null, 0.225]
+            ],
+            "minimum": 5790.0
+          }
+        },
+        "hard_to_justify_rate": 0.05,
+        "hard_to_justify_max": 2000.0,
+        "employment_other_expenses": 2000.0,
+        "startup_reduction": 0.2,
+        "pago_fraccionado": 0.2
+      }
+    }
+  }
+}
