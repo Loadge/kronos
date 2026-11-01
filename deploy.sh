@@ -90,7 +90,10 @@ tar czf - \
   --exclude='*/__pycache__' \
   --exclude='*/*.pyc' \
   . \
-| ssh "$HOST" "mkdir -p $REMOTE && tar xzf - -C $REMOTE"
+| ssh "$HOST" "mkdir -p $REMOTE && cd $REMOTE && rm -rf backend tests alembic bin && tar xzf - -C $REMOTE"
+# The source directories go first: tar only adds and overwrites, so a file deleted from the repo
+# would stay on the host and the image's test stage would still run it. Host-only files (.env,
+# compose overrides) live outside them and are kept.
 echo "✓ Files synced"
 
 # ── 3. rebuild image + force-recreate container ───────────────────────────────
