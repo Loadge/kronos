@@ -6,9 +6,8 @@ server-side PDF dependency. Every switch is a query parameter, so a URL *is* a r
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Literal
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
@@ -16,9 +15,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import TEMPLATES_DIR, TIMEZONE
+from app.config import TEMPLATES_DIR
 from app.database import get_session
 from app.models import WorkEntry
+from app.services.clock import local_today
 from app.services.settings import (
     get_daily_target_schedule,
     get_profile,
@@ -34,10 +34,6 @@ MAX_DAYS = 3 * 366  # a custom range longer than three years is a mistake, not a
 _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 
-def _local_today() -> date:
-    return datetime.now(ZoneInfo(TIMEZONE)).date()
-
-
 @router.get("/timesheet", response_class=HTMLResponse, include_in_schema=False)
 def timesheet(
     request: Request,
@@ -51,7 +47,7 @@ def timesheet(
     today: date | None = Query(None, description="Override 'today' for testing."),
     session: Session = Depends(get_session),
 ):
-    today = today or _local_today()
+    today = today or local_today()
     start = from_ or today.replace(day=1)
     end = to or today
     if end < start:

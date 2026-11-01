@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import TIMEZONE
 from app.database import get_session
 from app.models import DayType, Plan, WorkEntry
 from app.schemas import (
@@ -28,6 +26,7 @@ from app.schemas import (
     YoYOut,
     YoYPeriod,
 )
+from app.services.clock import local_today
 from app.services.computations import (
     PeriodSummary,
     daily_net_hours,
@@ -46,10 +45,6 @@ from app.services.settings import (
 )
 
 router = APIRouter(tags=["analytics"])
-
-
-def local_today() -> date:
-    return datetime.now(ZoneInfo(TIMEZONE)).date()
 
 
 def _entries_between(session: Session, start: date, end: date) -> list[WorkEntry]:
@@ -107,9 +102,13 @@ def dashboard(
     year_end = date(today.year, 12, 31)
     planned_days = 0.0
     planned_flex_hours = 0.0
-    for plan in session.scalars(select(Plan).where(Plan.date > today, Plan.date <= year_end)):
-        if session.get(WorkEntry, plan.date):
-            continue
+    # Drafts whose date has no real entry: an anti-join, not a lookup per draft.
+    standing = select(Plan).where(
+        Plan.date > today,
+        Plan.date <= year_end,
+        ~select(WorkEntry.date).where(WorkEntry.date == Plan.date).exists(),
+    )
+    for plan in session.scalars(standing):
         planned_days += plan.fraction
         if plan.day_type == DayType.FLEX:
             planned_flex_hours += schedule.for_date(plan.date) * plan.fraction
@@ -228,9 +227,9 @@ def _whole_history(session: Session) -> CumulativeSeriesOut:
     schedule = get_daily_target_schedule(session)
     start = get_cumulative_start_date(session)
     reset = get_reset_annually(session)
-    entries = [
-        e for e in session.scalars(select(WorkEntry).order_by(WorkEntry.date)) if e.date >= start
-    ]
+    entries = session.scalars(
+        select(WorkEntry).where(WorkEntry.date >= start).order_by(WorkEntry.date)
+    )
     running = 0.0
     year = None
     points: list[CumulativePointOut] = []

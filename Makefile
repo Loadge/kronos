@@ -1,4 +1,4 @@
-.PHONY: install test lint format e2e smoke check seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
+.PHONY: install test lint format e2e smoke cli-check check seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
 
 PY ?= python
 PIP ?= pip
@@ -30,6 +30,10 @@ e2e:
 ## smoke — read-only HTTP smoke checks against $(SMOKE_URL) (default localhost:$(APP_PORT))
 smoke:
 	$(PY) bin/smoke.py $(SMOKE_URL)
+
+## cli-check — the CLI's GET-only report (bin/kronos.py check) against $(SMOKE_URL)
+cli-check:
+	KRONOS_LOCAL_URL=$(SMOKE_URL) $(PY) bin/kronos.py check
 
 ## check — lint, then the full test suite, then the E2E suite
 check: lint test e2e

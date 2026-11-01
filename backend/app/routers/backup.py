@@ -60,6 +60,7 @@ from app.services.settings import (
     set_daily_target_schedule,
     set_profile_field,
 )
+from app.services.views import entry_from_body
 
 router = APIRouter(prefix="/api", tags=["backup"])
 
@@ -153,19 +154,7 @@ def restore_backup(
     session.flush()
 
     for entry_in in payload.entries:
-        entry = WorkEntry(
-            date=entry_in.date,
-            day_type=entry_in.day_type.value,
-            fraction=entry_in.fraction,
-            start_time=entry_in.start_time,
-            end_time=entry_in.end_time,
-            notes=entry_in.notes,
-        )
-        entry.breaks = [
-            Break(break_minutes=b.break_minutes, start_time=b.start_time, end_time=b.end_time)
-            for b in entry_in.breaks
-        ]
-        session.add(entry)
+        session.add(entry_from_body(entry_in.date, entry_in))
 
     for plan_in in payload.plans:
         session.add(

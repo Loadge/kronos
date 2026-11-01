@@ -40,6 +40,12 @@ IMPROVEMENTS.md
 # deploy.sh itself is versioned and reads it; see deploy.env.example.
 deploy.env
 
+# The CLI's targets (bin/kronos.py) live here, never in the repo; see kronos.env.example.
+# backups/ holds the safety snapshots it takes before a write to prod.
+kronos.env
+backups/
+kronos_backup_*.json
+
 CLAUDE.md
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).

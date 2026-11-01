@@ -41,7 +41,33 @@ class BreakOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class _EntryBody(BaseModel):
+class _LeaveHoursMixin(BaseModel):
+    """``leave_hours`` as the human alternative to ``fraction``.
+
+    People say "3h of vacation", not "0.375 of the day". A request may carry either;
+    the server turns hours into the fraction using the target in force on that date
+    (see ``services.leave``), so callers never need the schedule.
+    Both at once is ambiguous and rejected; on a work day hours mean nothing.
+    """
+
+    leave_hours: float | None = Field(default=None, gt=0, le=24)
+
+    @model_validator(mode="after")
+    def _one_or_the_other(self):
+        if self.leave_hours is not None:
+            if "fraction" in self.model_fields_set:
+                raise ValueError("give either fraction or leave_hours, not both")
+            if getattr(self, "day_type", None) is DayType.WORK:
+                raise ValueError("work days have no leave_hours")
+        return self
+
+    @property
+    def hours_pending(self) -> bool:
+        """True while ``leave_hours`` still has to be turned into a fraction."""
+        return self.leave_hours is not None
+
+
+class _EntryBody(_LeaveHoursMixin):
     """Shared fields + cross-field validation for create / update payloads."""
 
     day_type: DayType = DayType.WORK
@@ -56,7 +82,9 @@ class _EntryBody(BaseModel):
 
     @property
     def is_partial(self) -> bool:
-        return self.day_type is not DayType.WORK and self.fraction < 1.0
+        # With hours still unresolved the day is treated as partial: the times it may
+        # carry are checked now, and the whole-day rules again once the fraction is known.
+        return self.day_type is not DayType.WORK and (self.fraction < 1.0 or self.hours_pending)
 
     def _check_times(self, *, required: bool) -> None:
         """Start/end/break rules shared by work days and the worked part of a partial
@@ -106,6 +134,34 @@ class EntryUpdate(_EntryBody):
     """Body for PUT /api/entries/{date} — same shape minus `date` (URL path)."""
 
 
+class ClockInIn(BaseModel):
+    """Body for POST /api/clock/in — start today's work day now.
+
+    Everything is optional: the server stamps its own wall clock (in ``TZ``) unless
+    ``at`` is given, on ``date`` (default today). ``dry_run`` returns the entry it
+    would create without writing it.
+    """
+
+    date: date_ | None = None
+    at: HHMM | None = None
+    notes: str | None = None
+    dry_run: bool = False
+
+
+class ClockOutIn(BaseModel):
+    """Body for POST /api/clock/out — finish the started day with the end time now.
+
+    ``breaks`` are set on the way out (a started day cannot carry them yet); ``notes``
+    replaces the note only when present in the body.
+    """
+
+    date: date_ | None = None
+    at: HHMM | None = None
+    breaks: list[BreakIn] = Field(default_factory=list)
+    notes: str | None = None
+    dry_run: bool = False
+
+
 class EntryOut(BaseModel):
     date: date_
     day_type: DayType
@@ -119,6 +175,13 @@ class EntryOut(BaseModel):
     net_hours: float
     target_hours: float
     surplus_hours: float
+
+
+class EntryPreviewOut(EntryOut):
+    """What POST /api/entries/preview would have written: the day as the API would
+    return it, plus whether the date is already taken (a create would 409)."""
+
+    exists: bool
 
 
 class PeriodSummaryOut(BaseModel):
@@ -344,16 +407,19 @@ class ImportResultOut(BaseModel):
     errors: list[str]
 
 
-class BatchEntryIn(BaseModel):
+class BatchEntryIn(_LeaveHoursMixin):
     """Body for POST /api/entries/batch — log the same non-work day type across multiple dates.
 
     ``fraction`` (default 1.0, whole days) applies to every date; the batch UI doesn't
     expose it, but the time-off planner and API users can pencil in partial days.
+    ``leave_hours`` instead resolves per date against that date's target. ``notes``
+    goes on every created day.
     """
 
     dates: list[date_] = Field(..., min_length=1)
     day_type: DayType
     fraction: float = Field(default=1.0, gt=0, le=1)
+    notes: str | None = None
 
     @model_validator(mode="after")
     def _no_work(self):
@@ -370,11 +436,12 @@ class BatchResultOut(BaseModel):
 # ---------- time-off planner ----------------------------------------------
 
 
-class PlanBatchIn(BaseModel):
+class PlanBatchIn(_LeaveHoursMixin):
     """Body for POST /api/plans — draft the same leave across many dates.
 
     A date that already has a draft is re-drafted (type / fraction / notes replaced);
-    a date with a real entry is skipped, like batch logging.
+    a date with a real entry is skipped, like batch logging. ``leave_hours`` resolves
+    per date like it does for entries.
     """
 
     dates: list[date_] = Field(..., min_length=1)

@@ -17,3 +17,6 @@ README.md
 .env
 .vscode
 .idea
+kronos.env
+backups
+kronos_backup_*.json

@@ -27,17 +27,16 @@ it for the history of a decision, not by default). This file keeps only open and
 | 25 | Time-off planner (Plan tab, projection, ghost days) | `17c2cdb` |
 | 26 | Printable timesheet (Days → PDF, profile settings) | `17c2cdb` |
 | 27 | Spanish holidays from the BOE (+ list under the preview) | `bfdffe1`, `a1c8bff` |
-| 31 | Visual redesign: 5 tabs + gear, dashboard hero with trajectory and week strip, Settings cards, dense Days | branch `phases-31-33` (not merged) |
-| 33 | Interactive Analytics: zoomable SVG chart whose range drives the page, heatmap tooltip + click | branch `phases-31-33` (not merged) |
+| 31 | Visual redesign: 5 tabs + gear, dashboard hero with trajectory and week strip, Settings cards, dense Days | `35ad663` |
+| 33 | Interactive Analytics: zoomable SVG chart whose range drives the page, heatmap tooltip + click | `35ad663` |
 
 ---
 
 ## Open phases
 
-Suggested order (2026-10-28, 31 and 33 done): 32 next (it lives in `bin/` and the API, not the
-frontend, and Phase 28 needs it); 28 after 32 (Anselmo would log through the CLI); 29 any
-time, and before next October; 30 only if logging from the phone outside the LAN turns out to be
-common.
+Suggested order (2026-10-31, 31, 32 and 33 built): 28 next (Anselmo logs through the CLI
+Phase 32 delivered); 29 any time, and before next October; 30 only if logging from the phone
+outside the LAN turns out to be common.
 
 ### Phase 28 — Log Without Typing (idea, spike first)
 
@@ -66,24 +65,66 @@ The service worker caches only the app shell. Queue writes made offline on the p
 save a day) and sync them on reconnect, resolving conflicts per date. Serious frontend and e2e work;
 worth it only if logging from the phone outside the LAN is common.
 
-### Phase 32 — `kronos` CLI for Agents (planned)
+### Phase 32 — `kronos` CLI for Agents (built 2026-10-31, awaiting confirmation)
 
-Kronos has no CLI: `bin/kctl.py` only starts disposable instances for verification. An agent (an
-agentic coder, Anselmo) that wants to read or log days today must click the web UI or touch the
-database. Model it on lorca's `bin/lorca.py`.
+Kronos had no CLI: `bin/kctl.py` only starts disposable instances for verification. An agent (an
+agentic coder, Anselmo) that wanted to read or log days had to click the web UI or touch the
+database. Spec: one script, subcommands, `--json`; HTTP API only; `--target local|int|prod` with
+URLs from env or a git-ignored file; every write with `--dry-run`; a write to PROD takes a backup
+first; gaps in the API get filled in the API, never with a side door. Prerequisite of Phase 28.
 
-- Talks **only to the HTTP API**, never to SQLite. `--target local|int|prod` (URLs from env or a
-  git-ignored file, never the repo: it is publicly mirrored), `--json` on every command.
-- Reads: `today`, `balance` (week / month / cumulative), `days --month 2026-10`, `plan`, `config`.
-- Writes: `log 2026-10-27 --start 8:30 --end 16:45 --break 45`, `log 2026-10-28 --type vacation
-  [--hours 4]`, `clock in|out`, `plan add|rm`, `holidays import`, `backup` / `restore`. Every write
-  has `--dry-run` (prints the request and the resulting day without sending it), and a write to
-  PROD takes a backup first, as lorca's does.
-- Wherever the API lacks an endpoint a command needs, add it to the API (the UI then gets it too)
-  rather than giving the CLI a side door.
-- It is the prerequisite of Phase 28: Anselmo logging from Telegram would call this CLI.
+**Process.** Interview first (four rounds, 19 questions; record in `docs/interview_spec.md`),
+then one implementation pass, done in a Code Behaviors task and brought back on branch `phase32`
+(2026-11-01). Not yet confirmed by Miguel or deployed; the archive
+gets its summary when it is.
 
----
+**What shipped.**
+- `bin/kronos.py` (stdlib only, no packaging): reads `today` (the day + the three balances + the
+  streaks), `balance`, `days --month|--from/--to`, `plan --year`, `config`, `targets`, `check`;
+  writes `log` (work days; leave with `--hours`; `A..B` ranges and repeated dates for one leave
+  type through the batch endpoint; `--replace` to overwrite, otherwise a logged date is an
+  error), `clock in|out`, `plan add|rm|commit`, `holidays import`, `backup`, `restore --yes`.
+  `--target`, `--json`, `--dry-run` before or after the command. Exit codes 0 / 1 API / 2 usage /
+  3 unreachable or backup failed; `--json` errors as `{"error", "exit", "status"}`.
+- **Targets:** `KRONOS_{LOCAL,INT,PROD}_URL` in the environment or `kronos.env` (git-ignored,
+  `kronos.env.example` committed); env wins; `local` defaults to `http://localhost:8765`,
+  `int`/`prod` have no default. Decided against a console entry point / `pip install` for now.
+- **The PROD rule:** before a write to `prod` the CLI saves `GET /api/backup` to
+  `backups/prod/kronos_backup_<UTC>.json` (`KRONOS_BACKUP_DIR` to move it), fails closed, keeps
+  the newest 50 (only files of that exact name shape are pruned; a same-second write gets `-2`),
+  skips under `--dry-run`, and has no `--no-backup`. `int` takes none. `restore` wipes first, so it
+  backs up on every target and needs `--yes`. Rejected: a `--yes` on ordinary prod writes (an
+  unattended bot would pass it always, so it would protect nothing).
+- **API additions** (the UI can use them too): `POST /api/clock/in` and `/out` stamp the server's
+  wall clock in `TZ` (one definition of "now" for a bot in a UTC container; a `date` other than
+  today needs `at` — the first review found `clock out --date <future>` stamping 22:41 onto that
+  day, and the CLI now refuses before any request too); `POST
+  /api/entries/preview` validates and computes a day without writing it, with `exists`;
+  `leave_hours` as the alternative to `fraction` on entries, batch, preview and plans, converted
+  server-side against the target in force on each date (hours equal to the target are a whole
+  day, more is a 422); `notes` on batch logging; `dry_run` on the clock endpoints.
+- **Optimisations** (all seven agreed in the interview): the per-row `session.get` loops became
+  one `IN` query or an anti-join (dashboard drafts, `list_plans`, `draft_plans`, `commit_plans`,
+  batch, holiday import/preview, CSV import); `_whole_history` filters in SQL; `projection` reads
+  the entries and the drafts once; `DailyTargetSchedule.for_date` is a binary search and
+  `entry_to_out` resolves it once per day; `GZipMiddleware` and a one-year `Cache-Control` on
+  `/static/vendor/*` (linked with a content-hash `?v=`, so a library bump is never served stale;
+  service-worker cache bumped to v30); the dashboard's first paint fetches entries, drafts and
+  streaks in parallel with the numbers; the migrations-vs-models test runs Alembic in-process on
+  an in-memory database (`config.attributes["connection"]`) instead of spawning an interpreter.
+- `deploy.sh` / `deploy-staging.sh` run `kronos check` after `smoke.py` and exclude `kronos.env`
+  and `backups/` from the sync.
+
+**Tests.** 35 unit (target resolution, env file, arguments, the `log` body, retention, the
+fail-closed backup, formatting), 41 API (clock, preview, `leave_hours`, batch notes, gzip and
+cache headers), 25 e2e running the CLI as a subprocess against the live server — the prod rule is
+proven by aiming `KRONOS_PROD_URL` at that server: the snapshot exists, is version 2 and predates
+the write; a dead port exits 3 with nothing written; `int` takes no backup; retention keeps 50.
+
+**Known limits.** `int`/`prod` cannot be reached from the sandbox; the proof is by URL. The
+holiday import needs the network the sandbox lacks (the CLI relays the API's 502). `plan rm` and
+`plan commit` over many dates are one request per date / one request, respectively; `log` over a
+range goes through `/batch` and so cannot carry times.
 
 ## Small items
 

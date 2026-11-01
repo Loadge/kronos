@@ -6,6 +6,8 @@ routers lift data out of SQLAlchemy and feed it into these functions.
 
 from __future__ import annotations
 
+import math
+from bisect import bisect_right
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -119,13 +121,10 @@ class DailyTargetSchedule:
         A date earlier than the first row falls back to the first row's hours (entries
         predating the earliest known contract use the earliest known target).
         """
-        hours = self.rows[0][1]
-        for eff, h in self.rows:
-            if eff <= d:
-                hours = h
-            else:
-                break
-        return hours
+        # Rows are sorted, so the row in force is the last one at or before ``d``:
+        # a binary search, since this runs once per entry of every summary.
+        index = bisect_right(self.rows, (d, math.inf))
+        return self.rows[max(index - 1, 0)][1]
 
 
 def _as_schedule(target: float | DailyTargetSchedule) -> DailyTargetSchedule:
@@ -143,6 +142,12 @@ def leave_fraction(entry: WorkEntry) -> float:
     return float(entry.fraction)
 
 
+def _target_from_full(entry: WorkEntry, full_target: float) -> float:
+    if entry.day_type in (DayType.WORK, DayType.FLEX):
+        return full_target
+    return round(full_target * (1.0 - leave_fraction(entry)), 4)
+
+
 def daily_target_for(entry: WorkEntry, daily_target: float | DailyTargetSchedule) -> float:
     """Hours the day is measured against.
 
@@ -152,10 +157,7 @@ def daily_target_for(entry: WorkEntry, daily_target: float | DailyTargetSchedule
     * vacation / sick / holiday: the target for the part of the day that was *not*
       leave — zero for a whole day, ``T * (1 - fraction)`` for a partial one.
     """
-    target = _as_schedule(daily_target).for_date(entry.date)
-    if entry.day_type in (DayType.WORK, DayType.FLEX):
-        return target
-    return round(target * (1.0 - leave_fraction(entry)), 4)
+    return _target_from_full(entry, _as_schedule(daily_target).for_date(entry.date))
 
 
 def leave_hours_for(entry: WorkEntry, daily_target: float | DailyTargetSchedule) -> float:
@@ -164,6 +166,29 @@ def leave_hours_for(entry: WorkEntry, daily_target: float | DailyTargetSchedule)
     if f == 0.0:
         return 0.0
     return round(_as_schedule(daily_target).for_date(entry.date) * f, 4)
+
+
+@dataclass(frozen=True)
+class DayFigures:
+    """Everything the API says about one day's hours, from one schedule lookup."""
+
+    net_hours: float
+    target_hours: float
+    leave_hours: float
+
+    @property
+    def surplus_hours(self) -> float:
+        return round(self.net_hours - self.target_hours, 2)
+
+
+def day_figures(entry: WorkEntry, daily_target: float | DailyTargetSchedule) -> DayFigures:
+    full = _as_schedule(daily_target).for_date(entry.date)
+    f = leave_fraction(entry)
+    return DayFigures(
+        net_hours=daily_net_hours(entry),
+        target_hours=_target_from_full(entry, full),
+        leave_hours=round(full * f, 4) if f else 0.0,
+    )
 
 
 def daily_net_hours(entry: WorkEntry) -> float:

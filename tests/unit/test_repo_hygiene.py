@@ -8,17 +8,17 @@
 
 from __future__ import annotations
 
-import os
 import re
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from app.database import Base
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
+
+from alembic import command
 
 REPO = Path(__file__).resolve().parents[2]
 CODE_DIRS = ("backend", "alembic", "tests", "bin")
@@ -63,21 +63,21 @@ class TestLineEndings:
 
 class TestMigrationsMatchModels:
     def test_upgrade_head_matches_metadata(self):
-        """Apply every migration to a fresh file and diff against the models."""
-        with tempfile.TemporaryDirectory() as tmp:
-            db = Path(tmp) / "kronos.db"
-            env = {**os.environ, "DATABASE_URL": f"sqlite:///{db.as_posix()}"}
-            subprocess.run(
-                [sys.executable, "-m", "alembic", "upgrade", "head"],
-                cwd=REPO,
-                env=env,
-                check=True,
-                capture_output=True,
-            )
-            engine = create_engine(f"sqlite:///{db.as_posix()}")
+        """Apply every migration to a fresh in-memory database and diff against the models.
+
+        Alembic runs in-process on a connection the test owns (``config.attributes``,
+        the documented hand-over), so no interpreter is spawned and no file is written.
+        """
+        engine = create_engine("sqlite://", poolclass=StaticPool)
+        try:
             with engine.connect() as conn:
+                cfg = Config(str(REPO / "alembic.ini"))
+                cfg.set_main_option("script_location", str(REPO / "alembic"))
+                cfg.attributes["connection"] = conn
+                command.upgrade(cfg, "head")
                 ctx = MigrationContext.configure(conn)
                 diff = compare_metadata(ctx, Base.metadata)
+        finally:
             engine.dispose()
         assert diff == [], "models and migrations differ — write a migration:\n" + "\n".join(
             str(d) for d in diff

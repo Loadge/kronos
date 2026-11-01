@@ -13,11 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.models import Break, WorkEntry
+from app.models import WorkEntry
 from app.schemas import CsvImportIn, EntryIn, EntryOut, ImportResultOut
 from app.services.computations import daily_net_hours, daily_target_for
 from app.services.settings import get_daily_target_schedule
-from app.services.views import entry_to_out
+from app.services.views import entry_from_body, entry_to_out, logged_dates
 
 router = APIRouter(prefix="/api", tags=["export"])
 
@@ -138,37 +138,29 @@ def import_csv(payload: CsvImportIn, session: Session = Depends(get_session)) ->
     imported: list[date_] = []
     skipped: list[date_] = []
     errors: list[str] = []
-    seen: set[date_] = set()
 
+    # Parse every row first (a bad row is reported, never aborts), then ask the DB
+    # once which of the valid dates are taken instead of once per row.
+    valid: list[EntryIn] = []
     # Header is line 1; first data row is line 2.
     for i, row in enumerate(reader, start=2):
         if not any((v or "").strip() for v in row.values()):
             continue  # skip fully blank rows
         try:
-            entry_in = _row_to_entry_in(row)
+            valid.append(_row_to_entry_in(row))
         except ValidationError as exc:
             errors.append(f"row {i}: {_first_error(exc)}")
-            continue
         except ValueError as exc:
             errors.append(f"row {i}: {exc}")
-            continue
 
+    seen = logged_dates(session, (e.date for e in valid))
+    for entry_in in valid:
         d = entry_in.date
-        if d in seen or session.get(WorkEntry, d):
+        if d in seen:
             skipped.append(d)
             continue
         seen.add(d)
-
-        entry = WorkEntry(
-            date=d,
-            day_type=entry_in.day_type.value,
-            fraction=entry_in.fraction,
-            start_time=entry_in.start_time,
-            end_time=entry_in.end_time,
-            notes=entry_in.notes,
-        )
-        entry.breaks = [Break(break_minutes=b.break_minutes) for b in entry_in.breaks]
-        session.add(entry)
+        session.add(entry_from_body(d, entry_in))
         imported.append(d)
 
     if imported:

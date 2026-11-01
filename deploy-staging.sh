@@ -82,6 +82,10 @@ if ! python bin/smoke.py "$URL"; then
   echo "✗  Smoke test FAILED — check: docker logs $CONTAINER" >&2
   exit 1
 fi
+if ! KRONOS_LOCAL_URL="$URL" python bin/kronos.py check; then
+  echo "✗  kronos check FAILED — the CLI's reads do not work against $URL" >&2
+  exit 1
+fi
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo ""

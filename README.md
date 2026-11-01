@@ -7,7 +7,7 @@ Single-user. No auth. One SQLite file. Runs as a Docker container behind your ow
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-523%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-599%20passing-brightgreen.svg)](#tests)
 
 ![Kronos dashboard and analytics](docs/demo.gif)
 
@@ -87,6 +87,10 @@ Log a day in a few seconds, then get out of the way.
 - **Command palette** (<kbd>.</kbd>), keyboard shortcuts, dark and light themes
 - **PWA-installable**, with a service worker for the app shell
 - **CSV import/export** and full JSON backup/restore
+- **A CLI for agents** — `bin/kronos.py` reads and logs days through the HTTP API from a
+  terminal, a script or a bot: `today`, `balance`, `days`, `plan`, `log`, `clock in|out`,
+  `holidays import`, `backup` / `restore`, each with `--json` and `--dry-run`, against
+  `local`, `int` or `prod` — a write to prod takes a backup first
 - **Printable timesheet** (Days → **PDF**) — a month, a year, or any range as a clean A4 document:
   every calendar day, hours as 7.50 or 7:30, *Compact* (hours only) or *Full* (target, Δ, running
   Σ), optional notes column and signature lines, light or dark, your name and employer from
@@ -226,6 +230,52 @@ a CSV without it imports as whole days.
 
 ---
 
+## The CLI
+
+`bin/kronos.py` is how an agent — an agentic coder, a chat bot such as Anselmo — reads and logs days without
+clicking the UI or touching the database. It talks **only to the HTTP API** of a running Kronos
+and needs nothing beyond the standard library.
+
+```sh
+python bin/kronos.py today                                  # today's day, the balances, the streaks
+python bin/kronos.py balance                                # week / month / cumulative
+python bin/kronos.py days --month 2026-10                   # a month (or --from/--to)
+python bin/kronos.py plan --year 2026                       # drafts + where Dec 31 lands
+python bin/kronos.py config
+
+python bin/kronos.py log today --start 8:30 --end 16:45 --break 45 --note "lab"
+python bin/kronos.py log 2026-10-28 --type vacation --hours 4 --start 9:00 --end 13:00
+python bin/kronos.py log 2026-12-24..2026-12-31 --type vacation --dry-run
+python bin/kronos.py clock in                               # the server stamps its own time
+python bin/kronos.py clock out --break 13:00-13:45
+python bin/kronos.py clock out --date yesterday --at 16:45   # another day always needs --at
+python bin/kronos.py plan add 2026-12-24..2026-12-26 --type vacation --note "trip"
+python bin/kronos.py plan commit --year 2026
+python bin/kronos.py holidays import --country ES --region ES-MD --year 2027
+python bin/kronos.py backup --out snap.json
+python bin/kronos.py restore snap.json --yes
+python bin/kronos.py --target prod --json today
+```
+
+- **Targets.** `--target local|int|prod` (default `local`). URLs come from `KRONOS_LOCAL_URL`,
+  `KRONOS_INT_URL`, `KRONOS_PROD_URL` — in the environment or in a git-ignored `kronos.env`
+  next to the repo root (copy `kronos.env.example`); the environment wins. `local` falls back to
+  `http://localhost:8765`; `int` and `prod` must be set. `kronos targets` shows what resolved.
+- **`--json`** on every command prints the API's own payloads (errors as `{"error", "exit"}`).
+- **`--dry-run`** on every write prints the request and asks the server what the day *would*
+  look like (`POST /api/entries/preview`, `dry_run` on the clock endpoints, the holiday
+  preview) — nothing is written.
+- **A write to `prod` takes a backup first** — `GET /api/backup` into `backups/prod/` (or
+  `KRONOS_BACKUP_DIR`), the newest 50 kept — and refuses to go on if that fails. `restore`
+  wipes before loading, so it takes that backup on every target and needs `--yes`.
+- `log` on a date that is already logged fails unless `--replace`; a range of dates takes one
+  leave type and never overwrites. Dates are `2026-10-27`, `today`, `yesterday` or `A..B`.
+- `check` is a GET-only report of every read the CLI relies on — safe on prod; the deploy
+  scripts run it after `smoke.py`.
+- Exit codes: 0 ok · 1 the API refused · 2 usage · 3 target unreachable (or the backup failed).
+
+---
+
 ## API
 
 Interactive docs at `/docs` once it's running.
@@ -234,10 +284,16 @@ Interactive docs at `/docs` once it's running.
 
 | | |
 |---|---|
-| `POST /api/entries` | Create a day (with breaks; `fraction` < 1 for partial leave) |
-| `POST /api/entries/batch` | Apply one non-work type across many dates (optional `fraction`) |
+| `POST /api/entries` | Create a day (with breaks; `fraction` < 1 — or `leave_hours` — for partial leave) |
+| `POST /api/entries/preview` | The day this body would produce, validated and computed, written nowhere (`exists` flags a taken date) |
+| `POST /api/entries/batch` | Apply one non-work type across many dates (optional `fraction` or `leave_hours`, `notes`) |
 | `GET /api/entries` | List, optional `from`/`to` range |
 | `GET · PUT · DELETE /api/entries/{date}` | Read, full replace (atomic break-set swap), delete |
+| `POST /api/clock/in` · `/api/clock/out` | Start / finish today's work day with the **server's** clock in `TZ` (`at`, `date`, `breaks`, `dry_run`); another day than today needs `at` — there is no "now" on it |
+
+Wherever a request takes a `fraction`, it takes `leave_hours` instead: the server converts
+using the target in force on that date ("3h of vacation" rather than 0.375), per date in a
+batch.
 
 **Analytics**
 
@@ -272,7 +328,7 @@ Interactive docs at `/docs` once it's running.
 
 | | |
 |---|---|
-| `GET /api/plans?year=` · `POST /api/plans` | Drafts; draft one leave type across dates (re-drafts, skips logged dates) |
+| `GET /api/plans?year=` · `POST /api/plans` | Drafts; draft one leave type across dates (re-drafts, skips logged dates; `fraction` or `leave_hours`) |
 | `PUT · DELETE /api/plans/{date}` | Change a draft's type / share / note, or drop it |
 | `POST /api/plans/commit` | Turn drafts into real entries (an existing entry wins) |
 | `GET /api/plans/projection?year=` | Balance at Dec 31 on target and at pace, vacation left after the plan |
@@ -298,26 +354,31 @@ make e2e              # Playwright end-to-end suite (see below)
 make check            # lint, then test, then e2e — what to run before a deploy
 ```
 
-**523 passing**, across four suites:
+**599 passing**, across four suites:
 
 | Suite | |
 |---|---|
-| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting |
-| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV |
+| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting, the CLI's pure parts (target resolution — env beats file, `int`/`prod` must be set — the `kronos.env` parser, date / time / break arguments, the request `log` builds, backup retention and the fail-closed safety backup) |
+| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV, `leave_hours` resolving per date against the schedule, the preview that writes nothing, clock in / out with a pinned server clock, gzip and the vendor cache headers |
 | **Integration** | Full CRUD flows, dashboard recalculation after state changes, cross-month weeks, export/import round-trips |
 | **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity (backup → wipe → restore → backup is identical), orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
-| **Repo hygiene** | The models and the Alembic migrations describe the same schema (autogenerate finds nothing to add after `upgrade head`); no phase numbers in code; no file mixes line endings |
+| **Repo hygiene** | The models and the Alembic migrations describe the same schema (Alembic runs in-process on an in-memory database; autogenerate finds nothing to add after `upgrade head`); no phase numbers in code; no file mixes line endings |
 
 ### End-to-end
 
-123 Playwright tests drive a real browser against a real uvicorn server: cross-tab journeys,
+148 tests drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
 viewport/responsive checks, the dashboard (hero, trajectory, week strip, quick-log, vacation
 notches), Settings sections saving on their own, the Days table (month separators, row click,
 notes), the Analytics chart (rectangle and wheel zoom, reset, presets, series switch, the range
 driving the ledger, weekday times, histogram and records, the heatmap tooltip and click), the
 Analytics section order, keyboard rules (Escape, no caret after a tab click), the partial-leave slider, the planner (click, drag, commit,
 notes, delete, opening days in Log, ghosts on the Log calendar), the timesheet picker and page
-(including Chromium's own PDF printer), and the smoke script itself. Excluded
+(including Chromium's own PDF printer), the smoke script itself, and the CLI: every read and
+write with its `--dry-run` (nothing written) and `--json`, the error contract, `check` green
+against the server and red against a dead port, and the prod rule simulated by URL —
+`KRONOS_PROD_URL` aimed at the test server leaves a valid snapshot taken *before* the write,
+aimed at a dead port exits 3 with nothing written and no file, `int` takes no backup, `restore`
+backs up everywhere, retention keeps exactly 50. Excluded
 from `make test` and from the Docker build (no browser in the image), so `deploy.sh` and
 `deploy-staging.sh` run them locally and abort if they fail or collect nothing.
 
@@ -335,7 +396,8 @@ pytest tests/e2e -v --headed   # watch it work
 `app.js`, the dashboard/analytics/planner endpoints and the timesheet, each with its expected
 shape — plus a
 negative control that must return 404, so a proxy answering 200 to everything cannot fake a
-pass. Both deploy scripts run it after the container is healthy and fail if it does.
+pass. Both deploy scripts run it after the container is healthy and fail if it does, then
+`python bin/kronos.py check` — the CLI's own GET-only report against the same URL.
 
 ```sh
 python bin/smoke.py https://kronos.example.com   # or: make smoke SMOKE_URL=...
@@ -414,7 +476,8 @@ kronos/
 │   ├── BUILD_PHASES_ARCHIVE.md  # completed phases: what was decided and why
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
-├── bin/                  # smoke.py (post-deploy checks) · kctl.py (disposable instance) · review_sandbox.sh (all checks, or serve on :8799)
+├── bin/                  # kronos.py (the CLI) · smoke.py (post-deploy checks) · kctl.py (disposable instance) · review_sandbox.sh (all checks, or serve on :8799)
+├── kronos.env.example    # where the CLI's local / int / prod targets go (copy to kronos.env, git-ignored)
 ├── deploy.sh             # one-command deploy to a remote Docker host over SSH
 ├── Dockerfile            # base → test (pytest, no e2e) → runtime; red tests = no image
 ├── docker-compose.yml

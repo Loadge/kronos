@@ -856,12 +856,15 @@ function app() {
       this.loading.dashboard = true;
       try {
         const year = new Date().getFullYear();
+        // Five requests in flight at once: the entries + drafts (the week strip and
+        // quick-log read them) and the streaks are independent of the dashboard numbers.
         const [dashboard, series, yoy] = await Promise.all([
           this.api('GET', '/api/dashboard'),
           this.api('GET', `/api/analytics/cumulative-series?year=${year}`),
           this.api('GET', '/api/analytics/yoy').catch(() => null),
+          this.loadDays(),
+          this.loadStreaks(),
         ]);
-        await this.loadDays();   // entries + drafts: the week strip and quick-log read them
         this.weekStart = this._mondayIso(new Date());
         this.series = series;
         this.yoy = yoy;
@@ -875,7 +878,6 @@ function app() {
         this.$nextTick(() => this.tickUpDashboard());
       } catch (e) { this.error = e.message; }
       finally { this.loading.dashboard = false; }
-      this.loadStreaks();
     },
 
     // streaks & milestones

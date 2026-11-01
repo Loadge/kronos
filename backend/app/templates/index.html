@@ -12,12 +12,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Kronos">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="stylesheet" href="/static/vendor/pico.min.css">
+  <link rel="stylesheet" href="/static/vendor/pico.min.css?v={{ vendor_v }}">
   <link rel="stylesheet" href="/static/styles.css">
   <!-- Apply persisted theme before first paint to avoid flash -->
   <script>(function(){var t=localStorage.getItem('k-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="/static/app.js" defer></script>
-  <script src="/static/vendor/alpine.min.js" defer></script>
+  <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
 <body>
 <main class="container" x-data="app()" x-init="init()" x-cloak>

@@ -28,6 +28,7 @@ from app.database import get_session
 from app.models import DayType, WorkEntry
 from app.schemas import CountryOut, HolidayImportOut, HolidayPreviewOut
 from app.services.boe_holidays import BOE_RESOLUTIONS, BoeHoliday, parse_fiestas
+from app.services.views import logged_dates
 
 router = APIRouter(prefix="/api/holidays", tags=["holidays"])
 
@@ -187,10 +188,11 @@ def import_holidays(
     """
     imported: list[date] = []
     skipped: list[date] = []
-    seen: set[date] = set()
+    holidays = _holidays_for(country.upper(), year, region)
+    seen = logged_dates(session, (d for d, _name, _regional in holidays))
 
-    for d, name, _regional in _holidays_for(country.upper(), year, region):
-        if d in seen or session.get(WorkEntry, d):
+    for d, name, _regional in holidays:
+        if d in seen:
             skipped.append(d)
             continue
         seen.add(d)
@@ -216,17 +218,12 @@ def preview_holidays(
     """
     out: list[HolidayPreviewOut] = []
     seen: set[date] = set()
-    for d, name, regional in _holidays_for(country.upper(), year, region):
+    holidays = _holidays_for(country.upper(), year, region)
+    taken = logged_dates(session, (d for d, _name, _regional in holidays))
+    for d, name, regional in holidays:
         if d in seen:
             continue
         seen.add(d)
-        out.append(
-            HolidayPreviewOut(
-                date=d,
-                name=name,
-                regional=regional,
-                exists=session.get(WorkEntry, d) is not None,
-            )
-        )
+        out.append(HolidayPreviewOut(date=d, name=name, regional=regional, exists=d in taken))
     out.sort(key=lambda item: item.date)
     return out

@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import DayType, Plan, WorkEntry
-from app.routers.analytics import local_today
 from app.schemas import (
     PlanBatchIn,
     PlanBatchResultOut,
@@ -26,17 +25,20 @@ from app.schemas import (
     PlanUpdate,
     ProjectionOut,
 )
+from app.services.clock import local_today
 from app.services.computations import (
     DailyTargetSchedule,
     project_balance,
     summarize,
 )
+from app.services.leave import fraction_for_hours
 from app.services.settings import (
     get_daily_target_schedule,
     get_effective_cumulative_start,
     get_vacation_budget_days,
     get_work_week_days,
 )
+from app.services.views import logged_dates
 
 router = APIRouter(prefix="/api/plans", tags=["plans"])
 
@@ -83,10 +85,9 @@ def list_plans(
     if year is not None:
         stmt = stmt.where(Plan.date >= date(year, 1, 1), Plan.date <= date(year, 12, 31))
     schedule = get_daily_target_schedule(session)
-    return [
-        _plan_out(p, schedule, session.get(WorkEntry, p.date) is not None)
-        for p in session.scalars(stmt)
-    ]
+    plans = list(session.scalars(stmt))
+    taken = logged_dates(session, (p.date for p in plans))
+    return [_plan_out(p, schedule, p.date in taken) for p in plans]
 
 
 @router.post("", response_model=PlanBatchResultOut)
@@ -95,20 +96,30 @@ def draft_plans(body: PlanBatchIn, session: Session = Depends(get_session)) -> P
     drafted: list[date] = []
     replaced: list[date] = []
     skipped: list[date] = []
+    taken = logged_dates(session, body.dates)
+    existing = {
+        p.date: p for p in session.scalars(select(Plan).where(Plan.date.in_(set(body.dates))))
+    }
+    schedule = get_daily_target_schedule(session) if body.hours_pending else None
     for d in body.dates:
-        if session.get(WorkEntry, d):
+        if d in taken:
             skipped.append(d)
             continue
-        plan = session.get(Plan, d)
+        fraction = (
+            fraction_for_hours(body.leave_hours, d, schedule)
+            if schedule is not None
+            else body.fraction
+        )
+        plan = existing.get(d)
         if plan:
             plan.day_type = body.day_type.value
-            plan.fraction = body.fraction
+            plan.fraction = fraction
             plan.notes = body.notes
             replaced.append(d)
         else:
-            session.add(
-                Plan(date=d, day_type=body.day_type.value, fraction=body.fraction, notes=body.notes)
-            )
+            plan = Plan(date=d, day_type=body.day_type.value, fraction=fraction, notes=body.notes)
+            session.add(plan)
+            existing[d] = plan  # the same date twice in one request: the second replaces
             drafted.append(d)
     session.commit()
     return PlanBatchResultOut(drafted=drafted, replaced=replaced, skipped=skipped)
@@ -153,15 +164,19 @@ def commit_plans(body: PlanCommitIn, session: Session = Depends(get_session)) ->
     created: list[date] = []
     skipped: list[date] = []
     missing: list[date] = []
+    wanted = set(body.dates)
+    drafts = {p.date: p for p in session.scalars(select(Plan).where(Plan.date.in_(wanted)))}
+    taken = logged_dates(session, wanted)
     for d in body.dates:
-        plan = session.get(Plan, d)
+        plan = drafts.pop(d, None)
         if plan is None:
             missing.append(d)
             continue
-        if session.get(WorkEntry, d):
+        if d in taken:
             session.delete(plan)
             skipped.append(d)
             continue
+        taken.add(d)
         session.add(
             WorkEntry(date=d, day_type=plan.day_type, fraction=plan.fraction, notes=plan.notes)
         )
@@ -190,23 +205,33 @@ def projection(
     # summary, but from the start that applies at the horizon — with an annual reset
     # and a next-year horizon that is Jan 1 of that year, i.e. nothing yet.
     pace_start = get_effective_cumulative_start(session, today)
-    pace_summary = summarize(_entries_between(session, pace_start, today), schedule)
+    balance_start = get_effective_cumulative_start(session, horizon)
+    y0 = date(year, 1, 1)
+
+    # One read covers every window below (pace, balance, the future, the year):
+    # they all lie between the earliest start and the horizon or today.
+    lo = min(pace_start, balance_start, y0)
+    hi = max(horizon, today)
+    entries = _entries_between(session, lo, hi)
+
+    def between(start: date, end: date) -> list[WorkEntry]:
+        return [e for e in entries if start <= e.date <= end]
+
+    pace_summary = summarize(between(pace_start, today), schedule)
     pace = (
         round(pace_summary.surplus_hours / pace_summary.work_days, 4)
         if pace_summary.work_days
         else 0.0
     )
-    balance_start = get_effective_cumulative_start(session, horizon)
     if balance_start == pace_start:
         balance_today = pace_summary.surplus_hours
     else:
-        balance_today = summarize(
-            _entries_between(session, balance_start, today), schedule
-        ).surplus_hours
+        balance_today = summarize(between(balance_start, today), schedule).surplus_hours
 
     future_start = max(today + timedelta(days=1), balance_start)
-    entries_by_date = {e.date: e for e in _entries_between(session, future_start, horizon)}
-    drafts_by_date = {p.date: p for p in _plans_between(session, future_start, horizon)}
+    plans = _plans_between(session, min(future_start, y0), horizon)
+    entries_by_date = {e.date: e for e in between(future_start, horizon)}
+    drafts_by_date = {p.date: p for p in plans if p.date >= future_start}
     pr = project_balance(
         balance_today=balance_today,
         pace_per_day=pace,
@@ -220,9 +245,8 @@ def projection(
 
     # Vacation budget for the year: real entries (past and logged ahead) plus drafts
     # that still stand (no real entry on their date).
-    y0, y1 = date(year, 1, 1), horizon
-    year_entries = _entries_between(session, y0, y1)
-    year_plans = _plans_between(session, y0, y1)
+    year_entries = between(y0, horizon)
+    year_plans = [p for p in plans if p.date >= y0]
     logged_dates = {e.date for e in year_entries}
     used = sum(e.fraction for e in year_entries if e.day_type == DayType.VACATION)
     drafted_vac = sum(

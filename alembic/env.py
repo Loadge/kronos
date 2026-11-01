@@ -24,7 +24,12 @@ from app.database import Base  # noqa: E402
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
-if config.config_file_name is not None:
+# A caller that already holds a connection (the test that diffs the migrations against
+# the models runs Alembic in-process) hands it over in ``config.attributes`` — the
+# documented way — and keeps its own logging; the CLI configures logging from the ini.
+_shared_connection = config.attributes.get("connection")
+
+if config.config_file_name is not None and _shared_connection is None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
@@ -42,20 +47,27 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _migrate(connection) -> None:
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,  # SQLite-safe ALTERs
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
+    if _shared_connection is not None:
+        _migrate(_shared_connection)
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            render_as_batch=True,  # SQLite-safe ALTERs
-        )
-        with context.begin_transaction():
-            context.run_migrations()
+        _migrate(connection)
 
 
 if context.is_offline_mode():

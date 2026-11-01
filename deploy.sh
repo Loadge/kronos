@@ -78,6 +78,9 @@ echo "▸ Syncing files to $HOST:$REMOTE…"
 tar czf - \
   --exclude='./.git' \
   --exclude='./deploy.env' \
+  --exclude='./kronos.env' \
+  --exclude='./backups' \
+  --exclude='./kronos_backup_*.json' \
   --exclude='./__pycache__' \
   --exclude='./.pytest_cache' \
   --exclude='./data' \
@@ -131,6 +134,12 @@ if ! command -v python &>/dev/null; then
 fi
 if ! python bin/smoke.py "$URL"; then
   echo "✗  Smoke test FAILED — the new container is live but broken. Check: ssh $HOST docker logs $CONTAINER" >&2
+  exit 1
+fi
+# The CLI's own GET-only report: every read `bin/kronos.py` relies on, with its shape,
+# against the deployed API — so a deploy that breaks the agent's commands is caught here.
+if ! KRONOS_LOCAL_URL="$URL" python bin/kronos.py check; then
+  echo "✗  kronos check FAILED — the CLI's reads do not work against $URL" >&2
   exit 1
 fi
 
