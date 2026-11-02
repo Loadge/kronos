@@ -2392,7 +2392,7 @@ function app() {
       // The freelance blocks of the day, whatever the switch shows: a mixed day is shown whole.
       const fl = this.blocksOn(date);
       if (fl.length) {
-        const lines = fl.map(b => `<span class="hm-tip-fl-dot" style="background:${this.sourceColor(b.source_id)}"></span>${b.source_name} · ${this.fmtHours(b.hours)} · ${b.amount_eur === null ? 'no rate' : this.fmtMoney(b.amount_eur)}`);
+        const lines = fl.map(b => `<span class="hm-tip-fl-dot" style="background:${this.sourceColor(b.source_id)}"></span>${String(b.source_name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')} · ${this.fmtHours(b.hours)} · ${b.amount_eur === null ? 'no rate' : this.fmtMoney(b.amount_eur)}`);
         body += `<div class="hm-tip-fl">⚡ ${lines.join('<br>')}</div>`;
       }
       this.hmTip = { show: true, x: Math.min(window.innerWidth - 280, ev.clientX + 14), y: ev.clientY + 14, title, body, note, hint };

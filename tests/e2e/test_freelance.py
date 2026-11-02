@@ -364,6 +364,20 @@ class TestAnalytics:
         assert "€240" in page.locator(".an-bar-lbl").text_content()
         assert page.locator(".an-export a", has_text="Freelance CSV").count() == 1
 
+    def test_heatmap_tooltip_escapes_the_source_name(self, page, base_url):
+        d = datetime.date(YEAR, 3, 6)
+        src = _source(base_url, name="<img src=x onerror=window.__xss=1>")
+        _block(base_url, date=d.isoformat(), source_id=src, hours=2)
+        page.goto(f"{base_url}/#analytics")
+        page.wait_for_selector(".an-chart", timeout=5000)
+        page.locator(".an-presets button", has_text="This year").click()
+        page.locator(".page-head .hm-switch button", has_text="Freelance").click()
+        page.locator(f".hm-cell[data-date='{d.isoformat()}']").hover()
+        page.wait_for_selector(".hm-tip .hm-tip-fl", timeout=3000)
+        assert "<img src=x" in page.locator(".hm-tip").inner_text()
+        assert page.locator(".hm-tip img").count() == 0
+        assert page.evaluate("() => window.__xss") is None
+
 
 # ── settings on the phone ─────────────────────────────────────────────────────
 
