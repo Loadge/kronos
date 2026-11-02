@@ -269,3 +269,158 @@ def _count(t: Totals, e: WorkEntry | None, kind: str, schedule: DailyTargetSched
         t.holiday = round(t.holiday + off, 2)
     elif e.day_type == DayType.FLEX:
         t.flex = round(t.flex + off, 2)
+
+
+# ---------- the freelance timesheet ---------------------------------------------
+
+
+def fmt_money(amount: float, currency: str = "EUR") -> str:
+    """170.068 → "€170.07", USD → "$190.00"; thousands separated, a half cent up."""
+    symbol = "$" if currency == "USD" else "€"
+    cents = int(abs(amount) * 100 + 0.5)
+    whole, frac = divmod(cents, 100)
+    sign = "−" if amount < -0.005 else ""
+    return f"{sign}{symbol}{whole:,}.{frac:02d}"
+
+
+@dataclass(frozen=True)
+class BlockRow:
+    date: date
+    day: str  # "27"
+    weekday: str  # "Tue"
+    weekend: bool
+    source: str
+    hours: str  # formatted in the sheet's style
+    start: str
+    end: str
+    rate: str  # "$95.00"
+    amount: str  # in the block's currency
+    eur: str  # "" for a USD block without a rate
+    missing_fx: bool
+    notes: str
+
+
+@dataclass
+class BlockTotals:
+    minutes: int = 0
+    blocks: int = 0
+    eur: float = 0.0
+    by_currency: dict = field(default_factory=dict)  # "USD" -> amount
+    missing_fx: int = 0
+
+    @property
+    def hours(self) -> float:
+        return self.minutes / 60.0
+
+    def add_block(self, b) -> None:
+        self.blocks += 1
+        self.minutes += b.minutes
+        self.by_currency[b.currency] = self.by_currency.get(b.currency, 0.0) + b.amount
+        eur = b.amount_eur
+        if eur is None:
+            self.missing_fx += 1
+        else:
+            self.eur += eur
+
+    def add(self, other: BlockTotals) -> None:
+        self.blocks += other.blocks
+        self.minutes += other.minutes
+        self.eur += other.eur
+        self.missing_fx += other.missing_fx
+        for k, v in other.by_currency.items():
+            self.by_currency[k] = self.by_currency.get(k, 0.0) + v
+
+    @property
+    def amounts_label(self) -> str:
+        """ "$2,137.50 · €330.00" — the billed amounts in their own currencies."""
+        return " · ".join(fmt_money(v, k) for k, v in sorted(self.by_currency.items()))
+
+
+@dataclass
+class BlockMonth:
+    year: int
+    month: int
+    label: str
+    abbr: str
+    rows: list[BlockRow] = field(default_factory=list)
+    totals: BlockTotals = field(default_factory=BlockTotals)
+
+
+@dataclass
+class FreelanceTimesheet:
+    start: date
+    end: date
+    period_label: str
+    hours_style: str
+    sources: list[str]  # the names included, in the order of the sources table
+    months: list[BlockMonth]
+    totals: BlockTotals
+    multi_month: bool
+
+    def fmt(self, hours: float) -> str:
+        return fmt_hours(hours, self.hours_style)
+
+
+def build_freelance_timesheet(
+    blocks: Iterable,
+    *,
+    start: date,
+    end: date,
+    sources: Iterable[str],
+    work_week_days: Iterable[int],
+    hours_style: str = "dec",
+) -> FreelanceTimesheet:
+    """The blocks of a range, one row each, by month — only the days that have one.
+
+    Unlike the employee sheet this lists nothing for an empty day: a freelance sheet goes to
+    a client or the adviser, who wants the work billed, not the calendar. Amounts print in
+    the block's currency and in euros (blank, and flagged, for a dollar block that was saved
+    without a rate).
+    """
+    if end < start:
+        raise ValueError("end before start")
+    week = set(work_week_days)
+    months: list[BlockMonth] = []
+    section: BlockMonth | None = None
+    for b in sorted(blocks, key=lambda x: (x.date, x.id or 0)):
+        d = b.date
+        if section is None or (section.year, section.month) != (d.year, d.month):
+            section = BlockMonth(
+                d.year,
+                d.month,
+                f"{calendar.month_name[d.month]} {d.year}",
+                calendar.month_abbr[d.month],
+            )
+            months.append(section)
+        eur = b.amount_eur
+        section.rows.append(
+            BlockRow(
+                date=d,
+                day=f"{d.day:02d}",
+                weekday=d.strftime("%a"),
+                weekend=d.weekday() not in week,
+                source=b.source.name,
+                hours=fmt_hours(b.minutes / 60.0, hours_style),
+                start=b.start_time or "",
+                end=b.end_time or "",
+                rate=fmt_money(b.rate, b.currency),
+                amount=fmt_money(b.amount, b.currency),
+                eur="" if eur is None else fmt_money(eur),
+                missing_fx=eur is None,
+                notes=b.notes or "",
+            )
+        )
+        section.totals.add_block(b)
+    grand = BlockTotals()
+    for m in months:
+        grand.add(m.totals)
+    return FreelanceTimesheet(
+        start=start,
+        end=end,
+        period_label=period_label(start, end),
+        hours_style=hours_style,
+        sources=list(sources),
+        months=months,
+        totals=grand,
+        multi_month=len(months) > 1,
+    )

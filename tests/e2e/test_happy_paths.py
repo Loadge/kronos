@@ -285,9 +285,10 @@ class TestSettingsPersistence:
 
         target_input = page.locator("input[type='number']").first
         target_input.fill("6.5")
-
-        page.get_by_role("button", name="Save work").click()
-        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
+        # autosave: the card head confirms, no button to press
+        page.wait_for_selector(
+            "#settings-work .settings-card-head .settings-saved.is-saved", timeout=5000
+        )
 
         # Force a real reload — a fresh JS app instance re-fetching config,
         # not just Alpine state that never left the page.

@@ -40,6 +40,20 @@ def _work(date: str, start="09:00", end="18:00", notes=""):
     }
 
 
+def _wait_for(fetch, pred, timeout: float = 5.0):
+    """Poll an HTTP read until `pred` holds (autosaves land a moment after the keystroke)."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        value = fetch()
+        if pred(value):
+            return value
+        if time.monotonic() > deadline:
+            raise AssertionError(f"still not there after {timeout}s: {value!r}")
+        time.sleep(0.1)
+
+
 def _post(base_url: str, *bodies: dict) -> None:
     with httpx.Client(base_url=base_url) as c:
         for body in bodies:
@@ -140,51 +154,101 @@ class TestDashboard:
 
 
 class TestSettingsSections:
-    def test_index_lists_the_sections(self, page, base_url):
+    def test_index_has_two_levels(self, page, base_url):
+        """Three groups; the open group's sections under it; the other groups' cards are
+        not on the page until their group is opened."""
         page.goto(f"{base_url}/#settings")
+        page.evaluate("localStorage.removeItem('k-settings-group')")
+        page.reload()
         page.wait_for_selector(".settings-index a", timeout=5000)
-        assert page.locator(".settings-index a").all_inner_texts() == [
+        groups = page.locator(".settings-group-btn")
+        assert [t.split("\n")[0] for t in groups.all_inner_texts()] == [
+            "Employee",
+            "Freelance",
+            "General",
+        ]
+        assert page.locator(
+            ".settings-group.open .settings-group-sections a"
+        ).all_inner_texts() == [
             "Work",
             "Leave",
             "Holidays",
             "Profile",
             "Templates",
-            "Data",
         ]
+        assert page.locator("#settings-data").count() == 0
         page.locator(".settings-index a", has_text="Profile").click()
         page.wait_for_function(
             "() => document.querySelector('.settings-index a.active')?.innerText === 'Profile'",
             timeout=3000,
         )
+        # the General group holds the data card, and the index follows
+        groups.nth(2).click()
+        page.wait_for_selector("#settings-data", timeout=3000)
+        assert page.locator("#settings-work").count() == 0
+        assert page.locator(
+            ".settings-group.open .settings-group-sections a"
+        ).all_inner_texts() == ["Data"]
+        # the choice survives a reload
+        page.reload()
+        page.wait_for_selector("#settings-data", timeout=5000)
 
-    def test_each_section_saves_only_its_fields_once_dirty(self, page, base_url):
+    def test_sections_save_themselves(self, page, base_url):
+        """No save buttons: a field saves half a second after the last keystroke, a switch
+        at once, an invalid value waits and says so; each section sends only its fields."""
         page.goto(f"{base_url}/#settings")
         page.wait_for_selector("#set-budget", timeout=5000)
-        save_leave = page.locator("#settings-leave button[type='submit']")
-        save_work = page.locator("#settings-work button[type='submit']")
-        assert save_leave.is_disabled()
-        assert save_work.is_disabled()
+        assert page.locator(".settings-card button", has_text="Save").count() == 0
+        leave_status = page.locator("#settings-leave .settings-card-head .settings-saved")
+        work_status = page.locator("#settings-work .settings-card-head .settings-saved")
+        assert leave_status.inner_text() == "" and work_status.inner_text() == ""
 
         page.locator("#set-budget").fill("25")
-        page.locator("#set-target").fill("7")
-        page.wait_for_function(
-            "() => !document.querySelector('#settings-leave button[type=submit]').disabled",
-            timeout=3000,
-        )
-        save_leave.click()
-        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
-        page.wait_for_function(
-            "() => document.querySelector('#settings-leave button[type=submit]').disabled",
-            timeout=3000,
-        )
-        # Leave went through; the still-dirty Work section did not.
-        assert not save_work.is_disabled()
+        page.wait_for_selector("#settings-leave .settings-saved.is-saved", timeout=5000)
         with httpx.Client(base_url=base_url) as c:
             cfg = c.get("/api/config").json()
-        assert cfg["vacation_budget_days"] == 25
-        assert cfg["daily_target_hours"] == 8
-        # The page stays on Settings: the other sections can still be edited.
+        assert cfg["vacation_budget_days"] == 25 and cfg["daily_target_hours"] == 8
+        # the confirmation fades by itself
+        page.wait_for_function(
+            "() => document.querySelector('#settings-leave .settings-card-head .settings-saved')"
+            ".innerText === ''",
+            timeout=5000,
+        )
+
+        # an empty target is invalid: nothing is sent, the card says so
+        page.locator("#set-target").fill("")
+        page.wait_for_selector("#settings-work .settings-saved.is-invalid", timeout=5000)
+        assert work_status.inner_text() == "check the value"
+        page.locator("#set-target").fill("7")
+        page.wait_for_selector("#settings-work .settings-saved.is-saved", timeout=5000)
+        # a switch saves at once
+        page.locator("#set-reset").check()
+        with httpx.Client(base_url=base_url) as c:
+            _wait_for(
+                lambda: c.get("/api/config").json(),
+                lambda cfg: cfg["reset_annually"] is True and cfg["daily_target_hours"] == 7,
+            )
+        # the page stays on Settings
         assert page.url.endswith("#settings")
+
+    def test_the_target_timeline_saves_itself(self, page, base_url):
+        page.goto(f"{base_url}/#settings")
+        page.wait_for_selector("#set-target", timeout=5000)
+        page.locator(".target-schedule summary").click()
+        page.locator(".btn-action-ghost", has_text="Add a change").click()
+        rows = page.locator(".target-schedule-row")
+        assert rows.count() == 2
+        rows.nth(1).locator("input[type='date']").fill("2026-06-01")
+        rows.nth(1).locator("input[type='number']").fill("6")
+        page.wait_for_selector(".target-schedule-actions .settings-saved.is-saved", timeout=5000)
+        with httpx.Client(base_url=base_url) as c:
+            sched = _wait_for(
+                lambda: c.get("/api/config/daily-target-schedule").json()["rows"],
+                lambda rows: rows[-1]["hours"] == 6,
+            )
+        assert sched[-1] == {"effective_from": "2026-06-01", "hours": 6.0}
+        # the current target follows the latest row
+        assert page.locator("#set-target").input_value() == "6"
 
 
 # ── days ──────────────────────────────────────────────────────────────────────
@@ -244,4 +308,4 @@ class TestDaysTable:
             "() => document.querySelectorAll('.days-table .day-row').length === 1", timeout=3000
         )
         assert page.locator(".notes-col mark").inner_text() == "Madrid"
-        assert "1 entries" in page.locator(".days-count").inner_text()
+        assert page.locator(".days-table .day-row").count() == 1

@@ -84,6 +84,7 @@ class Rules:
     employment_other_expenses: float
     startup_reduction: float
     pago_fraccionado: float
+    pago_fraccionado_deadlines: tuple[tuple[int, int], ...]  # (month, day) per quarter
 
 
 def _scale(rows: list[list[Any]]) -> Scale:
@@ -125,6 +126,9 @@ def rules_for(year: int, region: str = DEFAULT_REGION) -> Rules:
         employment_other_expenses=irpf["employment_other_expenses"],
         startup_reduction=irpf["startup_reduction"],
         pago_fraccionado=irpf["pago_fraccionado"],
+        pago_fraccionado_deadlines=tuple(
+            (int(m), int(d)) for m, d in irpf["pago_fraccionado_deadlines"]
+        ),
     )
 
 
@@ -292,6 +296,67 @@ def rate_from_net(net: float, billable: int, p: TaxParams, year: int) -> float |
         if hi - lo < 1e-9:
             break
     return hi
+
+
+@dataclass(frozen=True)
+class QuarterPayment:
+    """One quarter's modelo 130, unrounded.
+
+    The 130 is cumulative: 20% of the activity's net yield since 1 January, less what the
+    earlier quarters already paid, never below zero (a bad quarter pays nothing and is not
+    refunded until the Renta).
+    """
+
+    quarter: int  # 1..4
+    gross_ytd: float  # income since 1 January, to the end of the quarter
+    fixed_ytd: float  # the expenses and the RETA accrued so far (a twelfth a month)
+    yield_ytd: float  # gross - fixed - hard-to-justify expenses, floored at 0
+    cumulative: float  # 20% of yield_ytd: what the year has owed so far
+    payment: float  # cumulative less the earlier quarters' payments, floored at 0
+    deadline_month: int
+    deadline_day: int
+
+    @property
+    def deadline_in_next_year(self) -> bool:
+        return self.quarter == 4
+
+
+def quarter_payments(
+    gross_by_quarter: tuple[float, float, float, float], fixed_annual: float, year: int
+) -> tuple[QuarterPayment, ...]:
+    """The four modelo 130 payments of a year from the gross income of each quarter.
+
+    `fixed_annual` is what the year costs whatever the income — the deductible expenses and
+    the RETA cuota — accrued at a twelfth a month, so the base of each quarter is the income so
+    far less the costs so far. The 5% hard-to-justify expenses (capped) come off like in
+    `figures`, the start-up reduction does not (it only lowers the Renta).
+    """
+    r = rules_for(year)
+    out: list[QuarterPayment] = []
+    gross_ytd = paid = 0.0
+    for q, g in enumerate(gross_by_quarter, start=1):
+        gross_ytd += g
+        fixed_ytd = fixed_annual * 3 * q / 12
+        before = gross_ytd - fixed_ytd
+        hard = min(before * r.hard_to_justify_rate, r.hard_to_justify_max) if before > 0 else 0.0
+        yield_ytd = max(0.0, before - hard)
+        cumulative = yield_ytd * r.pago_fraccionado
+        payment = max(0.0, cumulative - paid)
+        paid += payment
+        month, day = r.pago_fraccionado_deadlines[q - 1]
+        out.append(
+            QuarterPayment(
+                quarter=q,
+                gross_ytd=gross_ytd,
+                fixed_ytd=fixed_ytd,
+                yield_ytd=yield_ytd,
+                cumulative=cumulative,
+                payment=payment,
+                deadline_month=month,
+                deadline_day=day,
+            )
+        )
+    return tuple(out)
 
 
 def month_figures(rate: float, billable: int, annual: Figures) -> tuple[float, float]:

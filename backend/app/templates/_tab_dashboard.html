@@ -1,6 +1,12 @@
 <!-- ========================= DASHBOARD ========================= -->
 <template x-if="tab==='dashboard'">
 <section aria-label="Dashboard">
+  <header class="page-head">
+    <div class="page-head-title"><h2>Dashboard</h2></div>
+    <div class="page-head-controls">
+      <span class="today-chip" x-text="todayChip()" :title="dashboard ? 'Today is ' + dashboard.today : ''"></span>
+    </div>
+  </header>
 
   <!-- skeleton while the first load is in flight -->
   <template x-if="!dashboard">
@@ -23,7 +29,6 @@
         <div class="hero-text" :title="daysTitle(dashboard.cumulative)">
           <div class="hero-label">
             <span>Cumulative · since <span x-text="sinceLabel()"></span></span>
-            <span class="today-chip" x-text="todayChip()" :title="'Today is ' + dashboard.today"></span>
           </div>
           <div class="hero-num metric" :class="surplusClass(dashboard.cumulative.surplus_hours)" aria-live="polite">
             <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animCumulative.toFixed(2)"></span>h
@@ -73,6 +78,33 @@
         </button>
       </div>
 
+      <!-- Freelance: only once an income source exists. Hours and gross this week and this
+           month, what to set aside, the last eight weeks as a sparkline. The employee hero
+           above is untouched by any of it. -->
+      <template x-if="flCard()">
+        <button type="button" class="fl-dash" @click="go('freelance')" data-testid="freelance-card"
+                title="Open the Freelance tab">
+          <span class="fl-dash-label"><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</span>
+          <span class="fl-dash-cell">
+            <span class="chip-label">this week</span>
+            <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().week.eur)"></b><small x-text="fmtHours(flCard().week.hours)"></small></span>
+          </span>
+          <span class="fl-dash-cell">
+            <span class="chip-label">this month</span>
+            <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().month.eur)"></b><small x-text="fmtHours(flCard().month.hours)"></small></span>
+          </span>
+          <span class="fl-dash-cell fl-dash-cell--aside" :title="'Set aside ' + Math.round(flCard().share * 100) + '% of what the month billed for the tax office'">
+            <span class="chip-label">set aside</span>
+            <span class="fl-dash-num metric"><b class="fl-aside" x-text="fmtMoney(flCard().setAside)"></b><small x-text="Math.round(flCard().share * 100) + '%'"></small></span>
+          </span>
+          <span class="fl-spark" aria-hidden="true" title="Freelance hours, the last eight weeks">
+            <template x-for="w in flCardSpark()" :key="w.key">
+              <i :class="w.now ? 'now' : ''" :style="'height:' + Math.max(8, w.pct) + '%'" :title="fmtHours(w.hours)"></i>
+            </template>
+          </span>
+        </button>
+      </template>
+
       <!-- This week, day by day: the old Week tab, as a strip of tiny bar charts.
            Always the current week; a day opens in Log. -->
       <div class="wk">
@@ -91,6 +123,7 @@
                     :aria-label="d.label + ' ' + d.iso + (d.entry ? '' : ' — no entry, click to log')">
               <span class="wd-top">
                 <span class="wd-dow" x-text="d.label"></span>
+                <template x-if="d.flHours > 0"><span class="wd-fl metric" :title="fmtHours(d.flHours) + ' freelance'" x-text="'⚡' + fmtHours(d.flHours)"></span></template>
                 <span class="wd-num" x-text="d.dayNum"></span>
               </span>
               <span class="wd-chart" :class="d.isWeekend && !d.entry && !d.draft ? 'wd-chart--off' : ''">

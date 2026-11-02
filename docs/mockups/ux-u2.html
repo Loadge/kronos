@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — UX round mockup · U2 "Side by side"</title>
+<link rel="stylesheet" href="_ux_base.css">
+<style>
+  /* ── U2: Log — the year as a 3×4 grid in the left column; Employee | Freelance side by side ── */
+  .log { display:grid; grid-template-columns:300px 1fr; gap:0 1.5rem; align-items:start; }
+  .log .left { position:sticky; top:1rem; }
+  .grid12 { display:grid; grid-template-columns:repeat(3,1fr); gap:.3rem; padding:.5rem; background:var(--k-surface); border:1px solid var(--k-border); border-radius:4px; margin-bottom:.9rem; }
+  .grid12 .mini { padding:.25rem .1rem; }
+  .grid12 .mini-grid { grid-template-columns:repeat(7,5px); gap:1px; } .grid12 .mini-grid i { width:5px; height:5px; }
+  .log .right { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1.25rem; align-items:start; }
+  .fl-block { grid-template-columns:auto 1fr auto; } .fl-block .acts { grid-column:1/-1; justify-self:end; }
+  /* ── U2: Days — sub-tabs with counts; a filter bar with a row per source and a totals line ── */
+  .subtabs { display:flex; gap:0; border-bottom:1px solid var(--k-border); margin:.5rem 0 1rem; }
+  .subtabs a { padding:.45rem 1rem; color:var(--k-muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; font-variant:small-caps; letter-spacing:.06em; font-size:1rem; }
+  .subtabs a.on { color:var(--k-brass); border-bottom-color:var(--k-brass); }
+  .subtabs a .num { font-variant:normal; letter-spacing:0; font-size:.78rem; color:var(--k-muted); margin-left:.4rem; }
+  .fbar { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:1rem; margin-bottom:1rem; }
+  .frows { border:1px solid var(--k-border); border-radius:6px; background:var(--k-surface); padding:.4rem .9rem; }
+  .frow { display:grid; grid-template-columns:auto auto 1fr auto auto auto; gap:.8rem; align-items:center; padding:.35rem 0; border-bottom:1px solid color-mix(in srgb,var(--k-border) 60%,transparent); font-size:.85rem; }
+  .frow:last-child { border-bottom:none; }
+  .frow.off { opacity:.5; }
+  .frow .n { text-align:right; color:var(--k-muted); font-size:.8rem; }
+  .ftot { border:1px solid color-mix(in srgb,var(--k-coin) 35%,var(--k-border)); border-radius:6px; background:linear-gradient(100deg,color-mix(in srgb,var(--k-coin) 9%,var(--k-surface)),var(--k-surface) 55%); padding:.6rem .9rem; display:flex; flex-direction:column; gap:.2rem; justify-content:center; }
+  .ftot b { font-size:1.35rem; color:var(--k-coin); }
+  /* ── U2: Analytics — the block shrinks to a toolbar with a mini heatmap when scrolled ── */
+  .pin { position:sticky; top:0; z-index:5; background:var(--k-bg); padding:.75rem 0 .6rem; margin:0 -1.5rem; padding-left:1.5rem; padding-right:1.5rem; border-bottom:1px solid transparent; transition:box-shadow .2s, border-color .2s; }
+  .pin.stuck { border-bottom-color:var(--k-border); box-shadow:0 10px 24px -14px rgba(0,0,0,.7); }
+  .pin .sec-head { margin-bottom:.5rem; }
+  .pin .hm, .pin .hm-months { transition:all .25s ease; }
+  .pin.stuck .hm { grid-template-rows:repeat(7,4px); gap:1px; } .pin.stuck .hm i { width:4px; height:4px; border-radius:1px; } .pin.stuck .hm i.gap { width:2px; }
+  .pin.stuck .hm-months { display:none; }
+  .pin.stuck .sec-head { margin-bottom:.25rem; } .pin.stuck .sec-head h2 { font-size:1rem; } .pin.stuck .hint { display:none; }
+  .pin.stuck .legend-a { display:none; }
+  /* ── U2: Freelance — the year as a strip: inputs, waterfall and eight tiles; no right column ── */
+  .ystrip { margin-top:1.25rem; border:1px solid var(--k-border); border-radius:8px; background:var(--k-surface); padding:.8rem 1.1rem; }
+  .ystrip-head { display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; }
+  .ystrip-head h3 { font-size:.95rem; }
+  .plan-in { display:flex; gap:.75rem; font-size:.8rem; margin-left:auto; }
+  .plan-in label { white-space:nowrap; } .plan-in input { width:3.6rem; text-align:right; font-family:ui-monospace,monospace; }
+  .tiles { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:.6rem; margin-top:.6rem; }
+  .tile { display:flex; flex-direction:column; gap:.1rem; font-size:.72rem; color:var(--k-muted); border-left:1px solid var(--k-border); padding-left:.6rem; }
+  .tile b { font-size:1rem; color:var(--k-text); font-family:ui-monospace,monospace; white-space:nowrap; }
+  .tile.net b { color:var(--k-surplus); font-size:1.2rem; }
+  .tile.gross b { font-size:1.2rem; }
+  .rail { list-style:none; margin:.6rem 0 0; padding:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.6rem; }
+  .qc { border:1px solid var(--k-border); border-radius:6px; background:var(--k-surface); padding:.6rem .8rem; font-size:.8rem; display:grid; grid-template-columns:1fr auto; gap:.2rem .6rem; align-items:baseline; }
+  .qc.run { border-color:color-mix(in srgb,var(--k-coin) 50%,var(--k-border)); }
+  .qc .pay { grid-column:1/-1; font-size:1rem; } .qc .pay b { color:var(--k-coin); }
+  .qc .dead { grid-column:1/-1; color:var(--k-muted); font-size:.7rem; }
+  @media (max-width:1100px) { .log .right { grid-template-columns:1fr; } }
+  @media (max-width:900px) { .log { grid-template-columns:1fr; } .log .left { position:static; } .fbar { grid-template-columns:1fr; } .tiles { grid-template-columns:repeat(4,1fr); } .rail { grid-template-columns:1fr 1fr; } }
+</style></head>
+<body>
+<div class="wrap">
+<header class="app">
+  <div class="brand"><div class="brand-logo"></div><div><h1>Kronos</h1><p class="muted" style="margin:.2rem 0 0;font-size:.85rem">25.00h ahead overall</p></div></div>
+  <nav class="tabs">
+    <a data-go="log" class="active">Log</a><a data-go="days">Days</a><a data-go="analytics">Analytics</a><a data-go="freelance">Freelance</a><a data-go="timesheet">⚡ Timesheet</a>
+  </nav>
+  <div class="controls"><button class="icon-btn" data-go="settings" id="gear">⚙</button><button class="icon-btn" id="theme">☀</button></div>
+</header>
+<div class="banner"><strong>U2 · "Side by side"</strong> — mockup of the UX round after Phases 34–35. Click the tabs (Log · Days · Analytics · Freelance · ⚡ Timesheet · ⚙). Resize for the phone. Invented numbers for Mon 2026-11-02.
+  Differs from U1 in: the Log layout (the year as a 3×4 grid of mini months in the left column, Employee and Freelance side by side), the Days filter (a bar with a row per source), the Analytics pin (the block shrinks to a toolbar with a mini heatmap), the Freelance year as a strip (no right column).</div>
+
+<!-- ═══════════════ SETTINGS (same in U1 and U2) ═══════════════ -->
+<section class="screen" id="settings">
+  <div class="settings">
+    <nav class="sindex">
+      <div class="sgroup open"><button class="sgroup-btn">Employee</button><div class="sgroup-sections"><a class="active">Work</a><a>Leave</a><a>Holidays</a><a>Profile</a><a>Templates</a></div></div>
+      <div class="sgroup"><button class="sgroup-btn">Freelance</button><div class="sgroup-sections"><a>Sources</a><a>Taxes</a><a>Projection</a><a>Currency</a></div></div>
+      <div class="sgroup"><button class="sgroup-btn">General</button><div class="sgroup-sections"><a>Data</a></div></div>
+    </nav>
+    <div>
+      <p class="note">No save buttons anywhere: a field saves itself half a second after you stop typing (switches and pickers at once). The card head shows a quiet <span class="num surplus">saved ✓</span> that fades. The group hints ("the job", "clients, rates, taxes" — and "data", for consistency) and the listed card/field hints are gone.</p>
+      <div class="scard"><div class="scard-head"><h3>Work</h3><span class="saved show">saved ✓</span></div>
+        <div class="srow"><span class="srow-key">Daily target</span><div class="srow-ctl"><input class="ctl-num" value="8"><span class="unit">h / day</span></div></div>
+        <div class="srow"><span class="srow-key">Default hours</span><div class="srow-ctl"><input class="ctl-time" type="time" value="09:00"><span class="unit">–</span><input class="ctl-time" type="time" value="17:00"></div></div>
+        <div class="srow"><span class="srow-key">Work week<small>Days that count toward the target; the forecast counts the remaining ones.</small></span><div class="srow-ctl weekpick"><span class="on">Mon</span><span class="on">Tue</span><span class="on">Wed</span><span class="on">Thu</span><span class="on">Fri</span><span>Sat</span><span>Sun</span></div></div>
+        <div class="srow"><span class="srow-key">Cumulative since<small>The running surplus / deficit starts on this date.</small></span><div class="srow-ctl"><input class="ctl-date" type="date" value="2025-01-01"></div></div>
+        <div class="srow"><span class="srow-key">Reset on January 1st<small>The cumulative clock restarts every year; past years stay in the yearly breakdown.</small></span><div class="srow-ctl"><span class="switch"></span></div></div>
+        <details class="timeline"><summary>Advanced: my contracted hours changed over time</summary>
+          <small>Did your hours per day change at some point? Add the date it started and the new hours. Each logged day is measured against the hours that applied on that date.</small>
+          <div class="trow"><span class="muted">From</span><input class="ctl-date" type="date" value="2025-01-01"><span class="muted">hours / day</span><input class="ctl-num" value="8"><button class="btn sm">✕</button></div>
+          <div class="trow"><button class="btn sm">+ Add a change</button><span class="saved">saved ✓</span></div>
+        </details>
+      </div>
+      <div class="scard"><div class="scard-head"><h3>Leave</h3><span class="saved">saved ✓</span></div>
+        <div class="srow"><span class="srow-key">Vacation budget</span><div class="srow-ctl"><input class="ctl-num" value="22.5"><span class="unit">days</span></div></div>
+      </div>
+      <div class="scard"><div class="scard-head"><div><h3>Holidays</h3><p>Import <strong>2026</strong>'s official public holidays as <code>holiday</code> days. Logged dates are skipped, nothing is overwritten.</p></div><button class="btn primary">Import 12 holidays</button></div>
+        <div class="srow"><span class="srow-key">Country</span><div class="srow-ctl"><select><option>Spain</option></select></div></div>
+        <div class="srow"><span class="srow-key">Region<small>Needed for the regional dates; without one only the holidays every region shares are imported.</small></span><div class="srow-ctl"><select><option>ES-AN</option></select></div></div>
+      </div>
+      <div class="scard"><div class="scard-head"><div><h3>Profile</h3><p>Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p></div><span class="saved">saved ✓</span></div>
+        <div class="srow"><span class="srow-key">Name</span><div class="srow-ctl"><input class="ctl-text" placeholder="Your name"></div></div>
+        <div class="srow"><span class="srow-key">Employer / client</span><div class="srow-ctl"><input class="ctl-text" placeholder="Company"></div></div>
+        <div class="srow"><span class="srow-key">Extra line</span><div class="srow-ctl"><input class="ctl-text" placeholder="Employee nº, team, contract…"></div></div>
+      </div>
+      <div class="scard"><div class="scard-head"><h3>Day templates</h3></div><p class="muted" style="font-size:.9rem">No templates yet — <a>log a day</a> and use "Save as template" below the form.</p></div>
+
+      <h2 style="font-size:1.1rem;margin:1.5rem 0 .75rem;color:var(--k-muted)">Freelance group (scrolled for the mockup)</h2>
+      <div class="scard"><div class="scard-head"><div><h3>Income sources</h3><p>Who you bill, at what rate, in which currency. A block takes its source's rate when it is saved — changing a rate here never rewrites the past.</p></div></div>
+        <div class="src-item" style="--src:var(--k-coin)"><span class="dot"></span><strong>Northwind Labs</strong><span class="num muted">· $95.00/h</span><span class="tag">default</span><small class="muted">26 blocks</small><span class="src-actions"><button class="btn sm">Edit</button><button class="btn sm">Archive</button></span></div>
+        <div class="src-item" style="--src:var(--k-ink)"><span class="dot"></span><strong>Local consulting</strong><span class="num muted">· €60.00/h</span><small class="muted">9 blocks</small><span class="src-actions"><button class="btn sm">Make default</button><button class="btn sm">Edit</button><button class="btn sm">Archive</button></span></div>
+        <div style="display:flex;gap:.5rem;align-items:center;margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--k-border)"><input placeholder="Client or activity" style="flex:1"><input class="ctl-num" placeholder="rate"><select><option>€ / h</option><option>$ / h</option></select><button class="btn primary">Add</button></div>
+      </div>
+      <div class="scard"><div class="scard-head"><div><h3>Taxes</h3><p>What the year's estimate needs. A year without values of its own uses the latest earlier year's. Region: Andalucía.</p></div><span class="saved show">2026 saved ✓</span></div>
+        <div class="srow"><span class="srow-key">Year<small>2026's own values.</small></span><div class="srow-ctl year-switch"><button>‹</button><span class="num">2026</span><button>›</button></div></div>
+        <div class="srow"><span class="srow-key">Gross salary of the job<small>Held at the same time (pluriactividad): the freelance income is taxed at the marginal rate on top of it. 0 if none.</small></span><div class="srow-ctl"><input class="ctl-num" value="55000"><span class="unit">€ / year</span></div></div>
+        <div class="srow"><span class="srow-key">Tarifa plana</span><div class="srow-ctl"><span class="switch"></span></div></div>
+        <div class="srow"><span class="srow-key">Start-up reduction<small>20 % off the net yield in the first two years with a positive yield. Lowers the Renta, not the quarterly 130.</small></span><div class="srow-ctl"><span class="switch"></span></div></div>
+        <div class="srow"><span class="srow-key">Set aside<small>The share of every payment put by for the tax office.</small></span><div class="srow-ctl"><input class="ctl-num" value="40"><span class="unit">%</span></div></div>
+        <div class="srow"><span class="srow-key">Gestoría</span><div class="srow-ctl"><input class="ctl-num" value="600"><span class="unit">€ / year</span></div></div>
+        <div class="srow"><span class="srow-key">Other deductible expenses</span><div class="srow-ctl"><input class="ctl-num" value="0"><span class="unit">€ / year</span></div></div>
+        <p class="muted" style="font-size:.78rem;margin:.75rem 0 .25rem">Rules: 2026 figures, Andalucía. Estimates for planning — check with an adviser. <a>Drop 2026's own values</a></p>
+      </div>
+      <div class="scard"><div class="scard-head"><div><h3>Projection</h3><p>How the Freelance tab carries the year to December 31.</p></div><span class="saved">saved ✓</span></div>
+        <div class="srow"><span class="srow-key">Planned hours a week<small>At the rate realised so far this year, or the default source's before the first block.</small></span><div class="srow-ctl"><input class="ctl-num" value="6"><span class="unit">h / week</span></div></div>
+        <div class="srow"><span class="srow-key">Days off a year<small>Days without freelance work — holidays, trips. Spread over the year.</small></span><div class="srow-ctl"><input class="ctl-num" value="30"><span class="unit">days</span></div></div>
+      </div>
+      <div class="scard"><div class="scard-head"><div><h3>Currency</h3><p>Sources bill in euros or dollars; everything is added up in euros.</p></div><button class="btn sm">Ask again</button></div>
+        <div class="srow"><span class="srow-key">EUR / USD today<small>This asks the Banco Central Europeo.</small></span><div class="srow-ctl"><span class="fx-pill num">$1.1172 per € · ECB 2026-10-30</span></div></div>
+        <div class="srow"><span class="srow-key">A dollar block<small>keeps the rate of its own day, taken once when it is saved (a weekend takes Friday's) and editable by hand from the Log tab (✎).</small></span><div class="srow-ctl"></div></div>
+      </div>
+      <p class="note">The rate comes from the <em>European</em> Central Bank (Banco Central Europeo), not a Spanish one — the line says so; say if you'd rather another wording.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ LOG · U2 ═══════════════ -->
+<section class="screen on" id="log">
+  <div class="sec-head"><h2 style="display:flex;gap:.6rem;align-items:center"><a class="btn sm" title="Back to a new entry — stays in October">←</a> Edit 2026-10-07</h2>
+    <span class="year-switch"><button>‹</button><span class="num">2026</span><button>›</button></span></div>
+  <p class="note">The year lives in the left column as a 3×4 grid of mini months above the month — the whole left side is "where am I in the year". No arrows, no month name: the lit mini month is the title. Employee and Freelance sit <em>side by side</em> (1100px+; stacked below that and on the phone), so both halves of a day are in view at once. ← after editing Oct 7 stays in October.</p>
+  <div class="log">
+    <div class="left">
+      <div class="grid12" id="strip1"></div>
+      <div class="cal"><div class="cal-grid" id="cal1"></div>
+        <div class="legend"><span><i style="background:var(--k-surplus)"></i>Surplus</span><span><i style="background:var(--k-deficit)"></i>Deficit</span><span><i style="background:var(--k-muted)"></i>On target</span><span><i style="background:var(--k-vacation)"></i>Vacation</span><span><i style="background:var(--k-sick)"></i>Sick</span><span><i style="background:var(--k-holiday)"></i>Holiday</span><span><i style="border:1px solid var(--k-border);position:relative"><b style="position:absolute;right:1px;bottom:1px;width:4px;height:4px;border-radius:50%;background:var(--k-coin)"></b></i>Freelance</span></div>
+      </div>
+      <p style="text-align:center;margin-top:.75rem"><button class="btn">Log multiple days…</button></p>
+    </div>
+    <div class="right">
+      <div class="card">
+        <div class="card-title"><h3>👔 Employee</h3><span class="hint">target · balance · timesheet</span></div>
+        <div class="field"><label>Day type <span class="pill work">work</span></label><select style="width:10rem"><option>Work</option></select></div>
+        <div style="display:flex;gap:1.5rem"><div class="field" style="flex:1"><label>Start time</label><input type="time" value="09:00"></div><div class="field" style="flex:1"><label>End time</label><input type="time" value="18:45"></div></div>
+        <div class="field"><label>Breaks</label><div style="display:flex;gap:.5rem;align-items:center;font-size:.85rem;flex-wrap:wrap"><input type="time" style="width:6.5rem"><span class="muted">→</span><input type="time" style="width:6.5rem"><span class="muted">or</span><input class="ctl-num" value="30" style="width:4rem"><span class="muted">30min</span><button class="btn sm">−</button></div><button class="btn sm" style="align-self:flex-start;margin-top:.4rem">+ Add break</button></div>
+        <div class="impact"><div><small>Net</small><b>9.25h</b></div><div><small>Target</small><b>8h</b></div><div><small>Δ</small><b class="surplus">+1.25h</b></div></div>
+        <div class="field"><label>Notes <span class="muted" style="font-size:.75em">(optional)</span></label><div style="border:1px solid var(--k-border);border-radius:4px;height:5rem;padding:.6rem .75rem;color:var(--k-muted);font-size:.9rem">anything worth remembering about this day…</div></div>
+        <button class="cta">Save changes</button><button class="btn" style="width:100%;margin-top:.5rem">Delete</button>
+      </div>
+      <div class="card fl-card">
+        <div class="card-title"><h3><span class="coin">⚡</span> Freelance</h3><span class="hint num" style="color:var(--k-text)">1.5h · <b class="coin">€90.00</b></span></div>
+        <div class="fl-block" style="--src:var(--k-ink)"><span class="dot"></span><span><b>Local consulting</b> <span class="num">1.5h</span> <small class="muted num">18:00–19:30</small><br><small class="muted">evening fix</small></span><span class="num fl-amt">€90.00</span><span class="acts"><button class="btn sm">✎</button> <button class="btn sm">✕</button></span></div>
+        <div class="field" style="margin-top:.8rem"><span class="lbl">Source</span><select><option>Northwind Labs · $95.00/h</option></select></div>
+        <div class="field"><span class="lbl"><u style="color:var(--k-coin)">Hours</u> · Start – end</span><span class="stepper" style="width:100%"><button style="flex:1">−</button><input value="1"><button style="flex:1">+</button></span></div>
+        <div class="field"><span class="lbl">Note</span><input placeholder="what for"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;flex-wrap:wrap;gap:.5rem"><span class="num">≈ <b class="coin">$95.00</b> <span class="muted">at $95.00/h</span></span><button class="btn coin">+ Add block</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DAYS · U2 ═══════════════ -->
+<section class="screen" id="days">
+  <div class="sec-head"><h2>Days</h2><div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap"><select><option>All years</option><option>2026</option></select><input type="search" placeholder="Search notes…" style="width:11rem"><button class="btn sm">⚡ PDF</button></div></div>
+  <div class="subtabs"><a>Employee <span class="num">65 days</span></a><a class="on">⚡ Freelance <span class="num">36 blocks</span></a></div>
+  <p class="note">Two sub-tabs under the title with their counts. In ⚡ Freelance a filter bar: a row per source with its checkbox and its share (blocks · hours · €), <b>all / none</b> at the top, and a totals tile for what is ticked. The PDF button follows the tab (Employee → the timesheet as today; ⚡ → the freelance one, sources pre-ticked).</p>
+  <div class="fbar">
+    <div class="frows">
+      <div class="frow" style="font-size:.76rem;color:var(--k-muted)"><span></span><span></span><span>Sources <a>all</a> · <a>none</a></span><span class="n">blocks</span><span class="n">hours</span><span class="n">€</span></div>
+      <div class="frow" style="--src:var(--k-coin)"><input type="checkbox" checked><span class="dot"></span><span>Northwind Labs</span><span class="n num">26</span><span class="n num">63.25h</span><span class="n num">€5,400</span></div>
+      <div class="frow" style="--src:var(--k-ink)"><input type="checkbox" checked><span class="dot"></span><span>Local consulting</span><span class="n num">9</span><span class="n num">17h</span><span class="n num">€1,020</span></div>
+      <div class="frow off" style="--src:var(--k-flex)"><input type="checkbox"><span class="dot"></span><span>Old client <span class="tag" style="border-color:var(--k-border-strong);color:var(--k-muted)">archived</span></span><span class="n num">1</span><span class="n num">1.5h</span><span class="n num">€0</span></div>
+    </div>
+    <div class="ftot"><span class="lbl">selected</span><b class="num">€6,419.66</b><span class="num muted" style="font-size:.82rem">35 blocks · 80.25h · €80.00/h</span></div>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th></th><th>Source</th><th class="r">Start</th><th class="r">End</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">€</th><th>Note</th><th></th></tr></thead>
+    <tbody>
+      <tr class="sep"><td colspan="11">November 2026 <span class="num">2 blocks · 3h · €270.00</span></td></tr>
+      <tr><td class="num">2026-11-02</td><td class="muted">Mon</td><td><span class="dot" style="--src:var(--k-ink)"></span> Local consulting</td><td class="r num">18:00</td><td class="r num">19:30</td><td class="r num">1.5h</td><td class="r num">€60.00</td><td class="r num">€90.00</td><td class="r num coin">€90.00</td><td class="muted">evening fix</td><td>✎</td></tr>
+      <tr><td class="num">2026-11-02</td><td class="muted">Mon</td><td><span class="dot"></span> Northwind Labs</td><td class="r num">—</td><td class="r num">—</td><td class="r num">1.5h</td><td class="r num">$95.00</td><td class="r num">$142.50</td><td class="r num coin">€127.55</td><td class="muted"></td><td>✎</td></tr>
+      <tr class="sep"><td colspan="11">October 2026 <span class="num">14 blocks · 31.25h · €2,066.40</span></td></tr>
+      <tr><td class="num">2026-10-31</td><td class="muted">Sat</td><td><span class="dot"></span> Northwind Labs</td><td class="r num">09:30</td><td class="r num">13:30</td><td class="r num">4h</td><td class="r num">$95.00</td><td class="r num">$380.00</td><td class="r num coin">€340.14</td><td class="muted">report</td><td>✎</td></tr>
+      <tr><td class="num">2026-10-29</td><td class="muted">Thu</td><td><span class="dot" style="--src:var(--k-ink)"></span> Local consulting</td><td class="r num">18:30</td><td class="r num">19:30</td><td class="r num">1h</td><td class="r num">€60.00</td><td class="r num">€60.00</td><td class="r num coin">€60.00</td><td class="muted"></td><td>✎</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════ ⚡ TIMESHEET (same in U1 and U2) ═══════════════ -->
+<section class="screen" id="timesheet">
+  <p class="note">The freelance timesheet page (Days → ⚡ PDF), a sibling of the employee one: same toolbar-as-GET-form, plus the sources to include as checkboxes; a section per month with subtotals; hours, amount in the source's currency and in euros; optional notes and signature lines. Print → Save as PDF as before.</p>
+  <div class="card" style="background:#faf4e8;color:#1f1b15;max-width:820px;margin:0 auto">
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;font-size:.8rem;padding-bottom:.6rem;border-bottom:1px solid #d9cfbb">
+      <span>From <input type="date" value="2026-10-01" style="color:#1f1b15;border-color:#b5a992"></span><span>To <input type="date" value="2026-10-31" style="color:#1f1b15;border-color:#b5a992"></span>
+      <span>Sources: <label><input type="checkbox" checked> Northwind Labs</label> <label><input type="checkbox" checked> Local consulting</label> <label><input type="checkbox"> Old client</label></span>
+      <span>Hours <b>7.50</b> / 7:30</span><label><input type="checkbox"> Notes</label><label><input type="checkbox"> Signature lines</label><span style="margin-left:auto"><button class="btn sm" style="color:#1f1b15;border-color:#b5a992">Update</button></span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:1rem 0 .4rem"><h2 style="font-size:1.3rem">⚡ Freelance timesheet · October 2026</h2><span style="font-size:.8rem;text-align:right">Juan Pérez<br>Northwind Labs · Local consulting</span></div>
+    <table style="color:#1f1b15"><thead><tr><th>Date</th><th></th><th>Source</th><th class="r">Start</th><th class="r">End</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">EUR</th></tr></thead>
+      <tbody>
+        <tr><td class="num">2026-10-27</td><td>Tue</td><td>Northwind Labs</td><td class="r num">19:00</td><td class="r num">21:30</td><td class="r num">2.50</td><td class="r num">$95.00</td><td class="r num">$237.50</td><td class="r num">212.59</td></tr>
+        <tr><td class="num">2026-10-29</td><td>Thu</td><td>Local consulting</td><td class="r num">18:30</td><td class="r num">19:30</td><td class="r num">1.00</td><td class="r num">€60.00</td><td class="r num">€60.00</td><td class="r num">60.00</td></tr>
+        <tr><td class="num">2026-10-31</td><td>Sat</td><td>Northwind Labs</td><td class="r num">09:30</td><td class="r num">13:30</td><td class="r num">4.00</td><td class="r num">$95.00</td><td class="r num">$380.00</td><td class="r num">340.14</td></tr>
+        <tr style="font-weight:700"><td colspan="5">October 2026 · 14 blocks</td><td class="r num">31.25</td><td></td><td class="r num">$2,137.50 · €330.00</td><td class="r num">2,066.40</td></tr>
+      </tbody></table>
+    <p style="font-size:.72rem;color:#6d6353;margin:.8rem 0 0">USD at the ECB reference rate of each block's day. Rates as saved with each block.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ ANALYTICS · U2 ═══════════════ -->
+<section class="screen" id="analytics">
+  <div class="pin" id="pin1">
+    <div class="sec-head"><h2>Year at a glance</h2><div style="display:flex;gap:.75rem;align-items:center"><span class="hint">hover a day · click to open it in Log</span><span class="seg"><button class="on">Employee</button><button>⚡ Freelance</button></span><select><option>2026</option><option>2025</option></select></div></div>
+    <div class="hm" id="hm1"></div>
+    <div class="hm-months legend-a"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span></div>
+  </div>
+  <p class="note">U2 pins the block too, but once you scroll it <em>shrinks</em>: the title goes small, the hint and month labels go, the heatmap drops to 4px cells — a 60px toolbar that still shows the year's shape and keeps the switch and the year at hand (scroll down to see). Hovering the mini heatmap is not needed; click it and the page scrolls back up to the full one.</p>
+  <div class="sec-head" style="margin-top:1rem"><h2>Balance over time</h2><span class="hint">drag a rectangle to zoom · wheel · shift+drag · double-click</span></div>
+  <div class="an-row"><div><div class="seg"><button class="on">Balance</button><button>Per day</button><button>Per month</button><button>⚡ Income</button></div><div class="chart-ph">the zoomable chart (as today)</div></div>
+    <aside class="ledger"><h3 class="muted" style="font-size:.78rem">Range</h3><div class="lrow big"><span>Balance</span><b class="surplus num">+25.00h</b></div><div class="lrow"><span>Net worked</span><b class="num">467h</b></div><div class="lrow"><span>Target</span><b class="num">442h</b></div><div class="lrow"><span>Work days</span><b class="num">55.25</b></div><div class="lrow" style="border-top:1px dashed var(--k-border);margin-top:.5rem"><span>⚡ Billed</span><b class="num coin">€6,419.66</b></div><div class="lrow"><span>€ / h gross · after tax</span><b class="num">€79.75 · ≈ €49.06</b></div></aside></div>
+  <div class="sec-head" style="margin-top:2rem"><h2>Weekday pattern</h2></div><div class="chart-ph" style="height:180px">weekday bars (as today)</div>
+  <div class="sec-head" style="margin-top:2rem"><h2>Daily surplus</h2></div><div class="chart-ph" style="height:160px">histogram (as today)</div>
+  <div class="sec-head" style="margin-top:2rem"><h2>Years</h2></div><div class="chart-ph" style="height:120px">the table (as today)</div>
+  <div class="sec-head" style="margin-top:2rem"><h2>Records</h2></div><div class="chart-ph" style="height:200px">records (as today)</div>
+</section>
+
+<!-- ═══════════════ FREELANCE · U2 ═══════════════ -->
+<section class="screen" id="freelance">
+  <div class="sec-head"><h2><span class="coin">⚡</span> Freelance</h2><span class="year-switch"><button>‹</button><span class="num">2026</span><button>›</button></span></div>
+  <div class="hero">
+    <div>
+      <div class="hero-label"><span>Billed · 2026</span><span class="today-chip">set aside €2,568</span></div>
+      <div class="hero-num num">€6,419.66</div>
+      <div class="hero-cap"><b>80.5h</b> · <b>€79.75/h</b> gross · ≈ <b class="surplus">€49.06/h</b> net · 35 blocks</div>
+      <div style="display:flex;gap:.4rem;margin-top:.7rem"><span class="chip on" style="--src:var(--k-coin)"><span class="dot"></span>Northwind Labs <b class="num coin">€5,400</b></span><span class="chip on" style="--src:var(--k-ink)"><span class="dot"></span>Local consulting <b class="num coin">€1,020</b></span></div>
+    </div>
+    <div><div class="months"><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i class="lbl" data-v="€2,008" style="height:58%"></i><i class="lbl" data-v="€2,346" style="height:68%"></i><i class="lbl" data-v="€2,066" style="height:60%"></i><i class="plan" style="height:40%"></i><i class="plan" style="height:44%"></i></div>
+      <div class="months-x"><span>J</span><span>F</span><span>M</span><span>A</span><span>M</span><span>J</span><span>J</span><span>A</span><span>S</span><span>O</span><span class="now">N</span><span>D</span></div></div>
+  </div>
+  <p class="note">U2: no right column at all. "The year to Dec 31" is a <em>strip</em> under the hero — the two inputs, the basis, a waterfall of where each euro goes, eight tiles — and the 130 keeps its four cards in a row, full width. Nothing is tall, nothing leaves a hole; the Calculator follows right after.</p>
+  <div class="ystrip">
+    <div class="ystrip-head"><h3>The year to Dec 31</h3><span class="hint"><b style="color:var(--k-text)">37.8h</b> still to bill over 6.3 weeks at €79.75/h (realised so far)</span>
+      <span class="plan-in"><label><input value="6"> <span class="muted">h / week</span></label><label><input value="30"> <span class="muted">days off</span></label></span></div>
+    <div class="fall" style="margin:.7rem 0 .3rem"><span class="ex" style="width:6%">exp.</span><span class="re" style="width:26%">RETA 26%</span><span class="ir" style="width:24%">IRPF 23%</span><span class="ne" style="width:44%">net 44%</span></div>
+    <div class="tiles">
+      <div class="tile gross"><span>Gross</span><b>€9,434.21</b></div><div class="tile"><span>Expenses</span><b>−€600.00</b></div><div class="tile"><span>RETA · tramo 1</span><b>−€2,470.57</b></div><div class="tile"><span>IRPF · 37.0%</span><b>−€2,213.75</b></div>
+      <div class="tile"><span>Refund · next year</span><b class="surplus">+€822.10</b></div><div class="tile net"><span>Net</span><b>€4,149.89</b></div><div class="tile"><span>Net per hour</span><b>€35.07/h</b></div><div class="tile"><span>Keeps of each €</span><b>44%</b></div>
+    </div>
+    <p class="muted" style="font-size:.72rem;margin:.6rem 0 0">On top of a €55,000 salary · 2026 rules, Andalucía · estimate: check with an adviser</p>
+  </div>
+  <div class="sec-head" style="margin:1.5rem 0 0"><h3 style="font-size:.95rem">Modelo 130 · the quarterly IRPF</h3><span class="hint">20 % of the net yield since 1 January, less what earlier quarters paid</span></div>
+  <ol class="rail">
+    <li class="qc"><b>Q1</b><span class="q-status">filed</span><span class="num muted">Jan 1 – Mar 31</span><span class="num muted">0h · €0.00</span><span class="pay num"><b>€0.00</b> to pay</span><span class="dead num">by Apr 20, 2026</span></li>
+    <li class="qc"><b>Q2</b><span class="q-status">filed</span><span class="num muted">Apr 1 – Jun 30</span><span class="num muted">0h · €0.00</span><span class="pay num"><b>€0.00</b> to pay</span><span class="dead num">by Jul 20, 2026</span></li>
+    <li class="qc"><b>Q3</b><span class="q-status">filed</span><span class="num muted">Jul 1 – Sep 30</span><span class="num muted">54h · €4,354.01</span><span class="pay num"><b>€475.21</b> to pay</span><span class="dead num">by Oct 20, 2026</span></li>
+    <li class="qc run"><b>Q4</b><span class="q-status run">running</span><span class="num muted">Oct 1 – Dec 31</span><span class="num muted">26.5h · €2,065.65</span><span class="pay num"><b>€275.12</b> to pay</span><span class="dead num">by Jan 30, 2027</span></li>
+  </ol>
+  <p class="muted num" style="font-size:.8rem;margin:.6rem 0 0">€750.33 through the 130 · the rest of the year's IRPF, <b class="deficit">+€7,074.36</b>, in the Renta</p>
+  <div class="sec-head" style="margin-top:1.5rem"><h2>Calculator</h2><span class="hint">hourly ⇄ daily ⇄ net yearly — change one, the other two follow</span><button class="btn sm">Start from this year</button></div>
+  <div class="calc"><div class="calc-fields"><label><span class="lbl">Hourly $</span><input class="num" value="100"></label><span class="muted" style="padding-bottom:.8rem">⇄</span><label><span class="lbl">Daily $</span><input class="num" value="200"></label><span class="muted" style="padding-bottom:.8rem">⇄</span><label><span class="lbl">Net a year €</span><input class="num" value="19938.23"></label></div>
+    <div class="fall"><span class="ex" style="width:2%"></span><span class="re" style="width:14%">RETA 14%</span><span class="ir" style="width:34%">IRPF 34%</span><span class="ne" style="width:50%">net 51%</span></div>
+    <div class="chart-ph" style="height:90px;margin-top:0">the assumptions and the breakdown (as today)</div></div>
+</section>
+
+<div class="ribbon" id="ribbon" style="display:none">✓ Settings saved</div>
+</div>
+<script>
+  // nav
+  const screens = [...document.querySelectorAll('.screen')];
+  document.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => {
+    screens.forEach(s => s.classList.toggle('on', s.id === el.dataset.go));
+    document.querySelectorAll('nav.tabs a').forEach(a => a.classList.toggle('active', a.dataset.go === el.dataset.go));
+    document.getElementById('gear').classList.toggle('active', el.dataset.go === 'settings');
+    window.scrollTo(0, 0);
+  }));
+  document.getElementById('theme').addEventListener('click', () => {
+    const h = document.documentElement; h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark';
+  });
+  // the year strip: twelve mini months (Mon-first), Oct lit
+  const K = ['s','s','d','n','s','s','d','s','s','s','v','v','k','s','h'];
+  function strip(el, active) {
+    for (let m = 0; m < 12; m++) {
+      const off = (new Date(2026, m, 1).getDay() + 6) % 7, days = new Date(2026, m + 1, 0).getDate();
+      let cells = '';
+      for (let i = 0; i < off; i++) cells += '<i class="pad"></i>';
+      for (let d = 1; d <= days; d++) { const dow = (off + d - 1) % 7; const logged = m >= 7 && m <= 9 && dow < 5 && !(m === 10 && d > 2); cells += `<i class="${logged ? K[(d * 7 + m) % K.length] : ''}"></i>`; }
+      el.insertAdjacentHTML('beforeend', `<button class="mini${m === active ? ' active' : ''}"><span class="mini-title">${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m]}</span><span class="mini-grid">${cells}</span></button>`);
+    }
+  }
+  strip(document.getElementById('strip1'), 9);
+  // the month calendar for October 2026, day 7 selected
+  function cal(el, sel) {
+    el.innerHTML = ['Mo','Tu','We','Th','Fr','Sa','Su'].map(d => `<span class="dow">${d}</span>`).join('');
+    const off = 3, days = 31;
+    for (let i = 0; i < off; i++) el.insertAdjacentHTML('beforeend', '<span class="day pad"></span>');
+    for (let d = 1; d <= days; d++) { const dow = (off + d - 1) % 7; const cls = dow < 5 ? K[(d * 3) % K.length] : ''; const fl = [1,6,8,13,15,20,22,27,29,31].includes(d); el.insertAdjacentHTML('beforeend', `<span class="day ${cls}${fl ? ' fl' : ''}${d === sel ? ' sel' : ''}">${d}</span>`); }
+  }
+  cal(document.getElementById('cal1'), 7);
+  // the heatmap: 12 months of columns
+  function heat(el) {
+    for (let m = 0; m < 12; m++) {
+      const off = (new Date(2026, m, 1).getDay() + 6) % 7, days = new Date(2026, m + 1, 0).getDate();
+      const cols = Math.ceil((off + days) / 7);
+      for (let c = 0; c < cols; c++) for (let r = 0; r < 7; r++) {
+        const d = c * 7 + r - off + 1; const logged = d >= 1 && d <= days && m >= 7 && m <= 9 && r < 5;
+        el.insertAdjacentHTML('beforeend', `<i class="${d < 1 || d > days ? 'gap' : logged ? K[(d * 5 + m) % K.length] : ''}"></i>`);
+      }
+      if (m < 11) for (let r = 0; r < 7; r++) el.insertAdjacentHTML('beforeend', '<i class="gap"></i>');
+    }
+  }
+  heat(document.getElementById('hm1'));
+  // sticky shadow
+  const pin = document.getElementById('pin1');
+  window.addEventListener('scroll', () => pin.classList.toggle('stuck', window.scrollY > 40));
+  // autosave demo: typing in a settings field flashes "saved ✓" in its card head
+  document.querySelectorAll('.scard input, .scard select').forEach(inp => inp.addEventListener('input', () => {
+    const s = inp.closest('.scard').querySelector('.saved'); if (!s) return;
+    s.textContent = '…'; s.classList.add('busy');
+    clearTimeout(s._t); s._t = setTimeout(() => { s.textContent = 'saved ✓'; s.classList.remove('busy'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 1800); }, 600);
+  }));
+</script>
+</body></html>

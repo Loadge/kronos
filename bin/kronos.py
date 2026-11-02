@@ -721,6 +721,7 @@ CHECKS: list[Check] = [
     ("days", "/api/entries", _is_list),
     ("plan", "/api/plans", _is_list),
     ("projection", "/api/plans/projection", _is_dict_with("on_target", "at_pace")),
+    ("freelance", "/api/freelance/summary", _is_dict_with("total", "quarters", "projection")),
 ]
 
 

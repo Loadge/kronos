@@ -128,24 +128,14 @@ class TestSettingsTab:
         page.wait_for_load_state("networkidle")
         page.wait_for_selector("input[type='number']", timeout=5000)
 
-        # Change the daily target
+        # Change the daily target: there is no button — the section saves itself half a
+        # second after the last keystroke and its card head says so.
         target_input = page.locator("input[type='number']").first
         target_input.fill("7.5")
-
-        # Each section saves its own fields; the button wakes up once something changed.
-        save = page.get_by_role("button", name="Save work")
-        page.wait_for_function(
-            "() => !document.querySelector('#settings-work button[type=submit]').disabled",
-            timeout=5000,
+        page.wait_for_selector(
+            "#settings-work .settings-card-head .settings-saved.is-saved", timeout=5000
         )
-        save.click()
-
-        # Should show some form of success feedback. The actual mechanism is the
-        # `.save-ribbon` toast (index.html): it toggles a `ribbon-show` class and
-        # its `.ribbon-msg` reads "Settings saved". The page also has a
-        # permanently-present (but hidden) `[role='alert']` error banner earlier
-        # in the DOM, so a comma-joined fallback selector including
-        # `[role='alert']` would resolve to that hidden element first and
-        # `wait_for_selector` would wait on its (never-changing) state forever —
-        # targeting the ribbon directly avoids that.
-        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
+        assert (
+            page.locator("#settings-work .settings-card-head .settings-saved").inner_text()
+            == "saved ✓"
+        )

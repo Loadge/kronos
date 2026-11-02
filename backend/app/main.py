@@ -18,6 +18,7 @@ from app.routers import (
     clock,
     entries,
     export,
+    freelance,
     fx,
     holidays,
     plans,
@@ -101,6 +102,7 @@ app.include_router(plans.router)
 app.include_router(timesheet.router)
 app.include_router(clock.router)
 app.include_router(fx.router)
+app.include_router(freelance.router)
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)

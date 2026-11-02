@@ -11,6 +11,7 @@ Docker image under `/static/mockups/`; moved here so the public mirror and PROD 
 | 26 — Timesheet | `timesheet-t1.html`, `timesheet-t2.html`, `timesheet-t3.html` | T2's detail + T3's month sections |
 | 31 — Visual redesign | `redesign-r1.html`, `redesign-r2.html`, `redesign-r3.html` | R2 throughout, with R3's card-per-section Settings |
 | 33 — Interactive analytics | `analytics-a1.html`, `analytics-a2.html` | A2 entirely |
+| UX round after 34–35 | `ux-u1.html`, `ux-u2.html` (+ `_ux_base.css`) | U1's Log; U2's Days, Analytics and Freelance; the shared Settings and timesheet |
 
 ## Phase 31 — `redesign-r{1,2,3}.html`
 
@@ -49,3 +50,22 @@ breakdown is gone; Years and Export stay. Invented data, 2025-01-01 → 2026-10-
 |---|---|---|
 | Layout | The chart spans the page; presets in its header; the range summary as five chips under it | The chart with a ledger beside it: presets as a list, the range's numbers as rows |
 | Records | A dense 4-column grid of label · value · when | Two columns of one-line rows |
+
+## UX round after Phases 34–35 — `ux-u{1,2}.html`
+
+Miguel's review of the freelance build (2026-11-02): no save buttons in Settings, fewer hints,
+plainer words, days off instead of weeks off, the year strip on the Log page, an "Employee" title on
+the Log form, ← keeping the month, a Days switch with source filters and a freelance PDF, the Year
+at a glance pinned in Analytics, and the empty space on the Freelance page. Both files have the five
+screens behind a working nav (Log · Days · Analytics · Freelance · ⚡ Timesheet · ⚙), a theme toggle,
+and a working autosave demo in Settings (type in a field: the card head says *saved ✓*). Invented
+numbers for Mon 2026-11-02. The Settings screen and the freelance timesheet page are the same in
+both; the two directions differ where the layout had a real choice:
+
+| | U1 — "Strip on top" | U2 — "Side by side" |
+|---|---|---|
+| Log | Plan's year strip across the top (twelve mini months in a row; a click picks the month on the left); the form card titled **Employee** with the notes beside it; the **⚡ Freelance** card under it, same shape | The year as a 3×4 grid of mini months *inside* the left column, above the month; **Employee** and **⚡ Freelance** side by side from 1100px (stacked below), notes under the form |
+| Days | An *Employee · ⚡ Freelance* switch next to the title; in Freelance a row of source **chips** (toggle each; *all · none*), the count and totals in the header follow; **⚡ PDF** | Two **sub-tabs** under the title with counts; a filter **bar** with a row per source (checkbox, blocks · hours · €, *all · none*) and a totals tile for what is ticked; the PDF button follows the tab |
+| Analytics | The **whole** Year-at-a-glance block stays pinned (title, switch, year, heatmap; ~190px); on the phone only the controls row | The block **shrinks** when scrolled: small title, no hint, 4px cells, the switch and year kept — a 90px toolbar that still shows the year's shape |
+| Freelance | The 130 as a **vertical list** of four rows beside the year ledger: both columns end together | **No right column**: the year as a strip under the hero (inputs · waterfall · eight tiles), the 130's four cards in a row, then the Calculator |
+| Shared | Settings: autosave (*saved ✓* in the card head, no buttons), hints removed, the timeline explained in two short sentences, "This asks the Banco Central Europeo", **Days off a year**; the freelance timesheet page with the sources as checkboxes in its toolbar | |

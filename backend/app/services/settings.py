@@ -29,6 +29,9 @@ HOLIDAY_REGION = "holiday_region"
 PROFILE_NAME = "profile_name"
 PROFILE_EMPLOYER = "profile_employer"
 PROFILE_EXTRA = "profile_extra"
+# Freelance projection: planned hours a week and days off a year (Freelance → Projection).
+FREELANCE_HOURS_PER_WEEK = "freelance_hours_per_week"
+FREELANCE_DAYS_OFF = "freelance_days_off"
 
 _DEFAULT_WORK_WEEK_DAYS = "0,1,2,3,4"  # Mon–Fri
 _DEFAULT_START_TIME = "09:00"
@@ -188,6 +191,26 @@ def get_profile(session: Session) -> dict[str, str]:
 def set_profile_field(session: Session, key: str, value: str) -> None:
     assert key in (PROFILE_NAME, PROFILE_EMPLOYER, PROFILE_EXTRA)
     _set(session, key, value.strip())
+
+
+def _tidy_number(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def get_freelance_hours_per_week(session: Session) -> float:
+    return float(_get(session, FREELANCE_HOURS_PER_WEEK, "0"))
+
+
+def set_freelance_hours_per_week(session: Session, hours: float) -> None:
+    _set(session, FREELANCE_HOURS_PER_WEEK, _tidy_number(hours))
+
+
+def get_freelance_days_off(session: Session) -> float:
+    return float(_get(session, FREELANCE_DAYS_OFF, "0"))
+
+
+def set_freelance_days_off(session: Session, days: float) -> None:
+    _set(session, FREELANCE_DAYS_OFF, _tidy_number(days))
 
 
 def get_effective_cumulative_start(session: Session, today: date) -> date:

@@ -40,6 +40,11 @@
       <a role="tab" :tabindex="tab==='log' ? 0 : -1"       :aria-selected="tab==='log'"       @click.prevent="go('log')"       @keydown.enter.prevent="go('log')"       @keydown.space.prevent="go('log')"><span class="tab-key">L</span>og</a>
       <a role="tab" :tabindex="tab==='days' ? 0 : -1"      :aria-selected="tab==='days'"      @click.prevent="go('days')"      @keydown.enter.prevent="go('days')"      @keydown.space.prevent="go('days')"><span class="tab-key">D</span>ays</a>
       <a role="tab" :tabindex="tab==='analytics' ? 0 : -1" :aria-selected="tab==='analytics'" @click.prevent="go('analytics')" @keydown.enter.prevent="go('analytics')" @keydown.space.prevent="go('analytics')"><span class="tab-key">A</span>nalytics</a>
+      <!-- The freelance side appears once an income source exists (Settings → Freelance);
+           until then the bar keeps its five tabs. -->
+      <template x-if="hasFreelance()">
+        <a role="tab" class="tab-freelance" :tabindex="tab==='freelance' ? 0 : -1" :aria-selected="tab==='freelance'" @click.prevent="go('freelance')" @keydown.enter.prevent="go('freelance')" @keydown.space.prevent="go('freelance')"><span class="tab-key">F</span>reelance</a>
+      </template>
     </nav>
     <div class="header-controls">
       <div class="shortcut-wrap">
@@ -49,6 +54,7 @@
           <div class="shortcut-row"><kbd>L</kbd><span>Log</span></div>
           <div class="shortcut-row"><kbd>D</kbd><span>Days</span></div>
           <div class="shortcut-row"><kbd>A</kbd><span>Analytics</span></div>
+          <div class="shortcut-row"><kbd>F</kbd><span>Freelance</span></div>
           <div class="shortcut-row"><kbd>S</kbd><span>Settings</span></div>
           <div class="shortcut-row"><kbd>.</kbd><span>Command palette</span></div>
           <div class="shortcut-row"><kbd>Ctrl+↵</kbd><span>Save form</span></div>
@@ -81,6 +87,10 @@
          :class="[toast.kind, toast.show ? 'ribbon-show' : '']">
       <span class="ribbon-tick"></span>
       <span class="ribbon-msg" x-text="toast.msg"></span>
+      <!-- an optional action (Undo after removing a freelance block) -->
+      <template x-if="toast.action">
+        <button type="button" class="ribbon-action" @click="toastAction()" x-text="toast.action.label"></button>
+      </template>
     </div>
   </div>
 
@@ -89,6 +99,7 @@
   {% include "_tab_log.html" %}
   {% include "_tab_days.html" %}
   {% include "_tab_analytics.html" %}
+  {% include "_tab_freelance.html" %}
   {% include "_tab_settings.html" %}
 
   <!-- Command palette -->

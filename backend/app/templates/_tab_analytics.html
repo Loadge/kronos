@@ -1,22 +1,41 @@
 <!-- ========================= ANALYTICS ========================= -->
 <template x-if="tab==='analytics'">
-<section aria-label="Analytics" @mouseleave="hmTip.show = false">
+<section aria-label="Analytics" @mouseleave="hmTip.show = false" x-init="anPinInit($el)">
 
-  <!-- ── Year at a glance: always a whole year; hover a day, click to open it in Log ── -->
+  <header class="page-head">
+    <div class="page-head-title"><h2>Analytics</h2></div>
+    <div class="page-head-controls">
+      <template x-if="hasFreelance()">
+        <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
+          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'">Employee</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
+        </div>
+      </template>
+      <nav class="year-step" aria-label="Analytics year">
+        <button type="button" @click="anStepYear(-1)" aria-label="Previous year">‹</button>
+        <span class="year-step-v" x-text="analyticsYear"></span>
+        <button type="button" @click="anStepYear(1)" aria-label="Next year">›</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Year at a glance: always a whole year; hover a day, click to open it in Log.
+       Once it has scrolled out of view, a compact copy stays pinned at the top (below). ── -->
+  <div class="an-glance" data-testid="an-glance">
   <div class="section-header an-head">
     <h2>Year at a glance</h2>
-    <div class="section-header-controls">
-      <span class="muted an-hint">hover a day · click to open it in Log</span>
-      <select x-model="analyticsYear" class="an-year" aria-label="Year">
-        <template x-for="y in yearsWithData()" :key="y">
-          <option :value="y" x-text="y"></option>
-        </template>
-      </select>
-    </div>
+    <span class="muted an-hint">hover a day · click to open it in Log</span>
   </div>
   <template x-if="heatmapCells()">
     <div>
-      <div class="heatmap-legend">
+      <div class="heatmap-legend" x-show="hmMode === 'freelance' && hasFreelance()">
+        <span class="legend-item"><span class="hm-swatch hm-fl hm-fl-1"></span> under 1h</span>
+        <span class="legend-item"><span class="hm-swatch hm-fl hm-fl-2"></span> 1–2h</span>
+        <span class="legend-item"><span class="hm-swatch hm-fl hm-fl-3"></span> 2–4h</span>
+        <span class="legend-item"><span class="hm-swatch hm-fl hm-fl-4"></span> 4h and more</span>
+        <span class="legend-item"><span class="hm-swatch hm-empty"></span> No freelance</span>
+      </div>
+      <div class="heatmap-legend" x-show="!(hmMode === 'freelance' && hasFreelance())">
         <span class="legend-item"><span class="hm-swatch hm-surplus"></span> Surplus</span>
         <span class="legend-item"><span class="hm-swatch hm-deficit"></span> Deficit</span>
         <span class="legend-item"><span class="hm-swatch hm-neutral"></span> On target</span>
@@ -46,6 +65,36 @@
   <template x-if="!heatmapCells()">
     <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
   </template>
+  </div><!-- /an-glance -->
+
+  <!-- The pinned copy: fixed to the top once the year has scrolled away, so it takes no room
+       in the page (a sticky block that shrinks would change the page's height under the
+       scroll and bounce). 4px days, the switch and the year at hand; a click goes back up. -->
+  <div class="an-minibar" x-show="anStuck" x-transition.opacity.duration.150ms data-testid="an-pin" role="region" aria-label="Year at a glance, pinned">
+    <div class="an-minibar-in">
+      <button type="button" class="an-minibar-title" @click="anUnstick()" title="Back to the full year">Year at a glance <span aria-hidden="true">↑</span></button>
+      <template x-if="heatmapCells()">
+        <div class="heatmap heatmap--mini" :style="`grid-template-columns: ${heatmapCells().colTemplate}`" @click="anUnstick()" title="Back to the full year">
+          <template x-for="cell in heatmapCells().cells.filter(c => c.type === 'day')" :key="'m' + cell.key">
+            <div :class="'hm-cell ' + cell.cls + (cell.today ? ' hm-today' : '')" :style="`grid-row: ${cell.row}; grid-column: ${cell.col};` + (cell.style || '')"></div>
+          </template>
+        </div>
+      </template>
+      <div class="an-minibar-ctl">
+      <template x-if="hasFreelance()">
+        <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
+          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'">Employee</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
+        </div>
+      </template>
+      <nav class="year-step" aria-label="Analytics year">
+        <button type="button" @click="anStepYear(-1)" aria-label="Previous year">‹</button>
+        <span class="year-step-v" x-text="analyticsYear"></span>
+        <button type="button" @click="anStepYear(1)" aria-label="Next year">›</button>
+      </nav>
+      </div>
+    </div>
+  </div>
   <!-- the day tooltip: follows the pointer over the heatmap -->
   <div class="hm-tip" x-show="hmTip.show" :style="`left:${hmTip.x}px;top:${hmTip.y}px`" role="tooltip">
     <b x-text="hmTip.title"></b>
@@ -66,6 +115,9 @@
           <button type="button" role="radio" :aria-checked="an.mode === 'balance' ? 'true' : 'false'" :class="an.mode === 'balance' ? 'on' : ''" @click="anSetMode('balance')">Balance</button>
           <button type="button" role="radio" :aria-checked="an.mode === 'day' ? 'true' : 'false'" :class="an.mode === 'day' ? 'on' : ''" @click="anSetMode('day')">Per day</button>
           <button type="button" role="radio" :aria-checked="an.mode === 'month' ? 'true' : 'false'" :class="an.mode === 'month' ? 'on' : ''" @click="anSetMode('month')">Per month</button>
+          <template x-if="hasFreelance()">
+            <button type="button" role="radio" :aria-checked="an.mode === 'income' ? 'true' : 'false'" :class="an.mode === 'income' ? 'on' : ''" @click="anSetMode('income')">⚡ Income</button>
+          </template>
         </div>
         <span class="an-range metric" x-text="anRangeLabel()"></span>
         <button type="button" class="secondary outline compact an-reset" @click="anPreset('year')" :disabled="an.preset !== null">Reset zoom</button>
@@ -95,6 +147,16 @@
           <div class="an-lrow"><span>Off</span><b class="metric" x-text="fmtDays(anSummary().offDays)"></b></div>
           <div class="an-lrow"><span>Vacation · sick</span><b class="metric" x-text="fmtDays(anSummary().vacation) + ' · ' + fmtDays(anSummary().sick)"></b></div>
           <div class="an-lrow"><span>Logged days</span><b class="metric" x-text="anSummary().logged"></b></div>
+        </div>
+      </template>
+      <template x-if="anFlSummary()">
+        <div class="an-ledger-rows an-ledger-fl" data-testid="an-freelance">
+          <h3><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</h3>
+          <div class="an-lrow an-lrow--big"><span>Billed</span><b class="metric fl-money" x-text="fmtMoney(anFlSummary().eur)"></b></div>
+          <div class="an-lrow"><span>Hours</span><b class="metric" x-text="fmtHours(anFlSummary().hours)"></b></div>
+          <div class="an-lrow"><span>Blocks</span><b class="metric" x-text="anFlSummary().blocks"></b></div>
+          <div class="an-lrow"><span>€ / h gross</span><b class="metric" x-text="anFlSummary().hours ? fmtMoney(anFlSummary().rate) : '—'"></b></div>
+          <div class="an-lrow" :title="'At ' + anFlSummary().year + '\'s projected tax picture'"><span>€ / h after tax</span><b class="metric" x-text="anFlSummary().netRate !== null ? '≈ ' + fmtMoney(anFlSummary().netRate) : '—'"></b></div>
         </div>
       </template>
     </aside>
@@ -210,6 +272,9 @@
   <p class="an-export">
     <a href="/api/export.csv" role="button" class="secondary outline" download>Download CSV</a>
     <a href="/api/export.json" role="button" class="secondary outline" download>Download JSON</a>
+    <template x-if="hasFreelance()">
+      <a href="/api/freelance/export.csv" role="button" class="secondary outline" download>⚡ Freelance CSV</a>
+    </template>
   </p>
 </section>
 </template>

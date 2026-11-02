@@ -2,36 +2,69 @@
 <template x-if="tab==='settings'">
 <section aria-label="Settings" class="settings-layout" x-init="$nextTick(() => initSettingsSpy($el))">
 
-  <!-- Section index: scroll-spied on desktop, a row of chips on the phone -->
+  <header class="page-head settings-head">
+    <div class="page-head-title"><h2>Settings <span class="page-sub" x-text="'· ' + settingsGroupLabel()"></span></h2></div>
+    <div class="page-head-controls">
+      <template x-if="settingsGroup === 'freelance'">
+        <button type="button" class="head-btn" @click="openCalculator()" title="See what these numbers mean for a rate, a day, a year">⚡ Open the calculator</button>
+      </template>
+    </div>
+  </header>
+
+  <!-- Two levels: the three groups, and the sections of the open one (scroll-spied).
+       On the phone the same two levels are two dropdowns above the content. -->
   <nav class="settings-index" aria-label="Settings sections">
-    <template x-for="s in SETTINGS_SECTIONS" :key="s.id">
-      <a :href="'#' + s.id" :class="settingsActive === s.id ? 'active' : ''"
-         @click.prevent="settingsJump(s.id)" x-text="s.label"></a>
+    <template x-for="g in SETTINGS_GROUPS" :key="g.id">
+      <div class="settings-group" :class="settingsGroup === g.id ? 'open' : ''">
+        <button type="button" class="settings-group-btn" @click="setSettingsGroup(g.id)"
+                :aria-expanded="settingsGroup === g.id ? 'true' : 'false'" :aria-current="settingsGroup === g.id ? 'true' : null">
+          <span x-text="g.label"></span>
+        </button>
+        <div class="settings-group-sections" x-show="settingsGroup === g.id">
+          <template x-for="s in settingsSections(g.id)" :key="s.id">
+            <a :href="'#' + s.id" :class="settingsActive === s.id ? 'active' : ''"
+               @click.prevent="settingsJump(s.id)" x-text="s.label"></a>
+          </template>
+        </div>
+      </div>
     </template>
   </nav>
+  <div class="settings-dropdowns" aria-label="Settings sections (phone)">
+    <select aria-label="Settings group" :value="settingsGroup" @change="setSettingsGroup($event.target.value)">
+      <template x-for="g in SETTINGS_GROUPS" :key="g.id">
+        <option :value="g.id" x-text="g.label" :selected="settingsGroup === g.id"></option>
+      </template>
+    </select>
+    <select aria-label="Settings section" :value="settingsActive" @change="settingsJump($event.target.value)">
+      <template x-for="s in settingsSections()" :key="s.id">
+        <option :value="s.id" x-text="s.label" :selected="settingsActive === s.id"></option>
+      </template>
+    </select>
+  </div>
 
-  <div class="settings-content">
+  <div class="settings-content" :data-group="settingsGroup">
+
+  <!-- ═══ Employee ═══════════════════════════════════════════════════════ -->
+  <template x-if="settingsGroup === 'employee'">
+  <div class="settings-cards">
 
     <!-- ── Work ──────────────────────────────────────────────────────────── -->
-    <form class="settings-card" id="settings-work" @submit.prevent="saveSettings('work')">
+    <form class="settings-card" id="settings-work" @submit.prevent="saveSettings('work')" @input="settingsTouched('work', $event)" @change="settingsTouched('work', $event, true)">
       <div class="settings-card-head">
         <div>
           <h3>Work</h3>
-          <p class="muted">What a normal day looks like, and where the running balance starts.</p>
         </div>
-        <button type="submit" class="btn-action" :disabled="!settingsDirty('work')">Save work</button>
+        <span class="settings-saved" :class="settingsStatusCls('work')" x-text="settingsStatusText('work')" aria-live="polite"></span>
       </div>
       <div class="srow">
-        <label class="srow-key" for="set-target">Daily target
-          <small>Hours per work day. Non-work days contribute 0h to the target.</small></label>
+        <label class="srow-key" for="set-target">Daily target</label>
         <div class="srow-ctl">
           <input id="set-target" type="number" class="ctl-num" x-model.number="settingsForm.daily_target_hours" min="0.1" max="24" step="0.1" required>
           <span class="unit">h / day</span>
         </div>
       </div>
       <div class="srow">
-        <label class="srow-key" for="set-start">Default hours
-          <small>Pre-filled in the Log form for new work entries.</small></label>
+        <label class="srow-key" for="set-start">Default hours</label>
         <div class="srow-ctl">
           <input id="set-start" type="time" class="ctl-time" x-model="settingsForm.default_start_time" required>
           <span class="unit">–</span>
@@ -73,9 +106,8 @@
         <summary>Advanced: my contracted hours changed over time</summary>
         <div class="target-schedule-body">
           <small>
-            Each row sets the daily target from its date onward; the most recent row is your
-            current target. Kronos bills every logged day against the target in effect that
-            day, so cumulative totals stay correct across a contract change.
+            Did your hours per day change at some point? Add the date it started and the new
+            hours. Each logged day is measured against the hours that applied on that date.
           </small>
           <template x-for="(row, i) in settingsForm.daily_target_schedule" :key="row._k">
             <div class="target-schedule-row">
@@ -95,24 +127,22 @@
           </template>
           <div class="target-schedule-actions">
             <button type="button" class="btn-action-ghost" @click="addTargetChange()">+ Add a change</button>
-            <button type="button" class="btn-action" @click="saveDailyTargetSchedule()">Save timeline</button>
+            <span class="settings-saved" :class="settingsStatusCls('timeline')" x-text="settingsStatusText('timeline')" aria-live="polite"></span>
           </div>
         </div>
       </details>
     </form>
 
     <!-- ── Leave ─────────────────────────────────────────────────────────── -->
-    <form class="settings-card" id="settings-leave" @submit.prevent="saveSettings('leave')">
+    <form class="settings-card" id="settings-leave" @submit.prevent="saveSettings('leave')" @input="settingsTouched('leave', $event)" @change="settingsTouched('leave', $event, true)">
       <div class="settings-card-head">
         <div>
           <h3>Leave</h3>
-          <p class="muted">Your annual allowance. The Dashboard shows what the year has left of it.</p>
         </div>
-        <button type="submit" class="btn-action" :disabled="!settingsDirty('leave')">Save leave</button>
+        <span class="settings-saved" :class="settingsStatusCls('leave')" x-text="settingsStatusText('leave')" aria-live="polite"></span>
       </div>
       <div class="srow">
-        <label class="srow-key" for="set-budget">Vacation budget
-          <small>Days per year; halves allowed (22.5). Partial vacation days count by their share.</small></label>
+        <label class="srow-key" for="set-budget">Vacation budget</label>
         <div class="srow-ctl">
           <input id="set-budget" type="number" class="ctl-num" x-model.number="settingsForm.vacation_budget_days" min="0" max="365" step="0.5" required>
           <span class="unit">days</span>
@@ -199,13 +229,13 @@
     </div>
 
     <!-- ── Profile ───────────────────────────────────────────────────────── -->
-    <form class="settings-card" id="settings-profile" @submit.prevent="saveSettings('profile')">
+    <form class="settings-card" id="settings-profile" @submit.prevent="saveSettings('profile')" @input="settingsTouched('profile', $event)" @change="settingsTouched('profile', $event, true)">
       <div class="settings-card-head">
         <div>
           <h3>Profile</h3>
           <p class="muted">Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p>
         </div>
-        <button type="submit" class="btn-action" :disabled="!settingsDirty('profile')">Save profile</button>
+        <span class="settings-saved" :class="settingsStatusCls('profile')" x-text="settingsStatusText('profile')" aria-live="polite"></span>
       </div>
       <div class="srow">
         <label class="srow-key" for="set-name">Name</label>
@@ -226,7 +256,6 @@
       <div class="settings-card-head">
         <div>
           <h3>Day templates</h3>
-          <p class="muted">Saved from the Log tab ("Save as template" under the form). One click fills a recurring shift.</p>
         </div>
       </div>
       <template x-if="templates.length === 0">
@@ -245,6 +274,195 @@
         </div>
       </template>
     </div>
+  </div>
+  </template>
+
+  <!-- ═══ Freelance ══════════════════════════════════════════════════════ -->
+  <template x-if="settingsGroup === 'freelance'">
+  <div class="settings-cards">
+
+    <!-- ── Income sources ────────────────────────────────────────────────── -->
+    <div class="settings-card" id="settings-sources">
+      <div class="settings-card-head">
+        <div>
+          <h3>Income sources</h3>
+          <p class="muted">Who you bill, at what rate, in which currency. A block takes its source's rate when it is saved — changing a rate here never rewrites the past.</p>
+        </div>
+      </div>
+      <template x-if="sources.length === 0">
+        <p class="muted settings-empty">No sources yet. Add the first one below and the <strong>Freelance</strong> tab, the Log panel and the dashboard card appear.</p>
+      </template>
+      <template x-for="s in sources" :key="s.id">
+        <div class="src-item" :class="s.archived ? 'is-archived' : ''" :style="'--src:' + sourceColor(s.id)">
+          <span class="fl-dot" aria-hidden="true"></span>
+          <div class="src-main">
+            <strong x-text="s.name"></strong>
+            <span class="metric muted" x-text="' · ' + fmtMoney(s.hourly_rate, s.currency) + '/h'"></span>
+            <template x-if="s.is_default"><span class="src-tag src-tag--default">default</span></template>
+            <template x-if="s.archived"><span class="src-tag">archived</span></template>
+            <small class="muted" x-text="s.blocks + ' block' + (s.blocks !== 1 ? 's' : '')"></small>
+          </div>
+          <div class="src-actions">
+            <template x-if="!s.is_default && !s.archived">
+              <button type="button" class="secondary outline compact" @click="srcSetDefault(s)">Make default</button>
+            </template>
+            <button type="button" class="secondary outline compact" @click="srcEdit(s)">Edit</button>
+            <template x-if="s.blocks > 0">
+              <button type="button" class="secondary outline compact" @click="srcArchive(s, !s.archived)" x-text="s.archived ? 'Unarchive' : 'Archive'"></button>
+            </template>
+            <template x-if="s.blocks === 0">
+              <button type="button" class="contrast outline compact" @click="srcDelete(s)">Delete</button>
+            </template>
+          </div>
+        </div>
+      </template>
+      <form class="src-form" @submit.prevent="srcSave()">
+        <span class="fl-lbl" x-text="srcForm.id ? 'Edit source' : 'Add a source'"></span>
+        <div class="src-form-row">
+          <input type="text" x-model="srcForm.name" placeholder="Client or activity" maxlength="100" aria-label="Source name" required>
+          <input type="number" x-model="srcForm.hourly_rate" placeholder="rate" min="0.01" step="0.01" class="ctl-num" aria-label="Hourly rate" required>
+          <select x-model="srcForm.currency" aria-label="Currency" class="src-cur">
+            <option value="EUR">€ / h</option>
+            <option value="USD">$ / h</option>
+          </select>
+          <button type="submit" class="btn-action" :disabled="!srcFormValid()" x-text="srcForm.id ? 'Save' : 'Add'"></button>
+          <template x-if="srcForm.id">
+            <button type="button" class="secondary outline compact" @click="srcReset()">Cancel</button>
+          </template>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Taxes, per year ───────────────────────────────────────────────── -->
+    <div class="settings-card" id="settings-taxes" @input="taxTouched($event)" @change="taxTouched($event, true)">
+      <div class="settings-card-head">
+        <div>
+          <h3>Taxes</h3>
+          <p class="muted">What the year's estimate needs. A year without values of its own uses the latest earlier year's. Region: Andalucía. <a class="calc-link-inline" @click.prevent="openCalculator()" href="#freelance">See them in the calculator →</a></p>
+        </div>
+        <span class="settings-saved" :class="settingsStatusCls('taxes')" x-text="settingsStatusText('taxes')" aria-live="polite"></span>
+      </div>
+      <div class="srow">
+        <span class="srow-key">Year
+          <small x-text="taxOrigin()"></small></span>
+        <div class="srow-ctl">
+          <nav class="year-step" aria-label="Tax year">
+        <button type="button" @click="switchTaxYear(taxYear - 1)" aria-label="Previous year">‹</button>
+        <span class="year-step-v" x-text="taxYear"></span>
+        <button type="button" @click="switchTaxYear(taxYear + 1)" aria-label="Next year">›</button>
+      </nav>
+        </div>
+      </div>
+      <template x-if="taxForm">
+        <div>
+          <div class="srow">
+            <label class="srow-key" for="tax-salary">Gross salary of the job
+              <small>Held at the same time (pluriactividad): the freelance income is taxed at the marginal rate on top of it. 0 if none.</small></label>
+            <div class="srow-ctl">
+              <input id="tax-salary" type="number" class="ctl-num ctl-money" x-model.number="taxForm.salary_annual" min="0" step="100">
+              <span class="unit">€ / year</span>
+            </div>
+          </div>
+          <div class="srow">
+            <label class="srow-key" for="tax-plana">Tarifa plana
+              <small>The flat RETA cuota of the first twelve months instead of the one by income tramo.</small></label>
+            <div class="srow-ctl"><input id="tax-plana" type="checkbox" role="switch" x-model="taxForm.tarifa_plana"></div>
+          </div>
+          <div class="srow">
+            <label class="srow-key" for="tax-startup">Start-up reduction
+              <small>20 % off the net yield in the first two years with a positive yield. Lowers the Renta, not the quarterly 130.</small></label>
+            <div class="srow-ctl"><input id="tax-startup" type="checkbox" role="switch" x-model="taxForm.inicio_actividad"></div>
+          </div>
+          <div class="srow">
+            <label class="srow-key" for="tax-aside">Set aside
+              <small>The share of every payment put by for the tax office. The dashboard card shows the month's.</small></label>
+            <div class="srow-ctl">
+              <input id="tax-aside" type="number" class="ctl-num" x-model.number="taxForm.set_aside_pct" min="0" max="100" step="1">
+              <span class="unit">%</span>
+            </div>
+          </div>
+          <div class="srow">
+            <label class="srow-key" for="tax-gestoria">Gestoría
+              <small>Deductible, per year.</small></label>
+            <div class="srow-ctl">
+              <input id="tax-gestoria" type="number" class="ctl-num ctl-money" x-model.number="taxForm.gestoria_annual" min="0" step="10">
+              <span class="unit">€ / year</span>
+            </div>
+          </div>
+          <div class="srow">
+            <label class="srow-key" for="tax-other">Other deductible expenses
+              <small>Software, hardware, a share of the connection… per year.</small></label>
+            <div class="srow-ctl">
+              <input id="tax-other" type="number" class="ctl-num ctl-money" x-model.number="taxForm.other_expenses" min="0" step="10">
+              <span class="unit">€ / year</span>
+            </div>
+          </div>
+          <p class="muted tax-note">
+            Rules: <span x-text="taxForm.fiscal_year + ' figures, ' + taxForm.region + (taxForm.fiscal_year !== taxYear ? ' (no ' + taxYear + ' block in the fiscal file yet)' : '') + '.'"></span>
+            Estimates for planning — check with an adviser.
+            <template x-if="!taxForm.is_default && !taxForm.inherited_from && taxYear > 2000">
+              <a @click.prevent="dropTaxYear()" class="tax-drop">Drop <span x-text="taxYear"></span>'s own values</a>
+            </template>
+          </p>
+        </div>
+      </template>
+    </div>
+
+    <!-- ── Projection ────────────────────────────────────────────────────── -->
+    <form class="settings-card" id="settings-projection" @submit.prevent="saveSettings('projection')" @input="settingsTouched('projection', $event)" @change="settingsTouched('projection', $event, true)">
+      <div class="settings-card-head">
+        <div>
+          <h3>Projection</h3>
+          <p class="muted">How the Freelance tab carries the year to December 31: the hours you plan to bill a week, and the days you plan not to.</p>
+        </div>
+        <span class="settings-saved" :class="settingsStatusCls('projection')" x-text="settingsStatusText('projection')" aria-live="polite"></span>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-fl-hpw">Planned hours a week
+          <small>At the rate realised so far this year, or the default source's before the first block.</small></label>
+        <div class="srow-ctl">
+          <input id="set-fl-hpw" type="number" class="ctl-num" x-model.number="settingsForm.freelance_hours_per_week" min="0" max="168" step="0.5">
+          <span class="unit">h / week</span>
+        </div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-fl-off">Days off a year
+          <small>Days without freelance work — holidays, trips. Spread over the year.</small></label>
+        <div class="srow-ctl">
+          <input id="set-fl-off" type="number" class="ctl-num" x-model.number="settingsForm.freelance_days_off" min="0" max="366" step="1">
+          <span class="unit">days</span>
+        </div>
+      </div>
+    </form>
+
+    <!-- ── Currency ──────────────────────────────────────────────────────── -->
+    <div class="settings-card" id="settings-currency">
+      <div class="settings-card-head">
+        <div>
+          <h3>Currency</h3>
+          <p class="muted">Sources bill in euros or dollars; everything is added up in euros with the European Central Bank's reference rate.</p>
+        </div>
+        <button type="button" class="secondary outline compact fx-again" @click="loadFx(true)">Ask again</button>
+      </div>
+      <div class="srow">
+        <span class="srow-key">EUR / USD today
+          <small>This asks the European Central Bank.</small></span>
+        <div class="srow-ctl">
+          <span class="fx-pill metric" :class="fxInfo && fxInfo.available ? (fxInfo.stale ? 'stale' : 'ok') : 'off'" x-text="fxLabel()"></span>
+        </div>
+      </div>
+      <div class="srow">
+        <span class="srow-key">A dollar block
+          <small>keeps the rate of its own day, taken once when it is saved (a weekend takes Friday's) and editable by hand from the Log tab (✎). It is never fetched again, so a later rate never moves an old amount.</small></span>
+        <div class="srow-ctl"></div>
+      </div>
+    </div>
+  </div>
+  </template>
+
+  <!-- ═══ General ════════════════════════════════════════════════════════ -->
+  <template x-if="settingsGroup === 'general'">
+  <div class="settings-cards">
 
     <!-- ── Fun zone: everything that moves data in bulk ──────────────────── -->
     <div class="settings-card fun-zone" id="settings-data">
@@ -258,7 +476,7 @@
       <div class="fun-zone-action">
         <div>
           <strong>Backup &amp; restore</strong>
-          <p class="muted">Download a full snapshot of all entries + settings as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
+          <p class="muted">Download a full snapshot — entries, planner drafts, freelance sources, blocks and tax years, settings — as JSON. Use <em>Restore</em> on any Kronos instance to migrate your data. <strong>Restore wipes the current database first.</strong></p>
         </div>
         <div class="backup-actions">
           <button type="button" class="secondary outline" @click="downloadBackup()">↓ Download backup</button>
@@ -273,7 +491,7 @@
       <div class="fun-zone-action">
         <div>
           <strong>Import CSV</strong>
-          <p class="muted">Adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped.</p>
+          <p class="muted">Adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped. The freelance blocks have their own CSV (Analytics → Export); they travel in the backup.</p>
         </div>
         <div class="backup-actions">
           <button type="button" class="secondary outline" @click="$refs.importCsvInput.click()">⇪ Import CSV…</button>
@@ -325,7 +543,7 @@
       <div class="fun-zone-action">
         <div>
           <strong>Wipe all data</strong>
-          <p class="muted">Permanently delete every logged day and break. Your settings (daily target, cumulative start date) are kept. <strong>This cannot be undone.</strong></p>
+          <p class="muted">Permanently delete every logged day and break, every planner draft and every freelance block. Your settings (daily target, cumulative start date, income sources, tax years) are kept. <strong>This cannot be undone.</strong></p>
         </div>
 
         <template x-if="!wipeConfirming">
@@ -358,7 +576,9 @@
         </template>
       </div>
     </div>
-
   </div>
+  </template>
+
+  </div><!-- /settings-content -->
 </section>
 </template>

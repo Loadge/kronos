@@ -5,8 +5,8 @@ Usage:
     python -m seed                      # from inside backend/
     make seed                           # Makefile wrapper
 
-Drops existing work_entries + breaks rows first, so it's idempotent.
-Preserves the `settings` table.
+Drops existing work_entries + breaks rows and freelance blocks first, so it's idempotent.
+Preserves the `settings` table; creates two sample income sources only when there are none.
 """
 
 from __future__ import annotations
@@ -22,7 +22,16 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.database import Base, SessionLocal, engine  # noqa: E402
-from app.models import Break, DayType, Plan, WorkEntry  # noqa: E402
+from app.models import (  # noqa: E402
+    Break,
+    DayType,
+    FreelanceBlock,
+    IncomeSource,
+    Plan,
+    WorkEntry,
+)
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
 # Reproducible "realistic" seed — fixed seed so every fresh seed run looks the same.
 RNG = random.Random(42)
@@ -170,6 +179,62 @@ def build_plans(today: date | None = None) -> list[Plan]:
     return plans
 
 
+# Sample income sources: a client paying in dollars and a local one in euros. The USD
+# blocks carry a fixed exchange rate so the seed never touches the network.
+SAMPLE_SOURCES = (
+    ("Northwind Labs", 95.0, "USD", True),
+    ("Local consulting", 60.0, "EUR", False),
+)
+SAMPLE_FX = 1.1172  # USD per EUR (ECB, 2026-10-30)
+
+
+def build_freelance(session: Session, today: date | None = None) -> list[FreelanceBlock]:
+    """Two or three evenings a week of freelance work over the same ~3 months, billed to the
+    sample sources (created when the table is empty; existing sources are used as they are).
+
+    Adds the blocks to ``session`` (flushed, not committed) and returns them.
+    """
+    today = today or date.today()
+    sources = list(session.scalars(select(IncomeSource).order_by(IncomeSource.id)))
+    if not sources:
+        for name, rate, currency, is_default in SAMPLE_SOURCES:
+            sources.append(
+                IncomeSource(name=name, hourly_rate=rate, currency=currency, is_default=is_default)
+            )
+        session.add_all(sources)
+        session.flush()
+    rng = random.Random(7)
+    notes = ["API review", "data pipeline", "client call + fixes", "report", None, None]
+    blocks: list[FreelanceBlock] = []
+    d = today - timedelta(days=90)
+    while d <= today:
+        # Tuesdays and Thursdays, most Saturdays: the evenings and a weekend morning.
+        if d.weekday() in (1, 3) or (d.weekday() == 5 and rng.random() < 0.6):
+            src = sources[0] if rng.random() < 0.7 or len(sources) == 1 else sources[1]
+            minutes = rng.choice([60, 90, 120, 150, 180])
+            if d.weekday() == 5:
+                start_min, minutes = 9 * 60 + 30, rng.choice([180, 240])
+            else:
+                start_min = rng.choice([18 * 60, 18 * 60 + 30, 19 * 60])
+            blocks.append(
+                FreelanceBlock(
+                    date=d,
+                    source_id=src.id,
+                    minutes=minutes,
+                    start_time=_fmt(start_min),
+                    end_time=_fmt(start_min + minutes),
+                    notes=rng.choice(notes),
+                    rate=src.hourly_rate,
+                    currency=src.currency,
+                    fx_rate=SAMPLE_FX if src.currency == "USD" else None,
+                )
+            )
+        d += timedelta(days=1)
+    session.add_all(blocks)
+    session.flush()
+    return blocks
+
+
 def main() -> None:
     # Ensure tables exist (in case the user runs seed on a fresh volume before migrations).
     Base.metadata.create_all(engine)
@@ -183,10 +248,13 @@ def main() -> None:
 
         for p in session.query(Plan).all():
             session.delete(p)
+        for b in session.query(FreelanceBlock).all():
+            session.delete(b)
         entries = build_entries()
         plans = build_plans()
         session.add_all(entries)
         session.add_all(plans)
+        blocks = build_freelance(session)
         session.commit()
 
         work = sum(1 for e in entries if e.day_type == DayType.WORK.value)
@@ -202,7 +270,7 @@ def main() -> None:
     print(
         f"seeded {len(entries)} entries: "
         f"{work} work, {vac} vacation, {sick} sick, {hol} holiday "
-        f"({date_range}); {len(plans)} planner drafts"
+        f"({date_range}); {len(plans)} planner drafts; {len(blocks)} freelance blocks"
     )
 
 

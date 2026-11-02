@@ -1,13 +1,14 @@
 # Kronos ⏱️
 
-> A self-hosted work-hours tracker for people who don't want to open a spreadsheet every morning.
+> A self-hosted work-hours tracker for people who don't want to open a spreadsheet every morning —
+> and, if you also freelance on the side, what those hours are really worth after tax.
 
 Single-user. No auth. One SQLite file. Runs as a Docker container behind your own reverse proxy.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-599%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-707%20passing-brightgreen.svg)](#tests)
 
 ![Kronos dashboard and analytics](docs/demo.gif)
 
@@ -20,6 +21,11 @@ answers one question — **am I ahead or behind, and by how much?** — for this
 and every day since you started tracking.
 
 Log a day in a few seconds, then get out of the way.
+
+If you also work as a freelancer (an *autónomo*, by the hour, maybe paid in dollars), Kronos
+logs those hours next to the working day — with their own rate, never touching the employee's
+balance — and answers the second question: **what is the freelance side really worth** after
+Social Security and income tax, quarter by quarter, and what would a rate have to be.
 
 ---
 
@@ -39,6 +45,12 @@ Log a day in a few seconds, then get out of the way.
 - **Public holiday import** by country and region, with a preview before anything is written
   (Spain from the official BOE list; other countries via [Nager.Date](https://date.nager.at/))
 - **Free-text notes** per day, searchable across all entries
+- **Freelance blocks** — several per day if need be, each with its hours (or a start and an
+  end), a note and an income source; added, edited and removed from a panel under the Log form
+  in two taps, with Undo. A block takes its source's rate and currency when it is saved, and a
+  dollar block the ECB rate of its own day, so a later rate never rewrites the past. They count
+  for nothing on the employee side: not the target, not the balance, not the streaks, not the
+  timesheet
 
 ### The numbers
 
@@ -60,13 +72,28 @@ Log a day in a few seconds, then get out of the way.
   They show as dashed ghost days on every calendar, and the dashboard forecast counts them
   instead of assuming you'll take the whole remaining budget
 - **Analytics tab** — a year-at-a-glance heatmap first (hover a day for its hours, Δ and
-  note; click to open it in Log), then the **balance over time**: a chart you zoom by drawing a
-  rectangle on it (wheel zooms at the cursor, shift+drag and the strip below pan, double-click
-  resets; pinch and drag on the phone), with presets from *this month* to *all*, and a switch
-  between the cumulative balance, net hours per day and per month. Whatever range the chart
-  shows drives the rest of the page: the range's totals in a ledger, the weekday pattern (Δ and
-  average start → end), the distribution of daily surplus, and the records. The yearly table
-  keeps carry-in between years
+  note; click to open it in Log; a switch shows the freelance hours instead; once it scrolls
+  away a compact copy stays pinned at the top with the switch and the year), then the
+  **balance over time**: a chart you zoom by drawing a rectangle on it (wheel zooms at the
+  cursor, shift+drag and the strip below pan, double-click resets; pinch and drag on the phone),
+  with presets from *this month* to *all*, and a switch between the cumulative balance, net
+  hours per day and per month — freelance hours stacked on the employee's bars — and freelance
+  income per month. Whatever range the chart shows drives the rest of the page: the range's
+  totals in a ledger (the freelance side too: billed, hours, €/h gross and after tax), the
+  weekday pattern (Δ and average start → end), the distribution of daily surplus, and the
+  records. The yearly table keeps carry-in between years
+- **Freelance tab** (once an income source exists) — *this year, for real*: the gross billed,
+  hours, €/h gross and net, each month as a bar, the **modelo 130** quarter by quarter (20 % of
+  the net yield since 1 January less what earlier quarters paid, with its deadline and status),
+  and the year carried to Dec 31 from the hours you plan to bill a week: gross → expenses → RETA
+  (its tramo) → IRPF → net. Then a **rate calculator**: hourly ⇄ daily ⇄ net yearly, three
+  linked fields (with a shortcut to the freelance options and back: change an input, see what it
+  does), in euros or dollars at the ECB's rate or one you type, every assumption on view
+  (billable days — 220 or the calendar's —, hours a day, the salary of the job, expenses, tarifa
+  plana, start-up reduction), with the waterfall of where each euro goes and how the IRPF is
+  paid. One source of tax maths: `backend/app/services/tax.py` with the year's figures in
+  `backend/app/data/fiscal_es.json` (Spain, Andalucía; estimates — check with an adviser). The
+  browser shows what the API computes and keeps no copy of the formulas
 
 ### The app itself
 
@@ -74,24 +101,37 @@ Log a day in a few seconds, then get out of the way.
   day by day this year, then a dashed line to where it lands on Dec 31 at this rate. Week,
   month and *vs last year* as three chips; the current week as a strip of seven tiny bar
   charts (a day opens in Log); the vacation budget as notches (used · planned · left);
-  quick-log pills only while today has no entry
+  quick-log pills only while today has no entry. With an income source, a freelance card: hours
+  and gross this week and this month, what to set aside for the tax office, eight weeks of
+  hours as a sparkline
 - **Logging and on-target streaks**, with milestone toasts at 30 / 100 / 365 days
 - **Plan tab** — a year strip of twelve mini months picks the working month; click or drag to
   draft, one ledger for drafts and the time off already logged ahead (commit, remove, delete,
   or open a day in the Log tab from there; logged and past days on its calendar open in Log too)
-- **Log** tab driven by a calendar picker; **Days** tab for the full searchable history — a
-  dense table, a row opens its day, a separator with the subtotal per month, notes always
-  visible in the last column
-- **Settings** behind the gear next to the theme toggle: one page, a section index, a card per
-  section that saves its own fields
+- **Log** tab — the same year strip picks the month, a calendar picks the day; the **Employee**
+  card (type, times, breaks, notes) and, with an income source, the **⚡ Freelance** card under
+  it. **Days** tab for the full searchable history — a dense table, a row opens its day, a
+  separator with the subtotal per month, notes always visible in the last column; with a
+  source, an **Employee · ⚡ Freelance** switch, the freelance side filtered by source (none,
+  one, several, all) with the selection's total
+- **Settings** behind the gear next to the theme toggle: three groups — **Employee** (Work,
+  Leave, Holidays, Profile, Templates), **Freelance** (income sources and rates, taxes per year,
+  the projection, the currency) and **General** (Data) — a section index under the open group
+  (two dropdowns on the phone), a card per section. No save buttons: a field saves itself half
+  a second after you stop typing, a switch at once, and the card says *saved ✓*
 - **Command palette** (<kbd>.</kbd>), keyboard shortcuts, dark and light themes
 - **PWA-installable**, with a service worker for the app shell
 - **CSV import/export** and full JSON backup/restore
+- **Currency** — sources bill in euros or dollars; everything is added up in euros with the
+  European Central Bank's reference rate, asked for only when a view needs it (see *A note on
+  exchange rates*)
 - **A CLI for agents** — `bin/kronos.py` reads and logs days through the HTTP API from a
   terminal, a script or a bot: `today`, `balance`, `days`, `plan`, `log`, `clock in|out`,
   `holidays import`, `backup` / `restore`, each with `--json` and `--dry-run`, against
   `local`, `int` or `prod` — a write to prod takes a backup first
-- **Printable timesheet** (Days → **PDF**) — a month, a year, or any range as a clean A4 document:
+- **Printable timesheets** (Days → **PDF**, and **⚡ PDF** on the freelance side: the blocks of
+  a range for the sources you tick, in their currency and in euros) — a month, a year, or any
+  range as a clean A4 document:
   every calendar day, hours as 7.50 or 7:30, *Compact* (hours only) or *Full* (target, Δ, running
   Σ), optional notes column and signature lines, light or dark, your name and employer from
   Settings → Profile. Month sections with subtotals when the range spans months; "not logged"
@@ -102,7 +142,7 @@ Log a day in a few seconds, then get out of the way.
 
 | Key | |
 |---|---|
-| <kbd>P</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>S</kbd> | Plan · Log · Days · Analytics · Settings — the accented first letter of a tab is its key |
+| <kbd>P</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>F</kbd> <kbd>S</kbd> | Plan · Log · Days · Analytics · Freelance · Settings — the accented first letter of a tab is its key |
 | <kbd>.</kbd> | Command palette |
 | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Save the current form |
 | <kbd>Esc</kbd> | Close an overlay, leave a field, cancel an edit — otherwise back to the Dashboard from any tab |
@@ -177,6 +217,7 @@ Environment variables:
 | `TZ` | `Europe/Madrid` | Decides what "today" means everywhere in the app |
 | `KRONOS_DATA_DIR` | `/app/data` (container) · `./data` (local) | Where `kronos.db` lives |
 | `DATABASE_URL` | derived from `KRONOS_DATA_DIR` | Full override for the SQLAlchemy URL |
+| `KRONOS_FX_URL` | the ECB's daily XML | Where the EUR/USD rate comes from; `""` switches every fetch off (tests, an air-gapped Kronos). `KRONOS_FX_HIST90_URL` / `KRONOS_FX_HIST_URL` override the two dated documents |
 
 Everything else is runtime-editable from the Settings tab or `GET`/`PUT /api/config`, and lives
 in the `settings` key-value table:
@@ -192,6 +233,25 @@ in the `settings` key-value table:
 | `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Log tab |
 | `holiday_country` · `holiday_region` | *(none)* | Selection remembered for holiday import |
 | `profile_name` · `profile_employer` · `profile_extra` | *(empty)* | Printed in the timesheet header; blank lines are left out |
+| `freelance_hours_per_week` · `freelance_days_off` | `0` · `0` | The Freelance tab's projection to Dec 31: the hours you plan to bill a week, and the days off a year (spread over it) |
+
+The freelance side keeps its own tables, edited from Settings → Freelance or the API: **income
+sources** (name, hourly rate, EUR or USD, one default; a source with blocks is archived, not
+deleted) and the **tax inputs per year** (the gross salary of the job held at the same time,
+tarifa plana, the 20 % start-up reduction, the share of each payment set aside — 40 % by default
+—, gestoría and other deductible expenses). A year without values of its own uses the latest
+earlier year's. The fiscal figures themselves (RETA tramos, IRPF scales, the 130's deadlines)
+live in `backend/app/data/fiscal_es.json`, one block per year; a year without a block uses the
+latest earlier one, and the page says so.
+
+### A note on exchange rates
+
+Kronos never calls the European Central Bank on a timer. It asks when a view needs a rate —
+Settings → Currency, the calculator in dollars — and when a dollar block is saved, for the rate
+of that block's own date (a weekend takes Friday's); each document at most once an hour. The
+block keeps that rate for good, editable by hand, so an old amount never moves. A block saved
+while the ECB is unreachable counts its hours but not its money until you set a rate. Set
+`KRONOS_FX_URL=""` to switch fetching off entirely.
 
 ### A note on the target timeline
 
@@ -210,8 +270,9 @@ resolves against the row in force on that date.
 The database is `kronos.db` at **`/app/data/`** inside the container, on the **`kronos-data`**
 named volume.
 
-- **From the UI** — Settings → *Download backup* writes a portable JSON snapshot (entries +
-  settings) that *Restore from file* reads back. CSV import/export sits next to it.
+- **From the UI** — Settings → General → *Download backup* writes a portable JSON snapshot
+  (entries, planner drafts, freelance sources / blocks / tax years, settings) that *Restore from
+  file* reads back. CSV import/export sits next to it.
 - **From the API** — `GET /api/backup` and `POST /api/restore`.
 - **From the host:**
 
@@ -223,10 +284,13 @@ named volume.
 > Restore **wipes existing data first**. SQLite checkpoints the WAL on connection close; for a
 > tighter guarantee, stop the container before copying the file directly.
 
-Backups are **version 2** since partial leave: every entry carries its `fraction`. Version 1
-files still restore (their days are whole); an older Kronos refuses a version 2 file rather
-than silently flattening partial days. The CSV has a `fraction` column for the same reason —
-a CSV without it imports as whole days.
+Backups are **version 3** since the freelance side: the income sources (with their ids, which
+the blocks reference), the hour blocks with the rate, currency and exchange rate they were saved
+with, and the tax inputs per year ride along; version 2 added every entry's `fraction`. Older
+files still restore (whole days, no freelance); an older Kronos refuses a newer file rather than
+silently dropping what it does not know. The entries CSV has a `fraction` column for the same
+reason — a CSV without it imports as whole days — and the freelance blocks have a CSV of their
+own (`GET /api/freelance/export.csv`, export only).
 
 ---
 
@@ -314,12 +378,26 @@ batch.
 | `GET · PUT /api/config` | All app-level settings |
 | `GET · PUT /api/config/daily-target-schedule` | The date-effective target timeline |
 
+**Freelance**
+
+| | |
+|---|---|
+| `GET · POST /api/freelance/sources` · `PUT · DELETE /api/freelance/sources/{id}` | Income sources (a source with blocks is a 409 on delete: archive it) |
+| `GET /api/freelance/blocks?from&to&year` · `POST /api/freelance/blocks` | Hour blocks; `hours` or `start_time` + `end_time`, optional `rate` and `fx_rate` overrides |
+| `GET · PUT · DELETE /api/freelance/blocks/{id}` | A block keeps its stored rate and exchange rate unless told otherwise |
+| `GET /api/freelance/tax-years` · `GET · PUT · DELETE /api/freelance/tax-years/{year}` | The tax inputs in force for a year (own, inherited, or the defaults) |
+| `GET /api/freelance/summary?year=` | Totals, this week and month, per month and source, the four 130s, the projection and its tax figures |
+| `POST /api/freelance/calc` | The calculator: hourly ⇄ daily ⇄ net yearly with every assumption in the body; pure |
+| `GET /api/freelance/export.csv` | One row per block |
+| `GET /api/fx` · `GET /api/fx?date=` | The ECB's EUR/USD reference rate, latest or the one in force on a date; always 200, `available` says whether there is one |
+
 **Data in and out**
 
 | | |
 |---|---|
 | `GET /api/export.csv` · `/api/export.json` | Download entries |
 | `GET /timesheet?from&to&detail&hours&notes&sign&theme` | The printable timesheet (HTML, not JSON) — every switch is a query parameter, so a URL is a report |
+| `GET /timesheet/freelance?from&to&sources&hours&notes&sign&theme` | The freelance timesheet: one row per block for the sources listed (ids, comma-separated; every source when absent) |
 | `POST /api/import/csv` | Bulk import from a Kronos-format CSV |
 | `GET /api/backup` · `POST /api/restore` | Full JSON snapshot / restore (entries, settings, planner drafts) |
 | `DELETE /api/data` · `POST /api/data/seed` | Wipe / sample data (admin, testing) |
@@ -354,25 +432,30 @@ make e2e              # Playwright end-to-end suite (see below)
 make check            # lint, then test, then e2e — what to run before a deploy
 ```
 
-**599 passing**, across four suites:
+**707 passing**, across four suites:
 
 | Suite | |
 |---|---|
-| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting, the CLI's pure parts (target resolution — env beats file, `int`/`prod` must be set — the `kronos.env` parser, date / time / break arguments, the request `log` builds, backup retention and the fail-closed safety backup) |
-| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV, `leave_hours` resolving per date against the schedule, the preview that writes nothing, clock in / out with a pinned server clock, gzip and the vendor cache headers |
+| **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting, the tax engine (two reference cases worked by hand to the cent, the RETA tramos, the IRPF scales, the quarterly 130, the one rounding rule), the freelance sums and the weeks left in a year, the CLI's pure parts (target resolution — env beats file, `int`/`prod` must be set — the `kronos.env` parser, date / time / break arguments, the request `log` builds, backup retention and the fail-closed safety backup) |
+| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV, `leave_hours` resolving per date against the schedule, the preview that writes nothing, clock in / out with a pinned server clock, gzip and the vendor cache headers, the ECB rate (once an hour, stale, unavailable, of a date), the freelance side (sources and archiving, blocks with their rate snapshot and the missing-rate path, tax years and inheritance, a year's summary by hand, the calculator's two anchors to the cent, the CSV) — and that none of it moves the dashboard or the timesheet |
 | **Integration** | Full CRUD flows, dashboard recalculation after state changes, cross-month weeks, export/import round-trips |
-| **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity (backup → wipe → restore → backup is identical), orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
+| **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity (backup → wipe → restore → backup is identical, freelance sources / blocks / tax years included), orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
 | **Repo hygiene** | The models and the Alembic migrations describe the same schema (Alembic runs in-process on an in-memory database; autogenerate finds nothing to add after `upgrade head`); no phase numbers in code; no file mixes line endings |
 
 ### End-to-end
 
-148 tests drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
+163 tests drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
 viewport/responsive checks, the dashboard (hero, trajectory, week strip, quick-log, vacation
-notches), Settings sections saving on their own, the Days table (month separators, row click,
+notches, the freelance card), Settings groups and sections saving on their own (two dropdowns on
+the phone), the Days table (month separators, row click,
 notes), the Analytics chart (rectangle and wheel zoom, reset, presets, series switch, the range
-driving the ledger, weekday times, histogram and records, the heatmap tooltip and click), the
+driving the ledger, weekday times, histogram and records, the heatmap tooltip and click, the
+freelance switch and stacked bars), the
 Analytics section order, keyboard rules (Escape, no caret after a tab click), the partial-leave slider, the planner (click, drag, commit,
-notes, delete, opening days in Log, ghosts on the Log calendar), the timesheet picker and page
+notes, delete, opening days in Log, ghosts on the Log calendar), the freelance side (nothing on
+the page until a source exists, the Log panel adding / editing / removing a block with Undo
+without moving the employee's day, the tab's year and 130s, the calculator typing in the
+side-job anchor and reading 19,938.23 € back), the timesheet picker and page
 (including Chromium's own PDF printer), the smoke script itself, and the CLI: every read and
 write with its `--dry-run` (nothing written) and `--json`, the error contract, `check` green
 against the server and red against a dead port, and the prod rule simulated by URL —
@@ -393,8 +476,8 @@ pytest tests/e2e -v --headed   # watch it work
 ### Smoke test
 
 `bin/smoke.py <url>` runs GET-only checks against a running Kronos — `/healthz`, the page,
-`app.js`, the dashboard/analytics/planner endpoints and the timesheet, each with its expected
-shape — plus a
+`app.js`, the dashboard/analytics/planner/freelance endpoints and the timesheet, each with its
+expected shape — plus a
 negative control that must return 404, so a proxy answering 200 to everything cannot fake a
 pass. Both deploy scripts run it after the container is healthy and fail if it does, then
 `python bin/kronos.py check` — the CLI's own GET-only report against the same URL.
@@ -464,8 +547,9 @@ timeline, the dashboard layout — are stored as JSON and need no migration at a
 kronos/
 ├── backend/
 │   ├── app/
-│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates · plans · timesheet
-│   │   ├── services/     # computations · settings · views · timesheet
+│   │   ├── data/         # fiscal_es.json — the Spanish tax figures, one block per year
+│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates · plans · timesheet · clock · fx · freelance
+│   │   ├── services/     # computations · settings · views · timesheet · tax · fx · freelance
 │   │   └── templates/    # Jinja2 shell + one partial per tab
 │   ├── static/           # app.js · styles.css · sw.js · manifest.json · vendor/
 │   └── seed.py           # sample-data generator
@@ -498,6 +582,9 @@ behind them, in [`docs/BUILD_PHASES_ARCHIVE.md`](docs/BUILD_PHASES_ARCHIVE.md). 
 
 - **BOE resolution discovery** — find next year's Spanish holiday resolution instead of adding
   its id by hand each October
+- **Tactile Kronos** — the numbers you explore become things you drag: a day ribbon on the Log
+  tab, sliders under the calculator with its waterfall as the handle, a pull on the dashboard's
+  forecast, a brush on the heatmap, swipes on the phone (Phase 36 in `docs/BUILD_PHASES.md`)
 
 ---
 

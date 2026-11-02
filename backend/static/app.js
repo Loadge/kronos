@@ -57,9 +57,13 @@ function app() {
     planNoteEdit: null,   // { key, text } while a ledger note is being edited
 
     // ---------- printable timesheet (Days → PDF) -------------------------
-    pdfModal: { open: false, preset: 'this_month', from: '', to: '', detail: 'full', hours: 'dec', theme: 'light', notes: false, sign: false },
+    pdfModal: { open: false, kind: 'employee', preset: 'this_month', from: '', to: '', detail: 'full', hours: 'dec', theme: 'light', notes: false, sign: false },
 
     // ---------- days list -----------------------------------------------
+    daysMode: 'employee',      // 'employee' | 'freelance' (the sub-tabs, once a source exists)
+    daysSources: [],           // source ids included in the freelance view (none, one, several, all)
+    _daysYearMemo: null,       // the year "All" goes back to
+    _daysSourcesInit: false,
     entries: [],
     sortKey: 'date',
     sortDir: 'desc',
@@ -84,22 +88,59 @@ function app() {
       { id: 'all',   label: 'All' },
     ],
     hmTip: { show: false, x: 0, y: 0, title: '', body: '', note: '', hint: '' },
+    anStuck: false,   // Year at a glance is pinned and has shrunk to its toolbar
+    _anPinObserver: null,
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '' },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '', freelance_hours_per_week: 0, freelance_days_off: 0 },
+    // Settings save themselves: a field half a second after the last keystroke, a switch or a
+    // picker at once. Per section: '' · 'busy' · 'saved' · 'invalid' · 'error'.
+    settingsStatus: {},
+    _autosave: {},
     _scheduleKeySeq: 0,  // stable keys for the date-effective target rows
     _settingsSaved: null,  // the form as last loaded / saved, for the per-section dirty flags
-    // Settings is one long page with a section index; each section saves its own fields.
-    SETTINGS_SECTIONS: [
-      { id: 'work',      label: 'Work',      fields: ['daily_target_hours', 'default_start_time', 'default_end_time', 'work_week_days', 'cumulative_start_date', 'reset_annually'] },
-      { id: 'leave',     label: 'Leave',     fields: ['vacation_budget_days'] },
-      { id: 'holidays',  label: 'Holidays',  fields: [] },
-      { id: 'profile',   label: 'Profile',   fields: ['profile_name', 'profile_employer', 'profile_extra'] },
-      { id: 'templates', label: 'Templates', fields: [] },
-      { id: 'data',      label: 'Data',      fields: [] },
+    // Settings has two levels: three groups (Employee · Freelance · General), each a page of
+    // cards with a section index; each section saves its own fields.
+    SETTINGS_GROUPS: [
+      { id: 'employee',  label: 'Employee' },
+      { id: 'freelance', label: 'Freelance' },
+      { id: 'general',   label: 'General' },
     ],
+    SETTINGS_SECTIONS: [
+      { id: 'work',       group: 'employee',  label: 'Work',       fields: ['daily_target_hours', 'default_start_time', 'default_end_time', 'work_week_days', 'cumulative_start_date', 'reset_annually'] },
+      { id: 'leave',      group: 'employee',  label: 'Leave',      fields: ['vacation_budget_days'] },
+      { id: 'holidays',   group: 'employee',  label: 'Holidays',   fields: [] },
+      { id: 'profile',    group: 'employee',  label: 'Profile',    fields: ['profile_name', 'profile_employer', 'profile_extra'] },
+      { id: 'templates',  group: 'employee',  label: 'Templates',  fields: [] },
+      { id: 'sources',    group: 'freelance', label: 'Sources',    fields: [] },
+      { id: 'taxes',      group: 'freelance', label: 'Taxes',      fields: [] },
+      { id: 'projection', group: 'freelance', label: 'Projection', fields: ['freelance_hours_per_week', 'freelance_days_off'] },
+      { id: 'currency',   group: 'freelance', label: 'Currency',   fields: [] },
+      { id: 'data',       group: 'general',   label: 'Data',       fields: [] },
+    ],
+    settingsGroup: localStorage.getItem('k-settings-group') || 'employee',
     settingsActive: 'work',
     _settingsSpy: null,
+
+    // ---------- freelance -----------------------------------------------
+    sources: [],          // income sources (archived included; pickers filter)
+    blocks: [],           // every freelance block, loaded with the entries
+    // the Log tab's block editor: `id` set while editing an existing block
+    flForm: { id: null, source_id: null, by: 'hours', hours: 1, start_time: '18:00', end_time: '19:00', notes: '', rate: null, fx_rate: null },
+    flBusy: false,
+    flFloat: null,        // { text, key } — the "+€170" that floats off a saved block
+    flSummary: null,      // /api/freelance/summary for flYear (the Freelance tab, the dashboard card)
+    // Something moved the year's numbers: reload the summary next time it is shown. (Never
+    // reset it to null once loaded: Alpine can still run effects of a torn-down Freelance tab,
+    // and those would read fields of null.)
+    _flStale: false,
+    flYear: new Date().getFullYear(),
+    fxInfo: null,         // /api/fx, asked for when a view needs a rate (never on a timer)
+    srcForm: { id: null, name: '', hourly_rate: '', currency: 'EUR' },   // Settings → Sources editor
+    taxYear: new Date().getFullYear(),
+    taxForm: null,        // Settings → Taxes: the year's inputs as loaded
+    _taxSaved: null,
+    calc: { mode: 'hourly', hourly: 60, daily: '', net: '', currency: 'EUR', fx_rate: '', fx_source: 'ECB', billable_days: 220, billable_mode: 'default', hours_per_day: 8, salary_annual: 0, gestoria_annual: 0, other_expenses: 0, tarifa_plana: false, inicio_actividad: false, result: null, busy: false, _seq: 0 },
 
     // ---------- public holidays ------------------------------------------
     holidayCountries: [],
@@ -126,7 +167,7 @@ function app() {
     animWeek: 0, animMonth: 0, animCumulative: 0,
 
     // ---------- W5 save ribbon ------------------------------------------
-    toast: { msg: '', kind: 'neutral', show: false },
+    toast: { msg: '', kind: 'neutral', show: false, action: null },
     _toastTimer: null,
 
     // ---------- W6 easter egg + streaks ---------------------------------
@@ -150,7 +191,7 @@ function app() {
       // Apply persisted theme before first render
       document.documentElement.setAttribute('data-theme', this.theme);
 
-      const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'settings'];
+      const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'freelance', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
 
@@ -179,7 +220,8 @@ function app() {
           if (this.bulkModal.open)                    { this.closeBulkModal(); return; }
           if (this.pdfModal.open)                     { this.pdfModal.open = false; return; }
           if (inInput)                                { e.target.blur(); return; }
-          if (this.tab === 'log' && this.editingDate) { this.openNewEntry(); return; }
+          if (this.tab === 'log' && this.flForm.id)   { this.flCancelEdit(); return; }
+          if (this.tab === 'log' && this.editingDate) { this.openNewEntry({ keepMonth: true }); return; }
           if (this.tab !== 'dashboard')               { this.go('dashboard'); return; }
           return;
         }
@@ -192,6 +234,7 @@ function app() {
           case 'l': case 'L': e.preventDefault(); this.go('log');       break;
           case 'd': case 'D': e.preventDefault(); this.go('days');      break;
           case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
+          case 'f': case 'F': e.preventDefault(); this.go('freelance'); break;
           case 's': case 'S': e.preventDefault(); this.go('settings');  break;
           case '.': e.preventDefault(); this.openPalette(); break;
         }
@@ -211,6 +254,7 @@ function app() {
       this.weekStart = this._mondayIso(new Date());
       this.loadSettings(); // pre-load so logPreview() has accurate target hours
       this.loadTemplates();
+      this.loadSources();  // the freelance tab and the dashboard card exist once a source does
       this.openNewEntry();
       await this.go(this.tab);
     },
@@ -219,6 +263,7 @@ function app() {
     // nav
     // =====================================================================
     async go(t) {
+      if (this.tab === 'settings' && t !== 'settings') this.settingsFlush();
       this.tab = t;
       // Mirror tab to URL hash without re-triggering hashchange
       if (location.hash.replace('#', '') !== t) location.hash = t;
@@ -229,7 +274,8 @@ function app() {
       else if (t === 'log') this.loadDays(); // fire-and-forget: entries needed by calendar
       else if (t === 'days') await this.loadDays();
       else if (t === 'analytics') await this.loadAnalytics();
-      else if (t === 'settings') { await this.loadSettings(); this.loadHolidayData(); }
+      else if (t === 'freelance') await this.loadFreelance();
+      else if (t === 'settings') { await this.loadSettings(); this.loadHolidayData(); this.loadSettingsGroupData(); }
     },
 
     // Roving-tabindex arrow navigation for the tab list (E3)
@@ -370,9 +416,11 @@ function app() {
     // =====================================================================
     openPdfModal() {
       // Remembered choices, except the theme: light prints best, so it is the default every
-      // time; dark is a per-report decision.
+      // time; dark is a per-report decision. The kind follows the Days sub-tab: the
+      // employee's sheet, or the freelance one with the sources ticked in the filter.
       const saved = JSON.parse(localStorage.getItem('k-pdf-options') || '{}');
-      this.pdfModal = { ...this.pdfModal, ...saved, theme: 'light', open: true };
+      this.pdfModal = { ...this.pdfModal, ...saved, theme: 'light', open: true, kind: this.daysMode };
+      if (this.daysMode === 'freelance') this._daysSourcesReady();
       if (!this.pdfModal.from) { const { from, to } = this.pdfPresets()[0]; this.pdfModal.from = from; this.pdfModal.to = to; }
     },
     // Presets end today when the period is still running — an employer doesn't want
@@ -397,15 +445,17 @@ function app() {
       const preset = this.pdfPresets().find(p => p.id === o.preset);
       const from = o.preset === 'custom' ? o.from : preset.from;
       const to = o.preset === 'custom' ? o.to : preset.to;
-      const q = new URLSearchParams({ from, to, detail: o.detail, hours: o.hours, theme: o.theme });
+      const q = new URLSearchParams({ from, to, hours: o.hours, theme: o.theme });
       if (o.notes) q.set('notes', '1');
       if (o.sign) q.set('sign', '1');
+      if (o.kind === 'freelance') { q.set('sources', [...this.daysSources].sort((a, b) => a - b).join(',')); return `/timesheet/freelance?${q}`; }
+      q.set('detail', o.detail);
       return `/timesheet?${q}`;
     },
     openTimesheet() {
       const o = this.pdfModal;
       if (o.preset === 'custom' && (!o.from || !o.to || o.to < o.from)) { this.showToast('Pick a valid date range', 'deficit'); return; }
-      const { open, ...remember } = o;
+      const { open, kind, ...remember } = o;
       localStorage.setItem('k-pdf-options', JSON.stringify(remember));
       window.open(this.timesheetUrl(), '_blank', 'noopener');
       this.pdfModal.open = false;
@@ -446,28 +496,29 @@ function app() {
       return this.plans.filter(p => p.date.startsWith(String(this.planYear)));
     },
 
-    // ── year strip: twelve mini months, click one to work on it ──────────
-    planYearStrip() {
+    // ── year strip: twelve mini months, click one to work on it (Plan and Log) ──
+    planYearStrip() { return this.yearStrip(this.planYear, this.planMonth); },
+    yearStrip(year, activeMonth) {
       const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const entryMap = {};
-      for (const e of this.entries) if (e.date.startsWith(String(this.planYear))) entryMap[e.date] = e;
+      for (const e of this.entries) if (e.date.startsWith(String(year))) entryMap[e.date] = e;
       const drafts = this.draftMap();
       const todayStr = this.todayIso();
       const out = [];
       for (let mo = 0; mo < 12; mo++) {
-        const offset = (new Date(this.planYear, mo, 1).getDay() + 6) % 7;
-        const days = new Date(this.planYear, mo + 1, 0).getDate();
+        const offset = (new Date(year, mo, 1).getDay() + 6) % 7;
+        const days = new Date(year, mo + 1, 0).getDate();
         const cells = [];
         for (let i = 0; i < offset; i++) cells.push({ key: `p${i}`, pad: true });
         for (let d = 1; d <= days; d++) {
-          const iso = `${this.planYear}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+          const iso = `${year}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
           const entry = entryMap[iso] || null;
           const dow = (offset + d - 1) % 7;
           cells.push({ key: iso, pad: false,
             cls: this.dayCellCls(entry, drafts[iso]) + (dow >= 5 ? ' hm-weekend' : '') + (iso === todayStr ? ' hm-today' : ''),
             style: this.entryCellStyle(entry) });
         }
-        out.push({ mo, label: MONTHS[mo], cells, active: mo === this.planMonth });
+        out.push({ mo, label: MONTHS[mo], cells, active: mo === activeMonth });
       }
       return out;
     },
@@ -678,6 +729,8 @@ function app() {
       { id: 'days',      label: 'Days',          hint: 'D'   },
       { id: 'pdf',       label: 'PDF timesheet', hint: ''    },
       { id: 'analytics', label: 'Analytics',     hint: 'A'   },
+      { id: 'freelance', label: 'Freelance',     hint: 'F'   },
+      { id: 'calc',      label: 'Rate calculator', hint: ''  },
       { id: 'settings',  label: 'Settings',      hint: 'S'   },
     ],
 
@@ -707,6 +760,7 @@ function app() {
     async paletteRun(cmd) {
       this.closePalette();
       if (cmd.id === 'pdf') { await this.go('days'); this.openPdfModal(); return; }
+      if (cmd.id === 'calc') { await this.go('freelance'); this.$nextTick(() => document.getElementById('fl-calc')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); return; }
       this.go(cmd.id);
     },
 
@@ -864,7 +918,11 @@ function app() {
           this.api('GET', '/api/analytics/yoy').catch(() => null),
           this.loadDays(),
           this.loadStreaks(),
+          this.loadSources(),
         ]);
+        // The freelance card (only with a source): the year's summary carries the share to
+        // set aside and the after-tax rate; the week and month come from the blocks.
+        if (this.hasFreelance() && (!this.flSummary || this._flStale || this.flSummary.year !== year)) { this.flYear = year; this.loadFlSummary(year); }
         this.weekStart = this._mondayIso(new Date());
         this.series = series;
         this.yoy = yoy;
@@ -1104,11 +1162,12 @@ function app() {
     // =====================================================================
     // log form
     // =====================================================================
-    openNewEntry() {
+    // `keepMonth`: the calendar stays where it was (the ← after editing a day, Escape), so
+    // leaving an October day does not jump the calendar back to this month.
+    openNewEntry({ keepMonth = false } = {}) {
       this.editingDate = null;
       const now = new Date();
-      this.calYear = now.getFullYear();
-      this.calMonth = now.getMonth();
+      if (!keepMonth) { this.calYear = now.getFullYear(); this.calMonth = now.getMonth(); }
       this.form = {
         date: this.todayIso(),
         day_type: 'work',
@@ -1178,6 +1237,7 @@ function app() {
       const entryMap = {};
       for (const e of this.entries) entryMap[e.date] = e;
       const drafts = this.draftMap();
+      const flDays = new Set(this.blocks.map(b => b.date));  // a brass dot marks freelance work
       const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon-first
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const cells = [];
@@ -1189,7 +1249,8 @@ function app() {
         const entry = entryMap[dateStr] || null;
         cells.push({ padded: false, key: dateStr, date: dateStr, day: d,
           cls: this.dayCellCls(entry, drafts[dateStr]), style: this.entryCellStyle(entry),
-          isToday: dateStr === todayStr, isSelected: dateStr === selectedStr });
+          isToday: dateStr === todayStr, isSelected: dateStr === selectedStr,
+          fl: flDays.has(dateStr) });
       }
       return cells;
     },
@@ -1203,6 +1264,7 @@ function app() {
       if (this.calMonth === 11) { this.calMonth = 0; this.calYear++; }
       else this.calMonth++;
     },
+    calSetYear(y) { this.calYear = y; },
 
     async calSelectDay(dateStr) {
       this.form.date = dateStr;
@@ -1257,8 +1319,9 @@ function app() {
         const barHours = entry ? Math.round((entry.net_hours + (entry.leave_hours || 0)) * 100) / 100 : 0;
         const target = entry ? Math.round((entry.target_hours + (entry.leave_hours || 0)) * 100) / 100
           : (this.dashboard?.daily_target_hours || 8);
+        const flHours = this.blockHours(this.blocksOn(iso));
         days.push({
-          iso, label: DOW[i], dayNum: d.getDate(), entry, draft, barHours, target,
+          iso, label: DOW[i], dayNum: d.getDate(), entry, draft, barHours, target, flHours,
           cls: this.dayCellCls(entry, draft), style: this.entryCellStyle(entry),
           isToday: iso === todayStr, isWeekend: i >= 5, isFuture: iso > todayStr,
         });
@@ -1645,9 +1708,13 @@ function app() {
     async loadDays() {
       this.loading.days = true;
       try {
-        const [entries, plans] = await Promise.all([this.api('GET', '/api/entries'), this.api('GET', '/api/plans')]);
+        const [entries, plans, blocks] = await Promise.all([
+          this.api('GET', '/api/entries'), this.api('GET', '/api/plans'),
+          this.api('GET', '/api/freelance/blocks').catch(() => this.blocks),
+        ]);
         this.entries = entries;
         this.plans = plans;
+        this.blocks = blocks;
       }
       catch (e) { this.error = e.message; }
       finally { this.loading.days = false; }
@@ -1661,6 +1728,21 @@ function app() {
     yearsWithData() {
       const years = [...new Set(this.entries.map(e => e.date.slice(0, 4)))].sort().reverse();
       return years;
+    },
+    // Days: "All" or one year; the stepper shows the year it would go back to.
+    get daysLastYear() {
+      if (this.daysYear !== 'all') return Number(this.daysYear);
+      return this._daysYearMemo || Number(this.yearsWithData()[0]) || new Date().getFullYear();
+    },
+    daysToggleAll() {
+      if (this.daysYear === 'all') { this.daysYear = String(this.daysLastYear); return; }
+      this._daysYearMemo = Number(this.daysYear);
+      this.daysYear = 'all';
+    },
+    daysStepYear(d) {
+      const y = this.daysYear === 'all' ? this.daysLastYear : Number(this.daysYear) + d;
+      this._daysYearMemo = y;
+      this.daysYear = String(y);
     },
 
     sortedEntries() {
@@ -1732,6 +1814,65 @@ function app() {
         rows.push({ kind: 'entry', key: e.date, e });
       }
       return rows;
+    },
+
+    // ── Days · ⚡ Freelance: the blocks, filtered by year, note and the sources ticked ──
+    setDaysMode(mode) {
+      this.daysMode = mode;
+      if (mode === 'freelance') this._daysSourcesReady();
+    },
+    // Every source is in until the user unticks one.
+    _daysSourcesReady() {
+      if (!this._daysSourcesInit) { this.daysSources = this.sources.map(s => s.id); this._daysSourcesInit = true; }
+    },
+    daysToggleSource(id) {
+      this._daysSourcesReady();
+      this.daysSources = this.daysSources.includes(id) ? this.daysSources.filter(x => x !== id) : [...this.daysSources, id];
+    },
+    daysSourcesAll(on) { this._daysSourcesInit = true; this.daysSources = on ? this.sources.map(s => s.id) : []; },
+    // The blocks of the year and the note search, before the source filter.
+    daysBlocksAll() {
+      let list = this.daysYear === 'all' ? this.blocks : this.blocks.filter(b => b.date.startsWith(this.daysYear));
+      const q = this.notesQuery.trim().toLowerCase();
+      if (q) list = list.filter(b => (b.notes || '').toLowerCase().includes(q));
+      return list;
+    },
+    daysBlocks() {
+      const on = new Set(this.daysSources);
+      return this.daysBlocksAll().filter(b => on.has(b.source_id)).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+    },
+    daysSourceRows() {
+      const all = this.daysBlocksAll();
+      return this.sources.map(s => {
+        const mine = all.filter(b => b.source_id === s.id);
+        return { id: s.id, name: s.name, archived: s.archived, on: this.daysSources.includes(s.id), blocks: mine.length, hours: this.blockHours(mine), eur: this.blockEur(mine) };
+      });
+    },
+    daysFlTotals() {
+      const list = this.daysBlocks();
+      const hours = this.blockHours(list), eur = this.blockEur(list);
+      return { blocks: list.length, hours, eur, rate: hours ? Math.round(eur / hours * 100) / 100 : 0, missing: list.filter(b => b.amount_eur === null).length };
+    },
+    daysFlRows() {
+      const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const rows = [];
+      let current = null;
+      const list = this.daysBlocks();
+      for (const b of list) {
+        const ym = b.date.slice(0, 7);
+        if (ym !== current) {
+          current = ym;
+          const mine = list.filter(x => x.date.slice(0, 7) === ym);
+          rows.push({ kind: 'sep', key: 'sep-' + ym, label: new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), count: mine.length, hours: this.blockHours(mine), eur: this.blockEur(mine) });
+        }
+        rows.push({ kind: 'block', key: 'b-' + b.id, b, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] });
+      }
+      return rows;
+    },
+    // A block's row opens its day in Log with the block in the editor.
+    async openBlockInLog(b) {
+      await this.openDayInLog(b.date);
+      this.$nextTick(() => { const fresh = this.blocks.find(x => x.id === b.id) || b; this.flEdit(fresh); });
     },
 
     scrollToToday() {
@@ -2019,8 +2160,15 @@ function app() {
       const f = n => n.toFixed(1), X = t => this.anX(t), DAY = this.DAY_MS;
       const vis = this.anVisible(), target = this.dashboard?.daily_target_hours || this.settingsForm.daily_target_hours || 8;
       const today = this._ms(this.todayIso());
+      // freelance hours per day / per month in the window, stacked on the employee's bars
+      const flVis = this.hasFreelance() ? this.anFlVisible() : [];
+      const flByDay = {};
+      for (const b of flVis) flByDay[b.date] = (flByDay[b.date] || 0) + b.minutes / 60;
+      const flMonths = this.anFlMonths(flVis), flMonthMap = Object.fromEntries(flMonths.map(m => [m.key, m]));
       let lo = 0, hi = 0, series = [], s = '';
-      if (this.an.mode === 'balance') {
+      if (this.an.mode === 'income') {
+        lo = 0; hi = Math.max(1, ...flMonths.map(m => m.eur));
+      } else if (this.an.mode === 'balance') {
         // the balance at the left edge of the window, then each logged day inside it
         const pts = (this.anSeries?.points || []);
         let open = this.anSeries?.opening || 0;
@@ -2031,15 +2179,22 @@ function app() {
         series.push([Math.min(this.an.x1, today + DAY / 2), last]);
         lo = Math.min(0, ...series.map(p => p[1])); hi = Math.max(0, ...series.map(p => p[1]));
       } else if (this.an.mode === 'day') {
-        lo = 0; hi = Math.max(target, ...vis.map(e => e.net_hours + (e.leave_hours || 0)));
+        const flOnly = Object.keys(flByDay).filter(d => !vis.some(e => e.date === d)).map(d => flByDay[d]);
+        lo = 0; hi = Math.max(target, ...vis.map(e => e.net_hours + (e.leave_hours || 0) + (flByDay[e.date] || 0)), ...flOnly);
       } else {
-        lo = 0; hi = Math.max(1, ...this.anMonths(vis).map(m => Math.max(m.net, m.target)));
+        lo = 0; hi = Math.max(1, ...this.anMonths(vis).map(m => Math.max(m.net + (flMonthMap[m.key]?.hours || 0), m.target)), ...flMonths.map(m => m.hours));
       }
       const span = Math.max(hi - lo, 2); lo -= span * 0.08; hi += span * 0.08;
       const Y = v => PADT + (H - PADT - PADB) * (1 - (v - lo) / (hi - lo));
       const rawStep = (hi - lo) / 5;
       const step = [0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find(v => v >= rawStep) || 1000;
-      for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      const money = this.an.mode === 'income';
+      if (money) {
+        // euros on the axis: a nice step of its own
+        const rawStepM = (hi - lo) / 5;
+        const stepM = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 50000].find(v => v >= rawStepM) || 100000;
+        for (let v = 0; v <= hi; v += stepM) s += `<line class="an-grid" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(v))}" y2="${f(Y(v))}"/><text class="an-yl" x="${PADL - 6}" y="${f(Y(v) + 3)}">${v >= 1000 ? Math.round(v / 100) / 10 + 'k' : v}</text>`;
+      } else for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
         s += `<line class="an-grid" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(v))}" y2="${f(Y(v))}"/><text class="an-yl" x="${PADL - 6}" y="${f(Y(v) + 3)}">${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}</text>`;
       }
       for (const [t, l] of this.anXTicks()) s += `<line class="an-grid" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><text class="an-xl" x="${f(X(t))}" y="${H - 8}">${l}</text>`;
@@ -2050,19 +2205,45 @@ function app() {
         s += `<path class="an-area ${tone}" d="${path}L${f(X(series[series.length - 1][0]))} ${f(Y(0))}L${f(X(series[0][0]))} ${f(Y(0))}Z"/><path class="an-line ${tone}" d="${path}"/>`;
       } else if (this.an.mode === 'day') {
         const bw = Math.max(1, (W - PADL - PADR) / ((this.an.x1 - this.an.x0) / DAY) * 0.7);
+        const drawn = new Set();
         for (const e of vis) {
           const t = this._ms(e.date), h = e.net_hours + (e.leave_hours || 0);
           const style = this.entryCellStyle(e);
           s += `<rect class="an-bar ${this.entryCellCls(e)}" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h))}" height="${f(Math.max(0, Y(0) - Y(h)))}"${style ? ` style="${style.replace(/"/g, "'")}"` : ''}><title>${e.date} · ${this.pillLabel(e)} · ${e.net_hours}h · ${this.formatSurplus(e.surplus_hours)}</title></rect>`;
+          const fl = flByDay[e.date];
+          if (fl) { drawn.add(e.date); s += `<rect class="an-bar an-bar-fl" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h + fl))}" height="${f(Math.max(0, Y(h) - Y(h + fl)))}"><title>${e.date} · ⚡ ${this.fmtHours(fl)} freelance</title></rect>`; }
+        }
+        // freelance on a day without an employee entry (a Saturday): its own bar
+        for (const [d, fl] of Object.entries(flByDay)) {
+          if (drawn.has(d)) continue;
+          const t = this._ms(d);
+          s += `<rect class="an-bar an-bar-fl" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(fl))}" height="${f(Math.max(0, Y(0) - Y(fl)))}"><title>${d} · ⚡ ${this.fmtHours(fl)} freelance</title></rect>`;
         }
         s += `<line class="an-target" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(target))}" y2="${f(Y(target))}"/>`;
+      } else if (this.an.mode === 'income') {
+        for (const m of flMonths) {
+          const [y, mo] = m.key.split('-').map(Number);
+          const t0 = Math.max(this.an.x0, +new Date(y, mo - 1, 1)), t1 = Math.min(this.an.x1, +new Date(y, mo, 1));
+          const x0 = X(t0) + 3, x1 = X(t1) - 3;
+          s += `<rect class="an-bar an-bar-fl" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(m.eur))}" height="${f(Math.max(0, Y(0) - Y(m.eur)))}"><title>${m.key} · ${this.fmtMoney(m.eur)} · ${this.fmtHours(m.hours)}</title></rect>`;
+          if (x1 - x0 > 34) s += `<text class="an-bar-lbl" x="${f((x0 + x1) / 2)}" y="${f(Y(m.eur) - 4)}">${this.fmtMoney0(m.eur)}</text>`;
+        }
       } else {
         for (const m of this.anMonths(vis)) {
           const [y, mo] = m.key.split('-').map(Number);
           const t0 = Math.max(this.an.x0, +new Date(y, mo - 1, 1)), t1 = Math.min(this.an.x1, +new Date(y, mo, 1));
           const x0 = X(t0) + 3, x1 = X(t1) - 3;
           s += `<rect class="an-bar hm-${this.surplusClass(m.surplus)}" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(m.net))}" height="${f(Math.max(0, Y(0) - Y(m.net)))}"><title>${m.key} · ${m.net}h / ${m.target}h · ${this.formatSurplus(m.surplus)}</title></rect>`;
+          const fl = flMonthMap[m.key];
+          if (fl) s += `<rect class="an-bar an-bar-fl" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(m.net + fl.hours))}" height="${f(Math.max(0, Y(m.net) - Y(m.net + fl.hours)))}"><title>${m.key} · ⚡ ${this.fmtHours(fl.hours)} freelance · ${this.fmtMoney(fl.eur)}</title></rect>`;
           s += `<line class="an-target" x1="${f(x0)}" x2="${f(x1)}" y1="${f(Y(m.target))}" y2="${f(Y(m.target))}"/>`;
+        }
+        for (const fl of flMonths) {
+          if (this.anMonths(vis).some(m => m.key === fl.key)) continue;
+          const [y, mo] = fl.key.split('-').map(Number);
+          const t0 = Math.max(this.an.x0, +new Date(y, mo - 1, 1)), t1 = Math.min(this.an.x1, +new Date(y, mo, 1));
+          const x0 = X(t0) + 3, x1 = X(t1) - 3;
+          s += `<rect class="an-bar an-bar-fl" x="${f(x0)}" width="${f(Math.max(1, x1 - x0))}" y="${f(Y(fl.hours))}" height="${f(Math.max(0, Y(0) - Y(fl.hours)))}"><title>${fl.key} · ⚡ ${this.fmtHours(fl.hours)} freelance</title></rect>`;
         }
       }
       if (today >= this.an.x0 && today <= this.an.x1) s += `<line class="an-today" x1="${f(X(today + DAY / 2))}" x2="${f(X(today + DAY / 2))}" y1="${PADT}" y2="${H - PADB}"/>`;
@@ -2074,8 +2255,9 @@ function app() {
         s += `<text class="an-hover-lbl" x="${f(Math.min(X(t) + 8, W - PADR - 70))}" y="${f(Y(v) - 8)}">${this.formatSurplus(v)} · ${new Date(t).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</text>`;
       }
       const svg = `<svg class="an-chart" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
-      const sum = this.anSummary();
-      const aria = `${this.anRangeLabel()}: ${sum ? this.formatSurplus(sum.surplus) + ' over ' + sum.net + 'h worked' : 'nothing logged'}.`;
+      const sum = this.anSummary(), flSum = this.anFlSummary();
+      const aria = `${this.anRangeLabel()}: ${sum ? this.formatSurplus(sum.surplus) + ' over ' + sum.net + 'h worked' : 'nothing logged'}`
+        + (flSum && flSum.hours ? `; ${this.fmtHours(flSum.hours)} freelance, ${this.fmtMoney(flSum.eur)}.` : '.');
       this.anChart = { svg, brush: this.anChart.brush, aria };
     },
 
@@ -2167,6 +2349,25 @@ function app() {
       });
     },
 
+    // ── year at a glance: the pin ───────────────────────────────────────────
+    // Once the full year has scrolled out through the top of the viewport, a compact copy is
+    // shown fixed at the top. Fixed, not sticky: it takes no room in the page, so showing it
+    // never moves the content under the scroll (a shrinking sticky block did, and bounced).
+    anPinInit(root) {
+      if (this._anPinObserver) this._anPinObserver.disconnect();
+      this.anStuck = false;
+      const glance = root.querySelector('.an-glance');
+      if (!glance || !('IntersectionObserver' in window)) return;
+      this._anPinObserver = new IntersectionObserver(([en]) => {
+        this.anStuck = !en.isIntersecting && en.boundingClientRect.top < 0;
+        if (this.anStuck) this.hmTip.show = false;
+      }, { threshold: 0 });
+      this._anPinObserver.observe(glance);
+    },
+    // The year of the heatmap, one step at a time (any year; an empty one shows empty).
+    anStepYear(d) { this.analyticsYear = String(Number(this.analyticsYear) + d); },
+    anUnstick() { window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); },
+
     // ── year at a glance: tooltip + click ──────────────────────────────────
     hmHover(ev) {
       const cell = ev.target.closest('.hm-cell');
@@ -2187,6 +2388,12 @@ function app() {
         note = draft.notes || '';
       } else {
         body = '<span class="muted">no entry</span>';
+      }
+      // The freelance blocks of the day, whatever the switch shows: a mixed day is shown whole.
+      const fl = this.blocksOn(date);
+      if (fl.length) {
+        const lines = fl.map(b => `<span class="hm-tip-fl-dot" style="background:${this.sourceColor(b.source_id)}"></span>${String(b.source_name).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')} · ${this.fmtHours(b.hours)} · ${b.amount_eur === null ? 'no rate' : this.fmtMoney(b.amount_eur)}`);
+        body += `<div class="hm-tip-fl">⚡ ${lines.join('<br>')}</div>`;
       }
       this.hmTip = { show: true, x: Math.min(window.innerWidth - 280, ev.clientX + 14), y: ev.clientY + 14, title, body, note, hint };
     },
@@ -2212,7 +2419,7 @@ function app() {
     // { key, type:'week', label, row:9, col } — a week split across a month boundary gets the same
     // ISO week number on both sides.
     heatmapCells() {
-      if (!this.entries.length) return null;
+      if (!this.entries.length && !this.blocks.length) return null;
       const year = parseInt(
         this.analyticsYear === 'all' ? new Date().getFullYear() : this.analyticsYear
       );
@@ -2276,15 +2483,25 @@ function app() {
         }
       }
 
-      // Day cells
+      // Day cells — the employee's day, or (the switch) the freelance hours of the day
+      const flMode = this.hmMode === 'freelance' && this.hasFreelance();
+      const flByDay = {};
+      if (flMode) for (const b of this.blocks) if (b.date.startsWith(String(year))) flByDay[b.date] = (flByDay[b.date] || 0) + b.minutes / 60;
       for (const day of rawDays) {
         const entry = map[day.iso];
         const draft = entry ? null : drafts[day.iso];
-        const cls = this.dayCellCls(entry, draft);
-        const style = this.entryCellStyle(entry);
-        const sign = entry && entry.surplus_hours > 0 ? '+' : '';
-        const title = entry ? `${day.iso} · ${this.pillLabel(entry)} · ${sign}${entry.surplus_hours}h`
-          : draft ? `${day.iso} · ${draft.day_type} · planned` : day.iso;
+        let cls, style = '', title;
+        if (flMode) {
+          const h = Math.round((flByDay[day.iso] || 0) * 100) / 100;
+          cls = this.flLevelCls(h);
+          title = h ? `${day.iso} · ${this.fmtHours(h)} freelance` : day.iso;
+        } else {
+          cls = this.dayCellCls(entry, draft);
+          style = this.entryCellStyle(entry);
+          const sign = entry && entry.surplus_hours > 0 ? '+' : '';
+          title = entry ? `${day.iso} · ${this.pillLabel(entry)} · ${sign}${entry.surplus_hours}h`
+            : draft ? `${day.iso} · ${draft.day_type} · planned` : day.iso;
+        }
         const today = day.iso === this.todayIso();
         cells.push({ key: day.iso, type: 'day', date: day.iso, row: day.row + 1, col: monthStartCol[day.month] + day.week, cls, style, title, weekend: day.row >= 5, today });
       }
@@ -2292,7 +2509,7 @@ function app() {
       // Build CSS grid-template-columns string
       const parts = [];
       for (let fc = 1; fc <= totalFinalCols; fc++) {
-        parts.push(finalColIsGap[fc] ? '5px' : '13px');
+        parts.push(finalColIsGap[fc] ? 'var(--hm-g, 5px)' : 'var(--hm-c, 13px)');
       }
 
       return { cells, colTemplate: parts.join(' ') };
@@ -2312,6 +2529,9 @@ function app() {
         this.anSeries = series;
         // Entries feed the heatmap and everything the chart's range drives.
         if (!this.entries.length) await this.loadDays();
+        await this.loadSources();
+        if (this.hasFreelance() && (!this.flSummary || this._flStale)) this.loadFlSummary(new Date().getFullYear());
+        if (this.an.mode === 'income' && !this.hasFreelance()) this.an.mode = 'balance';
         if (!this.yearsWithData().includes(this.analyticsYear)) this.analyticsYear = this.yearsWithData()[0] || this.analyticsYear;
         this.anRenderBrush();
         if (this.an.preset) this.anPreset(this.an.preset); else this.anSetRange(this.an.x0, this.an.x1);
@@ -2335,17 +2555,59 @@ function app() {
       finally { this.loading.settings = false; }
     },
 
-    // Save one section's fields (its button), or every dirty field (Ctrl+Enter).
-    async saveSettings(section) {
+    // Autosaves of one thing run one after the other: two PUTs in flight could land in the
+    // wrong order and leave the older value in the database.
+    _queued(key, fn) {
+      const chain = (this._saveChain ||= {});
+      const run = (chain[key] || Promise.resolve()).then(fn, fn);
+      chain[key] = run.catch(() => {});
+      return run;
+    },
+    // Save one section's fields (autosave), or every dirty field (Ctrl+Enter, with a toast).
+    saveSettings(section, opts = {}) { return this._queued('config', () => this._saveSettings(section, opts)); },
+    async _saveSettings(section, { quiet = false } = {}) {
       const sections = section ? this.SETTINGS_SECTIONS.filter(s => s.id === section) : this.SETTINGS_SECTIONS;
       const body = {};
       for (const s of sections) for (const k of s.fields) body[k] = this.settingsForm[k];
+      if (!Object.keys(body).length) return;
+      if (section) this._setStatus(section, 'busy');
       try {
         await this.api('PUT', '/api/config', body);
         for (const k of Object.keys(body)) this._settingsSaved[k] = JSON.parse(JSON.stringify(body[k]));
-        this.showToast('Settings saved', 'neutral');
+        if (section) this._setStatus(section, 'saved'); else if (!quiet) this.showToast('Settings saved', 'neutral');
         this.loadDashboard();  // the target or the start date may have moved every number
-      } catch (e) { this.error = e.message; }
+        if ('freelance_hours_per_week' in body) this._flStale = true;  // the projection moved
+      } catch (e) { this.error = e.message; if (section) this._setStatus(section, 'error'); }
+    },
+    // A field of a section changed: save it half a second after the last keystroke (a switch or
+    // a picker at once), only when something is dirty and the card's fields are valid. The
+    // target timeline inside the Work card saves through its own endpoint.
+    settingsTouched(section, event, immediate = false) {
+      const el = event?.target;
+      if (el && el.closest('.target-schedule')) { this.timelineTouched(immediate); return; }
+      clearTimeout(this._autosave[section]);
+      const run = () => {
+        if (!this.settingsDirty(section)) { if (this.settingsStatus[section] === 'invalid') this._setStatus(section, ''); return; }
+        const form = document.getElementById('settings-' + section);
+        if (form && form.checkValidity && !form.checkValidity()) { this._setStatus(section, 'invalid'); return; }
+        this.saveSettings(section, { quiet: true });
+      };
+      if (immediate) run(); else this._autosave[section] = setTimeout(run, 600);
+    },
+    _setStatus(section, status) {
+      this.settingsStatus = { ...this.settingsStatus, [section]: status };
+      clearTimeout(this._autosave['fade-' + section]);
+      if (status === 'saved') this._autosave['fade-' + section] = setTimeout(() => { if (this.settingsStatus[section] === 'saved') this._setStatus(section, ''); }, 2200);
+    },
+    settingsStatusText(section) {
+      return { busy: '…', saved: 'saved ✓', invalid: 'check the value', error: 'not saved' }[this.settingsStatus[section]] || '';
+    },
+    settingsStatusCls(section) { return this.settingsStatus[section] ? 'is-' + this.settingsStatus[section] : ''; },
+    // Flush every pending autosave (leaving Settings, switching the group or a tax year).
+    settingsFlush() {
+      for (const s of this.SETTINGS_SECTIONS) if (this._autosave[s.id]) { clearTimeout(this._autosave[s.id]); this._autosave[s.id] = null; if (this.settingsDirty(s.id)) this.saveSettings(s.id, { quiet: true }); }
+      if (this._autosave.timeline) { clearTimeout(this._autosave.timeline); this._autosave.timeline = null; this.timelineTouched(true); }
+      if (this._autosave.taxes) { clearTimeout(this._autosave.taxes); this._autosave.taxes = null; if (this.taxDirty()) this.saveTaxYear({ quiet: true }); }
     },
 
     settingsDirty(section) {
@@ -2368,8 +2630,37 @@ function app() {
       cards.forEach(c => this._settingsSpy.observe(c));
     },
     settingsJump(id) {
+      const section = this.SETTINGS_SECTIONS.find(s => s.id === id);
+      if (section && section.group !== this.settingsGroup) {
+        this.setSettingsGroup(section.group, id);
+        return;
+      }
       this.settingsActive = id;
       document.getElementById('settings-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    // The first level: switching the group swaps the cards; the index follows.
+    setSettingsGroup(id, section = null) {
+      this.settingsFlush();
+      this.settingsGroup = id;
+      localStorage.setItem('k-settings-group', id);
+      this.settingsActive = section || this.settingsSections(id)[0].id;
+      this.loadSettingsGroupData();
+      this.$nextTick(() => {
+        const root = document.querySelector('.settings-layout');
+        if (root) this.initSettingsSpy(root);
+        if (section) document.getElementById('settings-' + section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        else window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    },
+    settingsSections(group = this.settingsGroup) { return this.SETTINGS_SECTIONS.filter(s => s.group === group); },
+    settingsGroupLabel() { return this.SETTINGS_GROUPS.find(g => g.id === this.settingsGroup)?.label || ''; },
+    // What the Freelance group shows that the config does not carry: the sources, the year's
+    // tax inputs and the ECB rate (asked for here because this view shows it).
+    loadSettingsGroupData() {
+      if (this.settingsGroup !== 'freelance') return;
+      this.loadSources();
+      this.loadTaxYear(this.taxYear);
+      this.loadFx();
     },
 
     // ---------- date-effective daily target ------------------------------
@@ -2396,19 +2687,41 @@ function app() {
       const sched = [...(this.settingsForm.daily_target_schedule || [])];
       sched.splice(i, 1);
       this.settingsForm.daily_target_schedule = sched;
+      this.timelineTouched(true);
     },
-    async saveDailyTargetSchedule() {
-      const rows = (this.settingsForm.daily_target_schedule || []).map(r => ({
-        effective_from: r.effective_from,
-        hours: Number(r.hours),
-      }));
+    _timelineRows() {
+      return (this.settingsForm.daily_target_schedule || []).map(r => ({ effective_from: r.effective_from, hours: Number(r.hours) }));
+    },
+    timelineDirty() {
+      return JSON.stringify(this._timelineRows()) !== JSON.stringify((this._settingsSaved?.daily_target_schedule || []).map(r => ({ effective_from: r.effective_from, hours: Number(r.hours) })));
+    },
+    // The timeline saves itself once every row has a date and hours (a half-typed date waits).
+    timelineTouched(immediate = false) {
+      clearTimeout(this._autosave.timeline);
+      const run = () => {
+        const rows = this._timelineRows();
+        if (!rows.length || !this.timelineDirty()) return;
+        if (!rows.every(r => /^\d{4}-\d{2}-\d{2}$/.test(r.effective_from || '') && r.hours > 0 && r.hours <= 24)) { this._setStatus('timeline', 'invalid'); return; }
+        this.saveDailyTargetSchedule({ quiet: true });
+      };
+      if (immediate) run(); else this._autosave.timeline = setTimeout(run, 800);
+    },
+    saveDailyTargetSchedule(opts = {}) { return this._queued('timeline', () => this._saveDailyTargetSchedule(opts)); },
+    async _saveDailyTargetSchedule({ quiet = false } = {}) {
+      const rows = this._timelineRows();
       if (!rows.length) { this.error = 'Add at least one target row.'; return; }
+      this._setStatus('timeline', 'busy');
       try {
-        await this.api('PUT', '/api/config/daily-target-schedule', { rows });
-        await this.loadSettings();   // server sorts/dedupes; refresh the current-target field too
-        await this.loadDashboard();  // cumulative/surplus numbers may shift
-        this.showToast('Target timeline saved', 'neutral');
-      } catch (e) { this.error = e.message; }
+        const saved = await this.api('PUT', '/api/config/daily-target-schedule', { rows });
+        // The server sorts and dedupes; keep the rows as typed (no re-keying under the
+        // cursor) but take the current target and the saved copy from the answer.
+        const last = saved.rows[saved.rows.length - 1];
+        this.settingsForm.daily_target_hours = last.hours;
+        if (this._settingsSaved) { this._settingsSaved.daily_target_hours = last.hours; this._settingsSaved.daily_target_schedule = saved.rows.map(r => ({ ...r })); }
+        this._setStatus('timeline', 'saved');
+        if (!quiet) this.showToast('Target timeline saved', 'neutral');
+        this.loadDashboard();  // cumulative/surplus numbers may shift
+      } catch (e) { this.error = e.message; this._setStatus('timeline', 'error'); }
     },
 
     // =====================================================================
@@ -2596,6 +2909,7 @@ function app() {
         const result = await this.api('POST', '/api/restore', payload);
         this._resetCachedViews();
         await this.loadSettings();
+        await this.loadSources();
         await this.loadDashboard();
         this.showToast(`Restored ${result.restored_entries} entries`, 'neutral');
         this.go('dashboard');
@@ -2659,20 +2973,565 @@ function app() {
 
     _resetCachedViews() {
       this.entries = [];
+      this.blocks = [];
       this.anSeries = null;
+      this._flStale = true;
     },
 
     // =====================================================================
     // W5 — save ribbon
     // =====================================================================
-    showToast(msg, kind) {
+    // `action` is optional: { label, run } adds a button to the ribbon (Undo), which then
+    // stays a little longer so there is time to press it.
+    showToast(msg, kind, action = null) {
       if (this._toastTimer) clearTimeout(this._toastTimer);
-      this.toast = { msg, kind: kind || 'neutral', show: false };
+      this.toast = { msg, kind: kind || 'neutral', show: false, action };
       this.$nextTick(() => {
         this.toast.show = true;
-        const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1200 : 1800;
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const delay = action ? 5000 : reduced ? 1200 : 1800;
         this._toastTimer = setTimeout(() => { this.toast.show = false; }, delay);
       });
+    },
+    async toastAction() {
+      const a = this.toast.action;
+      this.toast.show = false;
+      this.toast.action = null;
+      if (a) await a.run();
+    },
+
+    // =====================================================================
+    // freelance — sources, blocks on the Log tab, the ECB rate
+    // =====================================================================
+    // The freelance side exists once an income source does: the tab, the dashboard card,
+    // the Log panel and the Analytics switches all hang off this.
+    hasFreelance() { return this.sources.length > 0; },
+    liveSources() { return this.sources.filter(s => !s.archived); },
+    defaultSource() { return this.liveSources().find(s => s.is_default) || this.liveSources()[0] || null; },
+    sourceById(id) { return this.sources.find(s => s.id === id) || null; },
+    // A stable colour per source from a small palette, by position — nothing to store.
+    SRC_COLORS: ['var(--k-brass)', 'var(--k-ink)', 'var(--k-flex)', 'var(--k-sick)', 'var(--k-surplus)', 'var(--k-deficit)'],
+    sourceColor(id) {
+      const i = this.sources.findIndex(s => s.id === id);
+      return this.SRC_COLORS[(i < 0 ? 0 : i) % this.SRC_COLORS.length];
+    },
+    async loadSources() {
+      try { this.sources = await this.api('GET', '/api/freelance/sources'); } catch { /* keep what we had */ }
+      if (this.flForm.source_id == null || !this.sourceById(this.flForm.source_id)) this.flForm.source_id = this.defaultSource()?.id ?? null;
+    },
+
+    // ---------- money --------------------------------------------------------
+    fmtMoney(n, currency = 'EUR', digits = 2) {
+      if (n === null || n === undefined || isNaN(n)) return '—';
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+    },
+    // "€1,234" for captions and axes.
+    fmtMoney0(n, currency = 'EUR') { return this.fmtMoney(n, currency, 0); },
+    // "+€170.07" / "−€12.00"
+    fmtMoneySigned(n, currency = 'EUR') { return (n < 0 ? '−' : '+') + this.fmtMoney(Math.abs(n), currency); },
+    pct(x, digits = 1) { return `${(Number(x) * 100).toFixed(digits)}%`; },
+
+    // ---------- blocks of a day ------------------------------------------------
+    blocksOn(iso) { return this.blocks.filter(b => b.date === iso); },
+    blockHours(list) { return Math.round(list.reduce((s, b) => s + b.minutes, 0) / 60 * 100) / 100; },
+    blockEur(list) { return Math.round(list.reduce((s, b) => s + (b.amount_eur || 0), 0) * 100) / 100; },
+    hasBlocks(iso) { return this.blocks.some(b => b.date === iso); },
+    flDayBlocks() { return this.blocksOn(this.form.date); },
+    flDayLabel() {
+      if (!this.form.date) return '';
+      return new Date(this.form.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+    },
+    flDayTotal() {
+      const list = this.flDayBlocks();
+      if (!list.length) return null;
+      const missing = list.filter(b => b.amount_eur === null).length;
+      return { hours: this.blockHours(list), eur: this.blockEur(list), missing };
+    },
+    // "3h · €270", or "3h · no rate yet" while every block of the day lacks its exchange rate.
+    flTotalLabel(t) {
+      if (!t) return '';
+      return `${this.fmtHours(t.hours)} · ${t.eur > 0 || !t.missing ? this.fmtMoney(t.eur) : 'no rate yet'}`;
+    },
+    blockDuration(b) { return b.start_time ? `${b.start_time}–${b.end_time}` : ''; },
+    blockAmountLabel(b) {
+      if (b.currency === 'EUR') return this.fmtMoney(b.amount);
+      return this.fmtMoney(b.amount, 'USD') + (b.amount_eur === null ? ' · no rate' : ` → ${this.fmtMoney(b.amount_eur)}`);
+    },
+
+    // ---------- the block editor (Log tab) -------------------------------------
+    flReset() {
+      const keepBy = this.flForm.by;
+      this.flForm = { id: null, source_id: this.defaultSource()?.id ?? null, by: keepBy || 'hours', hours: 1, start_time: '18:00', end_time: '19:00', notes: '', rate: null, fx_rate: null };
+    },
+    flCancelEdit() { this.flReset(); },
+    // From the header chip straight to the panel, the hours field ready.
+    flJump() {
+      const panel = document.querySelector('.fl-card');
+      if (!panel) return;
+      panel.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+      setTimeout(() => panel.querySelector('.fl-hours, .fl-times input')?.focus({ preventScroll: true }), 450);
+    },
+    flEdit(b) {
+      this.flForm = { id: b.id, source_id: b.source_id, by: b.start_time ? 'times' : 'hours', hours: b.hours,
+        start_time: b.start_time || '18:00', end_time: b.end_time || '19:00', notes: b.notes || '', rate: b.rate, fx_rate: b.fx_rate };
+      this.$nextTick(() => document.querySelector('.fl-editor')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+    },
+    // Quarter-hour steps on the hours field; the buttons are the phone's way in.
+    flStep(d) {
+      const h = Math.round((Number(this.flForm.hours) || 0) * 4) / 4 + d;
+      this.flForm.hours = Math.min(24, Math.max(0.25, h));
+    },
+    flFormHours() {
+      if (this.flForm.by === 'times') return Math.round(this.rangeMinutes(this.flForm.start_time, this.flForm.end_time) / 60 * 100) / 100;
+      return Number(this.flForm.hours) || 0;
+    },
+    // What the block will bill, from the source's rate (or the rate kept on an edited block).
+    flFormPreview() {
+      const src = this.sourceById(this.flForm.source_id);
+      if (!src) return null;
+      const rate = this.flForm.id && this.flForm.rate != null ? Number(this.flForm.rate) : src.hourly_rate;
+      const currency = this.flForm.id ? (this.blocks.find(b => b.id === this.flForm.id)?.currency || src.currency) : src.currency;
+      const amount = Math.round(rate * this.flFormHours() * 100) / 100;
+      return { amount, currency, rate };
+    },
+    flFormValid() {
+      return !!this.flForm.source_id && this.flFormHours() > 0 && this.flFormHours() <= 24 && !!this.form.date;
+    },
+    async flSave() {
+      if (!this.flFormValid() || this.flBusy) return;
+      this.flBusy = true;
+      const f = this.flForm;
+      const body = { date: this.form.date, source_id: f.source_id, notes: f.notes.trim() || null };
+      if (f.by === 'times') { body.start_time = f.start_time; body.end_time = f.end_time; } else { body.hours = Number(f.hours); }
+      try {
+        let saved;
+        if (f.id) {
+          // Editing keeps the block's own rate and exchange rate (the past is not rewritten
+          // by a newer source rate); they are sent as shown, so a hand edit goes through.
+          if (f.rate != null) body.rate = Number(f.rate);
+          if (f.fx_rate) body.fx_rate = Number(f.fx_rate);
+          saved = await this.api('PUT', `/api/freelance/blocks/${f.id}`, body);
+          this.blocks = this.blocks.map(b => b.id === saved.id ? saved : b);
+        } else {
+          saved = await this.api('POST', '/api/freelance/blocks', body);
+          this.blocks = [...this.blocks, saved];
+        }
+        this._flStale = true;  // the year moved
+        this.flReset();
+        this.flFloatMoney(saved);
+        this.showToast(`${f.id ? 'Block saved' : 'Block added'} — ${this.flDayLabel()} is ${this.flTotalLabel(this.flDayTotal())} freelance`, 'neutral');
+        if (saved.currency === 'USD' && saved.fx_rate === null) this.error = 'No exchange rate was available for that day — the block counts its hours but not its money until you set one (✎).';
+      } catch (e) { this.error = e.message; }
+      finally { this.flBusy = false; }
+    },
+    // A block gone is a block gone, but the ribbon offers to put it back for a few seconds.
+    async flRemove(b) {
+      if (this.flBusy) return;
+      this.flBusy = true;
+      const row = document.querySelector(`.fl-block[data-id="${b.id}"]`);
+      if (row && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        row.classList.add('leaving');
+        await new Promise(r => setTimeout(r, 220));
+      }
+      try {
+        await this.api('DELETE', `/api/freelance/blocks/${b.id}`);
+        this.blocks = this.blocks.filter(x => x.id !== b.id);
+        this._flStale = true;
+        if (this.flForm.id === b.id) this.flReset();
+        this.showToast(`Removed ${this.fmtHours(b.hours)} of ${b.source_name}`, 'neutral', {
+          label: 'Undo',
+          run: async () => {
+            const body = { date: b.date, source_id: b.source_id, notes: b.notes, rate: b.rate };
+            if (b.start_time) { body.start_time = b.start_time; body.end_time = b.end_time; } else { body.hours = b.hours; }
+            if (b.fx_rate) body.fx_rate = b.fx_rate;
+            try {
+              const back = await this.api('POST', '/api/freelance/blocks', body);
+              this.blocks = [...this.blocks, back];
+              this._flStale = true;
+              this.showToast('Block restored', 'neutral');
+            } catch (e) { this.error = e.message; }
+          },
+        });
+      } catch (e) { this.error = e.message; }
+      finally { this.flBusy = false; }
+    },
+    // "+€170.07" floats up from the editor and fades — the coin landing in the jar.
+    flFloatMoney(saved) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const text = saved.amount_eur !== null ? this.fmtMoneySigned(saved.amount_eur) : `+${this.fmtHours(saved.hours)}`;
+      this.flFloat = { text, key: Date.now() };
+      setTimeout(() => { this.flFloat = null; }, 1300);
+    },
+
+    // ---------- the ECB rate ----------------------------------------------------
+    // Asked for when a view that shows or needs a rate opens (Settings → Currency, the
+    // calculator in USD) — the server itself asks the ECB at most once an hour.
+    async loadFx(force = false) {
+      if (this.fxInfo && !force) return this.fxInfo;
+      try { this.fxInfo = await this.api('GET', '/api/fx'); }
+      catch (e) { this.fxInfo = { available: false, usd_per_eur: null, date: null, source: 'ECB', stale: false, error: e.message }; }
+      return this.fxInfo;
+    },
+    fxLabel() {
+      const f = this.fxInfo;
+      if (!f) return 'asking…';
+      if (!f.available) return `no rate · ${(f.error || 'unavailable').replace(/\s*\(.*\)$/, '')}`;
+      return `$${f.usd_per_eur} per € · ECB ${f.date}${f.stale ? ' · stale' : ''}`;
+    },
+
+    // ---------- Settings → Sources ---------------------------------------------
+    srcEdit(s) { this.srcForm = { id: s.id, name: s.name, hourly_rate: s.hourly_rate, currency: s.currency }; },
+    srcReset() { this.srcForm = { id: null, name: '', hourly_rate: '', currency: 'EUR' }; },
+    srcFormValid() { return this.srcForm.name.trim().length > 0 && Number(this.srcForm.hourly_rate) > 0; },
+    async srcSave() {
+      if (!this.srcFormValid()) return;
+      const body = { name: this.srcForm.name.trim(), hourly_rate: Number(this.srcForm.hourly_rate), currency: this.srcForm.currency };
+      try {
+        if (this.srcForm.id) await this.api('PUT', `/api/freelance/sources/${this.srcForm.id}`, body);
+        else await this.api('POST', '/api/freelance/sources', body);
+        const first = this.sources.length === 0;
+        await this.loadSources();
+        this._flStale = true;
+        this.srcReset();
+        this.showToast(first ? '⚡ First income source — the Freelance tab is yours' : 'Source saved', 'neutral');
+        if (body.currency === 'USD') this.loadFx();
+      } catch (e) { this.error = e.message; }
+    },
+    async srcSetDefault(s) {
+      try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { is_default: true }); await this.loadSources(); }
+      catch (e) { this.error = e.message; }
+    },
+    async srcArchive(s, archived) {
+      try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { archived }); await this.loadSources(); }
+      catch (e) { this.error = e.message; }
+    },
+    async srcDelete(s) {
+      if (!confirm(`Delete the source "${s.name}"?`)) return;
+      try { await this.api('DELETE', `/api/freelance/sources/${s.id}`); await this.loadSources(); this._flStale = true; }
+      catch (e) { this.error = e.message; }
+    },
+
+    // ---------- Settings → Taxes (per year) --------------------------------------
+    async loadTaxYear(year) {
+      this.taxYear = year;
+      try {
+        const t = await this.api('GET', `/api/freelance/tax-years/${year}`);
+        t.set_aside_pct = Math.round(t.set_aside_share * 1000) / 10;
+        this.taxForm = t;
+        this._taxSaved = JSON.stringify(this._taxBody());
+      } catch (e) { this.error = e.message; }
+    },
+    _taxBody() {
+      const t = this.taxForm;
+      return { year: this.taxYear, salary_annual: Number(t.salary_annual) || 0, tarifa_plana: !!t.tarifa_plana, inicio_actividad: !!t.inicio_actividad,
+        set_aside_share: Math.round((Number(t.set_aside_pct) || 0) * 10) / 1000, gestoria_annual: Number(t.gestoria_annual) || 0, other_expenses: Number(t.other_expenses) || 0 };
+    },
+    taxDirty() { return !!this.taxForm && JSON.stringify(this._taxBody()) !== this._taxSaved; },
+    // Where the shown values come from: the year's own row, an earlier year's, or the defaults.
+    taxOrigin() {
+      const t = this.taxForm;
+      if (!t) return '';
+      if (t.is_default) return `${this.taxYear} has no values of its own yet — these are the defaults. Change one and they become ${this.taxYear}'s.`;
+      if (t.inherited_from) return `${this.taxYear} has no values of its own — using ${t.inherited_from}'s. Change one and it gets its own.`;
+      return `${this.taxYear}'s own values.`;
+    },
+    saveTaxYear(opts = {}) { return this._queued('taxes', () => this._saveTaxYear(opts)); },
+    async _saveTaxYear({ quiet = false } = {}) {
+      const year = this.taxYear, body = this._taxBody();
+      this._setStatus('taxes', 'busy');
+      try {
+        const t = await this.api('PUT', `/api/freelance/tax-years/${year}`, body);
+        if (this.taxYear !== year) return;  // the year switched meanwhile: the form is another year's
+        // keep the form as typed; only the origin flags and the saved copy come from the answer
+        Object.assign(this.taxForm, { inherited_from: t.inherited_from, is_default: t.is_default, fiscal_year: t.fiscal_year, region: t.region });
+        this._taxSaved = JSON.stringify(this._taxBody());
+        this._flStale = true;
+        this._setStatus('taxes', 'saved');
+        if (!quiet) this.showToast(`Taxes ${year} saved`, 'neutral');
+      } catch (e) { this.error = e.message; this._setStatus('taxes', 'error'); }
+    },
+    taxTouched(event, immediate = false) {
+      if (event?.target?.closest('.year-step')) return;
+      clearTimeout(this._autosave.taxes);
+      const run = () => {
+        if (!this.taxForm || !this.taxDirty()) return;
+        const card = document.getElementById('settings-taxes');
+        if (card && [...card.querySelectorAll('input')].some(i => i.checkValidity && !i.checkValidity())) { this._setStatus('taxes', 'invalid'); return; }
+        this.saveTaxYear({ quiet: true });
+      };
+      if (immediate) run(); else this._autosave.taxes = setTimeout(run, 600);
+    },
+    async switchTaxYear(year) {
+      clearTimeout(this._autosave.taxes);
+      if (this.taxForm && this.taxDirty()) await this.saveTaxYear({ quiet: true });
+      await this.loadTaxYear(year);
+    },
+    async dropTaxYear() {
+      if (!confirm(`Drop ${this.taxYear}'s own values and use the previous year's again?`)) return;
+      try { await this.api('DELETE', `/api/freelance/tax-years/${this.taxYear}`); await this.loadTaxYear(this.taxYear); this._flStale = true; }
+      catch (e) { this.error = e.message; }
+    },
+
+    // =====================================================================
+    // freelance — the year (Freelance tab + dashboard card)
+    // =====================================================================
+    async loadFreelance() {
+      // the projection's inputs are settings: have them before the strip renders
+      await Promise.all([this.loadSources(), this.loadFlSummary(), this.blocks.length ? Promise.resolve() : this.loadDays(), this._settingsSaved ? Promise.resolve() : this.loadSettings()]);
+      if (!this.calc.result && this.flSummary) { this.calcFromYear(false); }
+      this.$nextTick(() => this.tickUpFreelance());
+    },
+    async loadFlSummary(year = this.flYear) {
+      try { this.flSummary = await this.api('GET', `/api/freelance/summary?year=${year}`); this._flStale = false; }
+      catch (e) { this.error = e.message; }
+    },
+    setFlYear(y) { this.flYear = y; this.loadFlSummary(y).then(() => this.$nextTick(() => this.tickUpFreelance())); },
+    flYears() {
+      const ys = new Set(this.blocks.map(b => Number(b.date.slice(0, 4))));
+      ys.add(new Date().getFullYear());
+      return [...ys].sort((a, b) => b - a);
+    },
+    animFlGross: 0,
+    tickUpFreelance() {
+      const target = this.flSummary?.total.gross_eur ?? 0;
+      if (this.animFlGross === target || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { this.animFlGross = target; return; }
+      const from = 0, start = performance.now(), token = (this._flTick = (this._flTick || 0) + 1);
+      const tick = now => {
+        if (token !== this._flTick) return;
+        const t = Math.min(1, (now - start) / 700), e = 1 - Math.pow(1 - t, 3);
+        this.animFlGross = from + (target - from) * e;
+        if (t < 1) requestAnimationFrame(tick); else this.animFlGross = target;
+      };
+      requestAnimationFrame(tick);
+    },
+    // The dashboard card: this week and month from the blocks already loaded (as the week
+    // strip does), the share to set aside from the year's inputs.
+    flCard() {
+      if (!this.hasFreelance()) return null;
+      const today = this.todayIso();
+      const monday = this._mondayIso(new Date());
+      const sunday = this._dateIso(new Date(new Date(monday + 'T00:00:00').getTime() + 6 * 86400000));
+      const week = this.blocks.filter(b => b.date >= monday && b.date <= sunday);
+      const month = this.blocks.filter(b => b.date.slice(0, 7) === today.slice(0, 7));
+      const year = this.blocks.filter(b => b.date.slice(0, 4) === today.slice(0, 4));
+      const share = this.flSummary?.set_aside_share ?? 0.4;
+      return {
+        week: { hours: this.blockHours(week), eur: this.blockEur(week) },
+        month: { hours: this.blockHours(month), eur: this.blockEur(month) },
+        year: { hours: this.blockHours(year), eur: this.blockEur(year) },
+        setAside: Math.round(this.blockEur(month) * share * 100) / 100,
+        share,
+        netPerHour: this.flSummary?.projection?.eur_per_hour_net ?? null,
+      };
+    },
+    // Eight tiny bars: the freelance hours of the last eight weeks, this one last.
+    flCardSpark() {
+      const monday = new Date(this._mondayIso(new Date()) + 'T00:00:00');
+      const weeks = [];
+      for (let i = 7; i >= 0; i--) {
+        const a = new Date(monday); a.setDate(a.getDate() - 7 * i);
+        const b = new Date(a); b.setDate(b.getDate() + 6);
+        const ai = this._dateIso(a), bi = this._dateIso(b);
+        weeks.push({ key: ai, hours: this.blockHours(this.blocks.filter(x => x.date >= ai && x.date <= bi)), now: i === 0 });
+      }
+      const max = Math.max(1, ...weeks.map(w => w.hours));
+      return weeks.map(w => ({ ...w, pct: Math.round(w.hours / max * 100) }));
+    },
+
+    // The twelve months of the year as bars: what was billed (solid) and, after today, the
+    // planned share of the projection (dashed). Built as markup like the other charts.
+    flMonthsSvg() {
+      const s = this.flSummary;
+      if (!s) return '';
+      const W = 420, H = 150, PADL = 8, PADR = 8, PADT = 26, PADB = 20;
+      const today = new Date(this.todayIso() + 'T12:00:00');
+      const year = s.year;
+      const planned = s.projection.planned_gross_eur || 0;
+      // spread the planned gross over the days after today, month by month
+      const dec31 = new Date(year, 11, 31), jan1 = new Date(year, 0, 1);
+      const after = d => Math.max(0, Math.min(d, dec31) - Math.max(today, jan1 - 1)) / 86400000;
+      const daysLeft = today.getFullYear() > year ? 0 : (dec31 - (today < jan1 ? new Date(jan1 - 86400000) : today)) / 86400000;
+      const bars = s.by_month.map(m => {
+        const mEnd = new Date(year, m.month, 0);
+        const share = daysLeft > 0 ? after(mEnd) - after(new Date(year, m.month - 1, 0)) : 0;
+        return { month: m.month, real: m.gross_eur, hours: m.hours, plan: share > 0 ? planned * share / daysLeft : 0 };
+      });
+      const max = Math.max(1, ...bars.map(b => b.real + b.plan));
+      const bw = (W - PADL - PADR) / 12;
+      const Y = v => PADT + (H - PADT - PADB) * (1 - v / max);
+      const f = n => n.toFixed(1);
+      let out = '';
+      const M = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+      bars.forEach((b, i) => {
+        const x = PADL + i * bw + bw * 0.18, w = bw * 0.64;
+        const isNow = today.getFullYear() === year && today.getMonth() === i;
+        if (b.real > 0) out += `<rect class="flm-bar${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(b.real))}" width="${f(w)}" height="${f(Y(0) - Y(b.real))}" rx="2" style="--i:${i}"><title>${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtHours(b.hours)} · ${this.fmtMoney(b.real)}</title></rect>`;
+        if (b.plan > 0.5) out += `<rect class="flm-plan" x="${f(x)}" y="${f(Y(b.real + b.plan))}" width="${f(w)}" height="${f(Y(0) - Y(b.plan))}" rx="2" style="--i:${i}"><title>planned · ${this.fmtMoney(b.plan)}</title></rect>`;
+        if (b.real > 0) out += `<text class="flm-val" x="${f(x + w / 2)}" y="${f(Y(b.real + b.plan) - 4)}">${this.fmtMoney0(b.real)}</text>`;
+        out += `<text class="flm-lbl${isNow ? ' now' : ''}" x="${f(x + w / 2)}" y="${H - 6}">${M[i]}</text>`;
+      });
+      out += `<line class="flm-axis" x1="${PADL}" x2="${W - PADR}" y1="${f(Y(0))}" y2="${f(Y(0))}"/>`;
+      return `<svg class="flm" viewBox="0 0 ${W} ${H}" aria-hidden="true">${out}</svg>`;
+    },
+    flQuarterLabel(q) {
+      const f = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      return `${f(q.from)} – ${f(q.to)}`;
+    },
+    flDeadlineLabel(q) {
+      return new Date(q.deadline + 'T12:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+    },
+    flQuarterStatus(q) {
+      return { paid: 'filed', due: 'due now', current: 'running', future: 'ahead' }[q.status] || q.status;
+    },
+    fl130Total() { return this.flSummary ? Math.round(this.flSummary.quarters.reduce((s, q) => s + q.payment, 0) * 100) / 100 : 0; },
+    // The projection's two inputs live in the config; editing them here saves them.
+    async flSaveProjection() {
+      const body = { freelance_hours_per_week: Number(this.settingsForm.freelance_hours_per_week) || 0, freelance_days_off: Number(this.settingsForm.freelance_days_off) || 0 };
+      try {
+        await this.api('PUT', '/api/config', body);
+        if (this._settingsSaved) Object.assign(this._settingsSaved, body);
+        await this.loadFlSummary();
+      } catch (e) { this.error = e.message; }
+    },
+
+    // The two shortcuts between the Calculator and the Freelance options: change an input,
+    // then see what it does to a rate, a day, a year — and back.
+    openFreelanceOptions(section = 'taxes') {
+      this.setSettingsGroup('freelance', section);
+      this.go('settings');
+    },
+    async openCalculator() {
+      this.settingsFlush();
+      await this._queued('config', () => {});  // let a pending save land first
+      await this._queued('taxes', () => {});
+      this.flYear = new Date().getFullYear();
+      this._flStale = true;
+      await this.go('freelance');  // loads the year's summary afresh
+      this.calcFromYear();  // the calculator starts from the inputs just changed
+      this.$nextTick(() => document.getElementById('fl-calc')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    },
+
+    // =====================================================================
+    // freelance — the calculator (the API does the maths; the page shows it)
+    // =====================================================================
+    // Start from this year's real values: the realised rate, the hours per billed day, the
+    // year's tax inputs, the default source's currency.
+    calcFromYear(run = true) {
+      const s = this.flSummary;
+      const src = this.defaultSource();
+      const t = s?.tax_inputs || {};
+      const days = new Set(this.blocks.filter(b => b.date.startsWith(String(this.flYear))).map(b => b.date)).size;
+      const hours = s?.total.hours || 0;
+      const perDay = days ? Math.max(0.25, Math.round(hours / days * 4) / 4) : 8;
+      const currency = src?.currency || 'EUR';
+      let hourly = s && s.total.eur_per_hour > 0 ? s.total.eur_per_hour : (src?.hourly_rate || 60);
+      if (currency === 'USD' && s && s.total.eur_per_hour > 0 && this.calc.fx_rate) hourly = Math.round(hourly * Number(this.calc.fx_rate) * 100) / 100;
+      else if (currency === 'USD' && src) hourly = src.hourly_rate;
+      Object.assign(this.calc, {
+        mode: 'hourly', hourly, daily: '', net: '', currency, hours_per_day: perDay,
+        salary_annual: t.salary_annual ?? 0, gestoria_annual: t.gestoria_annual ?? 0, other_expenses: t.other_expenses ?? 0,
+        tarifa_plana: !!t.tarifa_plana, inicio_actividad: !!t.inicio_actividad,
+      });
+      if (this.calc.billable_mode === 'calendar') this.calc.billable_days = this.calcCalendarDays();
+      if (run) this.calcRun('hourly', true);
+      else if (currency === 'USD') this.calcSetCurrency('USD'); else this.calcRun('hourly', true);
+    },
+    // "The calendar's": the year's work-week days less the holidays logged and the vacation budget.
+    calcCalendarDays() {
+      const y = this.flYear;
+      const week = this._planWorkWeek();
+      let n = 0;
+      for (let d = new Date(y, 0, 1); d.getFullYear() === y; d.setDate(d.getDate() + 1)) if (week.has((d.getDay() + 6) % 7)) n++;
+      const holidays = this.entries.filter(e => e.date.startsWith(String(y)) && e.day_type === 'holiday').reduce((s, e) => s + e.fraction, 0);
+      const budget = this.dashboard?.vacation_budget_days ?? this.settingsForm.vacation_budget_days ?? 0;
+      return Math.max(1, Math.round(n - holidays - budget));
+    },
+    calcSetBillable(mode) {
+      this.calc.billable_mode = mode;
+      this.calc.billable_days = mode === 'calendar' ? this.calcCalendarDays() : 220;
+      this.calcRun(this.calc.mode, true);
+    },
+    async calcSetCurrency(c) {
+      this.calc.currency = c;
+      if (c === 'USD') {
+        const fx = await this.loadFx();
+        if (fx.available) { this.calc.fx_rate = fx.usd_per_eur; this.calc.fx_source = `ECB ${fx.date}${fx.stale ? ' (stale)' : ''}`; }
+        else if (!this.calc.fx_rate) {
+          // no ECB: the rate the last dollar block was saved with, else nothing to compute with
+          const last = [...this.blocks].filter(b => b.currency === 'USD' && b.fx_rate).sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+          if (last) { this.calc.fx_rate = last.fx_rate; this.calc.fx_source = `last dollar block's, ${last.date}`; }
+          else this.calc.fx_source = 'no ECB rate — type one';
+        }
+      }
+      this.calcRun(this.calc.mode, true);
+    },
+    calcFxTyped() { this.calc.fx_source = 'typed by hand'; this.calcRun(this.calc.mode); },
+    // One of the three fields changed: it drives the other two. Debounced; the last answer
+    // wins even if an earlier request lands later.
+    calcRun(mode, now = false) {
+      this.calc.mode = mode;
+      clearTimeout(this._calcTimer);
+      const go = async () => {
+        const c = this.calc;
+        const value = Number(c[mode]);
+        if (!(value >= 0) || (c.currency === 'USD' && !(Number(c.fx_rate) > 0))) return;
+        const body = { year: this.flYear, mode, value, currency: c.currency, fx_rate: c.currency === 'USD' ? Number(c.fx_rate) : null,
+          billable_days: Number(c.billable_days) || 0, hours_per_day: Number(c.hours_per_day) || 8,
+          salary_annual: Number(c.salary_annual) || 0, gestoria_annual: Number(c.gestoria_annual) || 0, other_expenses: Number(c.other_expenses) || 0,
+          tarifa_plana: !!c.tarifa_plana, inicio_actividad: !!c.inicio_actividad };
+        const seq = ++c._seq;
+        c.busy = true;
+        try {
+          const r = await this.api('POST', '/api/freelance/calc', body);
+          if (seq !== c._seq) return;
+          c.result = r;
+          if (mode !== 'hourly') c.hourly = r.hourly;
+          if (mode !== 'daily') c.daily = r.daily;
+          if (mode !== 'net') c.net = r.net;
+          c.linked = mode; setTimeout(() => { if (c.linked === mode) c.linked = null; }, 700);
+        } catch (e) { if (seq === c._seq) this.error = e.message; }
+        finally { if (seq === c._seq) c.busy = false; }
+      };
+      if (now) go(); else this._calcTimer = setTimeout(go, 250);
+    },
+    // Gross → expenses → RETA → IRPF → net, as shares of the gross for the waterfall bar.
+    calcWaterfall() { return this.waterfall(this.calc.result?.figures); },
+    waterfall(f) {
+      if (!f || f.gross <= 0) return [];
+      const parts = [
+        { id: 'expenses', label: 'expenses', value: f.expenses },
+        { id: 'reta', label: 'RETA', value: f.reta_annual },
+        { id: 'irpf', label: 'IRPF', value: Math.max(0, f.irpf) },
+        { id: 'net', label: 'net', value: Math.max(0, f.net) },
+      ];
+      const total = parts.reduce((s, p) => s + p.value, 0) || 1;
+      let left = 0;
+      return parts.map(p => { const w = p.value / total * 100; const o = { ...p, pct: Math.round(w * 10) / 10, left: Math.round(left * 10) / 10 }; left += w; return o; });
+    },
+    calcQuarterly() { const f = this.calc.result?.figures; return f ? Math.round(f.pago_fraccionado / 4 * 100) / 100 : 0; },
+
+    // =====================================================================
+    // freelance — analytics
+    // =====================================================================
+    hmMode: 'employee',
+    // Freelance hours of a day on the heatmap: four shades of brass.
+    flLevelCls(hours) { return hours <= 0 ? 'hm-empty' : hours < 1 ? 'hm-fl hm-fl-1' : hours < 2 ? 'hm-fl hm-fl-2' : hours < 4 ? 'hm-fl hm-fl-3' : 'hm-fl hm-fl-4'; },
+    anFlVisible() {
+      const { x0, x1 } = this.an;
+      return this.blocks.filter(b => { const t = this._ms(b.date); return t >= x0 && t < x1; });
+    },
+    anFlSummary() {
+      if (!this.hasFreelance()) return null;
+      const vis = this.anFlVisible();
+      const hours = this.blockHours(vis), eur = this.blockEur(vis);
+      const netShare = this.flSummary?.projection?.figures?.net_share ?? null;
+      return { hours, eur, blocks: vis.length, rate: hours ? Math.round(eur / hours * 100) / 100 : 0,
+        netRate: hours && netShare !== null ? Math.round(eur / hours * netShare * 100) / 100 : null, year: this.flSummary?.year };
+    },
+    anFlMonths(vis) {
+      const m = {};
+      for (const b of vis) { const k = b.date.slice(0, 7); const row = (m[k] ||= { key: k, eur: 0, minutes: 0 }); row.eur += b.amount_eur || 0; row.minutes += b.minutes; }
+      return Object.values(m).map(r => ({ ...r, eur: this._r2(r.eur), hours: this._r2(r.minutes / 60) }));
     },
 
     // =====================================================================

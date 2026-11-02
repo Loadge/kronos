@@ -151,3 +151,133 @@ def test_api_fx_answers_200_with_the_rate(monkeypatch, client):
     assert d["source"] == "ECB"
     assert d["stale"] is False
     assert d["error"] is None
+
+
+# ---------- the rate of a date -------------------------------------------------------
+
+HIST_XML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01"
+                 xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+  <Cube>
+    <Cube time="2026-10-30">
+      <Cube currency="USD" rate="1.1172"/><Cube currency="JPY" rate="172.35"/>
+    </Cube>
+    <Cube time="2026-10-29"><Cube currency="USD" rate="1.1160"/></Cube>
+    <Cube time="2026-10-28"><Cube currency="USD" rate="1.1150"/></Cube>
+    <Cube time="2026-10-27"><Cube currency="USD" rate="1.1140"/></Cube>
+    <Cube time="2026-10-26"><Cube currency="USD" rate="1.1130"/></Cube>
+    <Cube time="2026-10-23"><Cube currency="USD" rate="1.1100"/></Cube>
+  </Cube>
+</gesmes:Envelope>
+"""
+
+FULL_XML = HIST_XML.replace(
+    '<Cube time="2026-10-23">',
+    '<Cube time="2024-01-02"><Cube currency="USD" rate="1.0956"/></Cube>\n'
+    '    <Cube time="2026-10-23">',
+)
+
+
+def _fake_docs(monkeypatch, *, fail_hist=False):
+    """Three fake documents behind the three URLs; returns the list of URLs asked."""
+    calls: list[str] = []
+    urls = {
+        "daily": "https://fx.example.invalid/daily.xml",
+        "90d": "https://fx.example.invalid/90d.xml",
+        "all": "https://fx.example.invalid/all.xml",
+    }
+
+    def fetch(url: str, timeout: float = 3) -> bytes:
+        calls.append(url)
+        if url == urls["daily"]:
+            return ECB_XML.encode()
+        if fail_hist:
+            raise urllib.error.URLError("name resolution failed")
+        if url == urls["90d"]:
+            return HIST_XML.encode()
+        return FULL_XML.encode()
+
+    monkeypatch.setattr(fx, "_fetch", fetch)
+    monkeypatch.setenv("KRONOS_FX_URL", urls["daily"])
+    monkeypatch.setenv("KRONOS_FX_HIST90_URL", urls["90d"])
+    monkeypatch.setenv("KRONOS_FX_HIST_URL", urls["all"])
+    return calls, urls
+
+
+def test_history_parses_every_dated_usd_rate():
+    rates = fx._parse_history(HIST_XML.encode())
+    assert rates["2026-10-30"] == 1.1172 and rates["2026-10-23"] == 1.11
+    assert len(rates) == 6
+
+
+def test_for_date_takes_the_last_published_day_on_or_before(monkeypatch):
+    calls, urls = _fake_docs(monkeypatch)
+    import datetime as dt
+
+    # A Saturday: Friday's rate, and the answer says which day it used
+    d = fx.for_date(dt.date(2026, 10, 24), now=1000.0)
+    assert d["available"] is True
+    assert (d["usd_per_eur"], d["date"], d["requested"]) == (1.11, "2026-10-23", "2026-10-24")
+    assert d["stale"] is False
+    # a published day is itself
+    assert fx.for_date(dt.date(2026, 10, 28), now=1001.0)["usd_per_eur"] == 1.115
+    # the 90-day document was fetched once for both
+    assert calls.count(urls["90d"]) == 1
+    assert urls["all"] not in calls
+
+
+def test_for_date_older_than_the_90_days_opens_the_whole_history_once(monkeypatch):
+    calls, urls = _fake_docs(monkeypatch)
+    import datetime as dt
+
+    d = fx.for_date(dt.date(2024, 6, 15), now=1000.0)
+    assert (d["usd_per_eur"], d["date"]) == (1.0956, "2024-01-02")
+    fx.for_date(dt.date(2025, 2, 1), now=1500.0)
+    assert calls.count(urls["all"]) == 1  # once an hour, whatever the number of lookups
+    # nothing before the first published day
+    none = fx.for_date(dt.date(2020, 1, 1), now=1600.0)
+    assert none["available"] is False and none["usd_per_eur"] is None
+    assert none["requested"] == "2020-01-01"
+
+
+def test_for_date_within_the_week_is_answered_from_todays_document(monkeypatch):
+    import datetime as dt
+
+    calls, urls = _fake_docs(monkeypatch)
+    today = dt.date.today()
+    monkeypatch.setattr(fx, "_parse", lambda data: (1.2, today.isoformat()))
+    d = fx.for_date(today, now=1000.0)
+    assert d["usd_per_eur"] == 1.2 and d["date"] == today.isoformat()
+    assert calls == [urls["daily"]]  # no history document needed
+
+
+def test_for_date_with_a_dead_network_is_unavailable_with_a_reason(monkeypatch):
+    import datetime as dt
+
+    calls, urls = _fake_docs(monkeypatch, fail_hist=True)
+    d = fx.for_date(dt.date(2026, 10, 1), now=1000.0)
+    assert d["available"] is False
+    assert isinstance(d["error"], str) and d["error"]
+    # not retried within the hour
+    fx.for_date(dt.date(2026, 10, 2), now=1500.0)
+    assert calls.count(urls["90d"]) == 1 and calls.count(urls["all"]) == 1
+
+
+def test_for_date_disabled_never_fetches(monkeypatch):
+    import datetime as dt
+
+    calls, _ = _fake_docs(monkeypatch)
+    monkeypatch.setenv("KRONOS_FX_URL", "")
+    d = fx.for_date(dt.date(2026, 10, 1), now=1000.0)
+    assert d["available"] is False and "disabled" in d["error"]
+    assert calls == []
+
+
+def test_api_fx_with_a_date(monkeypatch, client):
+    _fake_docs(monkeypatch)
+    r = client.get("/api/fx?date=2026-10-25")
+    assert r.status_code == 200
+    d = r.json()
+    assert (d["usd_per_eur"], d["date"], d["requested"]) == (1.11, "2026-10-23", "2026-10-25")
+    assert client.get("/api/fx?date=not-a-date").status_code == 422

@@ -322,6 +322,9 @@ class ConfigOut(BaseModel):
     profile_name: str = ""
     profile_employer: str = ""
     profile_extra: str = ""  # employee number, team, contract… one free line
+    # Freelance projection (Freelance tab): planned hours a week, days off a year.
+    freelance_hours_per_week: float = 0
+    freelance_days_off: float = 0
 
 
 class ConfigIn(BaseModel):
@@ -337,10 +340,14 @@ class ConfigIn(BaseModel):
     profile_name: str | None = Field(default=None, max_length=120)
     profile_employer: str | None = Field(default=None, max_length=120)
     profile_extra: str | None = Field(default=None, max_length=160)
+    freelance_hours_per_week: float | None = Field(default=None, ge=0, le=168)
+    freelance_days_off: float | None = Field(default=None, ge=0, le=366)
 
 
-BACKUP_VERSION = 2  # 2: entries carry `fraction`; 1: whole days only
-SUPPORTED_BACKUP_VERSIONS = (1, 2)
+# 3: freelance (income sources, hour blocks, tax years); 2: entries carry `fraction`;
+# 1: whole days only
+BACKUP_VERSION = 3
+SUPPORTED_BACKUP_VERSIONS = (1, 2, 3)
 
 
 class PlanIn(BaseModel):
@@ -372,6 +379,10 @@ class RestoreIn(BaseModel):
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
     plans: list[PlanIn] = Field(default_factory=list)
+    # Version 3. Older files simply have none; sources keep their ids so blocks find them.
+    income_sources: list[IncomeSourceBackup] = Field(default_factory=list)
+    freelance_blocks: list[FreelanceBlockBackup] = Field(default_factory=list)
+    freelance_tax_years: list[FreelanceTaxYearIn] = Field(default_factory=list)
 
 
 class CountryOut(BaseModel):
@@ -544,3 +555,180 @@ class TemplateOut(BaseModel):
     start_time: str
     end_time: str
     breaks: list[TemplateBreakOut]
+
+
+# ---------- freelance -------------------------------------------------------
+
+Currency = Annotated[str, StringConstraints(pattern=r"^(EUR|USD)$")]
+
+
+class IncomeSourceIn(BaseModel):
+    """A client or activity: its name, hourly rate and currency. One source is the default."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    hourly_rate: float = Field(..., gt=0, le=100000)
+    currency: Currency = "EUR"
+    is_default: bool = False
+    archived: bool = False
+
+
+class IncomeSourceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    hourly_rate: float | None = Field(default=None, gt=0, le=100000)
+    currency: Currency | None = None
+    is_default: bool | None = None
+    archived: bool | None = None
+
+
+class IncomeSourceOut(BaseModel):
+    id: int
+    name: str
+    hourly_rate: float
+    currency: str
+    is_default: bool
+    archived: bool
+    blocks: int  # how many blocks bill to it (a source with blocks is archived, not deleted)
+
+
+class IncomeSourceBackup(BaseModel):
+    """A source as the backup carries it: with its id, which the blocks reference."""
+
+    id: int
+    name: str = Field(..., min_length=1, max_length=100)
+    hourly_rate: float = Field(..., gt=0)
+    currency: Currency = "EUR"
+    is_default: bool = False
+    archived: bool = False
+
+
+class _BlockDuration(BaseModel):
+    """``hours`` or a start and an end (which also fix the hours); not neither, not a
+    contradiction."""
+
+    hours: float | None = Field(default=None, gt=0, le=24)
+    start_time: HHMM | None = None
+    end_time: HHMM | None = None
+
+    @model_validator(mode="after")
+    def _resolve(self):
+        if (self.start_time is None) != (self.end_time is None):
+            raise ValueError("give both start_time and end_time, or neither")
+        if self.start_time and self.end_time:
+            span = minutes_between(self.start_time, self.end_time)
+            if span <= 0:
+                raise ValueError("end_time must be after start_time")
+            from_times = span / 60.0
+            if self.hours is not None and abs(self.hours - from_times) > 1 / 60:
+                raise ValueError("hours do not match the start and end times")
+            self.hours = from_times
+        elif self.hours is None:
+            raise ValueError("give hours, or a start and an end")
+        return self
+
+    @property
+    def minutes(self) -> int:
+        return int(round(self.hours * 60))
+
+
+class FreelanceBlockIn(_BlockDuration):
+    """Body for POST /api/freelance/blocks.
+
+    The rate and currency are the source's unless ``rate`` is given (a one-off price). A USD
+    block takes the ECB rate of its date unless ``fx_rate`` is given; ``fx_rate`` on a EUR
+    block is ignored.
+    """
+
+    date: date_
+    source_id: int
+    notes: str | None = None
+    rate: float | None = Field(default=None, gt=0, le=100000)
+    fx_rate: float | None = Field(default=None, gt=0)
+
+
+class FreelanceBlockUpdate(_BlockDuration):
+    """Body for PUT /api/freelance/blocks/{id}: the same, the date included.
+
+    The stored rate and currency stay unless ``rate`` is given or the source changes (then
+    the new source's rate applies); the stored ``fx_rate`` stays unless given.
+    """
+
+    date: date_
+    source_id: int
+    notes: str | None = None
+    rate: float | None = Field(default=None, gt=0, le=100000)
+    fx_rate: float | None = Field(default=None, gt=0)
+
+
+class FreelanceBlockOut(BaseModel):
+    id: int
+    date: date_
+    source_id: int
+    source_name: str
+    minutes: int
+    hours: float
+    start_time: str | None
+    end_time: str | None
+    notes: str | None
+    rate: float
+    currency: str
+    fx_rate: float | None  # USD per EUR on the block's date; None for EUR or when unknown
+    amount: float  # in the block's currency, to the cent
+    amount_eur: float | None  # None for a USD block without a rate
+
+
+class FreelanceBlockBackup(BaseModel):
+    date: date_
+    source_id: int
+    minutes: int = Field(..., gt=0, le=24 * 60)
+    start_time: HHMM | None = None
+    end_time: HHMM | None = None
+    notes: str | None = None
+    rate: float = Field(..., gt=0)
+    currency: Currency = "EUR"
+    fx_rate: float | None = Field(default=None, gt=0)
+
+
+class FreelanceTaxYearIn(BaseModel):
+    """The tax inputs of one year (PUT /api/freelance/tax-years/{year}; the backup)."""
+
+    year: int = Field(..., ge=2000, le=2100)
+    salary_annual: float = Field(default=0, ge=0)
+    tarifa_plana: bool = False
+    inicio_actividad: bool = False
+    set_aside_share: float = Field(default=0.4, ge=0, le=1)
+    gestoria_annual: float = Field(default=0, ge=0)
+    other_expenses: float = Field(default=0, ge=0)
+
+
+class FreelanceTaxYearOut(FreelanceTaxYearIn):
+    inherited_from: int | None  # the row's year when the year has no row of its own
+    is_default: bool  # no row applies at all: the defaults
+    fiscal_year: int  # the year of fiscal_es.json used for this year's figures
+    region: str
+
+
+class FreelanceCalcIn(BaseModel):
+    """Body for POST /api/freelance/calc — the calculator's inputs, one field driving.
+
+    Every assumption is on view in the calculator, so every one rides in the request; the
+    server only adds the fiscal rules of the year.
+    """
+
+    year: int = Field(..., ge=2000, le=2100)
+    mode: Annotated[str, StringConstraints(pattern=r"^(hourly|daily|net)$")]
+    value: float = Field(..., ge=0, le=1e9)
+    currency: Currency = "EUR"
+    fx_rate: float | None = Field(default=None, gt=0)
+    billable_days: int = Field(default=220, ge=0, le=366)
+    hours_per_day: float = Field(default=8, gt=0, le=24)
+    salary_annual: float = Field(default=0, ge=0)
+    gestoria_annual: float = Field(default=0, ge=0)
+    other_expenses: float = Field(default=0, ge=0)
+    tarifa_plana: bool = False
+    inicio_actividad: bool = False
+
+    @model_validator(mode="after")
+    def _usd_needs_a_rate(self):
+        if self.currency == "USD" and not self.fx_rate:
+            raise ValueError("a USD rate needs fx_rate (USD per EUR)")
+        return self

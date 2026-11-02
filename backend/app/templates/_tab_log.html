@@ -1,23 +1,48 @@
 <!-- ========================= LOG ========================= -->
 <template x-if="tab==='log'">
 <section aria-label="Log entry">
-  <header class="section-header log-header">
-    <template x-if="editingDate">
-      <a @click.prevent="openNewEntry()" class="back-btn" title="New entry">←</a>
-    </template>
-    <h2 x-text="editingDate ? ('Edit ' + editingDate) : 'New entry'"></h2>
+  <header class="page-head">
+    <div class="page-head-title">
+      <template x-if="editingDate">
+        <a @click.prevent="openNewEntry({ keepMonth: true })" class="back-btn" title="New entry">←</a>
+      </template>
+      <h2>Log <span class="page-sub" x-text="editingDate ? ('· Edit ' + editingDate) : '· New entry'"></span></h2>
+    </div>
+    <div class="page-head-controls log-header-controls">
+      <template x-if="hasFreelance()">
+        <button type="button" class="fl-jump" @click="flJump()" :title="'Freelance blocks of ' + flDayLabel()"
+                x-text="'⚡ ' + (flDayTotal() ? flTotalLabel(flDayTotal()) : 'add freelance')"></button>
+      </template>
+      <nav class="year-step" aria-label="Log year">
+        <button type="button" @click="calSetYear(calYear - 1)" aria-label="Previous year">‹</button>
+        <span class="year-step-v" x-text="calYear"></span>
+        <button type="button" @click="calSetYear(calYear + 1)" aria-label="Next year">›</button>
+      </nav>
+    </div>
   </header>
+
+  <!-- The year as twelve mini months (the planner's strip): a click makes that month the one
+       on the calendar below; the lit one is the calendar's title. -->
+  <div class="plan-strip log-strip" role="tablist" aria-label="Months">
+    <template x-for="m in yearStrip(calYear, calMonth)" :key="m.mo">
+      <button type="button" class="plan-mini" :class="m.active ? 'active' : ''"
+              role="tab" :aria-selected="m.active ? 'true' : 'false'"
+              @click="calMonth = m.mo" :aria-label="m.label + ' ' + calYear">
+        <span class="plan-mini-title" x-text="m.label"></span>
+        <span class="plan-mini-grid">
+          <template x-for="c in m.cells" :key="c.key">
+            <i :class="c.pad ? 'pad' : 'hm-cell ' + c.cls" :style="c.style"></i>
+          </template>
+        </span>
+      </button>
+    </template>
+  </div>
 
   <div class="log-layout">
 
     <!-- ── Col 1: sticky calendar + bulk trigger ────────────────── -->
     <div class="log-col-left">
-      <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''">
-        <div class="log-cal-header">
-          <button type="button" class="log-cal-nav" @click="calPrev()" aria-label="Previous month">‹</button>
-          <span class="log-cal-title" x-text="calMonthLabel()"></span>
-          <button type="button" class="log-cal-nav" @click="calNext()" aria-label="Next month">›</button>
-        </div>
+      <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''" :aria-label="calMonthLabel()">
         <div class="log-cal-grid">
           <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
             <div class="log-cal-dow" x-text="h"></div>
@@ -25,7 +50,7 @@
           <template x-for="cell in calDays()" :key="cell.key">
             <button type="button"
                     class="log-cal-day"
-                    :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '']"
+                    :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '', cell.fl ? 'has-fl' : '']"
                     :style="cell.style"
                     @click="calSelectDay(cell.date)"
                     :disabled="cell.padded || !!editingDate"
@@ -46,6 +71,7 @@
           <span class="legend-item"><span class="hm-swatch hm-partial-swatch"></span> Partial</span>
           <span class="legend-item"><span class="hm-swatch hm-ghost hm-ghost-vacation"></span> Planned</span>
           <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
+          <template x-if="hasFreelance()"><span class="legend-item"><span class="hm-swatch hm-empty has-fl"></span> Freelance</span></template>
         </div>
       </div>
       <div class="bulk-trigger">
@@ -55,6 +81,10 @@
 
     <!-- ── Card surface: form (col 2) + notes (col 3) ───────────── -->
     <div class="log-form-card">
+      <div class="card-title">
+        <h3><span aria-hidden="true">👔</span> Employee</h3>
+        <span class="hint muted">the day for the job — target, balance, timesheet</span>
+      </div>
       <form class="log-form-grid" @submit.prevent="saveEntry()">
 
         <!-- ── Form column ─────────────────────────────────────── -->
@@ -242,6 +272,124 @@
 
       </form>
     </div><!-- /log-form-card -->
+
+    <!-- ── Freelance blocks of the selected day ─────────────────────────────
+         Independent of the employee entry above: saved on their own, the moment you add
+         them, so a day that already has its hours takes a block in two taps. Only once an
+         income source exists (Settings → Freelance). -->
+    <template x-if="hasFreelance()">
+      <div class="fl-card" data-testid="freelance-panel" :class="flForm.id ? 'fl-card--editing' : ''">
+        <div class="card-title fl-head">
+          <h3><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</h3>
+          <span class="hint muted">blocks with their own rate — never the job's balance</span>
+          <template x-if="flDayTotal()">
+            <span class="fl-total metric" :key="flDayTotal().hours + '-' + flDayTotal().eur">
+              <span x-text="fmtHours(flDayTotal().hours)"></span> · <b x-text="flDayTotal().eur > 0 || !flDayTotal().missing ? fmtMoney(flDayTotal().eur) : 'no rate yet'"></b>
+              <template x-if="flDayTotal().missing && flDayTotal().eur > 0"><span class="muted" x-text="' · ' + flDayTotal().missing + ' without a rate'"></span></template>
+            </span>
+          </template>
+          <template x-if="!flDayTotal()">
+            <span class="fl-total muted" x-text="flDayLabel() + ' · nothing yet'"></span>
+          </template>
+        </div>
+
+        <ul class="fl-list" x-show="flDayBlocks().length">
+          <template x-for="b in flDayBlocks()" :key="b.id">
+            <li class="fl-block" :data-id="b.id" :class="flForm.id === b.id ? 'is-editing' : ''" :style="'--src:' + sourceColor(b.source_id)">
+              <span class="fl-dot" aria-hidden="true"></span>
+              <span class="fl-src" x-text="b.source_name"></span>
+              <span class="fl-dur metric">
+                <b x-text="fmtHours(b.hours)"></b>
+                <template x-if="b.start_time"><span class="muted" x-text="blockDuration(b)"></span></template>
+              </span>
+              <span class="fl-amt metric" :class="b.amount_eur === null ? 'deficit' : ''" x-text="blockAmountLabel(b)"></span>
+              <span class="fl-note muted" x-text="b.notes || ''"></span>
+              <span class="fl-actions">
+                <button type="button" class="fl-icon" @click="flEdit(b)" :aria-label="'Edit block ' + b.source_name" title="Edit">✎</button>
+                <button type="button" class="fl-icon fl-icon--x" @click="flRemove(b)" :aria-label="'Remove block ' + b.source_name" title="Remove">✕</button>
+              </span>
+            </li>
+          </template>
+        </ul>
+
+        <!-- the editor: add a block, or change the one picked above -->
+        <form class="fl-editor" @submit.prevent="flSave()" aria-label="Freelance block">
+          <div class="fl-editor-row">
+            <label class="fl-field fl-field--src">
+              <span class="fl-lbl">Source</span>
+              <select x-model.number="flForm.source_id" aria-label="Income source">
+                <template x-for="s in liveSources()" :key="s.id">
+                  <option :value="s.id" x-text="s.name + ' · ' + fmtMoney(s.hourly_rate, s.currency) + '/h'"></option>
+                </template>
+                <template x-if="flForm.id && sourceById(flForm.source_id)?.archived">
+                  <option :value="flForm.source_id" x-text="sourceById(flForm.source_id).name + ' (archived)'"></option>
+                </template>
+              </select>
+            </label>
+
+            <div class="fl-field fl-field--dur">
+              <span class="fl-lbl">
+                <button type="button" class="fl-by" :class="flForm.by === 'hours' ? 'on' : ''" @click="flForm.by = 'hours'">Hours</button>
+                <span class="muted">·</span>
+                <button type="button" class="fl-by" :class="flForm.by === 'times' ? 'on' : ''" @click="flForm.by = 'times'">Start – end</button>
+              </span>
+              <template x-if="flForm.by === 'hours'">
+                <div class="fl-stepper">
+                  <button type="button" class="fl-step" @click="flStep(-0.25)" aria-label="Quarter hour less">−</button>
+                  <input type="number" x-model.number="flForm.hours" min="0.25" max="24" step="0.25" aria-label="Hours" class="fl-hours">
+                  <button type="button" class="fl-step" @click="flStep(0.25)" aria-label="Quarter hour more">+</button>
+                </div>
+              </template>
+              <template x-if="flForm.by === 'times'">
+                <div class="fl-times">
+                  <input type="time" x-model="flForm.start_time" aria-label="Block start">
+                  <span class="muted">→</span>
+                  <input type="time" x-model="flForm.end_time" aria-label="Block end">
+                  <span class="metric muted fl-times-h" x-text="fmtHours(flFormHours())"></span>
+                </div>
+              </template>
+            </div>
+
+            <label class="fl-field fl-field--note">
+              <span class="fl-lbl">Note</span>
+              <input type="text" x-model="flForm.notes" placeholder="what for" maxlength="200" aria-label="Block note">
+            </label>
+          </div>
+
+          <!-- editing an existing block: its own rate and, for USD, the exchange rate of its day -->
+          <template x-if="flForm.id">
+            <div class="fl-editor-row fl-editor-row--adv">
+              <label class="fl-field">
+                <span class="fl-lbl">Rate <span class="muted" x-text="'(' + (blocks.find(b => b.id === flForm.id)?.currency || '') + '/h, as saved)'"></span></span>
+                <input type="number" x-model.number="flForm.rate" min="0.01" step="0.01" class="fl-num" aria-label="Rate">
+              </label>
+              <template x-if="(blocks.find(b => b.id === flForm.id)?.currency) === 'USD'">
+                <label class="fl-field">
+                  <span class="fl-lbl">$ per € that day <span class="muted">(ECB, or yours)</span></span>
+                  <input type="number" x-model.number="flForm.fx_rate" min="0.0001" step="0.0001" class="fl-num" aria-label="Exchange rate" placeholder="no rate">
+                </label>
+              </template>
+            </div>
+          </template>
+
+          <div class="fl-editor-foot">
+            <span class="fl-preview metric" x-show="flFormPreview()">
+              ≈ <b x-text="flFormPreview() ? fmtMoney(flFormPreview().amount, flFormPreview().currency) : ''"></b>
+              <span class="muted" x-text="flFormPreview() ? 'at ' + fmtMoney(flFormPreview().rate, flFormPreview().currency) + '/h' : ''"></span>
+            </span>
+            <span class="fl-editor-btns">
+              <template x-if="flForm.id">
+                <button type="button" class="secondary outline compact" @click="flCancelEdit()">Cancel</button>
+              </template>
+              <button type="submit" class="btn-action fl-submit" :disabled="!flFormValid() || flBusy" x-text="flForm.id ? 'Save block' : '+ Add block'"></button>
+            </span>
+            <template x-if="flFloat">
+              <span class="fl-float metric" :key="flFloat.key" x-text="flFloat.text" aria-hidden="true"></span>
+            </template>
+          </div>
+        </form>
+      </div>
+    </template>
 
   </div><!-- /log-layout -->
 
