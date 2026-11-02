@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import time
 
 import httpx
 import pytest
@@ -186,10 +187,16 @@ class TestPage:
         page.wait_for_selector("#set-name", timeout=5000)
         page.locator("#set-name").fill("Juan Pérez")
         page.locator("#set-employer").fill("ACME")
-        page.locator("button", has_text="Save profile").click()
-        page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Settings saved')", timeout=5000)
+        # autosave: the profile card saves itself once typing stops
+        page.wait_for_selector("#settings-profile .settings-saved.is-saved", timeout=5000)
+        deadline = time.monotonic() + 5
         with httpx.Client(base_url=base_url) as c:
-            assert c.get("/api/config").json()["profile_name"] == "Juan Pérez"
+            while True:
+                cfg = c.get("/api/config").json()
+                if cfg["profile_name"] == "Juan Pérez" and cfg["profile_employer"] == "ACME":
+                    break
+                assert time.monotonic() < deadline, cfg
+                time.sleep(0.1)
         page.goto(f"{base_url}/timesheet")
         page.wait_for_selector(".who")
         assert "Juan Pérez" in page.locator(".who").inner_text()

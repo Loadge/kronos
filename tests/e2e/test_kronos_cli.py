@@ -400,7 +400,7 @@ class TestBackupRestore:
         res = run("backup", "--out", str(out), check=True)
         assert "1 entries" in res.stdout
         snap = json.loads(out.read_text(encoding="utf-8"))
-        assert snap["version"] == 2 and snap["entries"][0]["date"] == D1
+        assert snap["version"] == 3 and snap["entries"][0]["date"] == D1
 
         httpx.delete(f"{base_url}/api/entries/{D1}")
         httpx.post(f"{base_url}/api/entries", json={"date": D2, "day_type": "sick"})
@@ -440,7 +440,7 @@ class TestProdSafety:
         files = list((run.backups / "prod").glob("kronos_backup_*.json"))
         assert len(files) == 1
         snapshot = json.loads(files[0].read_text(encoding="utf-8"))
-        assert snapshot["version"] == 2
+        assert snapshot["version"] == 3
         assert [e["date"] for e in snapshot["entries"]] == [D1]  # taken before D2 was written
         assert _entry(base_url, D2)["day_type"] == "flex"
 
@@ -495,15 +495,15 @@ class TestProdSafety:
 class TestCheck:
     def test_green_against_the_server(self, run, base_url):
         res = run("check", check=True)
-        assert "check: 7/7 passed" in res.stdout and "FAIL" not in res.stdout
+        assert "check: 8/8 passed" in res.stdout and "FAIL" not in res.stdout
         doc = json.loads(run("check", "--json", check=True).stdout)
-        assert doc["passed"] == doc["total"] == 7 and all(c["ok"] for c in doc["checks"])
+        assert doc["passed"] == doc["total"] == 8 and all(c["ok"] for c in doc["checks"])
 
     def test_red_against_a_dead_port(self, run):
         dead = f"http://127.0.0.1:{_free_port()}"
         res = run("--target", "int", "check", target_urls={"KRONOS_INT_URL": dead})
         assert res.returncode == 3
-        assert res.stdout.count("FAIL") == 7
+        assert res.stdout.count("FAIL") == 8
 
     def test_unreachable_read_exits_3(self, run):
         dead = f"http://127.0.0.1:{_free_port()}"

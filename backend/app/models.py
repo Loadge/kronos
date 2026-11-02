@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date as date_
 from enum import StrEnum
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -131,3 +131,109 @@ class Template(Base):
     start_time: Mapped[str] = mapped_column(String(5), nullable=False)
     end_time: Mapped[str] = mapped_column(String(5), nullable=False)
     breaks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+
+
+# ---------- freelance ------------------------------------------------------
+
+
+class IncomeSource(Base):
+    """A client or activity freelance hours are billed to: a name, an hourly rate and a currency.
+
+    One source is the default the Log form preselects. A source with blocks cannot be deleted
+    (its blocks would lose their label): it is archived instead, which only hides it from the
+    picker. Blocks snapshot the rate and currency when they are saved, so editing a source
+    never rewrites the past.
+    """
+
+    __tablename__ = "income_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    hourly_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    archived: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+
+    blocks: Mapped[list[FreelanceBlock]] = relationship(back_populates="source")
+
+
+class FreelanceBlock(Base):
+    """Hours worked as a freelancer: several per day if need be, each billed to one source.
+
+    Independent of ``work_entries`` on purpose: a block never touches the employee's target,
+    balance, streaks or the printable timesheet, and a Saturday of freelance work needs no
+    employee entry. ``minutes`` is the duration (exact, unlike a float of hours); a block
+    entered as a start and an end keeps them too. ``rate`` / ``currency`` are the source's
+    at save time; ``fx_rate`` is the ECB's USD per EUR on the block's date (None for EUR, or
+    when no rate was available), taken once and never fetched again.
+    """
+
+    __tablename__ = "freelance_blocks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("income_sources.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    end_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rate: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    fx_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    source: Mapped[IncomeSource] = relationship(back_populates="blocks", lazy="joined")
+
+    @property
+    def hours(self) -> float:
+        return round(self.minutes / 60.0, 4)
+
+    @property
+    def amount(self) -> float:
+        """What the block bills, in its own currency (unrounded)."""
+        return self.rate * self.minutes / 60.0
+
+    @property
+    def amount_eur(self) -> float | None:
+        """The block in euros: as is for EUR, divided by the day's USD-per-EUR rate for USD;
+        None for a USD block without a rate (the summaries count it as missing)."""
+        if self.currency == "EUR":
+            return self.amount
+        if self.fx_rate:
+            return self.amount / self.fx_rate
+        return None
+
+
+class FreelanceTaxYear(Base):
+    """The tax inputs of one year (Freelance → Taxes). A year without a row of its own uses
+    the latest earlier one; with no rows at all the defaults apply.
+
+    Column names match ``tax.TaxParams``' fields (hours per day is a calculator assumption,
+    taken from the request). ``set_aside_share`` is the part of every payment put by for
+    the tax office (0.40).
+    """
+
+    __tablename__ = "freelance_tax_years"
+
+    year: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    salary_annual: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    tarifa_plana: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    inicio_actividad: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    set_aside_share: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.4, server_default="0.4"
+    )
+    gestoria_annual: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default="0"
+    )
+    other_expenses: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, server_default="0"
+    )

@@ -12,23 +12,29 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from app.config import TEMPLATES_DIR
 from app.database import get_session
-from app.models import WorkEntry
+from app.models import FreelanceBlock, IncomeSource, WorkEntry
 from app.services.clock import local_today
 from app.services.settings import (
     get_daily_target_schedule,
     get_profile,
     get_work_week_days,
 )
-from app.services.timesheet import build_timesheet, fmt_days
+from app.services.timesheet import (
+    build_freelance_timesheet,
+    build_timesheet,
+    fmt_days,
+    fmt_money,
+)
 
 router = APIRouter(tags=["timesheet"])
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["fmtdays"] = fmt_days
+templates.env.filters["money"] = fmt_money
 
 MAX_DAYS = 3 * 366  # a custom range longer than three years is a mistake, not a report
 _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -97,5 +103,81 @@ def timesheet(
             "work_week_label": work_week_label,
             "profile": {k: v for k, v in profile.items() if v},
             "columns": 7 + (3 if detail == "full" else 0) + (1 if notes else 0),
+        },
+    )
+
+
+def _period(from_: date | None, to: date | None, today: date) -> tuple[date, date]:
+    start = from_ or today.replace(day=1)
+    end = to or today
+    if end < start:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "'to' must not be before 'from'")
+    if (end - start).days + 1 > MAX_DAYS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, f"range too long (max {MAX_DAYS} days)"
+        )
+    return start, end
+
+
+@router.get("/timesheet/freelance", response_class=HTMLResponse, include_in_schema=False)
+def freelance_timesheet(
+    request: Request,
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = None,
+    sources: str | None = Query(
+        None, description="Comma-separated source ids to include; every source when absent."
+    ),
+    hours: Literal["dec", "hm"] = "dec",
+    notes: bool = False,
+    sign: bool = False,
+    theme: Literal["light", "dark"] = "light",
+    today: date | None = Query(None, description="Override 'today' for testing."),
+    session: Session = Depends(get_session),
+):
+    """The freelance side of Days → PDF: the blocks of a range, by month, for the sources
+    ticked in the toolbar. Same page conventions as /timesheet: a GET form, the browser's
+    print as the PDF, nothing on the employee's sheet touched."""
+    today = today or local_today()
+    start, end = _period(from_, to, today)
+    all_sources = list(session.scalars(select(IncomeSource).order_by(IncomeSource.id)))
+    if sources is None:
+        wanted = {s.id for s in all_sources}
+    else:
+        try:
+            wanted = {int(x) for x in sources.split(",") if x.strip()}
+        except ValueError as exc:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "sources must be ids separated by commas"
+            ) from exc
+    blocks = session.scalars(
+        select(FreelanceBlock).where(
+            FreelanceBlock.date >= start,
+            FreelanceBlock.date <= end,
+            FreelanceBlock.source_id.in_(wanted) if wanted else false(),
+        )
+    ).all()
+    sheet = build_freelance_timesheet(
+        blocks,
+        start=start,
+        end=end,
+        sources=[s.name for s in all_sources if s.id in wanted],
+        work_week_days=get_work_week_days(session),
+        hours_style=hours,
+    )
+    profile = get_profile(session)
+    return templates.TemplateResponse(
+        request,
+        "timesheet_freelance.html",
+        {
+            "sheet": sheet,
+            "all_sources": all_sources,
+            "wanted": wanted,
+            "hours": hours,
+            "show_notes": notes,
+            "show_sign": sign,
+            "theme": theme,
+            "today": today,
+            "profile": {k: v for k, v in profile.items() if v},
+            "columns": 9 + (1 if notes else 0),
         },
     )

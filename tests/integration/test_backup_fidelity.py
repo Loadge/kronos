@@ -2,8 +2,9 @@
 
 The single strongest guard for the portability promise. Every field that rides in the
 file (entries with breaks and partial-day fractions, planner drafts with notes, the
-target timeline, the profile) is exercised, so a field added to the model but
-forgotten in backup *or* restore fails here.
+target timeline, the profile, the freelance sources / blocks / tax years and the
+projection settings) is exercised, so a field added to the model but forgotten in backup
+*or* restore fails here.
 """
 
 from __future__ import annotations
@@ -59,10 +60,61 @@ def _populate(client):
         json={"dates": ["2026-12-21", "2026-12-22"], "day_type": "vacation", "notes": "Christmas"},
     )
     client.post("/api/plans", json={"dates": ["2026-11-13"], "day_type": "flex", "fraction": 0.5})
+    # Freelance: a USD source (default) and an archived EUR one, blocks on both — one with
+    # times, one by hours, one with a hand-set rate and exchange rate — and two tax years.
+    usd = client.post(
+        "/api/freelance/sources",
+        json={"name": "Northwind", "hourly_rate": 95, "currency": "USD", "is_default": True},
+    ).json()["id"]
+    eur = client.post(
+        "/api/freelance/sources", json={"name": "Old client", "hourly_rate": 60}
+    ).json()["id"]
+    client.post(
+        "/api/freelance/blocks",
+        json={
+            "date": "2026-03-02",
+            "source_id": usd,
+            "start_time": "18:00",
+            "end_time": "20:30",
+            "fx_rate": 1.1172,
+            "notes": "API review",
+        },
+    )
+    client.post(
+        "/api/freelance/blocks",
+        json={"date": "2026-03-02", "source_id": eur, "hours": 1.25, "rate": 75},
+    )
+    client.post(
+        "/api/freelance/blocks",
+        json={"date": "2026-03-07", "source_id": usd, "hours": 3, "fx_rate": 1.12},
+    )
+    client.put(f"/api/freelance/sources/{eur}", json={"archived": True})
+    client.put(
+        "/api/freelance/tax-years/2026",
+        json={
+            "year": 2026,
+            "salary_annual": 55000,
+            "tarifa_plana": False,
+            "inicio_actividad": True,
+            "set_aside_share": 0.35,
+            "gestoria_annual": 600,
+            "other_expenses": 120,
+        },
+    )
+    client.put(
+        "/api/freelance/tax-years/2027",
+        json={"year": 2027, "salary_annual": 58000, "tarifa_plana": True},
+    )
+    client.put("/api/config", json={"freelance_hours_per_week": 6, "freelance_days_off": 5})
 
 
 def _wipe_everything(client):
     client.delete("/api/data")
+    for s in client.get("/api/freelance/sources").json():
+        client.delete(f"/api/freelance/sources/{s['id']}")
+    for t in client.get("/api/freelance/tax-years").json():
+        client.delete(f"/api/freelance/tax-years/{t['year']}")
+    client.put("/api/config", json={"freelance_hours_per_week": 0, "freelance_days_off": 0})
     client.put(
         "/api/config/daily-target-schedule",
         json={"rows": [{"effective_from": "2020-01-01", "hours": 7}]},
@@ -125,17 +177,29 @@ class TestBackupRoundTripIsIdentity:
     def test_backup_restore_backup_is_identical(self, client):
         _populate(client)
         first = client.get("/api/backup").json()
-        assert first["version"] == 2
+        assert first["version"] == 3
         assert len(first["entries"]) == 4 and len(first["plans"]) == 3
+        assert len(first["income_sources"]) == 2 and len(first["freelance_blocks"]) == 3
+        assert len(first["freelance_tax_years"]) == 2
 
         _wipe_everything(client)
         assert client.get("/api/entries").json() == []
         assert client.get("/api/plans").json() == []
+        assert client.get("/api/freelance/sources").json() == []
+        assert client.get("/api/freelance/blocks").json() == []
+        assert client.get("/api/freelance/tax-years").json() == []
         assert client.get("/api/config").json()["profile_name"] == ""
 
         assert client.post("/api/restore", json=first).status_code == 200
         second = client.get("/api/backup").json()
         assert _strip(second) == _strip(first)
+        # The blocks found their sources again, with the rates they were saved with.
+        blocks = client.get("/api/freelance/blocks").json()
+        assert [(b["source_name"], b["rate"], b["currency"], b["fx_rate"]) for b in blocks] == [
+            ("Northwind", 95.0, "USD", 1.1172),
+            ("Old client", 75.0, "EUR", None),
+            ("Northwind", 95.0, "USD", 1.12),
+        ]
 
     def test_restore_is_idempotent(self, client):
         _populate(client)
@@ -149,7 +213,16 @@ class TestBackupRoundTripIsIdentity:
         """If a new field lands on an entry / plan / setting, it must show up here too."""
         _populate(client)
         backup = client.get("/api/backup").json()
-        assert set(backup) == {"version", "exported_at", "settings", "entries", "plans"}
+        assert set(backup) == {
+            "version",
+            "exported_at",
+            "settings",
+            "entries",
+            "plans",
+            "income_sources",
+            "freelance_blocks",
+            "freelance_tax_years",
+        }
         assert set(backup["entries"][0]) == {
             "date",
             "day_type",
@@ -168,4 +241,46 @@ class TestBackupRoundTripIsIdentity:
             "profile_name",
             "profile_employer",
             "profile_extra",
+            "freelance_hours_per_week",
+            "freelance_days_off",
         } <= set(backup["settings"])
+        assert set(backup["income_sources"][0]) == {
+            "id",
+            "name",
+            "hourly_rate",
+            "currency",
+            "is_default",
+            "archived",
+        }
+        assert set(backup["freelance_blocks"][0]) == {
+            "date",
+            "source_id",
+            "minutes",
+            "start_time",
+            "end_time",
+            "notes",
+            "rate",
+            "currency",
+            "fx_rate",
+        }
+        assert set(backup["freelance_tax_years"][0]) == {
+            "year",
+            "salary_annual",
+            "tarifa_plana",
+            "inicio_actividad",
+            "set_aside_share",
+            "gestoria_annual",
+            "other_expenses",
+        }
+
+    def test_a_version_2_file_leaves_the_freelance_side_alone(self, client):
+        """An older file knows nothing of sources or blocks: restoring it must not wipe them."""
+        _populate(client)
+        old = client.get("/api/backup").json()
+        for key in ("income_sources", "freelance_blocks", "freelance_tax_years"):
+            del old[key]
+        old["version"] = 2
+        assert client.post("/api/restore", json=old).status_code == 200
+        assert len(client.get("/api/freelance/sources").json()) == 2
+        assert len(client.get("/api/freelance/tax-years").json()) == 2
+        assert client.get("/api/freelance/blocks").json() == []  # blocks are data: wiped

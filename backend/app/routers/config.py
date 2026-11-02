@@ -23,6 +23,8 @@ from app.services.settings import (
     get_daily_target_schedule,
     get_default_end_time,
     get_default_start_time,
+    get_freelance_days_off,
+    get_freelance_hours_per_week,
     get_holiday_country,
     get_holiday_region,
     get_profile,
@@ -34,6 +36,8 @@ from app.services.settings import (
     set_daily_target_schedule,
     set_default_end_time,
     set_default_start_time,
+    set_freelance_days_off,
+    set_freelance_hours_per_week,
     set_holiday_country,
     set_holiday_region,
     set_profile_field,
@@ -64,6 +68,8 @@ def _config_out(session: Session) -> ConfigOut:
         default_end_time=get_default_end_time(session),
         holiday_country=get_holiday_country(session),
         holiday_region=get_holiday_region(session),
+        freelance_hours_per_week=get_freelance_hours_per_week(session),
+        freelance_days_off=get_freelance_days_off(session),
         **get_profile(session),
     )
 
@@ -99,6 +105,10 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_profile_field(session, PROFILE_EMPLOYER, body.profile_employer)
     if body.profile_extra is not None:
         set_profile_field(session, PROFILE_EXTRA, body.profile_extra)
+    if body.freelance_hours_per_week is not None:
+        set_freelance_hours_per_week(session, body.freelance_hours_per_week)
+    if body.freelance_days_off is not None:
+        set_freelance_days_off(session, body.freelance_days_off)
     session.commit()
     return _config_out(session)
 

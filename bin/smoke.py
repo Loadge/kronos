@@ -17,7 +17,10 @@ Each check is a plain GET with a 10 s timeout, run in this order:
     /api/analytics/yoy              200, JSON object
     /api/plans                      200, JSON list
     /api/plans/projection           200, JSON object containing key "on_target"
+    /api/freelance/sources          200, JSON list
+    /api/freelance/summary          200, JSON object containing keys "total" and "quarters"
     /timesheet                      200, HTML containing "Timesheet" and a "table"
+    /timesheet/freelance            200, HTML containing "Freelance timesheet" and a "table"
     /api/__smoke_negative_control__ MUST be 404 (see "The negative control")
 
 Safety
@@ -185,6 +188,18 @@ def check_api_plans(status: int, body: bytes) -> str | None:
     return _check_json(status, body, list)
 
 
+def check_api_freelance_sources(status: int, body: bytes) -> str | None:
+    return _check_json(status, body, list)
+
+
+def check_api_freelance_summary(status: int, body: bytes) -> str | None:
+    if (err := _check_json(status, body, dict)) is not None:
+        return err
+    data, _ = _parse_json(body)
+    missing = [k for k in ("total", "quarters", "projection") if k not in data]
+    return f"missing {', '.join(missing)}" if missing else None
+
+
 def check_api_projection(status: int, body: bytes) -> str | None:
     if (err := _expected_200(status)) is not None:
         return err
@@ -205,6 +220,16 @@ def check_timesheet(status: int, body: bytes) -> str | None:
     for needle in ("Timesheet", "<table"):
         if needle not in text:
             return f"timesheet page does not contain {needle!r}"
+    return None
+
+
+def check_freelance_timesheet(status: int, body: bytes) -> str | None:
+    if (err := _expected_200(status)) is not None:
+        return err
+    text = body.decode("utf-8", errors="replace")
+    for needle in ("Freelance timesheet", "<table"):
+        if needle not in text:
+            return f"freelance timesheet page does not contain {needle!r}"
     return None
 
 
@@ -231,7 +256,10 @@ CHECKS: list[tuple[str, Validator]] = [
     ("/api/analytics/yoy", check_api_yoy),
     ("/api/plans", check_api_plans),
     ("/api/plans/projection", check_api_projection),
+    ("/api/freelance/sources", check_api_freelance_sources),
+    ("/api/freelance/summary", check_api_freelance_summary),
     ("/timesheet", check_timesheet),
+    ("/timesheet/freelance", check_freelance_timesheet),
     ("/api/__smoke_negative_control__", check_negative_control),
 ]
 

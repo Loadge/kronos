@@ -70,6 +70,8 @@ body {
 .seg label.on { background: #e0b341; color: #17140f; font-weight: 700; }
 .seg input { position: absolute; opacity: 0; width: 0; height: 0; }
 .tb-check { display: inline-flex; gap: .3rem; align-items: center; color: #a49b87; cursor: pointer; }
+.tb-sources { display: inline-flex; flex-wrap: wrap; gap: .3rem .8rem; padding-left: .8rem; border-left: 1px solid #3d3a33; }
+.empty { text-align: center; color: var(--t-muted); font-style: italic; padding: 1.2rem 0; }
 .tb-print {
   background: #e0b341; color: #17140f; border: none; border-radius: 6px;
   padding: .35rem .9rem; font: inherit; font-weight: 700; cursor: pointer;

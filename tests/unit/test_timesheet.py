@@ -210,3 +210,93 @@ class TestTotals:
     def test_end_before_start_rejected(self):
         with pytest.raises(ValueError):
             _sheet([], start=date(2026, 9, 2), end=date(2026, 9, 1))
+
+
+# ---------- the freelance sheet -----------------------------------------------------
+
+
+class TestFreelanceSheet:
+    def test_fmt_money(self):
+        from app.services.timesheet import fmt_money
+
+        assert fmt_money(170.068) == "€170.07"
+        assert fmt_money(190, "USD") == "$190.00"
+        assert fmt_money(12345.5) == "€12,345.50"
+        assert fmt_money(0.125) == "€0.13"  # a half cent up, like tax.money
+        assert fmt_money(-3) == "−€3.00"
+
+    def test_rows_totals_and_months(self):
+        from datetime import date
+        from types import SimpleNamespace
+
+        from app.services.timesheet import build_freelance_timesheet
+
+        src = SimpleNamespace(name="Northwind")
+        blocks = [
+            SimpleNamespace(
+                id=2,
+                date=date(2026, 11, 2),
+                minutes=90,
+                start_time=None,
+                end_time=None,
+                rate=60.0,
+                currency="EUR",
+                fx_rate=None,
+                amount=90.0,
+                amount_eur=90.0,
+                notes=None,
+                source=SimpleNamespace(name="Local"),
+            ),
+            SimpleNamespace(
+                id=1,
+                date=date(2026, 10, 31),
+                minutes=240,
+                start_time="09:30",
+                end_time="13:30",
+                rate=95.0,
+                currency="USD",
+                fx_rate=1.1172,
+                amount=380.0,
+                amount_eur=380 / 1.1172,
+                notes="report",
+                source=src,
+            ),
+            SimpleNamespace(
+                id=3,
+                date=date(2026, 10, 3),
+                minutes=60,
+                start_time=None,
+                end_time=None,
+                rate=95.0,
+                currency="USD",
+                fx_rate=None,
+                amount=95.0,
+                amount_eur=None,
+                notes=None,
+                source=src,
+            ),
+        ]
+        sheet = build_freelance_timesheet(
+            blocks,
+            start=date(2026, 10, 1),
+            end=date(2026, 11, 30),
+            sources=["Northwind", "Local"],
+            work_week_days=[0, 1, 2, 3, 4],
+            hours_style="dec",
+        )
+        assert sheet.multi_month and [m.abbr for m in sheet.months] == ["Oct", "Nov"]
+        oct_rows = sheet.months[0].rows
+        assert [r.day for r in oct_rows] == ["03", "31"]  # sorted by date whatever the ids
+        assert (oct_rows[1].hours, oct_rows[1].rate, oct_rows[1].amount, oct_rows[1].eur) == (
+            "4.00",
+            "$95.00",
+            "$380.00",
+            "€340.14",
+        )
+        assert oct_rows[0].missing_fx and oct_rows[0].eur == "" and oct_rows[0].weekend
+        t = sheet.months[0].totals
+        assert (t.blocks, t.minutes, t.missing_fx) == (2, 300, 1)
+        assert t.amounts_label == "$475.00"
+        assert sheet.totals.amounts_label == "€90.00 · $475.00"  # euros first
+        assert sheet.totals.eur == pytest.approx(90 + 380 / 1.1172)
+        assert sheet.totals.hours == pytest.approx(6.5)

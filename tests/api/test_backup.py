@@ -48,7 +48,7 @@ class TestDownloadBackup:
         r = client.get("/api/backup")
         assert r.status_code == 200
         body = r.json()
-        assert body["version"] == 2  # entries carry `fraction`
+        assert body["version"] == 3  # entries carry `fraction`; freelance rides along
         assert "exported_at" in body
         assert body["entries"] == []
         assert "settings" in body

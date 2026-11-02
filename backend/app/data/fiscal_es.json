@@ -64,7 +64,9 @@
         "hard_to_justify_max": 2000.0,
         "employment_other_expenses": 2000.0,
         "startup_reduction": 0.2,
-        "pago_fraccionado": 0.2
+        "pago_fraccionado": 0.2,
+        "pago_fraccionado_deadlines": [[4, 20], [7, 20], [10, 20], [1, 30]],
+        "_deadlines": "[month, day] the modelo 130 of each quarter is due (art. 110 RIRPF); the fourth falls in January of the next year"
       }
     }
   }

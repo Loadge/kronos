@@ -1,13 +1,15 @@
 <!-- ========================= PLAN ========================= -->
 <template x-if="tab==='plan'">
 <section aria-label="Time-off planner" @mouseup.window="planMouseup()">
-  <header class="section-header plan-header">
-    <h2>Plan</h2>
-    <nav class="section-header-controls plan-year-switch" aria-label="Plan year">
-      <button type="button" class="log-cal-nav" @click="setPlanYear(planYear - 1)" aria-label="Previous year">‹</button>
-      <span class="week-range" x-text="planYear"></span>
-      <button type="button" class="log-cal-nav" @click="setPlanYear(planYear + 1)" aria-label="Next year">›</button>
-    </nav>
+  <header class="page-head">
+    <div class="page-head-title"><h2>Plan</h2></div>
+    <div class="page-head-controls">
+      <nav class="year-step" aria-label="Plan year">
+        <button type="button" @click="setPlanYear(planYear - 1)" aria-label="Previous year">‹</button>
+        <span class="year-step-v" x-text="planYear"></span>
+        <button type="button" @click="setPlanYear(planYear + 1)" aria-label="Next year">›</button>
+      </nav>
+    </div>
   </header>
 
   <!-- Year strip: twelve mini months; click one to make it the working month -->

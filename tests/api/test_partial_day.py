@@ -336,7 +336,7 @@ class TestBackupRoundTrip:
             ),
         )
         backup = client.get("/api/backup").json()
-        assert backup["version"] == 2
+        assert backup["version"] == 3
         (entry,) = backup["entries"]
         assert entry["fraction"] == 0.375
         assert entry["start_time"] == "09:00"
@@ -374,9 +374,9 @@ class TestBackupRoundTrip:
         assert client.post("/api/restore", json=legacy).status_code == 422
 
     def test_unknown_version_rejected(self, client):
-        r = client.post("/api/restore", json={"version": 3, "entries": []})
+        r = client.post("/api/restore", json={"version": 4, "entries": []})
         assert r.status_code == 422
-        assert "supported: 1, 2" in r.text
+        assert "supported: 1, 2, 3" in r.text
 
     def test_restore_settings_with_fractional_budget(self, client):
         backup = client.get("/api/backup").json()

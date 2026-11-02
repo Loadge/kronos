@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en" data-theme="{{ theme }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freelance timesheet · {{ sheet.period_label }}{% if profile.profile_name %} · {{ profile.profile_name }}{% endif %}</title>
+<link rel="stylesheet" href="/static/timesheet.css">
+</head>
+<body>
+
+<!-- Toolbar: every switch is a query parameter; the sources to include are checkboxes. Not printed. -->
+<form class="toolbar" method="get" action="/timesheet/freelance" aria-label="Freelance timesheet options" id="ts-form">
+  <span class="tb-title">⚡ Freelance timesheet · {{ sheet.period_label }}</span>
+  <label class="tb-range">
+    <input type="date" name="from" id="ts-from" value="{{ sheet.start.isoformat() }}" max="{{ sheet.end.isoformat() }}" aria-label="From" onchange="this.form.requestSubmit()">
+    <span>–</span>
+    <input type="date" name="to" id="ts-to" value="{{ sheet.end.isoformat() }}" min="{{ sheet.start.isoformat() }}" aria-label="To" onchange="this.form.requestSubmit()">
+  </label>
+  <span class="tb-sources" role="group" aria-label="Sources">
+    {% for s in all_sources %}
+    <label class="tb-check"><input type="checkbox" class="tb-src" value="{{ s.id }}" {{ 'checked' if s.id in wanted else '' }} onchange="syncSources(this.form)"> {{ s.name }}</label>
+    {% endfor %}
+    <input type="hidden" name="sources" id="ts-sources" value="{{ wanted|sort|join(',') }}">
+  </span>
+  <span class="sp"></span>
+  <span class="seg" role="radiogroup" aria-label="Hours format">
+    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }} onchange="this.form.requestSubmit()">7.50</label>
+    <label class="{{ 'on' if hours == 'hm' else '' }}"><input type="radio" name="hours" value="hm" {{ 'checked' if hours == 'hm' else '' }} onchange="this.form.requestSubmit()">7:30</label>
+  </span>
+  <label class="tb-check"><input type="checkbox" name="notes" value="1" {{ 'checked' if show_notes else '' }} onchange="this.form.requestSubmit()"> notes</label>
+  <label class="tb-check"><input type="checkbox" name="sign" value="1" {{ 'checked' if show_sign else '' }} onchange="this.form.requestSubmit()"> signatures</label>
+  <span class="seg" role="radiogroup" aria-label="Theme">
+    <label class="{{ 'on' if theme == 'light' else '' }}"><input type="radio" name="theme" value="light" {{ 'checked' if theme == 'light' else '' }} onchange="this.form.requestSubmit()">☀</label>
+    <label class="{{ 'on' if theme == 'dark' else '' }}"><input type="radio" name="theme" value="dark" {{ 'checked' if theme == 'dark' else '' }} onchange="this.form.requestSubmit()">☾</label>
+  </span>
+  <button type="button" class="tb-print" onclick="window.print()">Print / Save as PDF</button>
+</form>
+
+<main class="page">
+  <header class="doc">
+    <div>
+      <h1 class="title">Freelance timesheet</h1>
+      <div class="period">{{ sheet.period_label }}</div>
+    </div>
+    <div class="who">
+      {% if profile.profile_name %}<strong>{{ profile.profile_name }}</strong><br>{% endif %}
+      {% if sheet.sources %}{{ sheet.sources|join(' · ') }}{% else %}<em>no source selected</em>{% endif %}
+    </div>
+  </header>
+
+  <div class="meta">
+    <span>Hours as {{ 'h:mm' if hours == 'hm' else 'decimal' }}</span>
+    <span>USD at the ECB reference rate of each block's day</span>
+    <span>Generated {{ today.isoformat() }} by Kronos</span>
+  </div>
+
+  <table class="sheet">
+    <thead>
+      <tr>
+        <th class="c-day">Day</th><th></th><th>Source</th>
+        <th class="n">Start</th><th class="n">End</th><th class="n">Hours</th><th class="n">Rate</th><th class="n">Amount</th><th class="n">EUR</th>
+        {% if show_notes %}<th>Notes</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+    {% if not sheet.months %}
+      <tr><td colspan="{{ columns }}" class="empty">No freelance blocks in this period{% if sheet.sources %} for the selected sources{% endif %}.</td></tr>
+    {% endif %}
+    {% for m in sheet.months %}
+      {% if sheet.multi_month %}
+      <tr class="month"><td colspan="{{ columns }}">{{ m.label }}</td></tr>
+      {% endif %}
+      {% for r in m.rows %}
+      <tr class="row-block{% if r.weekend %} we{% endif %}" data-date="{{ r.date.isoformat() }}">
+        <td class="c-day">{{ r.day }}</td>
+        <td class="c-dow">{{ r.weekday }}</td>
+        <td class="c-type">{{ r.source }}</td>
+        <td class="n">{{ r.start }}</td>
+        <td class="n">{{ r.end }}</td>
+        <td class="n">{{ r.hours }}</td>
+        <td class="n">{{ r.rate }}</td>
+        <td class="n">{{ r.amount }}</td>
+        <td class="n">{% if r.missing_fx %}<span class="flag">no rate</span>{% else %}{{ r.eur }}{% endif %}</td>
+        {% if show_notes %}<td class="notes">{{ r.notes }}</td>{% endif %}
+      </tr>
+      {% endfor %}
+      {% set t = m.totals if sheet.multi_month else sheet.totals %}
+      <tr class="sub">
+        <td colspan="5">{{ m.abbr + ' subtotal' if sheet.multi_month else 'Total' }} · {{ t.blocks }} block{{ '' if t.blocks == 1 else 's' }}{% if t.missing_fx %}, {{ t.missing_fx }} without a rate{% endif %}</td>
+        <td class="n">{{ sheet.fmt(t.hours) }}</td>
+        <td></td>
+        <td class="n">{{ t.amounts_label }}</td>
+        <td class="n">{{ t.eur|money }}</td>
+        {% if show_notes %}<td></td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  {% set g = sheet.totals %}
+  <section class="totals" aria-label="Totals">
+    <div class="tot"><div class="k">Hours</div><div class="v">{{ sheet.fmt(g.hours) }}</div><div class="s">{{ g.blocks }} block{{ '' if g.blocks == 1 else 's' }}</div></div>
+    <div class="tot"><div class="k">Billed</div><div class="v">{{ g.amounts_label or '—' }}</div><div class="s">in the sources' currencies</div></div>
+    <div class="tot"><div class="k">In euros</div><div class="v">{{ g.eur|money }}</div><div class="s">{% if g.missing_fx %}{{ g.missing_fx }} block{{ '' if g.missing_fx == 1 else 's' }} without a rate left out{% else %}at each day's ECB rate{% endif %}</div></div>
+    <div class="tot"><div class="k">Per hour</div><div class="v">{% if g.minutes %}{{ (g.eur / g.hours)|money }}{% else %}—{% endif %}</div><div class="s">gross, in euros</div></div>
+  </section>
+
+  <p class="legend">
+    One row per block; days without freelance work are not listed. Rate and amount in the source's currency as saved with the block;
+    EUR at the European Central Bank's reference rate of that day. Weekends shaded. Before tax — see the Freelance tab for the estimate.
+  </p>
+
+  {% if show_sign %}
+  <section class="sign" aria-label="Signatures">
+    <div>Freelancer · signature and date</div>
+    <div>Client · signature and date</div>
+  </section>
+  {% endif %}
+
+  <footer class="doc"><span>Kronos · freelance timesheet</span><span>{{ sheet.start.isoformat() }} – {{ sheet.end.isoformat() }}</span></footer>
+</main>
+
+<script>
+  // Every switch reloads the page (the toolbar is a GET form). Keep the reader where
+  // they were; the source checkboxes fold into one `sources` parameter.
+  function syncSources(form) {
+    var ids = [].slice.call(form.querySelectorAll('.tb-src:checked')).map(function (c) { return c.value; });
+    document.getElementById('ts-sources').value = ids.join(',');
+    form.requestSubmit();
+  }
+  (function () {
+    var form = document.getElementById('ts-form');
+    var key = 'kronos-timesheet-scroll';
+    form.addEventListener('submit', function () { sessionStorage.setItem(key, String(window.scrollY)); });
+    var y = sessionStorage.getItem(key);
+    if (y !== null) { sessionStorage.removeItem(key); window.scrollTo(0, Number(y)); }
+    var from = document.getElementById('ts-from'), to = document.getElementById('ts-to');
+    from.addEventListener('input', function () { to.min = from.value; });
+    to.addEventListener('input', function () { from.max = to.value; });
+  })();
+</script>
+</body>
+</html>

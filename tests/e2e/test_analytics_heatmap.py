@@ -78,7 +78,15 @@ class TestHeatmapWeekNumbers:
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(".hm-week-label", timeout=5000)
 
-        page.locator("select").first.select_option(str(YEAR))
+        # the year stepper in the page head: step until it shows YEAR (it starts on the
+        # current year, or the latest with data)
+        for _ in range(10):
+            shown = int(page.locator(".page-head .year-step-v").inner_text())
+            if shown == YEAR:
+                break
+            arrow = "Previous year" if shown > YEAR else "Next year"
+            page.locator(f".page-head button[aria-label='{arrow}']").click()
+            page.wait_for_timeout(100)
         page.wait_for_timeout(200)  # Alpine re-render after the year switch
 
         labels = page.locator(".hm-week-label").all_inner_texts()

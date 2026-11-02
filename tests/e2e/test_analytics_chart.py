@@ -93,6 +93,9 @@ class TestZoom:
         _seed(base_url, [_work(f"{YEAR}-03-02", "19:00")])
         _open(page, base_url)
         before = page.locator(".an-range").inner_text()
+        # the page head sits above the year now: bring the chart fully into view first
+        page.locator(".an-chart").evaluate("el => el.scrollIntoView({block: 'center'})")
+        page.wait_for_timeout(100)
         box = page.locator(".an-chart").bounding_box()
         page.mouse.move(box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.5)
         page.mouse.wheel(0, -200)

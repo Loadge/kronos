@@ -275,7 +275,7 @@ def test_round_half_up_leaves_a_huge_figure_alone():
 
 
 def test_round_half_up_raises_where_the_scaled_figure_overflows():
-    # /api/calc turns this into a 422 "Input too large" (tests/test_calc_api.py)
+    # the API never sees this: /api/freelance/calc caps its inputs at 1e9 and rounds with money()
     with pytest.raises(OverflowError):
         tax.round_half_up(1e307, 2)
     with pytest.raises(OverflowError):
@@ -346,3 +346,45 @@ def test_fiscal_file_is_well_formed():
             assert 0 < rate < 1
         bases = [b for _, b in r.reta_tramos]
         assert bases[3:] == sorted(bases[3:])  # the general table never goes down
+
+
+# ---------- the quarterly 130 ------------------------------------------------------
+
+
+def test_quarter_payments_are_cumulative_and_never_negative():
+    # Fixed costs 2400 a year (200 a month): 600 accrue per quarter.
+    # Q1: 4000 - 600 = 3400, 5% = 170 -> 3230 * 0.2 = 646.00, paid 646.00
+    # Q2: 4000 + 0 - 1200 = 2800, 5% = 140 -> 2660 * 0.2 = 532.00 < 646 -> pays 0
+    # Q3: 4000 + 0 + 9000 - 1800 = 11200, 5% = 560 -> 10640 * 0.2 = 2128.00 -> pays 1482.00
+    # Q4: 13000 + 1000 - 2400 = 11600, 5% = 580 -> 11020 * 0.2 = 2204.00 -> pays 76.00
+    qs = tax.quarter_payments((4000, 0, 9000, 1000), 2400, 2026)
+    assert [q.quarter for q in qs] == [1, 2, 3, 4]
+    assert [round(q.payment, 2) for q in qs] == [646.0, 0.0, 1482.0, 76.0]
+    assert [round(q.cumulative, 2) for q in qs] == [646.0, 532.0, 2128.0, 2204.0]
+    assert qs[1].yield_ytd == pytest.approx(2660)
+    # the year's four payments add up to the year's 130 in `figures` (same maths, no salary
+    # effect): 14000 - 2400 = 11600, 5% = 580 -> 11020 * 0.2 = 2204
+    assert sum(q.payment for q in qs) == pytest.approx(2204)
+    f = tax.figures(
+        14000, tax.TaxParams(gestoria_annual=2400, other_expenses=0, hours_per_day=8), 2026
+    )
+    # figures() takes the real RETA, not 2400, so compare the rule instead of the number:
+    assert f.pago_fraccionado == pytest.approx(max(0, f.taxable) * 0.2)
+
+
+def test_quarter_payments_a_loss_year_pays_nothing():
+    qs = tax.quarter_payments((100, 100, 100, 100), 5000, 2026)
+    assert [q.payment for q in qs] == [0, 0, 0, 0]
+    assert all(q.yield_ytd == 0 for q in qs)
+
+
+def test_quarter_payments_cap_the_hard_to_justify_expenses():
+    # 100000 in Q1, no fixed costs: 5% would be 5000, capped at 2000 -> 98000 * 0.2 = 19600
+    (q1, *_rest) = tax.quarter_payments((100000, 0, 0, 0), 0, 2026)
+    assert q1.payment == pytest.approx(19600)
+
+
+def test_quarter_deadlines_come_from_the_fiscal_file():
+    qs = tax.quarter_payments((0, 0, 0, 0), 0, 2026)
+    assert [(q.deadline_month, q.deadline_day) for q in qs] == [(4, 20), (7, 20), (10, 20), (1, 30)]
+    assert [q.deadline_in_next_year for q in qs] == [False, False, False, True]

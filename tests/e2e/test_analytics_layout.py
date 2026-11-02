@@ -67,7 +67,9 @@ class TestAnalyticsLayout:
         page.wait_for_selector(".hm-cell", timeout=10000)
 
         headings = page.locator("section[aria-label=Analytics] h2").all_inner_texts()
-        assert headings == EXPECTED_ORDER
+        # the page's own title first (every tab has one), then the sections in order
+        assert headings[0] == "Analytics"
+        assert headings[1:] == EXPECTED_ORDER
 
     def test_point_in_time_section_is_gone(self, page, base_url):
         _seed(
