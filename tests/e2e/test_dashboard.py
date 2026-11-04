@@ -127,6 +127,12 @@ class TestSettingsTab:
         page.goto(f"{base_url}/#settings")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector("input[type='number']", timeout=5000)
+        # The inputs exist before the saved config has arrived; typing into one earlier is
+        # overwritten by the load and changes nothing, so no save ever happens (a busy runner
+        # showed it). Wait for the form to be loaded.
+        page.wait_for_function(
+            "() => !!Alpine.$data(document.querySelector('main'))._settingsSaved", timeout=5000
+        )
 
         # Change the daily target: there is no button — the section saves itself half a
         # second after the last keystroke and its card head says so.
