@@ -15,6 +15,7 @@ import re
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 pytestmark = pytest.mark.e2e
 
@@ -149,9 +150,9 @@ class TestNotesAreOptional:
 
         # the next day has no note: back to the button, nothing carried over
         _open_day(page, YESTERDAY.isoformat())
-        assert _add_note_button(page).is_visible()
-        assert not _notes(page).is_visible()
-        assert _notes(page).input_value() == ""
+        expect(_add_note_button(page)).to_be_visible()
+        expect(_notes(page)).to_be_hidden()
+        expect(_notes(page)).to_have_value("")
 
     def test_leaving_a_day_with_notes_or_picking_another_one_collapses_it(self, page, base_url):
         _post_entry(base_url, TODAY.isoformat(), "keep me")
@@ -165,8 +166,9 @@ class TestNotesAreOptional:
         page.wait_for_function(
             "() => !Alpine.$data(document.querySelector('main')).editingDate", timeout=3000
         )
-        assert _add_note_button(page).is_visible() and not _notes(page).is_visible()
-        assert _notes(page).input_value() == ""
+        expect(_add_note_button(page)).to_be_visible()
+        expect(_notes(page)).to_be_hidden()
+        expect(_notes(page)).to_have_value("")
 
         # a note being typed on a new entry, then another day picked in the calendar
         _add_note_button(page).click()
@@ -178,8 +180,9 @@ class TestNotesAreOptional:
             "(iso) => Alpine.$data(document.querySelector('main')).editingDate === iso",
             arg=YESTERDAY.isoformat(),
         )
-        assert _add_note_button(page).is_visible() and not _notes(page).is_visible()
-        assert _notes(page).input_value() == ""
+        expect(_add_note_button(page)).to_be_visible()
+        expect(_notes(page)).to_be_hidden()
+        expect(_notes(page)).to_have_value("")
 
 
 class TestNotesCollapse:
