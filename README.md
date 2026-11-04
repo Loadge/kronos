@@ -284,9 +284,11 @@ named volume.
 > Restore **wipes existing data first**. SQLite checkpoints the WAL on connection close; for a
 > tighter guarantee, stop the container before copying the file directly.
 
-Backups are **version 3** since the freelance side: the income sources (with their ids, which
-the blocks reference), the hour blocks with the rate, currency and exchange rate they were saved
-with, and the tax inputs per year ride along; version 2 added every entry's `fraction`. Older
+Backups are **version 4** since the freelance payouts (what each source paid for each ISO week,
+with its exchange rate); version 3 brought the freelance side: the income sources (with their
+ids, which the blocks and payouts reference), the hour blocks with the rate, currency and
+exchange rate they were saved with, and the tax inputs per year; version 2 added every entry's
+`fraction`. Older
 files still restore (whole days, no freelance); an older Kronos refuses a newer file rather than
 silently dropping what it does not know. The entries CSV has a `fraction` column for the same
 reason — a CSV without it imports as whole days — and the freelance blocks have a CSV of their
