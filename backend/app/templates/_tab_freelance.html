@@ -43,6 +43,19 @@
           <div class="hero-num metric fl-gross" aria-live="polite" data-testid="fl-gross">
             <span x-text="fmtMoney(animFlGross)"></span>
           </div>
+          <!-- how much of it is paid out and how much is still an estimate; only once a payout counts -->
+          <template x-if="flSplitOn()">
+            <div class="fl-split" data-testid="fl-split">
+              <div class="fl-splitbar" aria-hidden="true"><i class="p" :style="'width:' + flSplitPct() + '%'"></i><i class="e" :style="'width:' + (100 - flSplitPct()) + '%'"></i></div>
+              <div class="fl-splitline metric">
+                <span x-show="flSummary.total.paid_out_eur > 0"><i class="fl-sw paid"></i><b x-text="fmtMoney0(flSummary.total.paid_out_eur)"></b> paid out</span>
+                <span x-show="flSummary.total.estimated_eur > 0"><i class="fl-sw est"></i><b x-text="fmtMoney0(flSummary.total.estimated_eur)"></b> estimated</span>
+              </div>
+            </div>
+          </template>
+          <template x-if="payouts.length > 0 && flSummary.awaiting_payout > 0">
+            <p class="fl-awaiting"><a href="#days" @click.prevent="openAwaitingInDays()" data-testid="fl-awaiting" x-text="flAwaitingLabel()"></a></p>
+          </template>
           <div class="hero-cap">
             <b x-text="fmtHours(flSummary.total.hours)"></b> ·
             <b x-text="fmtMoney(flSummary.total.eur_per_hour) + '/h'"></b> gross ·
@@ -65,6 +78,9 @@
         <!-- the twelve months: billed (solid) and, after today, the planned share (dashed) -->
         <div class="fl-months-wrap" x-html="flMonthsSvg()" role="img"
              :aria-label="'Freelance income per month of ' + flYear + ': ' + fmtMoney(flSummary.total.gross_eur) + ' billed so far' + (flSummary.projection.planned_gross_eur ? ', ' + fmtMoney(flSummary.projection.planned_gross_eur) + ' planned' : '')"></div>
+        <template x-if="flSplitOn()">
+          <div class="fl-legend" aria-hidden="true"><span><i class="fl-sw paid"></i>paid out</span><span><i class="fl-sw est"></i>estimated</span><span x-show="flSummary.projection.planned_gross_eur > 0"><i class="fl-sw plan"></i>planned</span></div>
+        </template>
       </div>
 
       <!-- ── The year to Dec 31, as a strip: the two inputs, the basis, where each euro goes,
@@ -274,6 +290,7 @@
       <h2 class="an-h2">Export</h2>
       <p class="an-export">
         <a href="/api/freelance/export.csv" role="button" class="secondary outline" download>Download freelance CSV</a>
+        <a href="/api/freelance/payouts.csv" role="button" class="secondary outline" download data-testid="payouts-csv">Download payouts CSV</a>
       </p>
     </div>
   </template>

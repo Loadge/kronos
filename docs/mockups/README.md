@@ -12,6 +12,7 @@ Docker image under `/static/mockups/`; moved here so the public mirror and PROD 
 | 31 — Visual redesign | `redesign-r1.html`, `redesign-r2.html`, `redesign-r3.html` | R2 throughout, with R3's card-per-section Settings |
 | 33 — Interactive analytics | `analytics-a1.html`, `analytics-a2.html` | A2 entirely |
 | UX round after 34–35 | `ux-u1.html`, `ux-u2.html` (+ `_ux_base.css`) | U1's Log; U2's Days, Analytics and Freelance; the shared Settings and timesheet |
+| 37 — Freelance payouts | `payouts-p1.html`, `payouts-p2.html` (+ `_ux_base.css`) | Open |
 
 ## Phase 31 — `redesign-r{1,2,3}.html`
 
@@ -69,3 +70,34 @@ both; the two directions differ where the layout had a real choice:
 | Analytics | The **whole** Year-at-a-glance block stays pinned (title, switch, year, heatmap; ~190px); on the phone only the controls row | The block **shrinks** when scrolled: small title, no hint, 4px cells, the switch and year kept — a 90px toolbar that still shows the year's shape |
 | Freelance | The 130 as a **vertical list** of four rows beside the year ledger: both columns end together | **No right column**: the year as a strip under the hero (inputs · waterfall · eight tiles), the 130's four cards in a row, then the Calculator |
 | Shared | Settings: autosave (*saved ✓* in the card head, no buttons), hints removed, the timeline explained in two short sentences, "This asks the Banco Central Europeo", **Days off a year**; the freelance timesheet page with the sources as checkboxes in its toolbar | |
+
+## Payouts round (Phase 37), 2026-11-04 — `payouts-p{1,2}.html`
+
+A payout is what one income source actually paid for one ISO week, in the source's currency; it replaces
+the estimate (hours x rate of the blocks) wherever it exists. Both files show the same four pieces with
+invented numbers (today = Wed 2026-11-04; Northwind Labs at $60/h and Local consulting at EUR 50/h), the
+Days part once as desktop and once as a 380px phone, side by side (stacked on a narrow window):
+the Days ⚡ Freelance list for October and November with a header per ISO week on top of the block rows, which stay as in U2 (a click opens the day in Log; in a paid week their amounts are the estimate, muted); the Freelance tab hero
+("EUR 9,200 this year · EUR 7,400 paid out · EUR 1,800 estimated") with the twelve monthly bars (paid out
+solid, estimated in a lighter shade of the same colour, planned after today dashed); the dashboard card as
+one line; and one week of the freelance PDF with its payout line under the blocks. They link `_ux_base.css`
+and keep everything else inline. Working bits: type in a payout (the week shows *saved ✓*), empty a filled
+one (Undo in the ribbon), click ✎ next to a rate to edit it, theme toggle.
+
+The weeks cover every state of the brief: W45 the current week (no payout, not flagged); W44 a USD payout
+above the estimate ($2,100 against $1,800, rate shown with its pencil, +$300) that is also the week
+crossing Oct/Nov (it appears once, under October, with a note that its money is split by day worked);
+W43 a past week with blocks and no payout ("awaiting payout", quiet); W42 a EUR payout below the estimate;
+W41 a payout with no hours.
+
+| | P1 — "Week headers, always open" | P2 — "Compact header, payout on demand" |
+|---|---|---|
+| Week header | A small header per week ("W44 · Oct 26 – Nov 1") that only names the week; the split note and *saved ✓* sit in it | One line per week: week, dates, hours, money and a tag (*paid out* solid, *estimated* dashed, like the bars); "awaiting payout" next to the tag on past weeks |
+| Per source | Line(s) always visible under the header: hours, estimate, payout field, gap, EUR/h; the block rows follow | The same line(s), only after clicking the header (W44 starts open; Expand all / Collapse all); the block rows are visible either way |
+| Payout field | Always on screen, empty means "use the estimate" | Appears when the week is opened |
+| Cost | Taller list (every source of every week), the whole state readable at a glance | Short list, one scan of the money; typing a payout takes a click more |
+| Shared | Freelance tab hero and bars, dashboard line, PDF week | Same |
+
+Not shown: the Log ⚡ card line ("W44 payout $2,100" with its link), the Analytics ledger split, the CSV
+button, a USD payout without an exchange rate (counted as missing), and the gap and EUR/h updating live
+while you type.

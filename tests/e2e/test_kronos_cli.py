@@ -400,7 +400,7 @@ class TestBackupRestore:
         res = run("backup", "--out", str(out), check=True)
         assert "1 entries" in res.stdout
         snap = json.loads(out.read_text(encoding="utf-8"))
-        assert snap["version"] == 3 and snap["entries"][0]["date"] == D1
+        assert snap["version"] == 4 and snap["entries"][0]["date"] == D1
 
         httpx.delete(f"{base_url}/api/entries/{D1}")
         httpx.post(f"{base_url}/api/entries", json={"date": D2, "day_type": "sick"})
@@ -440,7 +440,7 @@ class TestProdSafety:
         files = list((run.backups / "prod").glob("kronos_backup_*.json"))
         assert len(files) == 1
         snapshot = json.loads(files[0].read_text(encoding="utf-8"))
-        assert snapshot["version"] == 3
+        assert snapshot["version"] == 4
         assert [e["date"] for e in snapshot["entries"]] == [D1]  # taken before D2 was written
         assert _entry(base_url, D2)["day_type"] == "flex"
 

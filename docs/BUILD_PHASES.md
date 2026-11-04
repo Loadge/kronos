@@ -36,12 +36,12 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 next, before 36, because estimates and real payouts already differ; 28 after it (Anselmo logs
+37 built and on INT, waiting for Miguel's check; 28 after it (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
 
-### Phase 37 — Freelance payouts (specified 2026-11-04)
+### Phase 37 — Freelance payouts (built 2026-11-04, awaiting confirmation)
 
 **Why.** Kronos estimates freelance money as hours times the rate stored on each block. What a
 client actually pays differs from that: there are bonuses, and the rate changes from week to week.
@@ -64,8 +64,30 @@ the money Kronos uses for that source and week, instead of the estimate.
 - The freelance PDF prints a payout line under each paid week, and a payouts CSV joins the export.
 - The backup goes to version 4, and versions 1 to 3 still restore.
 
-**Status.** Mockups first (the Days week header and the Freelance hero with the split), then the
-build. Full spec and interview: `.agents/changes/backlog/freelance-payouts/`.
+**How it was built.** Mockups first: Miguel chose P2 (`docs/mockups/payouts-p2.html`), where each
+week is one compact line ("estimated", "part paid out" or "paid out", plus a quiet "awaiting
+payout") that opens to show the payout of each source. Then five units, each one written by a
+Sonnet subagent and reviewed blind before the next: the table and its API, the money rule, the
+Days and Log screens, the split on the other screens, and the PDF, CSV and seed. Full spec and
+interview: `.agents/changes/backlog/freelance-payouts/`.
+
+**Choices made on the way.**
+- One rule computes every euro, `money_lines()` in `services/freelance.py`: the payout's cents are
+  split over the week's blocks by largest remainder, so a week always adds up to its payout to the
+  cent. The browser follows the same rule through each block's `effective_eur`.
+- A payout splits by the blocks' estimates, and by their minutes when one of them has no rate.
+- In Days a week is listed under the month of its Monday, but each month's total counts what is
+  dated in it, like the Freelance tab, and says "€X of it from W40" when part comes from a week
+  listed under the month before.
+- A paid week's blocks keep their own estimate, shown muted, in Days and in the Log card.
+- The split and the "weeks awaiting a payout" line only appear once at least one payout exists,
+  so nothing changes for a year without payouts.
+- The freelance PDF without payouts is byte for byte what it was before (a test pins it).
+
+**Known limits.** A month with freelance money but no week starting in it has no total line in
+Days (only a lone block on a Sunday the 1st). Once the first payout is entered, every earlier
+week with blocks shows "awaiting payout" until it has one. The heatmap tooltip still shows each
+block's estimate.
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 

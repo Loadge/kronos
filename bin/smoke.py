@@ -18,6 +18,8 @@ Each check is a plain GET with a 10 s timeout, run in this order:
     /api/plans                      200, JSON list
     /api/plans/projection           200, JSON object containing key "on_target"
     /api/freelance/sources          200, JSON list
+    /api/freelance/payouts          200, JSON list
+    /api/freelance/payouts.csv      200, CSV starting with the week_start,week_end,source header
     /api/freelance/summary          200, JSON object containing keys "total" and "quarters"
     /timesheet                      200, HTML containing "Timesheet" and a "table"
     /timesheet/freelance            200, HTML containing "Freelance timesheet" and a "table"
@@ -192,6 +194,19 @@ def check_api_freelance_sources(status: int, body: bytes) -> str | None:
     return _check_json(status, body, list)
 
 
+def check_api_freelance_payouts(status: int, body: bytes) -> str | None:
+    return _check_json(status, body, list)
+
+
+def check_api_freelance_payouts_csv(status: int, body: bytes) -> str | None:
+    if (err := _expected_200(status)) is not None:
+        return err
+    header = body.decode("utf-8", errors="replace").splitlines()[:1]
+    if not header or not header[0].startswith("week_start,week_end,source"):
+        return f"payouts.csv has no header row ({header!r})"
+    return None
+
+
 def check_api_freelance_summary(status: int, body: bytes) -> str | None:
     if (err := _check_json(status, body, dict)) is not None:
         return err
@@ -257,6 +272,8 @@ CHECKS: list[tuple[str, Validator]] = [
     ("/api/plans", check_api_plans),
     ("/api/plans/projection", check_api_projection),
     ("/api/freelance/sources", check_api_freelance_sources),
+    ("/api/freelance/payouts", check_api_freelance_payouts),
+    ("/api/freelance/payouts.csv", check_api_freelance_payouts_csv),
     ("/api/freelance/summary", check_api_freelance_summary),
     ("/timesheet", check_timesheet),
     ("/timesheet/freelance", check_freelance_timesheet),

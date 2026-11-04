@@ -417,6 +417,8 @@ class TestSummary:
             "eur_per_hour": 0.0,
             "blocks": 0,
             "missing_fx": 0,
+            "paid_out_eur": 0.0,
+            "estimated_eur": 0.0,
         }
         assert s["projection"]["rate_basis"] == "none" and s["projection"]["rate_eur"] is None
         assert s["projection"]["figures"]["net"] < 0  # the RETA's first tramo is still paid

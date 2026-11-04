@@ -125,6 +125,10 @@ function app() {
     // ---------- freelance -----------------------------------------------
     sources: [],          // income sources (archived included; pickers filter)
     blocks: [],           // every freelance block, loaded with the entries
+    payouts: [],          // every weekly payout, loaded next to the blocks
+    daysWeekOpen: {},     // Days > Freelance: week key (its Monday) -> opened by hand; unset = open only the current week
+    payDraft: {},         // `${source}|${week}` -> the payout text being typed, until it is saved
+    fxEditing: null,      // id of the payout whose exchange rate is being edited
     // the Log tab's block editor: `id` set while editing an existing block
     flForm: { id: null, source_id: null, by: 'hours', hours: 1, start_time: '18:00', end_time: '19:00', notes: '', rate: null, fx_rate: null },
     flBusy: false,
@@ -1708,13 +1712,15 @@ function app() {
     async loadDays() {
       this.loading.days = true;
       try {
-        const [entries, plans, blocks] = await Promise.all([
+        const [entries, plans, blocks, payouts] = await Promise.all([
           this.api('GET', '/api/entries'), this.api('GET', '/api/plans'),
           this.api('GET', '/api/freelance/blocks').catch(() => this.blocks),
+          this.api('GET', '/api/freelance/payouts').catch(() => this.payouts),
         ]);
         this.entries = entries;
         this.plans = plans;
         this.blocks = blocks;
+        this.payouts = payouts;
       }
       catch (e) { this.error = e.message; }
       finally { this.loading.days = false; }
@@ -1841,33 +1847,221 @@ function app() {
       const on = new Set(this.daysSources);
       return this.daysBlocksAll().filter(b => on.has(b.source_id)).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
     },
+    // The year filter as a date range for flLines ({} = every year).
+    _daysRange() {
+      return this.daysYear === 'all' ? {} : { from: `${this.daysYear}-01-01`, to: `${this.daysYear}-12-31` };
+    },
+    // Lines of the sources ticked: the blocks shown and the payouts of the weeks without blocks.
+    _daysLines(blocks, extra = {}) {
+      return this.flLines(blocks, { sources: new Set(this.daysSources), ...this._daysRange(), ...extra });
+    },
     daysSourceRows() {
       const all = this.daysBlocksAll();
       return this.sources.map(s => {
         const mine = all.filter(b => b.source_id === s.id);
-        return { id: s.id, name: s.name, archived: s.archived, on: this.daysSources.includes(s.id), blocks: mine.length, hours: this.blockHours(mine), eur: this.blockEur(mine) };
+        return { id: s.id, name: s.name, archived: s.archived, on: this.daysSources.includes(s.id), blocks: mine.length, hours: this.blockHours(mine), eur: this.blockEur(mine, { sources: new Set([s.id]), ...this._daysRange() }) };
       });
     },
     daysFlTotals() {
       const list = this.daysBlocks();
-      const hours = this.blockHours(list), eur = this.blockEur(list);
-      return { blocks: list.length, hours, eur, rate: hours ? Math.round(eur / hours * 100) / 100 : 0, missing: list.filter(b => b.amount_eur === null).length };
+      const lines = this._daysLines(list);
+      const hours = this.blockHours(list), eur = this.lineEur(lines);
+      return { blocks: list.length, hours, eur, rate: hours ? Math.round(eur / hours * 100) / 100 : 0, missing: this.lineMissing(lines) };
     },
+
+    // ---------- the weeks of Days > Freelance ------------------------------------
+    // ISO week number of a Monday (the week of its Thursday).
+    isoWeekNo(mondayIso) {
+      const d = new Date(mondayIso + 'T12:00:00');
+      d.setDate(d.getDate() + 3);
+      const jan4 = new Date(d.getFullYear(), 0, 4, 12);
+      jan4.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+      return 1 + Math.round((d - jan4) / (7 * 86400000));
+    },
+    _shortDay(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); },
+    _addDaysIso(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return this._dateIso(d); },
+    // "W44"
+    weekId(mondayIso) { return 'W' + String(this.isoWeekNo(mondayIso)).padStart(2, '0'); },
+    payKey(sourceId, weekStart) { return `${sourceId}|${weekStart}`; },
+    payoutOf(sourceId, weekStart) { return this.payouts.find(p => p.source_id === sourceId && p.week_start === weekStart) || null; },
+    // "$2,100" (cents only when there are some)
+    payAmountLabel(p) { return this.fmtMoney(p.amount, p.currency, Number.isInteger(p.amount) ? 0 : 2); },
+    daysWeekIsOpen(key) {
+      return key in this.daysWeekOpen ? this.daysWeekOpen[key] : key === this._mondayIso(new Date());
+    },
+    daysWeekToggle(key) { this.daysWeekOpen = { ...this.daysWeekOpen, [key]: !this.daysWeekIsOpen(key) }; },
+    daysWeeksSetAll(open) {
+      const next = {};
+      for (const w of this.daysWeeks()) next[w.key] = open;
+      this.daysWeekOpen = next;
+    },
+    // One entry per ISO week (newest first) that has a block shown or a payout of a ticked
+    // source with no blocks; `lines` has one entry per source with blocks or a payout that week.
+    daysWeeks() {
+      const on = new Set(this.daysSources);
+      const range = this._daysRange();
+      const byWeek = {};
+      const slot = key => (byWeek[key] ||= { key, blocks: [], payouts: [] });
+      for (const b of this.daysBlocks()) slot(this._mondayIso(new Date(b.date + 'T12:00:00'))).blocks.push(b);
+      for (const p of this.payouts) {
+        if (!on.has(p.source_id)) continue;
+        if (p.blocks === 0 && (!range.from || (p.week_end >= range.from && p.week_end <= range.to))) slot(p.week_start);
+      }
+      for (const p of this.payouts) if (on.has(p.source_id) && byWeek[p.week_start]) byWeek[p.week_start].payouts.push(p);
+      const thisMonday = this._mondayIso(new Date()), today = this._dateIso(new Date());
+      return Object.values(byWeek).sort((a, b) => (a.key < b.key ? 1 : -1)).map(w => {
+        const sunday = this._addDaysIso(w.key, 6);
+        const lines = [];
+        for (const s of this.sources) {
+          const mine = w.blocks.filter(b => b.source_id === s.id);
+          const p = w.payouts.find(x => x.source_id === s.id) || null;
+          if (!mine.length && !p) continue;
+          const minutes = p ? p.minutes : mine.reduce((t, b) => t + b.minutes, 0);
+          const estimate = p ? p.estimate_amount : this._r2(mine.reduce((t, b) => t + b.amount, 0));
+          const gap = p && p.minutes > 0 ? this._r2(p.amount - p.estimate_amount) : null;
+          lines.push({ key: s.id, source: s, currency: s.currency, hours: this._r2(minutes / 60), estimate, payout: p,
+            noHours: !!p && p.blocks === 0, gap, eph: p && p.minutes > 0 && p.amount_eur !== null ? this._r2(p.amount_eur / (p.minutes / 60)) : null });
+        }
+        const paid = lines.filter(l => l.payout).length;
+        const money = this.flLines(w.blocks, { sources: on, from: w.key, to: sunday });
+        const months = [...new Set(money.map(l => l.date.slice(0, 7)))].sort();
+        const mname = d => d.toLocaleDateString('en-US', { month: 'short' });
+        return {
+          key: w.key, id: this.weekId(w.key), range: `${this._shortDay(w.key)} – ${this._shortDay(sunday)}`,
+          current: w.key === thisMonday, blocks: w.blocks, lines,
+          hours: this.blockHours(w.blocks), eur: this.lineEur(money), missing: this.lineMissing(money),
+          tag: paid === lines.length ? 'paid out' : paid ? 'part paid out' : 'estimated',
+          awaiting: sunday < today && lines.some(l => !l.payout),
+          splits: months.length > 1 ? `splits ${mname(new Date(months[0] + '-01T12:00:00'))}/${mname(new Date(months[months.length - 1] + '-01T12:00:00'))}` : '',
+          open: this.daysWeekIsOpen(w.key),
+        };
+      });
+    },
+    // Rows of the table: a month separator ahead of the weeks whose Monday falls in it; each
+    // week is one line, its source lines (when open) and then its block rows.
     daysFlRows() {
       const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const rows = [];
+      const weeks = this.daysWeeks();
       let current = null;
-      const list = this.daysBlocks();
-      for (const b of list) {
-        const ym = b.date.slice(0, 7);
+      for (const w of weeks) {
+        const ym = w.key.slice(0, 7);
         if (ym !== current) {
           current = ym;
-          const mine = list.filter(x => x.date.slice(0, 7) === ym);
-          rows.push({ kind: 'sep', key: 'sep-' + ym, label: new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), count: mine.length, hours: this.blockHours(mine), eur: this.blockEur(mine) });
+          // The money of a month is what is dated in it (as on the Freelance tab); a week stays
+          // listed under its Monday's month, and the part that spills over is named.
+          const first = ym + '-01', last = ym + '-31';
+          const inMonth = weeks.flatMap(x => x.blocks).filter(b => b.date.slice(0, 7) === ym);
+          const lines = this._daysLines(inMonth, { from: first, to: last });
+          const from = [];
+          for (const x of weeks) {
+            if (x.key.slice(0, 7) === ym) continue;
+            const sunday = this._addDaysIso(x.key, 6);
+            const part = this._daysLines(x.blocks.filter(b => b.date.slice(0, 7) === ym), { from: first > x.key ? first : x.key, to: last < sunday ? last : sunday });
+            if (part.length) from.push({ id: x.id, eur: this.lineEur(part) });
+          }
+          rows.push({ kind: 'sep', key: 'sep-' + ym, label: new Date(ym + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), count: inMonth.length,
+            hours: this.blockHours(inMonth), eur: this.lineEur(lines), from });
         }
-        rows.push({ kind: 'block', key: 'b-' + b.id, b, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] });
+        rows.push({ ...w, kind: 'week', key: 'w-' + w.key, week: w.key });
+        for (const b of w.blocks) rows.push({ kind: 'block', key: 'b-' + b.id, b, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] });
       }
       return rows;
+    },
+    // ---------- typing a payout (autosave like Settings) ------------------------------
+    payText(sourceId, weekStart, p) {
+      const k = this.payKey(sourceId, weekStart);
+      return k in this.payDraft ? this.payDraft[k] : (p ? String(p.amount) : '');
+    },
+    payTyped(sourceId, weekStart, text) {
+      const k = this.payKey(sourceId, weekStart);
+      this.payDraft = { ...this.payDraft, [k]: text };
+      clearTimeout(this._autosave['pay-' + k]);
+      this._autosave['pay-' + k] = setTimeout(() => this._queued('payout', () => this._paySave(sourceId, weekStart)), 600);
+    },
+    async reloadFlData() {
+      try {
+        const [blocks, payouts] = await Promise.all([this.api('GET', '/api/freelance/blocks'), this.api('GET', '/api/freelance/payouts')]);
+        this.blocks = blocks;
+        this.payouts = payouts;
+      } catch (e) { this.error = e.message; }
+      this._flStale = true;  // a block's effective money depends on its week's payout
+    },
+    async _paySave(sourceId, weekStart) {
+      const k = this.payKey(sourceId, weekStart), st = 'wk-' + weekStart;
+      if (!(k in this.payDraft)) return;
+      const text = String(this.payDraft[k]).trim();
+      const existing = this.payoutOf(sourceId, weekStart);
+      const drop = () => { const d = { ...this.payDraft }; delete d[k]; this.payDraft = d; };
+      if (text === '') {
+        if (!existing) { drop(); this._setStatus(st, ''); return; }
+        this._setStatus(st, 'busy');
+        try {
+          await this.api('DELETE', `/api/freelance/payouts/${existing.id}`);
+          drop();
+          await this.reloadFlData();
+          this._setStatus(st, 'saved');
+          const src = this.sourceById(sourceId);
+          this.showToast(`Payout deleted — ${this.weekId(weekStart)} ${src ? src.name : ''}`.trim(), 'neutral', {
+            label: 'Undo',
+            run: async () => {
+              const body = { source_id: existing.source_id, week_start: existing.week_start, amount: existing.amount, note: existing.note };
+              if (existing.fx_rate) body.fx_rate = existing.fx_rate;
+              try { await this.api('POST', '/api/freelance/payouts', body); await this.reloadFlData(); this.showToast('Payout restored', 'neutral'); }
+              catch (e) { this.error = e.message; }
+            },
+          });
+        } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+        return;
+      }
+      const amount = Number(text.replace(/[,\s]/g, ''));
+      if (!(amount > 0)) { this._setStatus(st, 'invalid'); return; }
+      if (existing && existing.amount === amount) { drop(); this._setStatus(st, ''); return; }
+      this._setStatus(st, 'busy');
+      try {
+        if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { source_id: sourceId, week_start: weekStart, amount, note: existing.note });
+        else await this.api('POST', '/api/freelance/payouts', { source_id: sourceId, week_start: weekStart, amount });
+        drop();
+        await this.reloadFlData();
+        this._setStatus(st, 'saved');
+      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+    },
+    payStatus(weekStart) { return this.settingsStatusText('wk-' + weekStart); },
+    payStatusCls(weekStart) { return this.settingsStatusCls('wk-' + weekStart); },
+    // The exchange rate of a USD payout: the pencil opens a small input.
+    fxEdit(p) { this.fxEditing = p.id; },
+    async fxSave(p, value) {
+      if (this.fxEditing !== p.id) return;
+      this.fxEditing = null;
+      const v = Number(value);
+      if (!(v > 0) || v === p.fx_rate) return;
+      const st = 'wk-' + p.week_start;
+      this._setStatus(st, 'busy');
+      try {
+        await this.api('PUT', `/api/freelance/payouts/${p.id}`, { source_id: p.source_id, week_start: p.week_start, amount: p.amount, fx_rate: v, note: p.note });
+        await this.reloadFlData();
+        this._setStatus(st, 'saved');
+      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+    },
+    // "+$300" / "-€50": the payout against the estimate, in the source's currency.
+    payGapLabel(gap, currency) {
+      return (gap < 0 ? '-' : '+') + this.fmtMoney(Math.abs(gap), currency, Number.isInteger(gap) ? 0 : 2);
+    },
+    // The payouts of the week of the day open in Log (its ⚡ card shows them read-only).
+    flDayPayouts() {
+      if (!this.form.date) return [];
+      const monday = this._mondayIso(new Date(this.form.date + 'T12:00:00'));
+      return this.payouts.filter(p => p.week_start === monday);
+    },
+    // From the Log card to that week in Days > Freelance, opened and in view.
+    async openWeekInDays(p) {
+      this.daysWeekOpen = { ...this.daysWeekOpen, [p.week_start]: true };
+      this.daysMode = 'freelance';
+      this._daysSourcesReady();
+      if (!this.daysSources.includes(p.source_id)) this.daysSources = [...this.daysSources, p.source_id];
+      if (this.daysYear !== 'all' && this.daysYear !== p.week_start.slice(0, 4)) this.daysYear = p.week_start.slice(0, 4);
+      await this.go('days');
+      this.$nextTick(() => document.getElementById('wk-' + p.week_start)?.scrollIntoView({ block: 'center' }));
     },
     // A block's row opens its day in Log with the block in the editor.
     async openBlockInLog(b) {
@@ -2974,6 +3168,7 @@ function app() {
     _resetCachedViews() {
       this.entries = [];
       this.blocks = [];
+      this.payouts = [];
       this.anSeries = null;
       this._flStale = true;
     },
@@ -3034,7 +3229,57 @@ function app() {
     // ---------- blocks of a day ------------------------------------------------
     blocksOn(iso) { return this.blocks.filter(b => b.date === iso); },
     blockHours(list) { return Math.round(list.reduce((s, b) => s + b.minutes, 0) / 60 * 100) / 100; },
-    blockEur(list) { return Math.round(list.reduce((s, b) => s + (b.amount_eur || 0), 0) * 100) / 100; },
+    // The one money rule of the client (the server's): a block counts its effective_eur (its
+    // share of the week's payout when there is one), and a payout for a week with no blocks
+    // counts as a line of its own, dated on the week's Sunday. `opts` ({sources: Set|null,
+    // from, to}) says which of those payout-only lines belong; without it there are none.
+    flLines(blocks, opts = null) {
+      const lines = blocks.map(b => ({ date: b.date, source_id: b.source_id, minutes: b.minutes, eur: b.effective_eur ?? null, paid: b.payout_id != null, block: b }));
+      if (!opts) return lines;
+      for (const p of this.payouts) {
+        if (p.blocks !== 0) continue;
+        if (opts.sources && !opts.sources.has(p.source_id)) continue;
+        if (opts.from && p.week_end < opts.from) continue;
+        if (opts.to && p.week_end > opts.to) continue;
+        lines.push({ date: p.week_end, source_id: p.source_id, minutes: 0, eur: p.amount_eur, paid: true, block: null });
+      }
+      return lines;
+    },
+    // A missing rate is null: it adds nothing and is counted, never read as zero euros silently.
+    lineEur(lines) { return Math.round(lines.reduce((s, l) => s + (l.eur || 0), 0) * 100) / 100; },
+    lineMissing(lines) { return lines.filter(l => l.eur === null).length; },
+    blockEur(list, opts = null) { return this.lineEur(this.flLines(list, opts)); },
+    // The same lines split by where their money comes from: a payout, or the blocks' estimates.
+    lineSplit(lines) {
+      const paid = Math.round(lines.filter(l => l.paid).reduce((s, l) => s + (l.eur || 0), 0) * 100) / 100;
+      return { paid, est: Math.round((this.lineEur(lines) - paid) * 100) / 100 };
+    },
+    // "€376 paid out · €422 estimated"; one kind alone says only that kind, never a zero.
+    // Empty while no payout exists anywhere, so a user without payouts sees nothing new.
+    flSplitText(s) {
+      if (!s || !this.payouts.length) return '';
+      const parts = [];
+      if (s.paid > 0) parts.push(`${this.fmtMoney0(s.paid)} paid out`);
+      if (s.est > 0) parts.push(`${this.fmtMoney0(s.est)} estimated`);
+      return parts.join(' · ');
+    },
+    // The Freelance hero splits its year only once a payout counts in it.
+    flSplitOn() { return (this.flSummary?.total.paid_out_eur || 0) > 0; },
+    flSplitPct() {
+      const t = this.flSummary?.total;
+      const all = t ? (t.paid_out_eur || 0) + (t.estimated_eur || 0) : 0;
+      return all > 0 ? Math.round(t.paid_out_eur / all * 1000) / 10 : 0;
+    },
+    flAwaitingLabel() {
+      const n = this.flSummary?.awaiting_payout || 0;
+      return `${n} week${n !== 1 ? 's' : ''} awaiting a payout`;
+    },
+    // From the Freelance tab to the weeks still without a payout: Days > Freelance.
+    async openAwaitingInDays() {
+      this.daysMode = 'freelance';
+      this._daysSourcesReady();
+      await this.go('days');
+    },
     hasBlocks(iso) { return this.blocks.some(b => b.date === iso); },
     flDayBlocks() { return this.blocksOn(this.form.date); },
     flDayLabel() {
@@ -3043,9 +3288,9 @@ function app() {
     },
     flDayTotal() {
       const list = this.flDayBlocks();
-      if (!list.length) return null;
-      const missing = list.filter(b => b.amount_eur === null).length;
-      return { hours: this.blockHours(list), eur: this.blockEur(list), missing };
+      const lines = this.flLines(list, { from: this.form.date, to: this.form.date });
+      if (!lines.length) return null;
+      return { hours: this.blockHours(list), eur: this.lineEur(lines), missing: this.lineMissing(lines) };
     },
     // "3h · €270", or "3h · no rate yet" while every block of the day lacks its exchange rate.
     flTotalLabel(t) {
@@ -3116,7 +3361,7 @@ function app() {
           saved = await this.api('POST', '/api/freelance/blocks', body);
           this.blocks = [...this.blocks, saved];
         }
-        this._flStale = true;  // the year moved
+        await this.reloadFlData();  // the year moved, and the week's payout may now split differently
         this.flReset();
         this.flFloatMoney(saved);
         this.showToast(`${f.id ? 'Block saved' : 'Block added'} — ${this.flDayLabel()} is ${this.flTotalLabel(this.flDayTotal())} freelance`, 'neutral');
@@ -3136,7 +3381,7 @@ function app() {
       try {
         await this.api('DELETE', `/api/freelance/blocks/${b.id}`);
         this.blocks = this.blocks.filter(x => x.id !== b.id);
-        this._flStale = true;
+        await this.reloadFlData();
         if (this.flForm.id === b.id) this.flReset();
         this.showToast(`Removed ${this.fmtHours(b.hours)} of ${b.source_name}`, 'neutral', {
           label: 'Undo',
@@ -3147,7 +3392,7 @@ function app() {
             try {
               const back = await this.api('POST', '/api/freelance/blocks', body);
               this.blocks = [...this.blocks, back];
-              this._flStale = true;
+              await this.reloadFlData();
               this.showToast('Block restored', 'neutral');
             } catch (e) { this.error = e.message; }
           },
@@ -3314,12 +3559,15 @@ function app() {
       const week = this.blocks.filter(b => b.date >= monday && b.date <= sunday);
       const month = this.blocks.filter(b => b.date.slice(0, 7) === today.slice(0, 7));
       const year = this.blocks.filter(b => b.date.slice(0, 4) === today.slice(0, 4));
+      const rWeek = { from: monday, to: sunday };
+      const rMonth = { from: today.slice(0, 7) + '-01', to: today.slice(0, 7) + '-31' };
+      const rYear = { from: today.slice(0, 4) + '-01-01', to: today.slice(0, 4) + '-12-31' };
       const share = this.flSummary?.set_aside_share ?? 0.4;
       return {
-        week: { hours: this.blockHours(week), eur: this.blockEur(week) },
-        month: { hours: this.blockHours(month), eur: this.blockEur(month) },
-        year: { hours: this.blockHours(year), eur: this.blockEur(year) },
-        setAside: Math.round(this.blockEur(month) * share * 100) / 100,
+        week: { hours: this.blockHours(week), eur: this.blockEur(week, rWeek), ...this.lineSplit(this.flLines(week, rWeek)) },
+        month: { hours: this.blockHours(month), eur: this.blockEur(month, rMonth), ...this.lineSplit(this.flLines(month, rMonth)) },
+        year: { hours: this.blockHours(year), eur: this.blockEur(year, rYear) },
+        setAside: Math.round(this.blockEur(month, rMonth) * share * 100) / 100,
         share,
         netPerHour: this.flSummary?.projection?.eur_per_hour_net ?? null,
       };
@@ -3354,8 +3602,9 @@ function app() {
       const bars = s.by_month.map(m => {
         const mEnd = new Date(year, m.month, 0);
         const share = daysLeft > 0 ? after(mEnd) - after(new Date(year, m.month - 1, 0)) : 0;
-        return { month: m.month, real: m.gross_eur, hours: m.hours, plan: share > 0 ? planned * share / daysLeft : 0 };
+        return { month: m.month, real: m.gross_eur, paid: m.paid_out_eur || 0, hours: m.hours, plan: share > 0 ? planned * share / daysLeft : 0 };
       });
+      const split = this.flSplitOn();  // paid out solid, estimated lighter; without payouts one bar as always
       const max = Math.max(1, ...bars.map(b => b.real + b.plan));
       const bw = (W - PADL - PADR) / 12;
       const Y = v => PADT + (H - PADT - PADB) * (1 - v / max);
@@ -3365,7 +3614,10 @@ function app() {
       bars.forEach((b, i) => {
         const x = PADL + i * bw + bw * 0.18, w = bw * 0.64;
         const isNow = today.getFullYear() === year && today.getMonth() === i;
-        if (b.real > 0) out += `<rect class="flm-bar${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(b.real))}" width="${f(w)}" height="${f(Y(0) - Y(b.real))}" rx="2" style="--i:${i}"><title>${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtHours(b.hours)} · ${this.fmtMoney(b.real)}</title></rect>`;
+        const paid = split ? Math.min(b.paid, b.real) : b.real, est = b.real - paid;
+        const tip = `${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtHours(b.hours)} · ${this.fmtMoney(b.real)}${split ? ` · ${this.fmtMoney(paid)} paid out · ${this.fmtMoney(est)} estimated` : ''}`;
+        if (paid > 0) out += `<rect class="flm-bar${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(paid))}" width="${f(w)}" height="${f(Y(0) - Y(paid))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
+        if (est > 0.005) out += `<rect class="flm-est${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(b.real))}" width="${f(w)}" height="${f(Y(paid) - Y(b.real))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
         if (b.plan > 0.5) out += `<rect class="flm-plan" x="${f(x)}" y="${f(Y(b.real + b.plan))}" width="${f(w)}" height="${f(Y(0) - Y(b.plan))}" rx="2" style="--i:${i}"><title>planned · ${this.fmtMoney(b.plan)}</title></rect>`;
         if (b.real > 0) out += `<text class="flm-val" x="${f(x + w / 2)}" y="${f(Y(b.real + b.plan) - 4)}">${this.fmtMoney0(b.real)}</text>`;
         out += `<text class="flm-lbl${isNow ? ' now' : ''}" x="${f(x + w / 2)}" y="${H - 6}">${M[i]}</text>`;
@@ -3523,14 +3775,19 @@ function app() {
     anFlSummary() {
       if (!this.hasFreelance()) return null;
       const vis = this.anFlVisible();
-      const hours = this.blockHours(vis), eur = this.blockEur(vis);
+      const hours = this.blockHours(vis), lines = this.flLines(vis, this.anFlRange()), eur = this.lineEur(lines);
       const netShare = this.flSummary?.projection?.figures?.net_share ?? null;
-      return { hours, eur, blocks: vis.length, rate: hours ? Math.round(eur / hours * 100) / 100 : 0,
+      return { hours, eur, ...this.lineSplit(lines), blocks: vis.length, rate: hours ? Math.round(eur / hours * 100) / 100 : 0,
         netRate: hours && netShare !== null ? Math.round(eur / hours * netShare * 100) / 100 : null, year: this.flSummary?.year };
+    },
+    // The visible span (x1 is exclusive) as dates, for the payouts of weeks with no blocks.
+    anFlRange() {
+      const { x0, x1 } = this.an;
+      return { from: this._dateIso(new Date(x0)), to: this._dateIso(new Date(x1 - 86400000)) };
     },
     anFlMonths(vis) {
       const m = {};
-      for (const b of vis) { const k = b.date.slice(0, 7); const row = (m[k] ||= { key: k, eur: 0, minutes: 0 }); row.eur += b.amount_eur || 0; row.minutes += b.minutes; }
+      for (const l of this.flLines(vis, this.anFlRange())) { const k = l.date.slice(0, 7); const row = (m[k] ||= { key: k, eur: 0, minutes: 0 }); row.eur += l.eur || 0; row.minutes += l.minutes; }
       return Object.values(m).map(r => ({ ...r, eur: this._r2(r.eur), hours: this._r2(r.minutes / 60) }));
     },
 

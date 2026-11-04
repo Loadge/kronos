@@ -88,6 +88,21 @@ def _populate(client):
         "/api/freelance/blocks",
         json={"date": "2026-03-07", "source_id": usd, "hours": 3, "fx_rate": 1.12},
     )
+    # Payouts: one USD with a hand-set rate and a note, one EUR.
+    client.post(
+        "/api/freelance/payouts",
+        json={
+            "source_id": usd,
+            "week_start": "2026-03-02",
+            "amount": 1200,
+            "fx_rate": 1.12,
+            "note": "March, week 1",
+        },
+    )
+    client.post(
+        "/api/freelance/payouts",
+        json={"source_id": eur, "week_start": "2026-03-09", "amount": 450.5},
+    )
     client.put(f"/api/freelance/sources/{eur}", json={"archived": True})
     client.put(
         "/api/freelance/tax-years/2026",
@@ -177,16 +192,18 @@ class TestBackupRoundTripIsIdentity:
     def test_backup_restore_backup_is_identical(self, client):
         _populate(client)
         first = client.get("/api/backup").json()
-        assert first["version"] == 3
+        assert first["version"] == 4
         assert len(first["entries"]) == 4 and len(first["plans"]) == 3
         assert len(first["income_sources"]) == 2 and len(first["freelance_blocks"]) == 3
         assert len(first["freelance_tax_years"]) == 2
+        assert len(first["freelance_payouts"]) == 2
 
         _wipe_everything(client)
         assert client.get("/api/entries").json() == []
         assert client.get("/api/plans").json() == []
         assert client.get("/api/freelance/sources").json() == []
         assert client.get("/api/freelance/blocks").json() == []
+        assert client.get("/api/freelance/payouts").json() == []
         assert client.get("/api/freelance/tax-years").json() == []
         assert client.get("/api/config").json()["profile_name"] == ""
 
@@ -199,6 +216,15 @@ class TestBackupRoundTripIsIdentity:
             ("Northwind", 95.0, "USD", 1.1172),
             ("Old client", 75.0, "EUR", None),
             ("Northwind", 95.0, "USD", 1.12),
+        ]
+        # The payouts found their sources again, with the currency and rate they had.
+        payouts = client.get("/api/freelance/payouts").json()
+        assert [
+            (p["source_id"], p["week_start"], p["amount"], p["currency"], p["fx_rate"], p["note"])
+            for p in payouts
+        ] == [
+            (1, "2026-03-02", 1200.0, "USD", 1.12, "March, week 1"),
+            (2, "2026-03-09", 450.5, "EUR", None, None),
         ]
 
     def test_restore_is_idempotent(self, client):
@@ -222,6 +248,7 @@ class TestBackupRoundTripIsIdentity:
             "income_sources",
             "freelance_blocks",
             "freelance_tax_years",
+            "freelance_payouts",
         }
         assert set(backup["entries"][0]) == {
             "date",
@@ -263,6 +290,14 @@ class TestBackupRoundTripIsIdentity:
             "currency",
             "fx_rate",
         }
+        assert set(backup["freelance_payouts"][0]) == {
+            "source_id",
+            "week_start",
+            "amount",
+            "currency",
+            "fx_rate",
+            "note",
+        }
         assert set(backup["freelance_tax_years"][0]) == {
             "year",
             "salary_annual",
@@ -277,7 +312,12 @@ class TestBackupRoundTripIsIdentity:
         """An older file knows nothing of sources or blocks: restoring it must not wipe them."""
         _populate(client)
         old = client.get("/api/backup").json()
-        for key in ("income_sources", "freelance_blocks", "freelance_tax_years"):
+        for key in (
+            "income_sources",
+            "freelance_blocks",
+            "freelance_tax_years",
+            "freelance_payouts",
+        ):
             del old[key]
         old["version"] = 2
         assert client.post("/api/restore", json=old).status_code == 200

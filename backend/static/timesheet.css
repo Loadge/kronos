@@ -147,3 +147,6 @@ footer.doc { margin-top: 1.4rem; font-size: .7rem; color: var(--t-faint); displa
   .toolbar { display: none; }
   .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
 }
+
+/* Payout line: italic with a hairline above, readable in print. */
+tr.payout-row td { font-style: italic; border-top: 1px solid currentColor; }

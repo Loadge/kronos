@@ -153,6 +153,12 @@
         <div class="an-ledger-rows an-ledger-fl" data-testid="an-freelance">
           <h3><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</h3>
           <div class="an-lrow an-lrow--big"><span>Billed</span><b class="metric fl-money" x-text="fmtMoney(anFlSummary().eur)"></b></div>
+          <template x-if="payouts.length > 0">
+            <div class="an-lsplit">
+              <div class="an-lrow" x-show="anFlSummary().paid > 0" data-testid="an-fl-paid"><span>Paid out</span><b class="metric" x-text="fmtMoney(anFlSummary().paid)"></b></div>
+              <div class="an-lrow" x-show="anFlSummary().est > 0" data-testid="an-fl-est"><span>Estimated</span><b class="metric" x-text="fmtMoney(anFlSummary().est)"></b></div>
+            </div>
+          </template>
           <div class="an-lrow"><span>Hours</span><b class="metric" x-text="fmtHours(anFlSummary().hours)"></b></div>
           <div class="an-lrow"><span>Blocks</span><b class="metric" x-text="anFlSummary().blocks"></b></div>
           <div class="an-lrow"><span>€ / h gross</span><b class="metric" x-text="anFlSummary().hours ? fmtMoney(anFlSummary().rate) : '—'"></b></div>
@@ -274,6 +280,7 @@
     <a href="/api/export.json" role="button" class="secondary outline" download>Download JSON</a>
     <template x-if="hasFreelance()">
       <a href="/api/freelance/export.csv" role="button" class="secondary outline" download>⚡ Freelance CSV</a>
+      <a href="/api/freelance/payouts.csv" role="button" class="secondary outline" download>⚡ Payouts CSV</a>
     </template>
   </p>
 </section>

@@ -300,3 +300,152 @@ class TestFreelanceSheet:
         assert sheet.totals.amounts_label == "€90.00 · $475.00"  # euros first
         assert sheet.totals.eur == pytest.approx(90 + 380 / 1.1172)
         assert sheet.totals.hours == pytest.approx(6.5)
+
+
+# ---------- the freelance sheet with payouts ----------------------------------------
+
+
+def _blk(id, d, minutes, rate, currency, source, fx=None):
+    from types import SimpleNamespace
+
+    amount = minutes / 60 * rate
+    return SimpleNamespace(
+        id=id,
+        date=d,
+        minutes=minutes,
+        start_time=None,
+        end_time=None,
+        rate=rate,
+        currency=currency,
+        fx_rate=fx,
+        amount=amount,
+        amount_eur=amount if currency == "EUR" else amount / fx,
+        notes=None,
+        source=source,
+    )
+
+
+def _line(d, block, amount, eur, payout_id, currency, source_id=1):
+    from app.services.freelance import Line
+
+    return Line(
+        date=d,
+        source_id=source_id,
+        block_id=None if block is None else block.id,
+        minutes=0 if block is None else block.minutes,
+        amount=amount,
+        est_eur=None,
+        eur=eur,
+        paid=payout_id is not None,
+        payout_id=payout_id,
+        currency=currency,
+    )
+
+
+def _payout(id, week_start, amount, currency, source, fx=None, note=None, source_id=1):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        id=id,
+        source_id=source_id,
+        week_start=week_start,
+        amount=amount,
+        currency=currency,
+        note=note,
+        source=source,
+        amount_eur=amount if currency == "EUR" else (amount / fx if fx else None),
+    )
+
+
+def _freelance(blocks, lines, payouts, start=date(2026, 10, 1), end=date(2026, 11, 30)):
+    from app.services.timesheet import build_freelance_timesheet
+
+    return build_freelance_timesheet(
+        blocks,
+        start=start,
+        end=end,
+        sources=["Northwind", "Local"],
+        work_week_days=MON_FRI,
+        lines=lines,
+        payouts=payouts,
+    )
+
+
+class TestFreelanceSheetPayouts:
+    NORTH = type("S", (), {"name": "Northwind"})()
+    LOCAL = type("S", (), {"name": "Local"})()
+
+    def test_payout_row_follows_the_last_block_and_the_totals_use_it(self):
+        # $237.50 of blocks (2.5 h at $95), paid $300.00 at 1.1172 -> 268.53 EUR
+        b = _blk(1, date(2026, 10, 27), 150, 95.0, "USD", self.NORTH, fx=1.1172)
+        p = _payout(7, date(2026, 10, 26), 300.0, "USD", self.NORTH, fx=1.1172)
+        sheet = _freelance(
+            [b], [_line(b.date, b, 300.0, 268.53, 7, "USD")], [p], end=date(2026, 10, 31)
+        )
+        rows = sheet.months[0].rows
+        assert [r.is_payout for r in rows] == [False, True]
+        assert rows[0].amount == "$237.50" and rows[0].eur == "€212.59"  # the block's own estimate
+        assert rows[1].text == "W44 payout $300.00 · +$62.50 over the estimate"
+        assert (rows[1].eur, rows[1].source, rows[1].missing_fx) == ("€268.53", "Northwind", False)
+        t = sheet.totals
+        assert t.eur == pytest.approx(268.53) and t.amounts_label == "$300.00"
+        assert (t.blocks, t.minutes) == (1, 150) and sheet.has_payouts
+
+    def test_under_the_estimate_and_a_payout_without_a_rate(self):
+        b = _blk(1, date(2026, 10, 27), 90, 60.0, "EUR", self.LOCAL)  # EUR 90.00
+        p = _payout(2, date(2026, 10, 26), 40.0, "EUR", self.LOCAL, source_id=2)
+        sheet = _freelance(
+            [b], [_line(b.date, b, 40.0, 40.0, 2, "EUR", 2)], [p], end=date(2026, 10, 31)
+        )
+        assert sheet.months[0].rows[1].text == "W44 payout €40.00 · -€50.00 under the estimate"
+        assert sheet.totals.eur == pytest.approx(40.0)
+
+        usd = _blk(3, date(2026, 10, 28), 60, 95.0, "USD", self.NORTH, fx=1.1172)
+        p2 = _payout(4, date(2026, 10, 26), 100.0, "USD", self.NORTH, fx=None)  # no rate: no euros
+        sheet = _freelance(
+            [usd], [_line(usd.date, usd, 100.0, None, 4, "USD")], [p2], end=date(2026, 10, 31)
+        )
+        row = sheet.months[0].rows[1]
+        assert row.missing_fx and row.eur == "" and "+$5.00 over" in row.text
+        assert sheet.totals.eur == 0 and sheet.totals.missing_fx == 1  # never 1:1 for dollars
+
+    def test_a_payout_with_no_blocks_prints_alone_in_the_month_of_its_sunday(self):
+        b = _blk(1, date(2026, 10, 5), 60, 60.0, "EUR", self.LOCAL)
+        p = _payout(9, date(2026, 10, 26), 500.0, "EUR", self.LOCAL, note="bonus", source_id=2)
+        sunday = date(2026, 11, 1)
+        sheet = _freelance([b], [_line(sunday, None, 500.0, 500.0, 9, "EUR", 2)], [p])
+        assert [m.abbr for m in sheet.months] == ["Oct", "Nov"]
+        row = sheet.months[1].rows[0]
+        assert row.is_payout and row.notes == "bonus"
+        assert row.text == "W44 payout €500.00 · no blocks that week"
+        nov = sheet.months[1].totals
+        assert (nov.blocks, nov.minutes, nov.eur) == (0, 0, 500.0)
+        assert sheet.totals.eur == pytest.approx(500.0 + 60.0)  # the Oct block counts its estimate
+
+    def test_a_week_across_months_splits_the_payout_by_line_and_prints_one_row(self):
+        # Mon 26 Oct .. Sun 1 Nov: blocks Thu 29 Oct (EUR 60) and Sun 1 Nov (EUR 120), paid 150
+        a = _blk(1, date(2026, 10, 29), 60, 60.0, "EUR", self.LOCAL)
+        c = _blk(2, date(2026, 11, 1), 120, 60.0, "EUR", self.LOCAL)
+        p = _payout(5, date(2026, 10, 26), 150.0, "EUR", self.LOCAL, source_id=2)
+        lines = [
+            _line(a.date, a, 50.0, 50.0, 5, "EUR", 2),
+            _line(c.date, c, 100.0, 100.0, 5, "EUR", 2),
+        ]
+        sheet = _freelance([c, a], lines, [p])
+        oct_, nov = sheet.months
+        assert [r.is_payout for r in oct_.rows] == [
+            False
+        ]  # the row waits for the week's last block
+        assert [r.is_payout for r in nov.rows] == [False, True]
+        assert nov.rows[1].text == "W44 payout €150.00 · -€30.00 under the estimate"
+        assert (oct_.totals.eur, nov.totals.eur, sheet.totals.eur) == (50.0, 100.0, 150.0)
+        assert sheet.totals.blocks == 2
+
+    def test_without_a_payout_the_lines_change_nothing(self):
+        b = _blk(1, date(2026, 10, 27), 150, 95.0, "USD", self.NORTH, fx=1.1172)
+        plain = _freelance([b], [], [], end=date(2026, 10, 31))
+        unpaid = _freelance(
+            [b], [_line(b.date, b, 237.5, 212.58, None, "USD")], [], end=date(2026, 10, 31)
+        )
+        assert unpaid == plain and not plain.has_payouts
+        assert plain.totals.eur == 237.5 / 1.1172  # the unrounded sum it always was

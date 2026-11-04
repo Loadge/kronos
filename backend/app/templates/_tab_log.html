@@ -293,6 +293,15 @@
           </template>
         </div>
 
+        <!-- the week's payouts, read-only; they are typed in Days > Freelance -->
+        <template x-for="p in flDayPayouts()" :key="p.id">
+          <div class="fl-payout" data-testid="fl-payout-line" :style="'--src:' + sourceColor(p.source_id)">
+            <span class="fl-dot" aria-hidden="true"></span>
+            <span class="fl-payout-txt"><b class="metric" x-text="weekId(p.week_start)"></b> payout <b class="metric fl-money" x-text="payAmountLabel(p)"></b> <span class="muted" x-text="sourceById(p.source_id)?.name || ''"></span></span>
+            <a href="#days" class="fl-payout-link" @click.prevent="openWeekInDays(p)">in Days</a>
+          </div>
+        </template>
+
         <ul class="fl-list" x-show="flDayBlocks().length">
           <template x-for="b in flDayBlocks()" :key="b.id">
             <li class="fl-block" :data-id="b.id" :class="flForm.id === b.id ? 'is-editing' : ''" :style="'--src:' + sourceColor(b.source_id)">
@@ -302,7 +311,7 @@
                 <b x-text="fmtHours(b.hours)"></b>
                 <template x-if="b.start_time"><span class="muted" x-text="blockDuration(b)"></span></template>
               </span>
-              <span class="fl-amt metric" :class="b.amount_eur === null ? 'deficit' : ''" x-text="blockAmountLabel(b)"></span>
+              <span class="fl-amt metric" :class="b.amount_eur === null ? 'deficit' : (b.payout_id != null ? 'fl-est' : '')" :title="b.payout_id != null ? 'estimate; the week\'s payout counts' : null" x-text="blockAmountLabel(b)"></span>
               <span class="fl-note muted" x-text="b.notes || ''"></span>
               <span class="fl-actions">
                 <button type="button" class="fl-icon" @click="flEdit(b)" :aria-label="'Edit block ' + b.source_name" title="Edit">✎</button>

@@ -48,7 +48,7 @@ class TestDownloadBackup:
         r = client.get("/api/backup")
         assert r.status_code == 200
         body = r.json()
-        assert body["version"] == 3  # entries carry `fraction`; freelance rides along
+        assert body["version"] == 4  # `fraction`, freelance and payouts ride along
         assert "exported_at" in body
         assert body["entries"] == []
         assert "settings" in body
@@ -232,3 +232,37 @@ class TestRoundtrip:
             assert e1["day_type"] == e2["day_type"]
             assert e1["breaks"] == e2["breaks"]
         assert backup2["settings"]["daily_target_hours"] == 7.0
+
+
+class TestPayoutsInTheBackup:
+    def _seed(self, client):
+        src = client.post(
+            "/api/freelance/sources", json={"name": "Acme", "hourly_rate": 60, "currency": "EUR"}
+        ).json()["id"]
+        r = client.post(
+            "/api/freelance/payouts",
+            json={"source_id": src, "week_start": "2026-03-02", "amount": 800},
+        )
+        assert r.status_code == 201
+        return src
+
+    def test_a_version_3_file_restores_and_leaves_zero_payouts(self, client):
+        src = self._seed(client)
+        old = client.get("/api/backup").json()
+        del old["freelance_payouts"]
+        old["version"] = 3
+        assert client.post("/api/restore", json=old).status_code == 200
+        assert client.get("/api/freelance/payouts").json() == []
+        assert [s["id"] for s in client.get("/api/freelance/sources").json()] == [src]
+
+    def test_a_payout_on_an_unknown_source_is_rejected(self, client):
+        file = _payload(version=4)
+        file["freelance_payouts"] = [{"source_id": 7, "week_start": "2026-03-02", "amount": 1}]
+        assert client.post("/api/restore", json=file).status_code == 422
+
+    def test_delete_all_data_removes_payouts(self, client):
+        self._seed(client)
+        assert len(client.get("/api/freelance/payouts").json()) == 1
+        assert client.delete("/api/data").status_code == 200
+        assert client.get("/api/freelance/payouts").json() == []
+        assert len(client.get("/api/freelance/sources").json()) == 1  # sources are settings

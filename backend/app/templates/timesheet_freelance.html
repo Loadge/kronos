@@ -71,6 +71,16 @@
       <tr class="month"><td colspan="{{ columns }}">{{ m.label }}</td></tr>
       {% endif %}
       {% for r in m.rows %}
+      {%- if r.is_payout %}
+      <tr class="row-payout payout-row" data-date="{{ r.date.isoformat() }}">
+        <td class="c-day"></td>
+        <td class="c-dow"></td>
+        <td class="c-type">{{ r.source }}</td>
+        <td colspan="5">{{ r.text }}</td>
+        <td class="n">{% if r.missing_fx %}<span class="flag">no rate</span>{% else %}{{ r.eur }}{% endif %}</td>
+        {% if show_notes %}<td class="notes">{{ r.notes }}</td>{% endif %}
+      </tr>
+      {%- else %}
       <tr class="row-block{% if r.weekend %} we{% endif %}" data-date="{{ r.date.isoformat() }}">
         <td class="c-day">{{ r.day }}</td>
         <td class="c-dow">{{ r.weekday }}</td>
@@ -83,6 +93,7 @@
         <td class="n">{% if r.missing_fx %}<span class="flag">no rate</span>{% else %}{{ r.eur }}{% endif %}</td>
         {% if show_notes %}<td class="notes">{{ r.notes }}</td>{% endif %}
       </tr>
+      {%- endif %}
       {% endfor %}
       {% set t = m.totals if sheet.multi_month else sheet.totals %}
       <tr class="sub">
@@ -101,13 +112,13 @@
   <section class="totals" aria-label="Totals">
     <div class="tot"><div class="k">Hours</div><div class="v">{{ sheet.fmt(g.hours) }}</div><div class="s">{{ g.blocks }} block{{ '' if g.blocks == 1 else 's' }}</div></div>
     <div class="tot"><div class="k">Billed</div><div class="v">{{ g.amounts_label or '—' }}</div><div class="s">in the sources' currencies</div></div>
-    <div class="tot"><div class="k">In euros</div><div class="v">{{ g.eur|money }}</div><div class="s">{% if g.missing_fx %}{{ g.missing_fx }} block{{ '' if g.missing_fx == 1 else 's' }} without a rate left out{% else %}at each day's ECB rate{% endif %}</div></div>
+    <div class="tot"><div class="k">In euros</div><div class="v">{{ g.eur|money }}</div><div class="s">{% if g.missing_fx %}{{ g.missing_fx }} block{{ '' if g.missing_fx == 1 else 's' }} without a rate left out{% elif sheet.has_payouts %}payouts at their week's rate, the rest at each day's ECB rate{% else %}at each day's ECB rate{% endif %}</div></div>
     <div class="tot"><div class="k">Per hour</div><div class="v">{% if g.minutes %}{{ (g.eur / g.hours)|money }}{% else %}—{% endif %}</div><div class="s">gross, in euros</div></div>
   </section>
 
   <p class="legend">
     One row per block; days without freelance work are not listed. Rate and amount in the source's currency as saved with the block;
-    EUR at the European Central Bank's reference rate of that day. Weekends shaded. Before tax — see the Freelance tab for the estimate.
+    EUR at the European Central Bank's reference rate of that day. Weekends shaded. Before tax — see the Freelance tab for the estimate.{{ " A payout line gives what the source actually paid for that week; the totals count it in place of the blocks' estimate." if sheet.has_payouts else '' }}
   </p>
 
   {% if show_sign %}

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos — Payouts round mockup · P1 "Week headers, always open"</title>
+<link rel="stylesheet" href="_ux_base.css">
+<style>
+/* ── shared by P1 and P2: phone frame, week rows, bars ── */
+.part { font-size:1.4rem; margin:2.2rem 0 .3rem; }
+.stage { display:flex; flex-wrap:wrap; gap:1.5rem; align-items:flex-start; margin-top:.8rem; }
+.frame { min-width:0; }
+.frame.desk { flex:1 1 760px; }
+.frame.phone { flex:0 0 380px; width:380px; border:1px solid var(--k-border-strong); border-radius:24px; padding:14px 12px 20px; background:var(--k-bg); font-size:14px; }
+.frame-cap { font-size:.7rem; text-transform:uppercase; letter-spacing:.1em; color:var(--k-muted); margin:0 0 .5rem; }
+.quiet { color:var(--k-muted); font-style:italic; font-size:.8rem; }
+.subtabs { display:flex; border-bottom:1px solid var(--k-border); margin:.4rem 0 .8rem; }
+.subtabs a { padding:.4rem .9rem; color:var(--k-muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; font-variant:small-caps; letter-spacing:.06em; font-size:1rem; }
+.subtabs a.on { color:var(--k-brass); border-bottom-color:var(--k-brass); }
+.subtabs a .num { font-variant:normal; letter-spacing:0; font-size:.76rem; color:var(--k-muted); margin-left:.35rem; }
+.chips { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin-bottom:.6rem; }
+.msep { background:color-mix(in srgb,var(--k-brass) 6%,transparent); font-variant:small-caps; letter-spacing:.06em; color:var(--k-brass); font-weight:700; padding:.45rem .6rem; margin-top:1rem; }
+.msep .num { font-variant:normal; letter-spacing:0; color:var(--k-muted); font-weight:400; margin-left:.8rem; font-size:.82rem; }
+.cols, .wrow { display:grid; grid-template-columns:minmax(0,1.5fr) .55fr .8fr minmax(0,2.3fr) .8fr .8fr; gap:.6rem; align-items:center; padding:.4rem .6rem; }
+.cols { font-size:.7rem; font-variant:small-caps; letter-spacing:.08em; color:var(--k-muted); border-bottom:1px solid var(--k-border-strong); }
+.cols .r, .wrow .r { text-align:right; }
+.wrow { border-bottom:1px solid color-mix(in srgb,var(--k-border) 60%,transparent); font-size:.88rem; }
+.wrow [data-l]::before { content:attr(data-l); display:none; font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; color:var(--k-muted); }
+.c-src { display:flex; align-items:center; gap:.45rem; min-width:0; }
+.c-src small { color:var(--k-muted); font-size:.72rem; }
+.c-h, .c-est, .c-eph { text-align:right; }
+.c-gap.wide { grid-column:span 2; text-align:right; }
+.wrow.has-pay .c-est { color:var(--k-muted); text-decoration:line-through; text-decoration-color:color-mix(in srgb,var(--k-muted) 50%,transparent); }
+.c-pay { display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+.pay { display:inline-flex; align-items:baseline; gap:.2rem; }
+.pay .cur { color:var(--k-coin); font-family:ui-monospace,monospace; }
+.payin { width:5.4rem; text-align:right; font-family:ui-monospace,monospace; border-bottom:1px dashed var(--k-border-strong); }
+.payin:not(:placeholder-shown) { border-bottom-style:solid; color:var(--k-coin); font-weight:600; }
+.payin::placeholder { color:var(--k-muted); font-style:italic; font-family:system-ui,sans-serif; }
+.fx { font-size:.76rem; color:var(--k-muted); display:inline-flex; align-items:center; gap:.2rem; }
+.fx .fxin { display:none; width:4.6rem; font-size:.76rem; text-align:right; }
+.fx.editing .fxin { display:inline-block; } .fx.editing .fxshow { display:none; }
+.pen { border:none; background:transparent; color:var(--k-brass); cursor:pointer; padding:0 .15rem; font-size:.85rem; }
+.eur { font-size:.76rem; }
+.blocks { padding-bottom:.2rem; }
+.brow { display:grid; grid-template-columns:8.6rem minmax(0,1.5fr) 3.2rem 3.2rem 2.8rem 4rem 4.8rem 4.6rem minmax(0,1.2fr) 1.2rem; gap:.5rem; align-items:center; padding:.3rem .6rem .3rem 1.4rem; font-size:.84rem; border-top:1px solid color-mix(in srgb,var(--k-border) 40%,transparent); cursor:pointer; }
+.brow:hover { background:color-mix(in srgb,var(--k-brass) 6%,transparent); }
+.brow .r { text-align:right; } .brow .b-note { font-size:.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .brow .b-ed { color:var(--k-muted); }
+.brow.paid .amt, .brow.paid .eu { color:var(--k-muted); }
+.phone .brow { grid-template-columns:1fr auto auto; grid-template-areas:"d h eu" "src src amt" "note note note"; row-gap:.1rem; padding:.4rem .3rem .4rem .8rem; }
+.phone .brow .b-date { grid-area:d; } .phone .brow .b-src { grid-area:src; } .phone .brow .b-h { grid-area:h; } .phone .brow .amt { grid-area:amt; } .phone .brow .eu { grid-area:eu; } .phone .brow .b-note { grid-area:note; }
+.phone .brow .b-t, .phone .brow .b-ed { display:none; } .phone .brow .b-note:empty { display:none; }
+.split { font-size:.74rem; color:var(--k-muted); border-left:2px solid var(--k-coin); padding:0 .5rem; }
+/* phone: the same rows, stacked by area (no media query: the frame decides) */
+.phone .cols { display:none; }
+.phone .wrow { grid-template-columns:1fr 1fr 1fr; grid-template-areas:"src src src" "h est eph" "pay pay gap"; row-gap:.4rem; padding:.55rem .3rem; }
+.phone .wrow.w { grid-template-areas:"src src src" "h est est" "pay pay pay" "gap gap gap"; }
+.phone .c-src { grid-area:src; } .phone .c-h { grid-area:h; } .phone .c-est { grid-area:est; } .phone .c-pay { grid-area:pay; } .phone .c-gap { grid-area:gap; } .phone .c-eph { grid-area:eph; }
+.phone .c-h, .phone .c-est, .phone .c-eph, .phone .c-gap { display:flex; flex-direction:column; text-align:left; }
+.phone .c-gap.wide { grid-column:auto; align-items:flex-start; }
+.phone .wrow [data-l]::before { display:block; }
+.phone .sec-head h2 { font-size:1.35rem; }
+.phone .hero { grid-template-columns:1fr; } .phone .hero-num { font-size:2.8rem; }
+.phone .lab:not(.keep) { display:none; }
+.phone .months { gap:3px; padding:0 .2rem; } .phone .months-x { gap:3px; padding:0 .2rem; }
+/* freelance tab: bars with the split */
+.hero-split { display:flex; flex-wrap:wrap; gap:.3rem 1.2rem; font-size:.9rem; margin:.2rem 0 .5rem; }
+.sw { display:inline-block; width:12px; height:12px; border-radius:2px; margin-right:.35rem; vertical-align:-1px; }
+.sw.paid { background:var(--k-coin); } .sw.est { background:color-mix(in srgb,var(--k-coin) 38%,transparent); } .sw.plan { border:1px dashed var(--k-coin); background:color-mix(in srgb,var(--k-coin) 10%,transparent); }
+.splitbar { display:flex; height:8px; border-radius:4px; overflow:hidden; margin:.3rem 0 .6rem; }
+.splitbar i { display:block; height:100%; } .splitbar .p { background:var(--k-coin); } .splitbar .e { background:color-mix(in srgb,var(--k-coin) 38%,transparent); }
+.bars { display:flex; align-items:flex-end; gap:6px; height:165px; border-bottom:1px solid var(--k-border-strong); padding:0 .5rem; }
+.mcol { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:stretch; min-width:0; }
+.mcol .lab { font-size:.62rem; color:var(--k-muted); font-family:ui-monospace,monospace; text-align:center; height:1rem; white-space:nowrap; }
+.mcol .sg.paid { background:var(--k-coin); opacity:.9; } .mcol .sg.est { background:color-mix(in srgb,var(--k-coin) 38%,transparent); }
+.mcol .sg.plan { background:color-mix(in srgb,var(--k-coin) 14%,transparent); border:1px dashed var(--k-coin); box-sizing:border-box; }
+.mcol .sg:first-of-type { border-radius:2px 2px 0 0; }
+.dash-card { display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; align-items:baseline; }
+.dash-card b { font-size:1.4rem; }
+.pdf { background:#faf4e8; color:#1f1b15; max-width:760px; border-radius:6px; padding:1.1rem 1.4rem; }
+.pdf table { color:#1f1b15; } .pdf th { color:#6d6353; border-bottom-color:#b5a992; } .pdf td { border-bottom-color:#e4dac6; }
+.pdf-wk { display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #1f1b15; padding-bottom:.2rem; margin-top:.4rem; }
+.pdf-pay { display:flex; justify-content:space-between; gap:1rem; padding:.45rem .6rem; background:#efe5cf; font-size:.88rem; font-weight:700; }
+.pdf-pay .ov { color:#3d6b2e; }
+
+/* ── P1: a header per week, every source row always open with its payout field ── */
+.wk { border-bottom:1px solid var(--k-border); }
+.wk.cur { background:color-mix(in srgb,var(--k-brass) 4%,transparent); }
+.wk-head { display:flex; align-items:baseline; gap:.7rem; flex-wrap:wrap; padding:.5rem .6rem .15rem; font-size:.84rem; }
+.wk-head b { color:var(--k-brass); font-size:.95rem; }
+.wk-head .saved { margin-left:auto; }
+.wk .wrow:last-child { border-bottom:none; }
+
+</style></head>
+<body>
+<div class="wrap">
+<header class="app">
+  <div class="brand"><div class="brand-logo"></div><div><h1>Kronos</h1><p class="muted" style="margin:.2rem 0 0;font-size:.85rem">Phase 37 · Freelance payouts</p></div></div>
+  <div class="controls"><button class="icon-btn" id="theme">☀</button></div>
+</header>
+<div class="banner"><strong>P1 "Week headers, always open"</strong> — mockup of Phase 37, payouts round (2026-11-04). Invented numbers, today = Wed 2026-11-04; two sources: Northwind Labs ($60/h) and Local consulting (€50/h). P1 · "Week headers, always open" — a header per ISO week inside each month; under it one row per source with hours, estimate and an always-visible payout field; with a payout, the gap and the €/h of the week. The block rows follow under it as today (a click opens the day in Log); in a paid week their amounts are the estimate, muted.
+  <div style="margin-top:.5rem"><b>States shown:</b> W45 current week, no payout, not flagged · W44 USD payout above the estimate, rate shown with a pencil, and the week that crosses Oct/Nov (appears once, under October) · W43 past week with blocks, no payout (awaiting payout) · W42 EUR payout below the estimate · W41 payout with no hours. Type in a payout field: the week shows <i>saved ✓</i>; empty a filled one: Undo in the ribbon; click ✎ next to a rate to edit it.</div></div>
+
+<h2 class="part">Days · ⚡ Freelance</h2>
+<div class="stage">
+  <div class="frame desk"><p class="frame-cap">Desktop</p><div id="d-desk"></div></div>
+  <div class="frame phone"><p class="frame-cap">Phone · 380px</p><div id="d-phone"></div></div>
+</div>
+
+<h2 class="part">Freelance tab · hero and monthly bars</h2>
+<div class="stage">
+  <div class="frame desk"><p class="frame-cap">Desktop</p><div id="f-desk"></div></div>
+  <div class="frame phone"><p class="frame-cap">Phone · 380px</p><div id="f-phone"></div></div>
+</div>
+
+<h2 class="part">Dashboard card</h2>
+<p class="note">One line of the freelance card: the same split, in words, next to the totals of the week and the month.</p>
+<div class="card fl-card dash-card" id="dash"></div>
+
+<h2 class="part">Freelance PDF · one week</h2>
+<p class="note">The block rows stay as today. Under a week that has a payout, one line with the payout and its gap to the estimate; the totals use the payouts.</p>
+<div class="pdf" id="pdf"></div>
+
+<div class="ribbon" id="ribbon" style="display:none"></div>
+</div>
+<script>
+// ── data: invented, today = Wed 2026-11-04, EUR per USD 1.1172 for estimates ──
+const FX_TODAY = 1.1172;
+const SRC = { nw:{ name:'Northwind Labs', cur:'$', color:'var(--k-coin)', rate:60 }, lc:{ name:'Local consulting', cur:'€', color:'var(--k-ink)', rate:50 } };
+const WEEKS = {
+  W45:{ id:'W45', range:'Nov 2 – Nov 8', sun:'Nov 8', current:true, rows:[ {s:'nw',h:6,est:360}, {s:'lc',h:2,est:100} ],
+    blocks:[ {s:'nw',d:'2026-11-03',dw:'Tue',st:'14:00',en:'17:00',h:3,note:'api review'}, {s:'lc',d:'2026-11-02',dw:'Mon',st:'18:00',en:'20:00',h:2,note:'evening fix'}, {s:'nw',d:'2026-11-02',dw:'Mon',st:'',en:'',h:3,note:''} ] },
+  W44:{ id:'W44', range:'Oct 26 – Nov 1', sun:'Nov 1', past:true, split:{ oct:1503, nov:376 }, bfx:1.1180, rows:[ {s:'nw',h:30,est:1800,pay:2100,fx:1.1180} ],
+    blocks:[ {s:'nw',d:'2026-11-01',dw:'Sun',st:'10:00',en:'16:00',h:6,note:'release night'}, {s:'nw',d:'2026-10-29',dw:'Thu',st:'',en:'',h:6,note:''}, {s:'nw',d:'2026-10-28',dw:'Wed',st:'09:00',en:'15:00',h:6,note:''}, {s:'nw',d:'2026-10-27',dw:'Tue',st:'09:00',en:'15:00',h:6,note:'migration'}, {s:'nw',d:'2026-10-26',dw:'Mon',st:'',en:'',h:6,note:''} ] },
+  W43:{ id:'W43', range:'Oct 19 – Oct 25', sun:'Oct 25', past:true, rows:[ {s:'nw',h:12,est:720} ],
+    blocks:[ {s:'nw',d:'2026-10-23',dw:'Fri',st:'09:30',en:'13:30',h:4,note:'report'}, {s:'nw',d:'2026-10-21',dw:'Wed',st:'',en:'',h:4,note:''}, {s:'nw',d:'2026-10-19',dw:'Mon',st:'15:00',en:'19:00',h:4,note:''} ] },
+  W42:{ id:'W42', range:'Oct 12 – Oct 18', sun:'Oct 18', past:true, rows:[ {s:'lc',h:10,est:500,pay:450} ],
+    blocks:[ {s:'lc',d:'2026-10-15',dw:'Thu',st:'18:00',en:'23:00',h:5,note:''}, {s:'lc',d:'2026-10-13',dw:'Tue',st:'',en:'',h:5,note:'audit'} ] },
+  W41:{ id:'W41', range:'Oct 5 – Oct 11', sun:'Oct 11', past:true, rows:[ {s:'nw',h:0,est:0,pay:600,fx:1.1090} ], blocks:[] }
+};
+const MONTHS = [
+  { name:'November 2026', sum:'14h · €798 · €376 of it from W44', weeks:['W45'] },
+  { name:'October 2026', sum:'46h · €3,138', weeks:['W44','W43','W42','W41'] }
+];
+// J F M A M J J A S O N D : paid, estimated, planned (euros)
+const BARS = [ ['J',0,0,0],['F',0,0,0],['M',400,0,0],['A',560,0,0],['M',640,0,0],['J',720,0,0],['J',820,0,0],['A',860,0,0],['S',530,734,0],['O',2494,644,0],['N',376,422,700],['D',0,0,900] ];
+
+const nf0 = n => Math.round(n).toLocaleString('en-US');
+const nf2 = n => n.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const money = (cur, n) => cur + nf0(n);
+
+function calc(r) {
+  const s = SRC[r.s], usd = s.cur === '$', hasPay = r.pay != null;
+  const estEur = usd ? r.est / FX_TODAY : r.est;
+  const payEur = hasPay ? (usd ? r.pay / r.fx : r.pay) : null;
+  return { s, usd, hasPay, estEur, payEur, eur: hasPay ? payEur : estEur,
+           gap: hasPay && r.h > 0 ? r.pay - r.est : null, eph: hasPay && r.h > 0 ? payEur / r.h : null };
+}
+function weekSum(w) {
+  let h = 0, e = 0, paid = 0;
+  w.rows.forEach(r => { const c = calc(r); h += r.h; e += c.eur; if (c.hasPay) paid++; });
+  return { h, e, state: paid === w.rows.length ? 'paid' : paid ? 'part' : 'est' };
+}
+// one row per source with blocks or a payout that week (shared by P1 and P2)
+function rowHTML(w, r) {
+  const c = calc(r), s = c.s;
+  const hours = r.h > 0 ? r.h + 'h' : '<span class="quiet">0h</span>';
+  const est = r.h > 0 ? money(s.cur, r.est) : '<span class="quiet">—</span>';
+  let pay = '<span class="pay"><span class="cur">' + s.cur + '</span><input class="payin num" value="' + (c.hasPay ? nf0(r.pay) : '') + '" data-prev="' + (c.hasPay ? nf0(r.pay) : '') + '" placeholder="' + (c.hasPay ? '' : 'payout') + '" aria-label="Payout ' + s.name + ' ' + w.id + '"></span>';
+  if (c.usd && c.hasPay) {
+    pay += '<span class="fx num" title="ECB rate of the week\'s Sunday (' + w.sun + '), editable"><span class="fxshow">@ <span class="fxv">' + r.fx.toFixed(4) + '</span> <button class="pen" title="Edit the exchange rate">✎</button></span><input class="fxin num" value="' + r.fx.toFixed(4) + '"></span><span class="eur num muted">= €' + nf0(c.payEur) + '</span>';
+  }
+  let tail, wide = false;
+  if (c.gap != null) {
+    const pos = c.gap >= 0;
+    tail = '<span class="c-gap num ' + (pos ? 'surplus' : 'deficit') + '" data-l="Gap"><b>' + (pos ? '+' : '−') + s.cur + nf0(Math.abs(c.gap)) + '</b></span><span class="c-eph num" data-l="€ / h">€' + nf2(c.eph) + '</span>';
+  } else if (c.hasPay) { wide = true; tail = '<span class="c-gap wide quiet">payout with no hours</span>'; }
+  else if (w.past) { wide = true; tail = '<span class="c-gap wide quiet">awaiting payout</span>'; }
+  else { wide = true; tail = '<span class="c-gap wide"></span>'; }
+  return '<div class="wrow' + (wide ? ' w' : '') + (c.hasPay ? ' has-pay' : '') + '" style="--src:' + s.color + '">'
+    + '<span class="c-src"><span class="dot"></span>' + s.name + ' <small class="num">' + s.cur + s.rate + '/h</small></span>'
+    + '<span class="c-h num" data-l="Hours">' + hours + '</span>'
+    + '<span class="c-est num" data-l="Estimate">' + est + '</span>'
+    + '<span class="c-pay" data-l="Payout">' + pay + '</span>' + tail + '</div>';
+}
+// the block rows, as ux-u2 draws them; in a paid week the amounts are the estimate, muted
+function blocksHTML(w) {
+  return '<div class="blocks">' + w.blocks.map(b => {
+    const s = SRC[b.s], usd = s.cur === '$', paid = w.rows.some(r => r.s === b.s && r.pay != null);
+    const amt = b.h * s.rate, eur = usd ? amt / (w.bfx || FX_TODAY) : amt;
+    return '<div class="brow' + (paid ? ' paid' : '') + '" style="--src:' + s.color + '" title="Opens this day in Log, the block in the editor">'
+      + '<span class="b-date"><span class="num">' + b.d + '</span> <span class="muted">' + b.dw + '</span></span>'
+      + '<span class="b-src"><span class="dot"></span> ' + s.name + '</span>'
+      + '<span class="r num b-t">' + (b.st || '—') + '</span><span class="r num b-t">' + (b.en || '—') + '</span>'
+      + '<span class="r num b-h">' + b.h + 'h</span><span class="r num b-t">' + s.cur + nf2(s.rate) + '</span>'
+      + '<span class="r num amt">' + s.cur + nf2(amt) + '</span><span class="r num coin eu">€' + nf2(eur) + '</span>'
+      + '<span class="muted b-note">' + b.note + '</span><span class="b-ed">✎</span></div>';
+  }).join('') + '</div>';
+}
+function daysShell(inner) {
+  return '<div class="sec-head"><h2>Days</h2><div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap"><select><option>2026</option><option>All years</option></select><button class="btn sm">⚡ PDF</button></div></div>'
+    + '<div class="subtabs"><a>Employee <span class="num">65 days</span></a><a class="on">⚡ Freelance <span class="num">38 blocks</span></a></div>'
+    + '<div class="chips"><span class="chip on" style="--src:var(--k-coin)"><span class="dot"></span>Northwind Labs</span><span class="chip on" style="--src:var(--k-ink)"><span class="dot"></span>Local consulting</span><span class="hint">all · none</span></div>'
+    + inner + '<p class="quiet" style="margin:.8rem .6rem 0">W40 and earlier, down to September…</p>';
+}
+const COLS = '<div class="cols"><span>Source</span><span class="r">Hours</span><span class="r">Estimate</span><span>Payout</span><span class="r">Gap</span><span class="r">€ / h</span></div>';
+
+// ── Freelance tab, dashboard, PDF (identical in P1 and P2) ──
+function freelanceHTML() {
+  const max = 3138, px = v => Math.max(0, Math.round(v / max * 118));
+  const bars = BARS.map((b, i) => {
+    const tot = b[1] + b[2], keep = i >= 8 && i <= 10;
+    return '<div class="mcol">' + (tot ? '<span class="lab' + (keep ? ' keep' : '') + '">€' + nf0(tot) + '</span>' : '')
+      + (b[3] ? '<div class="sg plan" style="height:' + px(b[3]) + 'px"></div>' : '')
+      + (b[2] ? '<div class="sg est" style="height:' + px(b[2]) + 'px"></div>' : '')
+      + (b[1] ? '<div class="sg paid" style="height:' + px(b[1]) + 'px"></div>' : '') + '</div>';
+  }).join('');
+  const x = BARS.map((b, i) => '<span' + (i === 10 ? ' class="now"' : '') + '>' + b[0] + '</span>').join('');
+  return '<div class="sec-head"><h2><span class="coin">⚡</span> Freelance</h2><span class="year-switch"><button>‹</button><span class="num">2026</span><button>›</button></span></div>'
+    + '<div class="hero"><div>'
+    + '<div class="hero-label"><span>This year</span><span class="today-chip">set aside €3,680</span></div>'
+    + '<div class="hero-num num">€9,200</div>'
+    + '<div class="splitbar" title="€7,400 paid out, €1,800 estimated"><i class="p" style="width:80.4%"></i><i class="e" style="width:19.6%"></i></div>'
+    + '<div class="hero-split num"><span><i class="sw paid"></i><b>€7,400</b> paid out</span><span><i class="sw est"></i><b>€1,800</b> estimated</span></div>'
+    + '<div class="hero-cap"><b>150h</b> · <b>€61.33/h</b> gross · 2 sources</div>'
+    + '<div style="display:flex;gap:.4rem;margin-top:.7rem;flex-wrap:wrap"><span class="chip on" style="--src:var(--k-coin)"><span class="dot"></span>Northwind Labs <b class="num coin">€7,150</b></span><span class="chip on" style="--src:var(--k-ink)"><span class="dot"></span>Local consulting <b class="num coin">€2,050</b></span></div>'
+    + '</div><div><div class="bars">' + bars + '</div><div class="months-x">' + x + '</div>'
+    + '<div class="legend"><span><i class="sw paid"></i>paid out</span><span><i class="sw est"></i>estimated</span><span><i class="sw plan"></i>planned (after today)</span></div></div></div>';
+}
+function dashHTML() {
+  return '<span class="lbl">⚡ Freelance</span><span>this month <b class="num coin">€798</b> <span class="muted num">€376 paid out · €422 estimated</span></span>'
+    + '<span class="muted">·</span><span>this week <b class="num coin" style="font-size:1.1rem">€422</b> <span class="muted num">estimated</span></span>';
+}
+function pdfHTML() {
+  const days = [['2026-10-26','Mon'],['2026-10-27','Tue'],['2026-10-28','Wed'],['2026-10-29','Thu'],['2026-11-01','Sun']];
+  const rows = days.map((d, i) => { const h = 6, usd = h * 60; return '<tr><td class="num">' + d[0] + '</td><td>' + d[1] + '</td><td>Northwind Labs</td><td class="r num">' + h + '.00</td><td class="r num">$60.00</td><td class="r num">$' + nf2(usd) + '</td><td class="r num">' + nf2(usd / 1.118) + '</td></tr>'; }).join('');
+  return '<div style="display:flex;justify-content:space-between;align-items:baseline"><h2 style="font-size:1.2rem">⚡ Freelance timesheet · Oct 26 – Nov 1, 2026</h2><span style="font-size:.78rem">Juan Pérez</span></div>'
+    + '<div class="pdf-wk"><b>W44 · Oct 26 – Nov 1</b><span class="num" style="font-size:.8rem">30.00 h</span></div>'
+    + '<table><thead><tr><th>Date</th><th></th><th>Source</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">EUR</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div class="pdf-pay"><span>W44 payout $2,100 · <span class="ov">+$300 over the estimate</span></span><span class="num">€1,878.35 at 1.1180</span></div>'
+    + '<p style="font-size:.72rem;color:#6d6353;margin:.6rem 0 0">Where a week has a payout, the totals use the payout and not the estimate of its blocks.</p>';
+}
+
+// ── interactions shared by both ──
+function ribbon(html) { const r = document.getElementById('ribbon'); r.innerHTML = html; r.style.display = 'block'; clearTimeout(r._t); r._t = setTimeout(() => r.style.display = 'none', 7000); return r; }
+document.addEventListener('click', e => {
+  const pen = e.target.closest('.pen');
+  if (pen) { const fx = pen.closest('.fx'); fx.classList.add('editing'); fx.querySelector('.fxin').focus(); }
+});
+function fxDone(inp) {
+  const fx = inp.closest('.fx'); fx.classList.remove('editing');
+  const v = parseFloat(inp.value) || 1; fx.querySelector('.fxv').textContent = v.toFixed(4);
+  const row = inp.closest('.wrow'), pay = parseFloat(row.querySelector('.payin').value.replace(/,/g, ''));
+  if (pay) row.querySelector('.eur').textContent = '= €' + nf0(pay / v);
+}
+document.addEventListener('focusout', e => { if (e.target.classList.contains('fxin')) fxDone(e.target); });
+document.addEventListener('keydown', e => { if (e.target.classList.contains('fxin') && e.key === 'Enter') e.target.blur(); });
+document.addEventListener('input', e => {
+  if (!e.target.classList.contains('payin')) return;
+  const wk = e.target.closest('.wk, .wk2'), s = wk && wk.querySelector('.saved'); if (!s) return;
+  s.textContent = '…'; s.classList.add('busy'); clearTimeout(s._t);
+  s._t = setTimeout(() => { s.textContent = 'saved ✓'; s.classList.remove('busy'); s.classList.add('show'); setTimeout(() => s.classList.remove('show'), 1800); }, 600);
+});
+document.addEventListener('change', e => {
+  const i = e.target; if (!i.classList.contains('payin')) return;
+  if (i.value === '' && i.dataset.prev) {
+    const prev = i.dataset.prev, r = ribbon('Payout deleted · <a style="cursor:pointer;text-decoration:underline">Undo</a>');
+    r.querySelector('a').onclick = () => { i.value = prev; r.style.display = 'none'; };
+  } else i.dataset.prev = i.value;
+});
+document.getElementById('theme').addEventListener('click', () => { const h = document.documentElement; h.dataset.theme = h.dataset.theme === 'dark' ? 'light' : 'dark'; });
+document.getElementById('f-desk').innerHTML = freelanceHTML();
+document.getElementById('f-phone').innerHTML = freelanceHTML();
+document.getElementById('dash').innerHTML = dashHTML();
+document.getElementById('pdf').innerHTML = pdfHTML();
+
+
+function weekP1(w) {
+  const split = w.split ? '<span class="split">⇢ crosses a month: €' + nf0(w.split.oct) + ' counts in October, €' + nf0(w.split.nov) + ' in November (by day worked)</span>' : '';
+  return '<div class="wk' + (w.current ? ' cur' : '') + '"><div class="wk-head"><b class="num">' + w.id + '</b><span>' + w.range + '</span>'
+    + (w.current ? '<span class="tag">this week</span>' : '') + split + '<span class="saved">saved ✓</span></div>'
+    + w.rows.map(r => rowHTML(w, r)).join('') + blocksHTML(w) + '</div>';
+}
+function renderDays(el, phone) {
+  el.innerHTML = daysShell(MONTHS.map(m =>
+    '<div class="msep">' + m.name + ' <span class="num">' + m.sum + '</span></div>' + (phone ? '' : COLS)
+    + m.weeks.map(id => weekP1(WEEKS[id])).join('')).join(''));
+}
+renderDays(document.getElementById('d-desk'), false);
+renderDays(document.getElementById('d-phone'), true);
+document.getElementById('d-phone').classList.add('phone');
+
+</script>
+</body></html>

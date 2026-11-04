@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from datetime import date as date_
+from datetime import timedelta
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.models import DayType
 from app.services.computations import minutes_between
@@ -344,10 +352,10 @@ class ConfigIn(BaseModel):
     freelance_days_off: float | None = Field(default=None, ge=0, le=366)
 
 
-# 3: freelance (income sources, hour blocks, tax years); 2: entries carry `fraction`;
-# 1: whole days only
-BACKUP_VERSION = 3
-SUPPORTED_BACKUP_VERSIONS = (1, 2, 3)
+# 4: freelance payouts; 3: freelance (income sources, hour blocks, tax years);
+# 2: entries carry `fraction`; 1: whole days only
+BACKUP_VERSION = 4
+SUPPORTED_BACKUP_VERSIONS = (1, 2, 3, 4)
 
 
 class PlanIn(BaseModel):
@@ -379,10 +387,12 @@ class RestoreIn(BaseModel):
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
     plans: list[PlanIn] = Field(default_factory=list)
-    # Version 3. Older files simply have none; sources keep their ids so blocks find them.
+    # Version 3 (payouts: 4). Older files simply have none; sources keep their ids so
+    # blocks and payouts find them.
     income_sources: list[IncomeSourceBackup] = Field(default_factory=list)
     freelance_blocks: list[FreelanceBlockBackup] = Field(default_factory=list)
     freelance_tax_years: list[FreelanceTaxYearIn] = Field(default_factory=list)
+    freelance_payouts: list[FreelancePayoutBackup] = Field(default_factory=list)
 
 
 class CountryOut(BaseModel):
@@ -674,6 +684,8 @@ class FreelanceBlockOut(BaseModel):
     fx_rate: float | None  # USD per EUR on the block's date; None for EUR or when unknown
     amount: float  # in the block's currency, to the cent
     amount_eur: float | None  # None for a USD block without a rate
+    effective_eur: float | None  # what counts: its share of the week's payout, else amount_eur
+    payout_id: int | None  # the payout of its source and week, when there is one
 
 
 class FreelanceBlockBackup(BaseModel):
@@ -686,6 +698,59 @@ class FreelanceBlockBackup(BaseModel):
     rate: float = Field(..., gt=0)
     currency: Currency = "EUR"
     fx_rate: float | None = Field(default=None, gt=0)
+
+
+def _must_be_monday(value: date_) -> date_:
+    if value.weekday() != 0:
+        raise ValueError("week_start must be a Monday")
+    return value
+
+
+class FreelancePayoutIn(BaseModel):
+    """Body for POST / PUT /api/freelance/payouts: what a source paid for one week.
+
+    ``amount`` is in the source's currency. A USD payout takes the ECB rate of the week's
+    Sunday unless ``fx_rate`` is given; ``fx_rate`` on a EUR payout is ignored.
+    """
+
+    source_id: int
+    week_start: date_
+    amount: float = Field(..., gt=0)
+    fx_rate: float | None = Field(default=None, gt=0)
+    note: str | None = None
+
+    _monday = field_validator("week_start")(_must_be_monday)
+
+
+class FreelancePayoutOut(BaseModel):
+    id: int
+    source_id: int
+    week_start: date_
+    week_end: date_  # the Sunday
+    amount: float
+    currency: str
+    fx_rate: float | None  # USD per EUR on the week's Sunday; None for EUR or when unknown
+    note: str | None
+    amount_eur: float | None  # to the cent; None for a USD payout without a rate
+    blocks: int  # the source's blocks in that week
+    minutes: int
+    estimate_eur: float | None  # their estimates added up; None when one has no rate
+    estimate_amount: float  # the same in the source's currency
+
+
+class FreelancePayoutBackup(BaseModel):
+    source_id: int
+    week_start: date_
+    amount: float = Field(..., gt=0)
+    currency: Currency = "EUR"
+    fx_rate: float | None = Field(default=None, gt=0)
+    note: str | None = None
+
+    _monday = field_validator("week_start")(_must_be_monday)
+
+
+def week_end_of(week_start: date_) -> date_:
+    return week_start + timedelta(days=6)
 
 
 class FreelanceTaxYearIn(BaseModel):

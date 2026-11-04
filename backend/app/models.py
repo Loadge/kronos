@@ -5,7 +5,16 @@ from __future__ import annotations
 from datetime import date as date_
 from enum import StrEnum
 
-from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -159,6 +168,7 @@ class IncomeSource(Base):
     )
 
     blocks: Mapped[list[FreelanceBlock]] = relationship(back_populates="source")
+    payouts: Mapped[list[FreelancePayout]] = relationship(back_populates="source")
 
 
 class FreelanceBlock(Base):
@@ -202,6 +212,42 @@ class FreelanceBlock(Base):
     def amount_eur(self) -> float | None:
         """The block in euros: as is for EUR, divided by the day's USD-per-EUR rate for USD;
         None for a USD block without a rate (the summaries count it as missing)."""
+        if self.currency == "EUR":
+            return self.amount
+        if self.fx_rate:
+            return self.amount / self.fx_rate
+        return None
+
+
+class FreelancePayout(Base):
+    """What one source actually paid for one ISO week, in the source's currency.
+
+    ``week_start`` is the Monday. ``currency`` is copied from the source when the row is saved;
+    ``fx_rate`` is the ECB's USD per EUR on the week's Sunday (None for EUR, or when no rate
+    was available), taken once and never fetched again. At most one payout per source and week.
+    """
+
+    __tablename__ = "freelance_payouts"
+    __table_args__ = (
+        UniqueConstraint("source_id", "week_start", name="uq_freelance_payouts_source_week"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("income_sources.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    week_start: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    fx_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    source: Mapped[IncomeSource] = relationship(back_populates="payouts", lazy="joined")
+
+    @property
+    def amount_eur(self) -> float | None:
+        """The payout in euros: as is for EUR, divided by the week's USD-per-EUR rate for USD;
+        None for a USD payout without a rate."""
         if self.currency == "EUR":
             return self.amount
         if self.fx_rate:

@@ -88,10 +88,12 @@
           <span class="fl-dash-cell">
             <span class="chip-label">this week</span>
             <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().week.eur)"></b><small x-text="fmtHours(flCard().week.hours)"></small></span>
+            <span class="fl-dash-split" x-show="flSplitText(flCard().week)" x-text="flSplitText(flCard().week)" data-testid="fl-dash-split-week"></span>
           </span>
           <span class="fl-dash-cell">
             <span class="chip-label">this month</span>
             <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().month.eur)"></b><small x-text="fmtHours(flCard().month.hours)"></small></span>
+            <span class="fl-dash-split" x-show="flSplitText(flCard().month)" x-text="flSplitText(flCard().month)" data-testid="fl-dash-split-month"></span>
           </span>
           <span class="fl-dash-cell fl-dash-cell--aside" :title="'Set aside ' + Math.round(flCard().share * 100) + '% of what the month billed for the tax office'">
             <span class="chip-label">set aside</span>

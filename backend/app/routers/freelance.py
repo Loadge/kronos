@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -18,17 +19,20 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.models import FreelanceBlock, FreelanceTaxYear, IncomeSource
+from app.models import FreelanceBlock, FreelancePayout, FreelanceTaxYear, IncomeSource
 from app.schemas import (
     FreelanceBlockIn,
     FreelanceBlockOut,
     FreelanceBlockUpdate,
     FreelanceCalcIn,
+    FreelancePayoutIn,
+    FreelancePayoutOut,
     FreelanceTaxYearIn,
     FreelanceTaxYearOut,
     IncomeSourceIn,
     IncomeSourceOut,
     IncomeSourceUpdate,
+    week_end_of,
 )
 from app.services import freelance, fx, tax
 from app.services.clock import local_today
@@ -127,14 +131,17 @@ def update_source(
 
 @router.delete("/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_source(source_id: int, session: Session = Depends(get_session)) -> Response:
-    """Delete a source nothing bills to. One with blocks is a 409: archive it instead."""
+    """Delete a source nothing bills to. One with blocks or payouts is a 409: archive it."""
     src = session.get(IncomeSource, source_id)
     if not src:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "income source not found")
-    if _block_counts(session).get(src.id, 0):
+    has_payouts = session.scalar(
+        select(func.count()).select_from(FreelancePayout).where(FreelancePayout.source_id == src.id)
+    )
+    if _block_counts(session).get(src.id, 0) or has_payouts:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "this source has blocks billed to it; archive it instead of deleting it",
+            "this source has blocks or payouts billed to it; archive it instead of deleting it",
         )
     session.delete(src)
     session.commit()
@@ -144,8 +151,17 @@ def delete_source(source_id: int, session: Session = Depends(get_session)) -> Re
 # ---------- blocks ----------------------------------------------------------------
 
 
-def block_out(b: FreelanceBlock) -> FreelanceBlockOut:
+def _lines_of_blocks(session: Session, blocks: list[FreelanceBlock]) -> dict[int, freelance.Line]:
+    """The money line of each block, computed once for the span the blocks cover."""
+    if not blocks:
+        return {}
+    lines = freelance.money_lines(session, min(b.date for b in blocks), max(b.date for b in blocks))
+    return {ln.block_id: ln for ln in lines if ln.block_id is not None}
+
+
+def block_out(b: FreelanceBlock, line: freelance.Line | None) -> FreelanceBlockOut:
     eur = b.amount_eur
+    effective = None if line is None or line.eur is None else money(line.eur)
     return FreelanceBlockOut(
         id=b.id,
         date=b.date,
@@ -161,7 +177,13 @@ def block_out(b: FreelanceBlock) -> FreelanceBlockOut:
         fx_rate=b.fx_rate,
         amount=money(b.amount),
         amount_eur=None if eur is None else money(eur),
+        effective_eur=effective,
+        payout_id=None if line is None else line.payout_id,
     )
+
+
+def _block_out_now(session: Session, b: FreelanceBlock) -> FreelanceBlockOut:
+    return block_out(b, _lines_of_blocks(session, [b]).get(b.id))
 
 
 def _fx_for(on: date) -> float | None:
@@ -193,7 +215,9 @@ def list_blocks(
         stmt = stmt.where(FreelanceBlock.date >= from_)
     if to:
         stmt = stmt.where(FreelanceBlock.date <= to)
-    return [block_out(b) for b in session.scalars(stmt)]
+    blocks = list(session.scalars(stmt))
+    lines = _lines_of_blocks(session, blocks)
+    return [block_out(b, lines.get(b.id)) for b in blocks]
 
 
 @router.post("/blocks", response_model=FreelanceBlockOut, status_code=status.HTTP_201_CREATED)
@@ -217,7 +241,7 @@ def create_block(
     session.add(block)
     session.commit()
     session.refresh(block)
-    return block_out(block)
+    return _block_out_now(session, block)
 
 
 @router.get("/blocks/{block_id}", response_model=FreelanceBlockOut)
@@ -225,7 +249,7 @@ def get_block(block_id: int, session: Session = Depends(get_session)) -> Freelan
     block = session.get(FreelanceBlock, block_id)
     if not block:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "block not found")
-    return block_out(block)
+    return _block_out_now(session, block)
 
 
 @router.put("/blocks/{block_id}", response_model=FreelanceBlockOut)
@@ -259,7 +283,7 @@ def update_block(
         block.fx_rate = None
     session.commit()
     session.refresh(block)
-    return block_out(block)
+    return _block_out_now(session, block)
 
 
 @router.delete("/blocks/{block_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -268,6 +292,202 @@ def delete_block(block_id: int, session: Session = Depends(get_session)) -> Resp
     if not block:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "block not found")
     session.delete(block)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- payouts ---------------------------------------------------------------
+
+
+def _payout_outs(session: Session, payouts: list[FreelancePayout]) -> list[FreelancePayoutOut]:
+    """Payouts with the estimate of their week's blocks, read in one query for the lot."""
+    weeks: dict[tuple[int, date], list[FreelanceBlock]] = defaultdict(list)
+    if payouts:
+        first = min(p.week_start for p in payouts)
+        last = max(week_end_of(p.week_start) for p in payouts)
+        for b in freelance.blocks_between(session, first, last):
+            weeks[(b.source_id, freelance.monday_of(b.date))].append(b)
+    return [_payout_out(p, weeks.get((p.source_id, p.week_start), [])) for p in payouts]
+
+
+def _payout_out(p: FreelancePayout, blocks: list[FreelanceBlock]) -> FreelancePayoutOut:
+    eur = p.amount_eur
+    ests = [b.amount_eur for b in blocks]
+    return FreelancePayoutOut(
+        blocks=len(blocks),
+        minutes=sum(b.minutes for b in blocks),
+        estimate_eur=None if any(e is None for e in ests) else money(sum(money(e) for e in ests)),
+        estimate_amount=money(sum(b.amount for b in blocks)),
+        id=p.id,
+        source_id=p.source_id,
+        week_start=p.week_start,
+        week_end=week_end_of(p.week_start),
+        amount=p.amount,
+        currency=p.currency,
+        fx_rate=p.fx_rate,
+        note=p.note,
+        amount_eur=None if eur is None else money(eur),
+    )
+
+
+def _source_or_404(session: Session, source_id: int) -> IncomeSource:
+    src = session.get(IncomeSource, source_id)
+    if src is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "income source not found")
+    return src
+
+
+def _refuse_duplicate_week(
+    session: Session, source_id: int, week_start: date, own_id: int | None = None
+) -> None:
+    stmt = select(FreelancePayout.id).where(
+        FreelancePayout.source_id == source_id, FreelancePayout.week_start == week_start
+    )
+    found = session.scalar(stmt)
+    if found is not None and found != own_id:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "this source already has a payout for that week"
+        )
+
+
+@router.get("/payouts", response_model=list[FreelancePayoutOut])
+def list_payouts(
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = None,
+    source_id: int | None = None,
+    session: Session = Depends(get_session),
+) -> list[FreelancePayoutOut]:
+    """Payouts whose week starts within [from, to], oldest week first."""
+    stmt = select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
+    if from_:
+        stmt = stmt.where(FreelancePayout.week_start >= from_)
+    if to:
+        stmt = stmt.where(FreelancePayout.week_start <= to)
+    if source_id is not None:
+        stmt = stmt.where(FreelancePayout.source_id == source_id)
+    return _payout_outs(session, list(session.scalars(stmt)))
+
+
+@router.post("/payouts", response_model=FreelancePayoutOut, status_code=status.HTTP_201_CREATED)
+def create_payout(
+    body: FreelancePayoutIn, session: Session = Depends(get_session)
+) -> FreelancePayoutOut:
+    src = _source_or_404(session, body.source_id)
+    _refuse_duplicate_week(session, src.id, body.week_start)
+    payout = FreelancePayout(
+        source_id=src.id,
+        week_start=body.week_start,
+        amount=body.amount,
+        currency=src.currency,
+        fx_rate=None,
+        note=(body.note or "").strip() or None,
+    )
+    if src.currency == "USD":
+        payout.fx_rate = (
+            body.fx_rate if body.fx_rate is not None else _fx_for(week_end_of(body.week_start))
+        )
+    session.add(payout)
+    session.commit()
+    session.refresh(payout)
+    return _payout_outs(session, [payout])[0]
+
+
+PAYOUT_CSV_COLUMNS = [
+    "week_start",
+    "week_end",
+    "source",
+    "currency",
+    "amount",
+    "fx_rate",
+    "amount_eur",
+    "estimate_amount",
+    "estimate_eur",
+    "blocks",
+    "hours",
+    "note",
+]
+
+
+@router.get("/payouts.csv")
+def payouts_csv(session: Session = Depends(get_session)) -> Response:
+    """One row per payout, oldest week first — the payouts' side of the CSV export. Declared
+    before ``/payouts/{payout_id}`` so the path is not read as an id."""
+    payouts = list(
+        session.scalars(
+            select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
+        )
+    )
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(PAYOUT_CSV_COLUMNS)
+    names = {p.id: p.source.name for p in payouts}
+    for o in _payout_outs(session, payouts):
+        writer.writerow(
+            [
+                o.week_start.isoformat(),
+                o.week_end.isoformat(),
+                names[o.id],
+                o.currency,
+                f"{money(o.amount):.2f}",
+                "" if o.fx_rate is None else repr(float(o.fx_rate)),
+                "" if o.amount_eur is None else f"{o.amount_eur:.2f}",
+                f"{o.estimate_amount:.2f}",
+                "" if o.estimate_eur is None else f"{o.estimate_eur:.2f}",
+                o.blocks,
+                f"{o.minutes / 60:.2f}",
+                (o.note or "").replace("\n", " "),
+            ]
+        )
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="kronos_freelance_payouts.csv"'},
+    )
+
+
+@router.get("/payouts/{payout_id}", response_model=FreelancePayoutOut)
+def get_payout(payout_id: int, session: Session = Depends(get_session)) -> FreelancePayoutOut:
+    payout = session.get(FreelancePayout, payout_id)
+    if not payout:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "payout not found")
+    return _payout_outs(session, [payout])[0]
+
+
+@router.put("/payouts/{payout_id}", response_model=FreelancePayoutOut)
+def update_payout(
+    payout_id: int, body: FreelancePayoutIn, session: Session = Depends(get_session)
+) -> FreelancePayoutOut:
+    payout = session.get(FreelancePayout, payout_id)
+    if not payout:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "payout not found")
+    src = _source_or_404(session, body.source_id)
+    _refuse_duplicate_week(session, src.id, body.week_start, own_id=payout.id)
+    source_changed = src.id != payout.source_id
+    week_changed = body.week_start != payout.week_start
+    payout.source_id = src.id
+    payout.week_start = body.week_start
+    payout.amount = body.amount
+    payout.note = (body.note or "").strip() or None
+    if source_changed:
+        payout.currency = src.currency
+    if payout.currency == "USD":
+        if body.fx_rate is not None:
+            payout.fx_rate = body.fx_rate
+        elif source_changed or week_changed or payout.fx_rate is None:
+            payout.fx_rate = _fx_for(week_end_of(body.week_start))
+    else:
+        payout.fx_rate = None
+    session.commit()
+    session.refresh(payout)
+    return _payout_outs(session, [payout])[0]
+
+
+@router.delete("/payouts/{payout_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_payout(payout_id: int, session: Session = Depends(get_session)) -> Response:
+    payout = session.get(FreelancePayout, payout_id)
+    if not payout:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "payout not found")
+    session.delete(payout)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

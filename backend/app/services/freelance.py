@@ -13,15 +13,17 @@ real income of each quarter against the fixed costs that picture implies.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
+from fractions import Fraction
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import FreelanceBlock, FreelanceTaxYear, IncomeSource
+from app.models import FreelanceBlock, FreelancePayout, FreelanceTaxYear, IncomeSource
 from app.services import tax
 from app.services.tax import Figures, TaxParams, money
 
@@ -103,27 +105,161 @@ def blocks_between(session: Session, start: date, end: date) -> list[FreelanceBl
     )
 
 
+def monday_of(d: date) -> date:
+    return d - timedelta(days=d.weekday())
+
+
+def split_cents(total_cents: int, weights: list[float]) -> list[int]:
+    """Split `total_cents` in proportion to `weights` by largest remainder: every share is
+    floored to the cent and the cents left over go one each to the largest fractional parts
+    (ties to the earlier position), so the shares add up to `total_cents` exactly. Weights
+    that add up to nothing split evenly."""
+    n = len(weights)
+    if n == 0:
+        return []
+    w = [Fraction(x) for x in weights]
+    whole = sum(w)
+    if whole <= 0:
+        w, whole = [Fraction(1)] * n, Fraction(n)
+    exact = [total_cents * x / whole for x in w]
+    shares = [math.floor(x) for x in exact]
+    leftover = total_cents - sum(shares)
+    order = sorted(range(n), key=lambda i: (-(exact[i] - shares[i]), i))
+    for i in order[:leftover]:
+        shares[i] += 1
+    return shares
+
+
+@dataclass
+class Line:
+    """One piece of freelance money on one day: a block, or a payout with no blocks.
+
+    ``eur`` is the money that counts (None: missing, a USD amount without a rate) and ``paid``
+    says whether it comes from a payout; ``est_eur`` is the block's own estimate.
+    """
+
+    date: date
+    source_id: int
+    block_id: int | None
+    minutes: int
+    amount: float  # in the source's currency
+    est_eur: float | None
+    eur: float | None
+    paid: bool
+    payout_id: int | None
+    currency: str = "EUR"
+
+
+def money_lines(session: Session, start: date, end: date) -> list[Line]:
+    """The one rule behind every freelance sum: the lines of [start, end].
+
+    Whole ISO weeks are read, so a payout is always spread over all its week's blocks, then
+    only the lines inside [start, end] are kept. A (source, week) with a payout counts the
+    payout, split over the blocks by their euro estimate (by minutes when one block has none);
+    without one, each block counts its own estimate.
+    """
+    first, last = monday_of(start), monday_of(end) + timedelta(days=6)
+    blocks = blocks_between(session, first, last)
+    payouts = {
+        (p.source_id, p.week_start): p
+        for p in session.scalars(
+            select(FreelancePayout).where(
+                FreelancePayout.week_start >= first, FreelancePayout.week_start <= last
+            )
+        )
+    }
+    groups: dict[tuple[int, date], list[FreelanceBlock]] = defaultdict(list)
+    for b in blocks:  # already ordered by date, id
+        groups[(b.source_id, monday_of(b.date))].append(b)
+
+    lines: list[Line] = []
+    for (sid, week), group in groups.items():
+        ests = [None if b.amount_eur is None else money(b.amount_eur) for b in group]
+        payout = payouts.get((sid, week))
+        if payout is None:
+            for b, est in zip(group, ests, strict=True):
+                lines.append(
+                    Line(b.date, sid, b.id, b.minutes, b.amount, est, est, False, None, b.currency)
+                )
+            continue
+        if all(e is not None for e in ests) and sum(ests) > 0:
+            weights = list(ests)
+        else:
+            weights = [float(b.minutes) for b in group]
+        payout_eur = payout.amount_eur
+        eur_shares = (
+            None if payout_eur is None else split_cents(round(money(payout_eur) * 100), weights)
+        )
+        amount_shares = split_cents(round(money(payout.amount) * 100), weights)
+        for i, (b, est) in enumerate(zip(group, ests, strict=True)):
+            eur = None if eur_shares is None else eur_shares[i] / 100
+            lines.append(
+                Line(
+                    b.date,
+                    sid,
+                    b.id,
+                    b.minutes,
+                    amount_shares[i] / 100,
+                    est,
+                    eur,
+                    True,
+                    payout.id,
+                    b.currency,
+                )
+            )
+    for (sid, week), payout in payouts.items():
+        if (sid, week) in groups:
+            continue
+        eur = None if payout.amount_eur is None else money(payout.amount_eur)
+        lines.append(
+            Line(
+                week + timedelta(days=6),
+                sid,
+                None,
+                0,
+                payout.amount,
+                None,
+                eur,
+                True,
+                payout.id,
+                payout.currency,
+            )
+        )
+    lines = [ln for ln in lines if start <= ln.date <= end]
+    lines.sort(key=lambda ln: (ln.date, ln.block_id or 0, ln.source_id))
+    return lines
+
+
 @dataclass
 class Sum:
-    """Hours and euros of a set of blocks; `missing` counts USD blocks without a rate.
+    """Hours and euros of a set of lines; `missing` counts lines without a euro figure (a USD
+    amount without a rate).
 
-    Each block is added at the cents it shows (``money(amount_eur)``), so a list of blocks
-    and its total agree to the cent wherever they are shown together.
+    Each line is added at the cents it shows, so a list of lines and its total agree to the
+    cent wherever they are shown together. `paid_out_eur` is the part that comes from
+    payouts, `estimated_eur` the part still counted from the blocks' estimates.
     """
 
     minutes: int = 0
     gross_eur: float = 0.0
     blocks: int = 0
     missing: int = 0
+    paid_out_eur: float = 0.0
+    estimated_eur: float = 0.0
 
-    def add(self, b: FreelanceBlock) -> None:
-        self.blocks += 1
-        self.minutes += b.minutes
-        eur = b.amount_eur
-        if eur is None:
+    def add(self, ln: Line) -> None:
+        if ln.block_id is not None:
+            self.blocks += 1
+        self.minutes += ln.minutes
+        if ln.eur is None:
             self.missing += 1
         else:
-            self.gross_eur += money(eur)
+            eur = money(ln.eur)
+            self.gross_eur += eur
+            if ln.paid:
+                self.paid_out_eur += eur
+            else:
+                self.estimated_eur += eur
 
     @property
     def hours(self) -> float:
@@ -140,13 +276,15 @@ class Sum:
             "eur_per_hour": money(self.eur_per_hour),
             "blocks": self.blocks,
             "missing_fx": self.missing,
+            "paid_out_eur": money(self.paid_out_eur),
+            "estimated_eur": money(self.estimated_eur),
         }
 
 
-def sum_blocks(blocks: Iterable[FreelanceBlock]) -> Sum:
+def sum_lines(lines: Iterable[Line]) -> Sum:
     s = Sum()
-    for b in blocks:
-        s.add(b)
+    for ln in lines:
+        s.add(ln)
     return s
 
 
@@ -267,23 +405,33 @@ def year_summary(
 ) -> dict:
     """Everything the Freelance tab, the dashboard card and Analytics show for a year."""
     jan1, dec31 = date(year, 1, 1), date(year, 12, 31)
-    blocks = blocks_between(session, jan1, dec31)
-    total = sum_blocks(blocks)
+    lines = money_lines(session, jan1, dec31)
+    total = sum_lines(lines)
 
     by_month = {m: Sum() for m in range(1, 13)}
     by_quarter = {q: Sum() for q in (1, 2, 3, 4)}
     by_source: dict[int, Sum] = defaultdict(Sum)
     currency_amount: dict[int, float] = defaultdict(float)
-    for b in blocks:
-        by_month[b.date.month].add(b)
-        by_quarter[_quarter_of(b.date)].add(b)
-        by_source[b.source_id].add(b)
-        currency_amount[b.source_id] += b.amount
+    for ln in lines:
+        by_month[ln.date.month].add(ln)
+        by_quarter[_quarter_of(ln.date)].add(ln)
+        by_source[ln.source_id].add(ln)
+        currency_amount[ln.source_id] += ln.amount
+    source_names = {s.id: s.name for s in session.scalars(select(IncomeSource))}
+
+    # Weeks of the year with blocks but no payout, already over: the payouts still to enter.
+    awaiting = {
+        (ln.source_id, monday_of(ln.date))
+        for ln in lines
+        if ln.block_id is not None
+        and not ln.paid
+        and monday_of(ln.date) + timedelta(days=6) < today
+    }
 
     # This week / this month, for the dashboard card (only when `today` is in the year).
-    monday = today - timedelta(days=today.weekday())
-    week = sum_blocks(b for b in blocks if monday <= b.date <= monday + timedelta(days=6))
-    month = sum_blocks(b for b in blocks if b.date.month == today.month and today.year == year)
+    monday = monday_of(today)
+    week = sum_lines(ln for ln in lines if monday <= ln.date <= monday + timedelta(days=6))
+    month = sum_lines(ln for ln in lines if ln.date.month == today.month and today.year == year)
 
     inputs = tax_inputs_for(session, year)
     params = inputs.params()
@@ -314,6 +462,7 @@ def year_summary(
         "year": year,
         "today": today,
         "total": total.out(),
+        "awaiting_payout": len(awaiting),
         "week": week.out(),
         "month": month.out(),
         "set_aside_share": inputs.set_aside_share,
@@ -326,8 +475,8 @@ def year_summary(
         "by_source": [
             {
                 "source_id": sid,
-                "name": next((b.source.name for b in blocks if b.source_id == sid), ""),
-                "currency": next((b.currency for b in blocks if b.source_id == sid), "EUR"),
+                "name": source_names.get(sid, ""),
+                "currency": next((ln.currency for ln in lines if ln.source_id == sid), "EUR"),
                 "amount": money(currency_amount[sid]),
                 **s.out(),
             }

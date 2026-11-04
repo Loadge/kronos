@@ -26,6 +26,7 @@ from app.models import (  # noqa: E402
     Break,
     DayType,
     FreelanceBlock,
+    FreelancePayout,
     IncomeSource,
     Plan,
     WorkEntry,
@@ -232,7 +233,49 @@ def build_freelance(session: Session, today: date | None = None) -> list[Freelan
         d += timedelta(days=1)
     session.add_all(blocks)
     session.flush()
+    # Payouts go with the sample sources only (just created, or still there from an earlier
+    # seed: the wipe takes the payouts with the blocks, so a re-seed puts them back).
+    # Anyone else's sources get blocks and no payouts.
+    by_name = {s.name: s for s in sources}
+    if set(by_name) == {name for name, *_ in SAMPLE_SOURCES}:
+        _add_sample_payouts(session, [by_name[name] for name, *_ in SAMPLE_SOURCES], blocks, today)
     return blocks
+
+
+def _add_sample_payouts(
+    session: Session, sources: list[IncomeSource], blocks: list[FreelanceBlock], today: date
+) -> None:
+    """A few payouts over the sample weeks: the dollar client pays one week above its estimate
+    and one exactly, the euro one pays a week below. The latest finished week stays unpaid, so
+    "awaiting payout" has something to show. Invented amounts."""
+    usd, eur = sources[0], sources[1]
+    weeks: dict[tuple[int, date], float] = {}
+    for b in blocks:
+        monday = b.date - timedelta(days=b.date.weekday())
+        if monday + timedelta(days=6) < today:  # finished weeks only
+            weeks[(b.source_id, monday)] = weeks.get((b.source_id, monday), 0.0) + b.amount
+    latest = max((monday for _, monday in weeks), default=None)
+    paid: list[tuple[IncomeSource, int, float]] = [  # (source, how many paid weeks back, delta)
+        (usd, 1, 150.0),
+        (usd, 3, 0.0),
+        (eur, 2, -40.0),
+    ]
+    for src, nth, delta in paid:
+        candidates = sorted((m for sid, m in weeks if sid == src.id and m != latest), reverse=True)
+        if len(candidates) <= nth:
+            continue
+        monday = candidates[nth]
+        session.add(
+            FreelancePayout(
+                source_id=src.id,
+                week_start=monday,
+                amount=round(weeks[(src.id, monday)] + delta, 2),
+                currency=src.currency,
+                fx_rate=SAMPLE_FX if src.currency == "USD" else None,
+                note="sample payout" if delta else None,
+            )
+        )
+    session.flush()
 
 
 def main() -> None:
@@ -247,6 +290,8 @@ def main() -> None:
         session.flush()
 
         for p in session.query(Plan).all():
+            session.delete(p)
+        for p in session.query(FreelancePayout).all():
             session.delete(p)
         for b in session.query(FreelanceBlock).all():
             session.delete(b)

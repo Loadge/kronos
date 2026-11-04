@@ -13,7 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.models import DayType, FreelanceBlock, Plan, WorkEntry
+from app.models import DayType, FreelanceBlock, FreelancePayout, Plan, WorkEntry
 
 router = APIRouter(tags=["admin"])
 
@@ -21,7 +21,7 @@ router = APIRouter(tags=["admin"])
 @router.delete("/api/data", status_code=200)
 def wipe_all_data(session: Session = Depends(get_session)) -> dict[str, int]:
     """Delete every work-entry row (breaks cascade), every planner draft and every
-    freelance block. Settings — the income sources and the tax years among them — are
+    freelance block and payout. Settings — the income sources and the tax years among them — are
     preserved.
 
     The frontend requires the user to type a confirmation phrase before
@@ -31,6 +31,7 @@ def wipe_all_data(session: Session = Depends(get_session)) -> dict[str, int]:
     result = session.execute(delete(WorkEntry))
     plans = session.execute(delete(Plan))
     blocks = session.execute(delete(FreelanceBlock))
+    session.execute(delete(FreelancePayout))
     session.commit()
     return {
         "deleted_entries": result.rowcount,
@@ -55,6 +56,7 @@ def seed_data(session: Session = Depends(get_session)) -> dict[str, int]:
     # Wipe first so re-seeding doesn't hit duplicate-PK errors.
     session.execute(delete(WorkEntry))
     session.execute(delete(Plan))
+    session.execute(delete(FreelancePayout))
     session.execute(delete(FreelanceBlock))
     session.flush()
 

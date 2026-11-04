@@ -17,8 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.config import TEMPLATES_DIR
 from app.database import get_session
-from app.models import FreelanceBlock, IncomeSource, WorkEntry
+from app.models import FreelanceBlock, FreelancePayout, IncomeSource, WorkEntry
 from app.services.clock import local_today
+from app.services.freelance import money_lines
 from app.services.settings import (
     get_daily_target_schedule,
     get_profile,
@@ -156,6 +157,8 @@ def freelance_timesheet(
             FreelanceBlock.source_id.in_(wanted) if wanted else false(),
         )
     ).all()
+    lines = [ln for ln in money_lines(session, start, end) if ln.source_id in wanted]
+    payout_ids = {ln.payout_id for ln in lines if ln.payout_id is not None}
     sheet = build_freelance_timesheet(
         blocks,
         start=start,
@@ -163,6 +166,10 @@ def freelance_timesheet(
         sources=[s.name for s in all_sources if s.id in wanted],
         work_week_days=get_work_week_days(session),
         hours_style=hours,
+        lines=lines,
+        payouts=session.scalars(
+            select(FreelancePayout).where(FreelancePayout.id.in_(payout_ids))
+        ).all(),
     )
     profile = get_profile(session)
     return templates.TemplateResponse(

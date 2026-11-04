@@ -3,9 +3,9 @@
 GET  /api/backup   → download a self-contained JSON snapshot
 POST /api/restore  → wipe current entries and reimport from snapshot
 
-The backup format is intentionally simple (version 3):
+The backup format is intentionally simple (version 4):
 {
-  "version": 3,
+  "version": 4,
   "exported_at": "<ISO-8601 UTC>",
   "settings": { "daily_target_hours": 8.0, "cumulative_start_date": "2025-01-01" },
   "entries": [
@@ -20,9 +20,13 @@ The backup format is intentionally simple (version 3):
   ],
   "income_sources": [ { "id": 1, "name": "ACME", "hourly_rate": 90.0, "currency": "USD", ... } ],
   "freelance_blocks": [ { "date": "2026-03-02", "source_id": 1, "minutes": 120, ... } ],
-  "freelance_tax_years": [ { "year": 2026, "salary_annual": 55000.0, ... } ]
+  "freelance_tax_years": [ { "year": 2026, "salary_annual": 55000.0, ... } ],
+  "freelance_payouts": [ { "source_id": 1, "week_start": "2026-03-02", "amount": 900.0, ... } ]
 }
 
+Version 4 adds the freelance payouts: what a source paid for an ISO week, in the source's
+currency, with the exchange rate it was saved with; they reference the sources' ids like the
+blocks do, and a file of an older version restores none (they are data, so they are wiped).
 Version 3 adds the freelance side: the income sources (with their ids, which the blocks
 reference), the hour blocks with the rate, currency and exchange rate they were saved with,
 and the tax inputs per year; the settings gain the projection's two numbers. Version 2 added
@@ -46,6 +50,7 @@ from app.database import get_session
 from app.models import (  # Break imported for explicit pre-delete
     Break,
     FreelanceBlock,
+    FreelancePayout,
     FreelanceTaxYear,
     IncomeSource,
     Plan,
@@ -156,6 +161,19 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             select(FreelanceBlock).order_by(FreelanceBlock.date, FreelanceBlock.id)
         )
     ]
+    freelance_payouts = [
+        {
+            "source_id": p.source_id,
+            "week_start": p.week_start.isoformat(),
+            "amount": p.amount,
+            "currency": p.currency,
+            "fx_rate": p.fx_rate,
+            "note": p.note,
+        }
+        for p in session.scalars(
+            select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
+        )
+    ]
     freelance_tax_years = [
         {
             "year": t.year,
@@ -178,6 +196,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
         "income_sources": income_sources,
         "freelance_blocks": freelance_blocks,
         "freelance_tax_years": freelance_tax_years,
+        "freelance_payouts": freelance_payouts,
     }
 
     filename = f"kronos_backup_{date_.today().isoformat()}.json"
@@ -213,10 +232,14 @@ def restore_backup(
     session.execute(delete(WorkEntry))
     session.execute(delete(Plan))
     session.execute(delete(FreelanceBlock))
+    session.execute(delete(FreelancePayout))
     # Sources and tax years are settings-like, but a file with freelance data replaces
     # them (its blocks reference its sources' ids); a file without leaves them alone.
     has_freelance = bool(
-        payload.income_sources or payload.freelance_blocks or payload.freelance_tax_years
+        payload.income_sources
+        or payload.freelance_blocks
+        or payload.freelance_tax_years
+        or payload.freelance_payouts
     )
     if has_freelance:
         session.execute(delete(FreelanceTaxYear))
@@ -229,6 +252,13 @@ def restore_backup(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"freelance block on {b.date.isoformat()} references unknown source {b.source_id}",
+            )
+    for p in payload.freelance_payouts:
+        if p.source_id not in known_sources:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"freelance payout for week {p.week_start.isoformat()} "
+                f"references unknown source {p.source_id}",
             )
     for s in payload.income_sources:
         session.add(
@@ -254,6 +284,17 @@ def restore_backup(
                 rate=b.rate,
                 currency=b.currency,
                 fx_rate=b.fx_rate,
+            )
+        )
+    for p in payload.freelance_payouts:
+        session.add(
+            FreelancePayout(
+                source_id=p.source_id,
+                week_start=p.week_start,
+                amount=p.amount,
+                currency=p.currency,
+                fx_rate=p.fx_rate,
+                note=p.note,
             )
         )
     for t in payload.freelance_tax_years:

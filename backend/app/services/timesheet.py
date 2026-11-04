@@ -20,6 +20,7 @@ from app.services.computations import (
     leave_fraction,
     leave_hours_for,
 )
+from app.services.tax import money
 
 # ---------- hour formatting --------------------------------------------------
 
@@ -285,6 +286,7 @@ def fmt_money(amount: float, currency: str = "EUR") -> str:
 
 @dataclass(frozen=True)
 class BlockRow:
+    is_payout = False  # the template tells a block row from a payout row by this
     date: date
     day: str  # "27"
     weekday: str  # "Tue"
@@ -296,6 +298,19 @@ class BlockRow:
     rate: str  # "$95.00"
     amount: str  # in the block's currency
     eur: str  # "" for a USD block without a rate
+    missing_fx: bool
+    notes: str
+
+
+@dataclass(frozen=True)
+class PayoutRow:
+    """What a source paid for one ISO week, printed under that week's last block."""
+
+    is_payout = True
+    date: date
+    source: str
+    text: str  # "W44 payout $2,100.00 · +$300.00 over the estimate"
+    eur: str  # "" when the payout has no rate
     missing_fx: bool
     notes: str
 
@@ -322,6 +337,18 @@ class BlockTotals:
         else:
             self.eur += eur
 
+    def add_line(self, ln) -> None:
+        """Add a `freelance.money_lines` line at the cents it shows, as the app's sums do: a
+        payout's share of a block, or a payout with no block (it adds no block)."""
+        if ln.block_id is not None:
+            self.blocks += 1
+        self.minutes += ln.minutes
+        self.by_currency[ln.currency] = self.by_currency.get(ln.currency, 0.0) + ln.amount
+        if ln.eur is None:
+            self.missing_fx += 1
+        else:
+            self.eur += money(ln.eur)
+
     def add(self, other: BlockTotals) -> None:
         self.blocks += other.blocks
         self.minutes += other.minutes
@@ -342,7 +369,7 @@ class BlockMonth:
     month: int
     label: str
     abbr: str
-    rows: list[BlockRow] = field(default_factory=list)
+    rows: list[BlockRow | PayoutRow] = field(default_factory=list)
     totals: BlockTotals = field(default_factory=BlockTotals)
 
 
@@ -356,9 +383,38 @@ class FreelanceTimesheet:
     months: list[BlockMonth]
     totals: BlockTotals
     multi_month: bool
+    has_payouts: bool = False
 
     def fmt(self, hours: float) -> str:
         return fmt_hours(hours, self.hours_style)
+
+
+def _payout_row(p, group: list, blocks_by_id: dict) -> tuple[date, PayoutRow]:
+    """The row of payout `p` and the date it sorts under: its week's last printed block, or
+    (a payout with no block that week) the line's own day, the Sunday."""
+    printed = [blocks_by_id[ln.block_id] for ln in group if ln.block_id in blocks_by_id]
+    week = f"W{p.week_start.isocalendar().week:02d} payout {fmt_money(p.amount, p.currency)}"
+    if printed:
+        diff = round(p.amount * 100) - round(sum(b.amount for b in printed) * 100)
+        if diff == 0:
+            versus = "matches the estimate"
+        else:
+            sign, word = ("+", "over") if diff > 0 else ("-", "under")
+            versus = f"{sign}{fmt_money(abs(diff) / 100, p.currency)} {word} the estimate"
+        day = max(b.date for b in printed)
+    else:
+        versus = "no blocks that week"
+        day = group[0].date
+    eur = p.amount_eur
+    row = PayoutRow(
+        date=day,
+        source=p.source.name,
+        text=f"{week} · {versus}",
+        eur="" if eur is None else fmt_money(eur),
+        missing_fx=eur is None,
+        notes=p.note or "",
+    )
+    return day, row
 
 
 def build_freelance_timesheet(
@@ -369,6 +425,8 @@ def build_freelance_timesheet(
     sources: Iterable[str],
     work_week_days: Iterable[int],
     hours_style: str = "dec",
+    lines: Iterable = (),
+    payouts: Iterable = (),
 ) -> FreelanceTimesheet:
     """The blocks of a range, one row each, by month — only the days that have one.
 
@@ -376,14 +434,58 @@ def build_freelance_timesheet(
     a client or the adviser, who wants the work billed, not the calendar. Amounts print in
     the block's currency and in euros (blank, and flagged, for a dollar block that was saved
     without a rate).
+
+    `lines` are the range's `freelance.money_lines` (the single money rule) and `payouts` the
+    payouts they cite. When a payout counts in the range, the rows stay one per block with their
+    own estimate, a payout row follows the last block of its week, and the totals (euros and
+    amounts) are the lines', so they agree with the app to the cent. Without payouts the lines
+    are ignored and the sheet is what it always was.
     """
     if end < start:
         raise ValueError("end before start")
     week = set(work_week_days)
+    lines = list(lines)
+    paid = [ln for ln in lines if ln.paid]
+    line_of = {ln.block_id: ln for ln in lines if ln.block_id is not None} if paid else {}
+    blocks = sorted(blocks, key=lambda x: (x.date, x.id or 0))
+    blocks_by_id = {b.id: b for b in blocks}
+
+    # One flat, ordered list of what to print: (sort key, row, totals action). A payout row
+    # sorts after every block of its day, so it closes the week it belongs to.
+    entries: list[tuple[tuple, BlockRow | PayoutRow, object, bool]] = []
+    for b in blocks:
+        eur = b.amount_eur
+        row = BlockRow(
+            date=b.date,
+            day=f"{b.date.day:02d}",
+            weekday=b.date.strftime("%a"),
+            weekend=b.date.weekday() not in week,
+            source=b.source.name,
+            hours=fmt_hours(b.minutes / 60.0, hours_style),
+            start=b.start_time or "",
+            end=b.end_time or "",
+            rate=fmt_money(b.rate, b.currency),
+            amount=fmt_money(b.amount, b.currency),
+            eur="" if eur is None else fmt_money(eur),
+            missing_fx=eur is None,
+            notes=b.notes or "",
+        )
+        entries.append(((b.date, 0, b.id or 0, 0), row, b, False))
+    if paid:
+        by_id = {p.id: p for p in payouts}
+        groups: dict[int, list] = {}
+        for ln in paid:
+            groups.setdefault(ln.payout_id, []).append(ln)
+        for pid, group in groups.items():
+            day, prow = _payout_row(by_id[pid], group, blocks_by_id)
+            alone = group[0].block_id is None
+            entries.append(((day, 1, by_id[pid].source_id, pid), prow, group[0], alone))
+    entries.sort(key=lambda e: e[0])
+
     months: list[BlockMonth] = []
     section: BlockMonth | None = None
-    for b in sorted(blocks, key=lambda x: (x.date, x.id or 0)):
-        d = b.date
+    for _, row, src, alone in entries:
+        d = row.date
         if section is None or (section.year, section.month) != (d.year, d.month):
             section = BlockMonth(
                 d.year,
@@ -392,25 +494,14 @@ def build_freelance_timesheet(
                 calendar.month_abbr[d.month],
             )
             months.append(section)
-        eur = b.amount_eur
-        section.rows.append(
-            BlockRow(
-                date=d,
-                day=f"{d.day:02d}",
-                weekday=d.strftime("%a"),
-                weekend=d.weekday() not in week,
-                source=b.source.name,
-                hours=fmt_hours(b.minutes / 60.0, hours_style),
-                start=b.start_time or "",
-                end=b.end_time or "",
-                rate=fmt_money(b.rate, b.currency),
-                amount=fmt_money(b.amount, b.currency),
-                eur="" if eur is None else fmt_money(eur),
-                missing_fx=eur is None,
-                notes=b.notes or "",
-            )
-        )
-        section.totals.add_block(b)
+        section.rows.append(row)
+        if row.is_payout:
+            if alone:  # a payout with no block carries its own money
+                section.totals.add_line(src)
+        elif src.id in line_of:
+            section.totals.add_line(line_of[src.id])
+        else:
+            section.totals.add_block(src)
     grand = BlockTotals()
     for m in months:
         grand.add(m.totals)
@@ -423,4 +514,5 @@ def build_freelance_timesheet(
         months=months,
         totals=grand,
         multi_month=len(months) > 1,
+        has_payouts=bool(paid),
     )
