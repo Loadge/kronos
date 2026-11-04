@@ -1964,7 +1964,7 @@ function app() {
             hours: this.blockHours(inMonth), eur: this.lineEur(lines), from });
         }
         rows.push({ ...w, kind: 'week', key: 'w-' + w.key, week: w.key });
-        for (const b of w.blocks) rows.push({ kind: 'block', key: 'b-' + b.id, b, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] });
+        w.blocks.forEach((b, i) => rows.push({ kind: 'block', key: 'b-' + b.id, b, last: i === w.blocks.length - 1, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] }));
       }
       return rows;
     },
@@ -3254,14 +3254,20 @@ function app() {
       const paid = Math.round(lines.filter(l => l.paid).reduce((s, l) => s + (l.eur || 0), 0) * 100) / 100;
       return { paid, est: Math.round((this.lineEur(lines) - paid) * 100) / 100 };
     },
-    // "€376 paid out · €422 estimated"; one kind alone says only that kind, never a zero.
-    // Empty while no payout exists anywhere, so a user without payouts sees nothing new.
-    flSplitText(s) {
-      if (!s || !this.payouts.length) return '';
-      const parts = [];
-      if (s.paid > 0) parts.push(`${this.fmtMoney0(s.paid)} paid out`);
-      if (s.est > 0) parts.push(`${this.fmtMoney0(s.est)} estimated`);
-      return parts.join(' · ');
+    // The dashboard card shows estimated and paid out side by side only once a payout exists.
+    flPaidOn() { return this.payouts.length > 0; },
+    // One period of the card: the blocks' own estimates, what was paid out (payout-only lines
+    // included) and the gap of the paid part against its own estimate.
+    flPeriod(blocks, range) {
+      const lines = this.flLines(blocks, range);
+      const paidLines = lines.filter(l => l.paid);
+      const paid = this.lineEur(paidLines);
+      const paidEst = this.lineEur(paidLines.map(l => ({ eur: l.block ? l.block.amount_eur : 0 })));
+      return {
+        hours: this.blockHours(blocks), eur: this.lineEur(lines),
+        blockEst: this.lineEur(blocks.map(b => ({ eur: b.amount_eur }))),
+        paid, hasPaid: paidLines.length > 0, gap: Math.round((paid - paidEst) * 100) / 100,
+      };
     },
     // The Freelance hero splits its year only once a payout counts in it.
     flSplitOn() { return (this.flSummary?.total.paid_out_eur || 0) > 0; },
@@ -3564,8 +3570,8 @@ function app() {
       const rYear = { from: today.slice(0, 4) + '-01-01', to: today.slice(0, 4) + '-12-31' };
       const share = this.flSummary?.set_aside_share ?? 0.4;
       return {
-        week: { hours: this.blockHours(week), eur: this.blockEur(week, rWeek), ...this.lineSplit(this.flLines(week, rWeek)) },
-        month: { hours: this.blockHours(month), eur: this.blockEur(month, rMonth), ...this.lineSplit(this.flLines(month, rMonth)) },
+        week: this.flPeriod(week, rWeek),
+        month: this.flPeriod(month, rMonth),
         year: { hours: this.blockHours(year), eur: this.blockEur(year, rYear) },
         setAside: Math.round(this.blockEur(month, rMonth) * share * 100) / 100,
         share,
@@ -3616,7 +3622,7 @@ function app() {
         const isNow = today.getFullYear() === year && today.getMonth() === i;
         const paid = split ? Math.min(b.paid, b.real) : b.real, est = b.real - paid;
         const tip = `${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtHours(b.hours)} · ${this.fmtMoney(b.real)}${split ? ` · ${this.fmtMoney(paid)} paid out · ${this.fmtMoney(est)} estimated` : ''}`;
-        if (paid > 0) out += `<rect class="flm-bar${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(paid))}" width="${f(w)}" height="${f(Y(0) - Y(paid))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
+        if (paid > 0) out += `<rect class="flm-bar${split ? ' paid' : ''}${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(paid))}" width="${f(w)}" height="${f(Y(0) - Y(paid))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
         if (est > 0.005) out += `<rect class="flm-est${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(b.real))}" width="${f(w)}" height="${f(Y(paid) - Y(b.real))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
         if (b.plan > 0.5) out += `<rect class="flm-plan" x="${f(x)}" y="${f(Y(b.real + b.plan))}" width="${f(w)}" height="${f(Y(0) - Y(b.plan))}" rx="2" style="--i:${i}"><title>planned · ${this.fmtMoney(b.plan)}</title></rect>`;
         if (b.real > 0) out += `<text class="flm-val" x="${f(x + w / 2)}" y="${f(Y(b.real + b.plan) - 4)}">${this.fmtMoney0(b.real)}</text>`;

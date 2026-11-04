@@ -155,7 +155,7 @@
           <div class="an-lrow an-lrow--big"><span>Billed</span><b class="metric fl-money" x-text="fmtMoney(anFlSummary().eur)"></b></div>
           <template x-if="payouts.length > 0">
             <div class="an-lsplit">
-              <div class="an-lrow" x-show="anFlSummary().paid > 0" data-testid="an-fl-paid"><span>Paid out</span><b class="metric" x-text="fmtMoney(anFlSummary().paid)"></b></div>
+              <div class="an-lrow an-paid" x-show="anFlSummary().paid > 0" data-testid="an-fl-paid"><span>Paid out</span><b class="metric" x-text="fmtMoney(anFlSummary().paid)"></b></div>
               <div class="an-lrow" x-show="anFlSummary().est > 0" data-testid="an-fl-est"><span>Estimated</span><b class="metric" x-text="fmtMoney(anFlSummary().est)"></b></div>
             </div>
           </template>

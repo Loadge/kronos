@@ -174,7 +174,7 @@
                         <template x-if="r.current"><span class="wk-now">this week</span></template>
                         <template x-if="r.splits"><span class="wk-split" x-text="r.splits"></span></template>
                         <span class="wk-hh metric" x-text="fmtHours(r.hours)"></span>
-                        <span class="wk-mm metric fl-money" x-text="fmtMoney0(r.eur)"></span>
+                        <span class="wk-mm metric fl-money" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney0(r.eur)"></span>
                         <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
                         <template x-if="r.awaiting"><span class="wk-await">awaiting payout</span></template>
                         <span class="wk-status" :class="payStatusCls(r.week)" x-text="payStatus(r.week)" aria-live="polite"></span>
@@ -183,7 +183,7 @@
                   </tr>
                 </template>
                 <template x-if="r.kind === 'week' && r.open">
-                  <tr class="wk-lines">
+                  <tr class="wk-lines" :class="r.blocks.length ? 'has-blocks' : ''">
                     <td colspan="11">
                       <div class="wk-cols" aria-hidden="true"><span>Source</span><span class="r">Hours</span><span class="r">Estimate</span><span>Payout</span><span class="r">Gap</span><span class="r">€ / h</span></div>
                       <template x-for="l in r.lines" :key="l.key">
@@ -208,7 +208,7 @@
                                     @keydown.enter.prevent="fxSave(l.payout, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(l.payout, $event.target.value)"
                                     :aria-label="'Exchange rate USD per EUR, ' + l.source.name + ' ' + r.id">
                                 </template>
-                                <span class="muted" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney0(l.payout.amount_eur)"></span>
+                                <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney0(l.payout.amount_eur)"></span>
                               </span>
                             </template>
                           </span>
@@ -227,7 +227,7 @@
                   </tr>
                 </template>
                 <template x-if="r.kind === 'block'">
-                  <tr class="day-row" @click="openBlockInLog(r.b)" :title="'Edit this block in Log'" :style="'--src:' + sourceColor(r.b.source_id)">
+                  <tr class="day-row blk" :class="r.last ? 'blk-last' : ''" @click="openBlockInLog(r.b)" :title="'Edit this block in Log'" :style="'--src:' + sourceColor(r.b.source_id)">
                     <td class="metric" x-text="r.b.date"></td>
                     <td class="dow" x-text="r.dow"></td>
                     <td><span class="fl-dot" aria-hidden="true"></span> <span x-text="r.b.source_name"></span></td>

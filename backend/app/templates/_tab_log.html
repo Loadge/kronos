@@ -298,7 +298,10 @@
           <div class="fl-payout" data-testid="fl-payout-line" :style="'--src:' + sourceColor(p.source_id)">
             <span class="fl-dot" aria-hidden="true"></span>
             <span class="fl-payout-txt"><b class="metric" x-text="weekId(p.week_start)"></b> payout <b class="metric fl-money" x-text="payAmountLabel(p)"></b> <span class="muted" x-text="sourceById(p.source_id)?.name || ''"></span></span>
-            <a href="#days" class="fl-payout-link" @click.prevent="openWeekInDays(p)">in Days</a>
+            <button type="button" class="fl-payout-pill" data-testid="fl-payout-pill" @click="openWeekInDays(p)" :aria-label="'Open ' + weekId(p.week_start) + ' in Days'">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 7h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+              <span x-text="weekId(p.week_start) + ' in Days'"></span>
+            </button>
           </div>
         </template>
 

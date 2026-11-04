@@ -23,6 +23,7 @@
   --k-ink:          #8ab0c4;
   --k-surplus:      #7db369;
   --k-deficit:      #e07b63;
+  --paid:           #36c9b9;  /* money a source has paid out: teal, apart from estimates (brass) and surplus (green) */
 
   /* -- chip palette ---------------------------------------------- */
   --k-work:    #e0b341;
@@ -81,6 +82,7 @@
   --k-ink:          #1a3a52;
   --k-surplus:      #3d6b2e;
   --k-deficit:      #a23826;
+  --paid:           #0b6f68;
   --k-work:         #a8761a;
   --k-vacation:     #1a3a52;
   --k-sick:         #b07022;
@@ -2918,6 +2920,7 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 }
 .an-presets button:hover { color: var(--k-text); background: transparent; }
 .an-presets button.on { color: var(--k-brass); border-left-color: var(--k-brass); background: transparent; }
+.an-lrow.an-paid b { color: var(--paid); }
 .an-lrow {
   display: flex;
   justify-content: space-between;
@@ -3324,7 +3327,8 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .wk-hh { margin-left: auto; min-width: 3.2rem; text-align: right; }
 .wk-mm { min-width: 4.6rem; text-align: right; font-weight: 600; }
 .wk-tag { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.1rem 0.5rem; border-radius: 2px; min-width: 5.6rem; text-align: center; white-space: nowrap; }
-.wk-tag.paid { color: var(--k-coin); border: 1px solid var(--k-coin); background: color-mix(in srgb, var(--k-coin) 16%, transparent); }
+.wk-tag.paid { color: var(--paid); border: 1px solid var(--paid); background: color-mix(in srgb, var(--paid) 16%, transparent); }
+.days-table .wk-mm.is-paid { color: var(--paid); }
 .wk-tag.est { color: var(--k-muted); border: 1px dashed var(--k-muted); }
 .wk-await, .quiet { color: var(--k-muted); font-style: italic; font-size: 0.78rem; }
 .wk-status { font-size: 0.74rem; color: var(--k-muted); min-width: 4.5rem; text-align: right; }
@@ -3332,7 +3336,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .wk-status.is-invalid, .wk-status.is-error { color: var(--k-deficit); }
 .wk-cols, .wk-line {
   display: grid; grid-template-columns: minmax(0, 1.5fr) 0.6fr 0.9fr minmax(0, 2.4fr) 0.8fr 0.8fr;
-  gap: 0.6rem; align-items: center; padding: 0.35rem 0.6rem 0.35rem 1.9rem;
+  gap: 0.6rem; align-items: center; padding: 0.35rem 0.6rem 0.35rem 2.1rem;
 }
 .wk-cols { font-size: 0.7rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); border-bottom: 1px solid var(--k-border-strong); }
 .wk-cols .r, .wk-h, .wk-est, .wk-gap, .wk-eph { text-align: right; }
@@ -3340,9 +3344,11 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .wk-src { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
 .wk-line.has-pay .wk-est { color: var(--k-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-muted) 50%, transparent); }
 .wk-pay { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
-.wk-pay .cur { color: var(--k-coin); }
+.wk-pay .cur { color: var(--k-muted); }
+.wk-line.has-pay .wk-pay .cur { color: var(--paid); }
+.wk-conv { color: var(--paid); }
 .wk-pay .payin { font-size: 0.86rem; width: 5.8rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
-.wk-pay .payin:not(:placeholder-shown) { border-bottom-style: solid; color: var(--k-coin); font-weight: 600; }
+.wk-pay .payin:not(:placeholder-shown) { border-bottom-style: solid; color: var(--paid); font-weight: 600; }
 .wk-pay .payin::placeholder { color: var(--k-muted); font-style: italic; }
 .wk-fx { font-size: 0.76rem; color: var(--k-muted); display: inline-flex; align-items: baseline; gap: 0.3rem; }
 .wk-fx .pen { border: none; background: transparent; color: var(--k-brass); cursor: pointer; padding: 0 0.15rem; font-size: 0.85rem; width: auto; margin: 0; }
@@ -3358,15 +3364,31 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .wk-mm { margin-right: auto; }
   .wk-await { flex-basis: 100%; margin-left: 1.4rem; }
   .wk-cols { display: none; }
-  .wk-line { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "src src src" "h est eph" "pay pay gap"; row-gap: 0.4rem; padding: 0.55rem 0.3rem 0.55rem 0.8rem; }
+  .wk-line { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "src src src" "h est eph" "pay pay gap"; row-gap: 0.4rem; padding: 0.55rem 0.3rem 0.55rem 1.35rem; }
+  .days-table--fl tr.blk td:first-child { padding-left: 1.35rem; }
+  .days-table--fl tr.blk td:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { left: 0.7rem; }
   .wk-src { grid-area: src; } .wk-h { grid-area: h; } .wk-est { grid-area: est; } .wk-pay { grid-area: pay; } .wk-gap { grid-area: gap; } .wk-eph { grid-area: eph; }
   .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
   .wk-gap.wide { grid-column: auto; align-items: flex-start; }
   .wk-line [data-l]::before { content: attr(data-l); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--k-muted); }
 }
+/* the blocks of a week hang under its line: inset, and a thin rail from the week line to the last block */
+.days-table--fl tr.blk td:first-child { padding-left: 2.1rem; position: relative; }
+.days-table--fl tr.wk-lines.has-blocks td { position: relative; }
+.days-table--fl tr.blk td:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { content: ""; position: absolute; left: 1rem; top: 0; bottom: -1px; border-left: 1px solid var(--k-border-strong); pointer-events: none; }
+.days-table--fl tr.blk-last td:first-child::before { bottom: 50%; }
 .fl-payout { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.2rem 0.5rem; font-size: 0.86rem; --src: var(--k-coin); }
 .fl-payout-txt { flex: 1; min-width: 0; }
-.fl-payout-link { font-size: 0.8rem; white-space: nowrap; }
+.fl-payout-txt .fl-money { color: var(--paid); }
+.fl-payout-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; padding: 0.15rem 0.65rem; width: auto;
+  border: 1px solid var(--k-brass); border-radius: 999px; background: transparent; color: var(--k-brass);
+  font: inherit; font-size: 0.76rem; font-family: ui-monospace, monospace; white-space: nowrap; cursor: pointer;
+  transition: background var(--k-transition-fast), color var(--k-transition-fast);
+}
+.fl-payout-pill svg { width: 12px; height: 12px; flex: none; }
+.fl-payout-pill:hover, .fl-payout-pill:focus-visible { background: var(--k-brass); color: var(--k-bg); }
+.fl-payout-pill:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 2px; }
 .pdf-sources .pdf-src { --src: var(--k-coin); display: flex; align-items: center; gap: 0.45rem; padding: 0.15rem 0; }
 .pdf-sources legend small a { cursor: pointer; }
 @media (max-width: 760px) {
@@ -3401,14 +3423,21 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .fl-dash-num small { font-size: 0.72rem; color: var(--k-muted); font-weight: 500; }
 .fl-dash-num b { color: var(--k-coin); }
 .fl-dash-num .fl-aside { color: var(--k-text); }
-.fl-dash-split { font-size: 0.72rem; color: var(--k-muted); white-space: normal; }
+.fl-dash--pay { grid-template-columns: auto repeat(2, minmax(0, 1.7fr)) minmax(0, 1fr) minmax(60px, 120px); }
+.fl-dash-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1rem 1rem; }
+.fl-dash-fig { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; }
+.fl-dash-cap { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-muted); }
+.fl-dash-fig--paid .fl-dash-num b { color: var(--paid); }
+.fl-dash-fig--paid .fl-dash-num b.none { color: var(--k-muted); font-weight: 500; }
+.fl-dash-sub { font-size: 0.72rem; color: var(--k-muted); white-space: nowrap; min-height: 1em; }
 .fl-spark { display: flex; align-items: flex-end; gap: 3px; height: 28px; justify-self: end; width: 100%; max-width: 120px; }
 .fl-spark i { flex: 1; display: block; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--k-coin) 45%, transparent); animation: wd-grow 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 .fl-spark i.now { background: var(--k-coin); }
 .wd-fl { font-size: 0.62rem; color: var(--k-coin); margin-left: auto; margin-right: 0.3rem; }
 .days-fl { font-size: 0.66rem; color: var(--k-coin); margin-left: 0.4rem; white-space: nowrap; }
 @media (max-width: 760px) {
-  .fl-dash { grid-template-columns: 1fr 1fr; }
+  .fl-dash, .fl-dash--pay { grid-template-columns: 1fr 1fr; }
+  .fl-dash-pair { gap: 0.1rem 0.6rem; }
   .fl-dash-label { grid-column: 1 / -1; }
   .fl-spark { grid-column: 1 / -1; max-width: none; justify-self: stretch; height: 20px; }
 }
@@ -3531,6 +3560,8 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .fl-months-wrap { width: 100%; }
 .flm { width: 100%; height: auto; display: block; overflow: visible; }
 .flm-bar { fill: var(--k-coin); opacity: 0.85; transform-origin: bottom; transform-box: fill-box; animation: flm-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; animation-delay: calc(0.04s * var(--i, 0)); }
+.flm-bar.paid { fill: var(--paid); }
+.flm-bar.paid.now { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--paid) 60%, transparent)); }
 .flm-bar.now { opacity: 1; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--k-coin) 60%, transparent)); }
 .flm-plan { fill: color-mix(in srgb, var(--k-coin) 18%, transparent); stroke: var(--k-coin); stroke-width: 1; stroke-dasharray: 3 2; transform-origin: bottom; transform-box: fill-box; animation: flm-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; animation-delay: calc(0.04s * var(--i, 0) + 0.3s); }
 @keyframes flm-grow { from { transform: scaleY(0); } }
@@ -3545,11 +3576,12 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 /* paid out against estimated: a thin bar and a line under the year's gross, a legend under the bars */
 .fl-splitbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 0.3rem 0 0.5rem; }
 .fl-splitbar i { display: block; height: 100%; }
-.fl-splitbar .p { background: var(--k-coin); }
+.fl-splitbar .p { background: var(--paid); }
 .fl-splitbar .e { background: color-mix(in srgb, var(--k-coin) 38%, transparent); }
 .fl-splitline { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; font-size: 0.9rem; margin-bottom: 0.4rem; }
 .fl-sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 0.35rem; vertical-align: -1px; }
-.fl-sw.paid { background: var(--k-coin); }
+.fl-sw.paid { background: var(--paid); }
+.fl-splitline .fl-sw.paid + b { color: var(--paid); }
 .fl-sw.est { background: color-mix(in srgb, var(--k-coin) 38%, transparent); }
 .fl-sw.plan { border: 1px dashed var(--k-coin); background: color-mix(in srgb, var(--k-coin) 10%, transparent); }
 .fl-awaiting { margin: 0 0 0.4rem; font-size: 0.8rem; }

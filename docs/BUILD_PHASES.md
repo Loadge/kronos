@@ -84,6 +84,12 @@ interview: `.agents/changes/backlog/freelance-payouts/`.
   so nothing changes for a year without payouts.
 - The freelance PDF without payouts is byte for byte what it was before (a test pins it).
 
+**Review round (2026-11-04, after Miguel tried it on INT).** The blocks of a week hang under its
+line, indented, with a thin rail. Paid-out money has its own colour, teal (`--paid`), everywhere it
+shows, while estimates keep the brass. The dashboard card shows "Estimated" and "Paid out" side
+by side for the week and the month, with the gap against the estimate of the paid part only
+("+€40 vs est."). The Log's "in Days" is now a pill button ("W45 in Days").
+
 **Known limits.** A month with freelance money but no week starting in it has no total line in
 Days (only a lone block on a Sunday the 1st). Once the first payout is entered, every earlier
 week with blocks shows "awaiting payout" until it has one. The heatmap tooltip still shows each

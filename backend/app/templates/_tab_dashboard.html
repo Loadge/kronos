@@ -82,18 +82,48 @@
            month, what to set aside, the last eight weeks as a sparkline. The employee hero
            above is untouched by any of it. -->
       <template x-if="flCard()">
-        <button type="button" class="fl-dash" @click="go('freelance')" data-testid="freelance-card"
+        <button type="button" class="fl-dash" :class="flPaidOn() ? 'fl-dash--pay' : ''" @click="go('freelance')" data-testid="freelance-card"
                 title="Open the Freelance tab">
           <span class="fl-dash-label"><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</span>
           <span class="fl-dash-cell">
             <span class="chip-label">this week</span>
-            <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().week.eur)"></b><small x-text="fmtHours(flCard().week.hours)"></small></span>
-            <span class="fl-dash-split" x-show="flSplitText(flCard().week)" x-text="flSplitText(flCard().week)" data-testid="fl-dash-split-week"></span>
+            <template x-if="!flPaidOn()">
+              <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().week.eur)"></b><small x-text="fmtHours(flCard().week.hours)"></small></span>
+            </template>
+            <template x-if="flPaidOn()">
+              <span class="fl-dash-pair" data-testid="fl-dash-pair-week">
+                <span class="fl-dash-fig fl-dash-fig--est">
+                  <span class="fl-dash-cap">Estimated</span>
+                  <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().week.blockEst)" data-testid="fl-dash-est-week"></b></span>
+                  <span class="fl-dash-sub metric" x-text="fmtHours(flCard().week.hours)"></span>
+                </span>
+                <span class="fl-dash-fig fl-dash-fig--paid">
+                  <span class="fl-dash-cap">Paid out</span>
+                  <span class="fl-dash-num metric"><b :class="flCard().week.hasPaid ? '' : 'none'" x-text="flCard().week.hasPaid ? fmtMoney(flCard().week.paid) : '—'" data-testid="fl-dash-paid-week"></b></span>
+                  <span class="fl-dash-sub metric" x-text="flCard().week.hasPaid ? payGapLabel(flCard().week.gap, 'EUR') + ' vs est.' : ''" data-testid="fl-dash-gap-week"></span>
+                </span>
+              </span>
+            </template>
           </span>
           <span class="fl-dash-cell">
             <span class="chip-label">this month</span>
-            <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().month.eur)"></b><small x-text="fmtHours(flCard().month.hours)"></small></span>
-            <span class="fl-dash-split" x-show="flSplitText(flCard().month)" x-text="flSplitText(flCard().month)" data-testid="fl-dash-split-month"></span>
+            <template x-if="!flPaidOn()">
+              <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().month.eur)"></b><small x-text="fmtHours(flCard().month.hours)"></small></span>
+            </template>
+            <template x-if="flPaidOn()">
+              <span class="fl-dash-pair" data-testid="fl-dash-pair-month">
+                <span class="fl-dash-fig fl-dash-fig--est">
+                  <span class="fl-dash-cap">Estimated</span>
+                  <span class="fl-dash-num metric"><b x-text="fmtMoney(flCard().month.blockEst)" data-testid="fl-dash-est-month"></b></span>
+                  <span class="fl-dash-sub metric" x-text="fmtHours(flCard().month.hours)"></span>
+                </span>
+                <span class="fl-dash-fig fl-dash-fig--paid">
+                  <span class="fl-dash-cap">Paid out</span>
+                  <span class="fl-dash-num metric"><b :class="flCard().month.hasPaid ? '' : 'none'" x-text="flCard().month.hasPaid ? fmtMoney(flCard().month.paid) : '—'" data-testid="fl-dash-paid-month"></b></span>
+                  <span class="fl-dash-sub metric" x-text="flCard().month.hasPaid ? payGapLabel(flCard().month.gap, 'EUR') + ' vs est.' : ''" data-testid="fl-dash-gap-month"></span>
+                </span>
+              </span>
+            </template>
           </span>
           <span class="fl-dash-cell fl-dash-cell--aside" :title="'Set aside ' + Math.round(flCard().share * 100) + '% of what the month billed for the tax office'">
             <span class="chip-label">set aside</span>

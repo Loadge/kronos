@@ -280,7 +280,12 @@ class TestPayoutOnTheLogCard:
         page.evaluate(f"Alpine.$data(document.querySelector('main')).openDayInLog('{iso}')")
         page.wait_for_selector("[data-testid='fl-payout-line']", timeout=5000)
 
-        page.locator("[data-testid='fl-payout-line'] a", has_text="in Days").click()
+        pill = page.locator("[data-testid='fl-payout-pill']")
+        assert pill.evaluate("e => e.tagName") == "BUTTON"
+        assert pill.inner_text().strip() == f"{_wk(MONDAY)} in Days"
+        pill.focus()
+        assert pill.evaluate("e => e === document.activeElement")
+        page.keyboard.press("Enter")
         page.wait_for_selector("[data-testid='days-freelance']", timeout=5000)
         row = _week_row(page, MONDAY)
         row.wait_for(timeout=3000)
@@ -351,18 +356,109 @@ class TestPayoutSplitOnScreens:
         link.click()
         page.wait_for_selector("[data-testid='days-freelance']", timeout=5000)
 
-    def test_the_dashboard_card_says_it_in_words(self, page, base_url):
+    def test_the_dashboard_card_puts_estimated_and_paid_out_side_by_side(self, page, base_url):
         _split_fixture(base_url)
         page.goto(f"{base_url}/#dashboard")
-        card = page.locator("[data-testid='freelance-card']")
-        card.wait_for(timeout=5000)
-        page.wait_for_function(
-            "() => document.querySelector(\"[data-testid='fl-dash-split-week']\")"
-            "?.innerText.includes('paid out')",
-            timeout=5000,
+        page.locator("[data-testid='freelance-card']").wait_for(timeout=5000)
+        page.wait_for_selector("[data-testid='fl-dash-paid-week']", timeout=5000)
+        # estimated: the blocks' own estimates (120 + 50); paid out: the payout (150)
+        assert page.locator("[data-testid='fl-dash-est-week']").inner_text() == "€170.00"
+        assert page.locator("[data-testid='fl-dash-paid-week']").inner_text() == "€150.00"
+        # the gap is against the estimate of the paid part only (Local's 120), not Side's 50
+        assert page.locator("[data-testid='fl-dash-gap-week']").inner_text() == "+€30 vs est."
+        # two figures of equal weight
+        est = page.locator("[data-testid='fl-dash-est-week']")
+        paid = page.locator("[data-testid='fl-dash-paid-week']")
+        assert est.evaluate("e => getComputedStyle(e).fontSize") == paid.evaluate(
+            "e => getComputedStyle(e).fontSize"
         )
-        week = page.locator("[data-testid='fl-dash-split-week']").inner_text()
-        assert week == "€150 paid out · €50 estimated"
+        assert est.evaluate("e => getComputedStyle(e).fontWeight") == paid.evaluate(
+            "e => getComputedStyle(e).fontWeight"
+        )
+        assert page.locator("[data-testid='fl-dash-paid-month']").inner_text() == "€150.00"
+        assert "paid out" in page.locator("[data-testid='freelance-card']").inner_text().lower()
+
+    def test_a_week_without_a_payout_shows_a_dash_for_paid_out(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date=TODAY.isoformat(), source_id=src, hours=2)
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=src, hours=1)
+        _payout(base_url, source_id=src, week_start=LAST_MONDAY.isoformat(), amount=70)
+        page.goto(f"{base_url}/#dashboard")
+        page.wait_for_selector("[data-testid='fl-dash-paid-week']", timeout=5000)
+        assert page.locator("[data-testid='fl-dash-paid-week']").inner_text() == "—"
+        assert page.locator("[data-testid='fl-dash-gap-week']").inner_text() == ""
+        assert page.locator("[data-testid='fl-dash-est-week']").inner_text() == "€120.00"
+
+    def test_paid_out_has_its_own_colour_apart_from_estimates(self, page, base_url):
+        _split_fixture(base_url)
+
+        def colour(sel):
+            return page.locator(sel).first.evaluate("e => getComputedStyle(e).color")
+
+        def token():
+            return page.evaluate(
+                "() => { const d = document.createElement('i'); d.style.color = 'var(--paid)';"
+                " document.body.appendChild(d); const c = getComputedStyle(d).color;"
+                " d.remove(); return c; }"
+            )
+
+        # dashboard
+        page.goto(f"{base_url}/#dashboard")
+        page.wait_for_selector("[data-testid='fl-dash-paid-week']", timeout=5000)
+        paid_token = token()
+        assert paid_token not in ("", "rgba(0, 0, 0, 0)")
+        assert colour("[data-testid='fl-dash-paid-week']") == paid_token
+        assert colour("[data-testid='fl-dash-est-week']") != paid_token
+        # the Freelance hero
+        _open_freelance_tab(page, base_url)
+        page.wait_for_selector("[data-testid='fl-split']", timeout=5000)
+        assert colour(".fl-splitline .fl-sw.paid + b") == paid_token
+        assert colour(".fl-splitline .fl-sw.est + b") != paid_token
+        assert (
+            page.locator(".flm-bar.paid").first.evaluate("e => getComputedStyle(e).fill")
+            == paid_token
+        )
+        # Days: the tag of a fully paid week, against an estimated one
+        _open_days_freelance(page, base_url)
+        page.wait_for_selector(".wk-tag", timeout=3000)
+        tags = page.locator(".wk-tag")
+        assert tags.count() == 1  # one week, part paid out (Side is still an estimate)
+        assert tags.first.evaluate("e => getComputedStyle(e).color") == paid_token
+        assert colour(".wk-pay .payin:not(:placeholder-shown)") == paid_token
+
+    def test_the_estimated_tag_keeps_its_muted_colour(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date=TODAY.isoformat(), source_id=src, hours=2)
+        _open_days_freelance(page, base_url)
+        tag = page.locator(".wk-tag.est").first
+        tag.wait_for(timeout=3000)
+        paid = page.evaluate(
+            "() => { const d = document.createElement('i'); d.style.color = 'var(--paid)';"
+            " document.body.appendChild(d); const c = getComputedStyle(d).color;"
+            " d.remove(); return c; }"
+        )
+        assert tag.evaluate("e => getComputedStyle(e).color") != paid
+
+    def test_the_blocks_of_a_week_hang_under_its_line(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=1)
+        _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=2)
+        _open_days_freelance(page, base_url)
+        page.wait_for_selector(".days-table--fl tr.blk", timeout=3000)
+        chev_left = page.locator(f"tr.wk-row#wk-{MONDAY.isoformat()} .chev").bounding_box()["x"]
+        date_lefts = page.locator(".days-table--fl tr.blk td:first-child").evaluate_all(
+            "els => els.map(e => { const r = document.createRange(); r.selectNodeContents(e);"
+            " return r.getBoundingClientRect().left; })"
+        )
+        assert len(date_lefts) == 2
+        # the blocks' text starts well to the right of the week line's own start (>= 1rem)
+        assert all(x - chev_left >= 16 for x in date_lefts)
+        # the rail: drawn on the blocks, and the last one is marked so it stops there
+        assert page.locator(".days-table--fl tr.blk-last").count() == 1
+        rail = page.locator(".days-table--fl tr.blk td:first-child").first.evaluate(
+            "e => getComputedStyle(e, '::before').borderLeftWidth"
+        )
+        assert rail == "1px"
 
     def test_the_analytics_ledger_lists_paid_out_and_estimated_for_a_range(self, page, base_url):
         _split_fixture(base_url)
@@ -398,7 +494,10 @@ class TestPayoutSplitOnScreens:
 
         page.evaluate("Alpine.$data(document.querySelector('main')).go('dashboard')")
         page.locator("[data-testid='freelance-card']").wait_for(timeout=5000)
-        assert not page.locator(".fl-dash-split").first.is_visible()
+        # the card is exactly as it was: one figure per period, no estimated / paid out pair
+        assert page.locator("[data-testid='fl-dash-pair-week']").count() == 0
+        assert page.locator("[data-testid='fl-dash-paid-week']").count() == 0
+        assert "paid out" not in page.locator("[data-testid='freelance-card']").inner_text().lower()
 
         page.goto(f"{base_url}/#analytics")
         page.wait_for_selector(".an-chart", timeout=5000)
