@@ -402,6 +402,95 @@ shows the balance whatever series the chart shows. The demo GIF predates both re
 
 ---
 
+## Phases 34 and 35 — Freelance hours in Kronos (`3baed75`, `9314942`)
+Built 2026-11-02, reviewed twice, confirmed by Miguel on 2026-11-04 "as they are".
+
+**Why.** Besides the job Kronos tracks, Miguel works as a freelancer ("autónomo", in Spain), by the
+hour, outside his working hours, for clients that may pay in US dollars. A separate rate calculator
+did the sums for that side and was retired; Kronos became the one place for both sides. The
+question behind it is whether, in a year or two, the freelance work could replace the job. The tax
+engine (`services/tax.py` with the 2026 figures in `data/fiscal_es.json`) was moved in beforehand
+and stays the only source of every tax figure.
+
+**Process.** The first build had no mockups, because the existing design system fitted every
+surface. Two review rounds followed. The first used mockups (`docs/mockups/ux-u{1,2}.html`):
+Miguel chose U1's Log, and U2's Days, Analytics and Freelance.
+
+**Decisions on the data.**
+- **Blocks are independent of the employee side.** A block has no foreign key to a work entry, so a
+  Saturday of freelance work needs no entry, and nothing freelance can reach the target, the
+  balance, the streaks or the timesheet. A test pins the dashboard and the timesheet byte for byte
+  before and after blocks.
+- **A block keeps a snapshot** of the rate, the currency and the exchange rate at the moment it is
+  saved. Changing a source's rate later never rewrites old blocks.
+- **A source with blocks cannot be deleted (409), only archived.** Archiving hides it from the
+  picker and keeps the label of every old block.
+- **Tax inputs live per year,** and a year without a row inherits the latest earlier one. The
+  gestoría and other expenses were added because the engine needs them, though the spec listed
+  neither.
+- **Hours are stored as exact minutes.** The API accepts hours or a start and an end.
+
+**FX discipline.**
+- A USD block takes the ECB rate of its own date, and a weekend or holiday takes the last published
+  day. If no rate is available the block is still saved with no rate: it counts its hours but not
+  its money, every sum reports it as missing, and a rate typed by hand repairs it. A silent 1:1 was
+  rejected on purpose.
+- Rates are fetched only when something asks (saving a USD block, opening Settings, Currency, the
+  calculator switching to USD) and at most once an hour. Never on a timer.
+- Sums add each block at the cents it shows, so a list and its total always agree.
+
+**The tax maths.**
+- The year's tax figures are built on the projected gross (billed so far plus the planned hours to
+  Dec 31), because a RETA tramo and an IRPF bracket belong to a year and not to the part of it that
+  has passed. The planned hours bill at the €/h realised so far, or at the default source's rate
+  before the first block. Days off are spread evenly over the year, since nobody knows when they
+  fall.
+- The Modelo 130 is 20% of the net yield accumulated since January 1st, minus the earlier
+  quarters' payments, never below zero. The start-up reduction does not apply to it, because it
+  lowers the Renta instead. The deadlines live in `fiscal_es.json`.
+- The calculator is a pure endpoint with every assumption in the body, so the browser keeps no
+  formula. The two anchors of `tests/unit/test_tax.py` come out to the cent from the API and from
+  the browser.
+
+**Decisions on the screens.**
+- The Freelance tab (key F) and the dashboard card appear only once a source exists, so a Kronos
+  without freelance keeps its five tabs.
+- Settings has two levels (Employee, Freelance, General) and saves by itself: a field after 600 ms,
+  a switch at once, with "saved" in the card head. This came from the UX round, where Miguel
+  asked for no Save buttons and fewer hints. "Weeks off" became "days off" at the same time.
+- The Log tab got a Freelance card of its own that saves a block as soon as it is added, and the
+  planner's year strip as the month picker. Removing a block offers Undo for five seconds.
+- Days has two sub-tabs, Employee and Freelance, the second with a filter per source. The PDF
+  button follows the tab: `/timesheet/freelance` prints one row per block, with no empty days,
+  because it goes to a client or the adviser.
+- Analytics gets an Employee/Freelance switch on Year at a glance, freelance hours stacked on the
+  employee bars, and an Income series. There is no employee income anywhere, because the salary
+  is not logged day by day.
+- Every tab has one page head, and the year is always the same stepper pill.
+- Year at a glance is pinned by a fixed compact bar that appears once the full block has scrolled
+  out. The first version, a sticky block that shrank, changed the page height under the scroll and
+  made the page bounce to the top. A fixed element takes no room, so nothing moves.
+
+**Backup v3.** It adds the sources, the blocks and the tax years, and versions 1 and 2 still
+restore. A file with no freelance section leaves sources and tax years alone but wipes the blocks,
+as every restore does. The freelance CSV is a second file, not rows in the entries CSV, because
+that format is per date. There is no freelance CSV import: the backup carries the blocks.
+
+**Known limits.**
+- The 130's fixed costs are the projected year's RETA spread evenly, not the cuotas actually paid
+  month by month.
+- Withholdings on the salary and the retenciones a client may apply are not modelled.
+- The calendar's billable days count the vacation budget, not the days taken.
+- The projection bills a flat rate per week.
+- The block editor's start and end are same-day only, like the employee's times.
+- The CLI reads the freelance summary in `check` and nothing else.
+- Decided not to do: a check that a block overlaps the employee hours of the day.
+
+**Commits.** `3baed75` Freelance hours in Kronos, phases 34-35; `9314942` escape the income source
+name in the heatmap tooltip (found in review).
+
+---
+
 ## Archiving a phase
 When Miguel confirms a phase is live: replace its block in `BUILD_PHASES.md` with one row in the
 "Done" table there, and add a summary here in the same docs commit (what was decided, what shipped,
