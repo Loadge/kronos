@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.gzip import GZipMiddleware
@@ -30,6 +30,7 @@ from app.routers import (
 from app.routers import (
     templates as templates_router,
 )
+from app.version import APP_VERSION, compute_build_id
 
 app = FastAPI(
     title="Kronos",
@@ -56,6 +57,11 @@ def _vendor_version() -> str:
 
 
 VENDOR_VERSION = _vendor_version()
+
+# One fingerprint of everything the browser loads (static files and templates), computed once
+# at import: the same files always give the same id, and a deploy that changes any of them
+# gives a new one. The page, the service worker and /api/version all report this value.
+BUILD_ID = compute_build_id([STATIC_DIR, TEMPLATES_DIR])
 
 
 class VendorCacheMiddleware:
@@ -109,7 +115,22 @@ app.include_router(freelance.router)
 def index(request: Request):
     # Starlette ≥0.35 expects (request, name) ordering; the old (name, {"request": ...})
     # form breaks Jinja's template cache lookup.
-    return templates.TemplateResponse(request, "index.html", {"vendor_v": VENDOR_VERSION})
+    response = templates.TemplateResponse(
+        request,
+        "index.html",
+        {"vendor_v": VENDOR_VERSION, "app_version": APP_VERSION, "build": BUILD_ID},
+    )
+    # The shell is revalidated on every visit; the assets it links are fingerprinted per build.
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.get("/api/version", include_in_schema=False)
+def version():
+    """What the server is running. An open page compares ``build`` with the one it loaded."""
+    return JSONResponse(
+        {"version": APP_VERSION, "build": BUILD_ID}, headers={"Cache-Control": "no-store"}
+    )
 
 
 @app.get("/manifest.json", include_in_schema=False)
@@ -119,11 +140,14 @@ def manifest():
 
 @app.get("/sw.js", include_in_schema=False)
 def service_worker():
-    # Must be served from scope root (not /static/) so it can control all pages.
-    return FileResponse(
-        STATIC_DIR / "sw.js",
+    # Must be served from scope root (not /static/) so it can control all pages. The file
+    # carries a `__BUILD__` token (the build id hashes it in that raw form); filling it in
+    # gives every build its own cache name and makes the browser see a new worker.
+    source = (STATIC_DIR / "sw.js").read_bytes().decode("utf-8")
+    return Response(
+        source.replace("__BUILD__", BUILD_ID),
         media_type="application/javascript",
-        headers={"Service-Worker-Allowed": "/"},
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
     )
 
 

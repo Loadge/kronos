@@ -36,10 +36,51 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 built and on INT, waiting for Miguel's check; 28 after it (Anselmo logs
+37 and 38 built and on INT, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 38 — Quieter Log and live updates (built 2026-11-04, awaiting confirmation)
+
+**Why.** After using Phase 37 on PROD, Miguel asked for four things: the work week number on the Log
+calendar, a Notes field that does not feel out of place on a big screen, no jump to Days after
+logging a day, and a way for Kronos to tell the browser that a newer version is waiting.
+
+**Decisions.**
+- The Log calendar has a "Wk" column on its left with the ISO week of each row. Each number is a
+  button that opens that week in Days, and a week with no entry and no freelance block is dimmed.
+- Days > Employee has a separator row per ISO week while it is sorted by date (W45, its dates, the
+  days, net against target and the surplus). The jump lands on it and flashes the week's rows. A week
+  with only freelance blocks opens Days > Freelance instead.
+- Notes is a "+ Add note" button, like "+ Add break". It opens one textarea in place, stays open when
+  the day has a note and folds away when it is left empty.
+- From 1100px the right column of the form is a rail with the day's result (net, target, surplus and
+  a fill bar) and the Create entry button. Below that the form is one column, as before.
+- The two card hints ("the day for the job" and "blocks with their own rate") are gone.
+- Saving or deleting a day keeps the user in Log, and the calendar stays on its month. The toast is
+  the confirmation.
+- The title has a faint "v38" next to it. It is the phase number and is bumped by hand in
+  `backend/app/version.py` when a phase lands.
+- Every build has an id, a 10-character hash of the static files and the templates. The page carries
+  the id it loaded and asks `/api/version` when the tab becomes visible, when the connection comes back
+  and every 10 minutes. If the server has another id, a pill says "Update ready — Reload". The page
+  never reloads by itself, because the user may be typing.
+- The service worker names its cache after the build id, so nobody has to bump it any more. The page
+  itself is network-first and `app.js` and `styles.css` carry the id in their URL, so the reload brings
+  the new files instead of the cached ones.
+
+**How it was built.** Mockups first for the Notes field (a margin note, a day rail and a full-width
+layout). Miguel proposed the "+ Add note" button and kept the rail as the second choice, so the
+result is both. Then three units, each one written by a Sonnet subagent and reviewed blind: the week
+column and the jump, the Notes button and the rail, and the version, the update check and staying
+in Log.
+
+**Known limits.** A week that crosses a month edge gets its separator only above the days of its
+later month, with the totals of the whole week. The first time after this deploy, a browser that still
+has the old service worker shows the old page once, and the pill needs one more reload to appear,
+because that worker serves its cached shell first. The Notes control was not checked in the light
+theme.
 
 ### Phase 37 — Freelance payouts (built 2026-11-04, awaiting confirmation)
 

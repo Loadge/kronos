@@ -1202,10 +1202,6 @@ button.btn-action-ghost:hover {
 /* Mobile-first: single column */
 .log-layout { display: flex; flex-direction: column; gap: 1.25rem; }
 
-/* Inline notes visible on mobile, col-3 panel hidden */
-.log-notes-inline { display: block; }
-.log-col-notes    { display: none; }
-
 /* ── 900px+: calendar | card ──────────────────────────────────────────── */
 @media (min-width: 900px) {
   .log-layout {
@@ -1221,7 +1217,7 @@ button.btn-action-ghost:hover {
   }
   .log-col-left .log-cal { margin-bottom: 0.75rem; }
 
-  /* Card surface wraps form + notes */
+  /* Card surface wraps the form and its rail */
   .log-form-card {
     background: var(--k-surface);
     border: 1px solid var(--k-border);
@@ -1230,35 +1226,8 @@ button.btn-action-ghost:hover {
   }
 }
 
-/* ── 1100px+: card splits into form | notes ───────────────────────────── */
+/* ── 1100px+: card splits into form | rail (see "Log form: notes + result rail") ── */
 @media (min-width: 1100px) {
-  .log-form-grid {
-    display: grid;
-    grid-template-columns: 1fr 220px;
-    column-gap: 1.5rem;
-    align-items: start;
-  }
-
-  /* Notes column: hide inline duplicate, show panel */
-  .log-notes-inline { display: none; }
-  .log-col-notes    { display: flex; flex-direction: column; }
-
-  /* Textarea fills the available column height */
-  .log-col-notes textarea {
-    flex: 1;
-    min-height: 16rem;
-    resize: none;
-    /* Full border instead of Pico's underline — avoids a floating
-       horizontal line that never aligns with the input underlines in col 2 */
-    border: 1px solid var(--k-border);
-    border-radius: 4px;
-    padding: 0.6rem 0.75rem;
-  }
-  .log-col-notes textarea:focus {
-    border-color: var(--k-brass);
-    outline: none;
-  }
-
   /* Day type select: no need to span the full card width */
   .log-col-center select {
     width: auto;
@@ -1266,11 +1235,12 @@ button.btn-action-ghost:hover {
   }
 }
 
-/* Form column: flex so footer pins to bottom */
+/* Form column */
 .log-col-center {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0;
 }
 
 /* Create entry CTA — full-width brass, sole primary action */
@@ -1289,13 +1259,129 @@ button.btn-action-ghost:hover {
 }
 .log-submit-btn:hover { opacity: 0.88; }
 
-/* Footer pushed to bottom of flex column */
-.log-col-center .form-footer {
-  margin-top: auto;
+/* Footer: the action under the day's result */
+.log-col-rail .form-footer {
+  margin-top: 0;
   padding-top: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* ── Log form: notes + result rail ────────────────────────────────────────
+   Notes are a button that opens one textarea in place; the day's result and the
+   Create entry button live in a rail beside the form (1100px+) or after it. */
+.log-notes { margin-bottom: 1rem; }
+.log-notes > button { margin-bottom: 0; animation: notes-pop 0.2s ease-out; }
+@keyframes notes-pop { from { opacity: 0; transform: translateY(2px); } }
+
+/* the block grows open: rows 0fr -> auto, with the field fading in */
+.log-notes-block {
+  display: grid;
+  animation: notes-open 0.22s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.log-notes-inner { min-height: 0; overflow: clip; overflow-clip-margin: 4px; }
+@keyframes notes-open {
+  from { grid-template-rows: 0fr; opacity: 0; }
+  to   { grid-template-rows: 1fr; opacity: 1; }
+}
+.log-notes-block textarea {
+  field-sizing: content;
+  min-height: 3.5rem;
+  max-height: 24rem;
+  margin: 0;
+  resize: none;
+}
+/* the Add break fieldset already leaves a gap below its button */
+.log-times + .log-notes { margin-top: -1.25rem; }
+
+/* the bar under the figures only exists in the rail */
+.impact-bar { display: none; }
+
+.log-submit-btn {
+  transition: opacity 0.15s, transform 0.12s ease-out;
+}
+.log-submit-btn:hover { transform: translateY(-1px); }
+.log-submit-btn:active { transform: scale(0.98); }
+
+.impact-delta.pulse { animation: impact-pulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes impact-pulse { 0% { transform: scale(0.85); opacity: 0.5; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+
+@media (min-width: 1100px) {
+  .log-form-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 15rem;
+    column-gap: 1.5rem;
+    align-items: start;
+  }
+  .log-col-rail {
+    position: sticky;
+    top: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .log-col-rail .form-footer { padding-top: 0.9rem; }
+
+  /* the day's result, stacked: a large Net, "of 8h" and the Δ under it, then the bar */
+  .impact-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "net net" "target delta" "bar bar";
+    align-items: baseline;
+    gap: 0.15rem 0.5rem;
+    margin-top: 0;
+    padding: 0.9rem 1rem 1rem;
+  }
+  .impact-card > .impact-cell:nth-child(1) { grid-area: net; }
+  .impact-card > .impact-cell:nth-child(2) { grid-area: target; }
+  .impact-card > .impact-cell:nth-child(3) { grid-area: delta; }
+  .impact-card > .impact-bar { grid-area: bar; }
+  .impact-cell { gap: 0; position: relative; }
+  .impact-cell:nth-child(1) .impact-value {
+    font-size: 2.6rem;
+    line-height: 1.05;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  /* "Target 8h" reads "of 8h" here; the word stays for screen readers */
+  .impact-cell:nth-child(2) { flex-direction: row; align-items: baseline; gap: 0.3rem; }
+  .impact-cell:nth-child(2) .impact-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .impact-cell:nth-child(2) .impact-value::before {
+    content: 'of ';
+    font-weight: 400;
+    color: var(--k-muted);
+  }
+  .impact-cell:nth-child(2) .impact-value { font-size: 0.95rem; font-weight: 500; color: var(--k-muted); }
+  .impact-cell:nth-child(3) { flex-direction: row; align-items: baseline; gap: 0.4rem; }
+  .impact-cell:nth-child(3) .impact-value { display: inline-block; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+  .impact-bar {
+    display: block;
+    height: 6px;
+    margin-top: 0.7rem;
+    border-radius: 3px;
+    background: var(--k-border);
+    overflow: hidden;
+  }
+  .impact-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--k-brass);
+    transition: width 0.3s cubic-bezier(0.2, 0.7, 0.3, 1), background-color 0.3s;
+  }
+  .impact-fill.is-over { background: var(--k-surplus); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log-notes > button, .log-notes-block, .impact-delta.pulse { animation: none; }
+  .impact-fill, .log-submit-btn { transition: none; }
+  .log-submit-btn:hover, .log-submit-btn:active { transform: none; }
 }
 
 /* Section divider between form groups */
@@ -1418,7 +1504,7 @@ button.btn-action-ghost:hover {
 }
 .save-template-body .template-name-input { flex: 1; margin: 0; }
 
-/* ── Notes column header + char count ────────────────────────────────── */
+/* ── Notes block header + char count ─────────────────────────────────── */
 
 .notes-header {
   display: flex;
@@ -3858,3 +3944,143 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .page-head .notes-search { height: 2rem; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 0.85rem; }
 .page-head.days-header { margin-bottom: 1.25rem; }
 .an-lsplit { display: contents; }
+
+/* ── Log calendar week column + Days week separators ── */
+.log-cal-grid.has-wk { grid-template-columns: 1.7rem repeat(7, 1fr); }
+.log-cal-row { display: contents; }
+
+.log-cal-wk {
+  align-self: stretch;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--k-muted);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--k-transition-fast), background var(--k-transition-fast),
+              border-color var(--k-transition-fast), transform 120ms ease;
+}
+.log-cal-wk:not(:disabled):hover { color: var(--k-brass); border-color: var(--k-brass); transform: translateY(-1px); }
+.log-cal-wk:not(:disabled):active { transform: translateY(1px) scale(0.88); }
+.log-cal-wk.cur { color: var(--k-brass); font-weight: 600; }
+.log-cal-wk.sel { background: var(--k-brass); border-color: var(--k-brass); color: var(--k-bg); font-weight: 700; }
+.log-cal-wk:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.log-cal-wk:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; }
+
+.days-table tr.week-sep td {
+  padding: 0.3rem 0.6rem 0.2rem 0.75rem;
+  background: transparent;
+  border-top: 1px solid var(--k-border);
+  box-shadow: inset 1px 0 0 var(--k-brass);
+  font-size: 0.74rem;
+  white-space: normal;
+}
+.week-sep-name { font-weight: 600; color: var(--k-brass); letter-spacing: 0.04em; margin-right: 0.5rem; }
+.week-sep-range { color: var(--k-muted); margin-right: 0.6rem; }
+.week-sep-sum { font-size: 0.74rem; color: var(--k-muted); }
+.week-sep-sum b { font-weight: 600; color: var(--k-text); }
+.week-sep-sum b.surplus { color: var(--k-surplus); }
+.week-sep-sum b.deficit { color: var(--k-deficit); }
+
+@keyframes week-wash {
+  0%   { background-color: color-mix(in srgb, var(--k-brass) 26%, transparent); }
+  60%  { background-color: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+  100% { background-color: transparent; }
+}
+tbody.week-flash > tr > td { animation: week-wash 2s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  tbody.week-flash > tr > td { animation: none; }
+  .log-cal-wk { transition: none; }
+  .log-cal-wk:not(:disabled):hover, .log-cal-wk:not(:disabled):active { transform: none; }
+}
+
+/* ── Version label and update pill ── */
+/* "Kronos v38": the title, a faint version beside it on the same baseline, and (only when the
+   server runs a newer build) the pill that offers the reload. On a phone the pill takes its own
+   line under the title; from 720px up it hangs on the header rule under the title instead, so
+   showing it never moves the tabs. */
+.brand > div { position: relative; }
+.brand-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.1rem 0.5rem; }
+.brand-ver {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--k-muted);
+  opacity: 0.55;
+  text-decoration: none;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.update-slot { display: inline-flex; align-items: baseline; }
+.update-pill {
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  padding: 0.12rem 0.65rem;
+  width: auto;
+  border: 1px solid color-mix(in srgb, var(--k-coin) 45%, var(--k-border));
+  border-radius: 999px;
+  background: var(--k-bg);
+  color: var(--k-coin);
+  font: inherit;
+  font-size: 0.72rem;
+  font-family: ui-monospace, monospace;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  /* slides in from the title once, then pulses once so it is noticed without nagging */
+  animation:
+    update-pill-in 380ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards,
+    update-pill-pulse 1.6s ease-out 420ms 1;
+  transition:
+    transform var(--k-transition-fast),
+    box-shadow var(--k-transition-fast),
+    border-color var(--k-transition-fast);
+}
+/* the brass tint is a layer under the text, so the solid fill (which hides the rule behind the
+   pill) and the .fl-jump look both hold, and the tint can still fade on hover */
+.update-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--k-coin) 8%, transparent);
+  transition: background var(--k-transition-fast);
+}
+.update-pill:hover, .update-pill:focus-visible {
+  border-color: var(--k-coin);
+  color: var(--k-coin);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--k-coin) 25%, transparent);
+}
+.update-pill:hover::before, .update-pill:focus-visible::before {
+  background: color-mix(in srgb, var(--k-coin) 18%, transparent);
+}
+.update-pill:active { transform: translateY(1px) scale(0.97); box-shadow: none; }
+@keyframes update-pill-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes update-pill-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--k-coin) 50%, transparent); }
+  70%  { box-shadow: 0 0 0 8px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (min-width: 720px) {
+  .update-slot { position: absolute; left: 0; top: 100%; margin-top: 0.5rem; z-index: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-pill, .update-pill::before { animation: none; transition: none; }
+  .update-pill:hover, .update-pill:focus-visible, .update-pill:active { transform: none; }
+}

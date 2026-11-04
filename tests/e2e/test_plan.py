@@ -264,7 +264,8 @@ class TestGhostsElsewhere:
             "() => document.querySelector('select')?.value === 'vacation'", timeout=5000
         )
         page.locator("button.log-submit-btn").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.url.endswith("#log")
         page.wait_for_function(
             "() => fetch('/api/plans').then(r => r.json()).then(p => p.length === 0)", timeout=5000
         )

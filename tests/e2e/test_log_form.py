@@ -84,7 +84,7 @@ class TestLogFormRendering:
 
 
 class TestLogFormSubmission:
-    def test_submit_work_day_navigates_to_days_tab(self, page, base_url):
+    def test_submit_work_day_stays_in_the_log_tab(self, page, base_url):
         _open_log_tab(page, base_url)
 
         _select_calendar_date(page, _day_in_current_month(3))
@@ -97,8 +97,10 @@ class TestLogFormSubmission:
         # Submit
         page.locator("button.log-submit-btn").click()
 
-        # Optimistic navigation: should land on Days tab immediately
-        page.wait_for_url("**/#days", timeout=5000)
+        # Saving keeps the user where they are: the confirmation is the toast.
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.locator(".ribbon-msg").inner_text().startswith("Saved")
+        assert page.url.endswith("#log")
 
     def test_submit_vacation_day_appears_in_days_list(self, page, base_url):
         date_str = _day_in_current_month(4)
@@ -108,9 +110,11 @@ class TestLogFormSubmission:
         page.select_option("select", "vacation")
 
         page.locator("button.log-submit-btn").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.url.endswith("#log")
 
-        # Wait for the entry to appear in the table
+        # Open the Days tab: the entry is in the table
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(f"td:has-text('{date_str}'), td:has-text('vacation')", timeout=5000)
 
     def test_duplicate_date_shows_error(self, page, base_url):

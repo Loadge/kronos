@@ -118,9 +118,12 @@ class TestFullWorkDayJourney:
         time_inputs.nth(1).fill("17:00")
 
         page.locator("button.log-submit-btn").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.url.endswith("#log")  # saving no longer leaves the Log tab
 
         # ── Days table ──
+        page.get_by_role("tab", name="Days").click()
+        page.wait_for_url("**/#days", timeout=5000)
         row = page.locator(f"#day-row-{WORK_DATE}")
         page.wait_for_selector(f"#day-row-{WORK_DATE}", timeout=5000)
         # Wait past the optimistic-insert window for the server-confirmed row
@@ -189,8 +192,11 @@ class TestEditEntryJourney:
         time_inputs.nth(1).fill("18:00")  # end_time 17:00 -> 18:00: net becomes 9h
 
         page.locator("button.log-submit-btn").click()
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.url.endswith("#log")  # the edit is saved in place
 
         # Back on the Days table with the updated row.
+        page.get_by_role("tab", name="Days").click()
         page.wait_for_selector(f"#day-row-{EDIT_DATE}", timeout=5000)
         row = page.locator(f"#day-row-{EDIT_DATE}")
         row.get_by_role("button", name="Edit").wait_for(timeout=5000)
@@ -218,6 +224,10 @@ class TestDeleteEntryJourney:
         page.once("dialog", lambda dialog: dialog.accept())
         page.get_by_role("button", name="Delete").click()
 
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.locator(".ribbon-msg").inner_text() == f"Deleted {DELETE_DATE}"
+        assert page.url.endswith("#log")  # deleting no longer leaves the Log tab
+        page.get_by_role("tab", name="Days").click()
         page.wait_for_selector("text=No entries yet", timeout=5000)
         assert page.locator(f"#day-row-{DELETE_DATE}").count() == 0
 
@@ -253,6 +263,9 @@ class TestNonWorkDayTypes:
         page.select_option("select", day_type)
 
         page.locator("button.log-submit-btn").click()
+        page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
+        assert page.url.endswith("#log")
+        page.get_by_role("tab", name="Days").click()
         page.wait_for_url("**/#days", timeout=5000)
 
         row = page.locator(f"#day-row-{iso_date}")

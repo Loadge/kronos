@@ -35,6 +35,7 @@ function app() {
     // leave_hours: hours of leave on a non-work day, null for work days.
     // Stored on the server as a fraction of that date's target (see formFraction()).
     form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [], leave_hours: null },
+    notesOpen: false,
     editingDate: null,
 
     // ---------- log calendar --------------------------------------------
@@ -69,6 +70,7 @@ function app() {
     sortDir: 'desc',
     daysYear: String(new Date().getFullYear()),
     notesQuery: '',
+    daysFlashWeek: '',         // Monday of the week flashed after a jump from the Log calendar
     nowDisplay: '',
 
     // ---------- analytics -----------------------------------------------
@@ -167,6 +169,10 @@ function app() {
     loading: { dashboard: false, days: false, analytics: false, settings: false },
     saving: false,
 
+    // ---------- updates: is the server running a newer build than this page? ----
+    updateReady: false,
+    newVersion: '',
+
     // ---------- W1 animated metrics (tick-up) ---------------------------
     animWeek: 0, animMonth: 0, animCumulative: 0,
 
@@ -255,12 +261,51 @@ function app() {
       tickNow();
       setTimeout(() => { tickNow(); setInterval(tickNow, 60000); }, (60 - new Date().getSeconds()) * 1000);
 
+      // Is there a newer build on the server? Asked when the tab becomes visible again, when
+      // the connection returns and every 10 minutes while visible. It only shows a pill:
+      // the page never reloads by itself (the user may be typing).
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') this.checkForUpdate();
+      });
+      window.addEventListener('online', () => this.checkForUpdate());
+      setInterval(() => { if (document.visibilityState === 'visible') this.checkForUpdate(); }, 10 * 60 * 1000);
+      this.checkForUpdate();
+
       this.weekStart = this._mondayIso(new Date());
       this.loadSettings(); // pre-load so logPreview() has accurate target hours
       this.loadTemplates();
       this.loadSources();  // the freelance tab and the dashboard card exist once a source does
       this.openNewEntry();
       await this.go(this.tab);
+    },
+
+    // =====================================================================
+    // updates
+    // =====================================================================
+    // The page carries the id of the build it loaded (<meta name="kronos-build">); the server
+    // reports the one it runs now. A difference shows the pill. Offline, a failing request or
+    // a malformed answer change nothing.
+    async checkForUpdate() {
+      try {
+        const mine = document.querySelector('meta[name="kronos-build"]')?.content;
+        if (!mine) return;
+        const r = await fetch('/api/version', { cache: 'no-store' });
+        if (!r.ok) return;
+        const server = await r.json();
+        if (server && server.build && server.build !== mine) {
+          this.newVersion = String(server.version || '');
+          this.updateReady = true;
+        } else {
+          this.updateReady = false;
+        }
+      } catch { /* offline or unreachable: say nothing */ }
+    },
+
+    // Ask the browser for the newest service worker first, then reload; the reload itself is
+    // network-first (sw.js), so it really brings the new files.
+    async applyUpdate() {
+      try { await (await navigator.serviceWorker?.getRegistration())?.update(); } catch { /* reload anyway */ }
+      location.reload();
     },
 
     // =====================================================================
@@ -1170,6 +1215,7 @@ function app() {
     // leaving an October day does not jump the calendar back to this month.
     openNewEntry({ keepMonth = false } = {}) {
       this.editingDate = null;
+      this.notesOpen = false;
       const now = new Date();
       if (!keepMonth) { this.calYear = now.getFullYear(); this.calMonth = now.getMonth(); }
       this.form = {
@@ -1259,6 +1305,66 @@ function app() {
       return cells;
     },
 
+    // The Log calendar by rows: its week button (ISO number, range, whether the week has
+    // anything to open) and the row's day cells, which are exactly calDays()'s.
+    calWeeks() {
+      const cells = this.calDays();
+      const todayMonday = this._mondayIso(new Date());
+      const selected = this.form.date;
+      const rows = [];
+      for (let i = 0; i < cells.length; i += 7) {
+        const row = cells.slice(i, i + 7);
+        const first = row.find(c => !c.padded);
+        const monday = this._mondayIso(new Date(first.date + 'T12:00:00'));
+        const sunday = this._addDaysIso(monday, 6);
+        const no = this.isoWeekNo(monday);
+        const range = this._weekRange(monday);
+        rows.push({
+          key: 'wk-' + monday, monday, no, range, cells: row,
+          label: `Week ${no}, ${range}`, title: `W${no} · ${range}`,
+          has: this.entries.some(e => e.date >= monday && e.date <= sunday)
+            || this.blocks.some(b => b.date >= monday && b.date <= sunday),
+          isCurrent: monday === todayMonday,
+          isSelected: !!selected && selected >= monday && selected <= sunday,
+        });
+      }
+      return rows;
+    },
+
+    // From a week button of the Log calendar to that week in Days: Employee when the week has an
+    // entry (its separator, in view and flashed), else Freelance (its row, opened).
+    async calOpenWeek(monday) {
+      const sunday = this._addDaysIso(monday, 6);
+      const mine = this.entries.filter(e => e.date >= monday && e.date <= sunday);
+      if (!mine.length) {
+        const blocks = this.blocks.filter(b => b.date >= monday && b.date <= sunday);
+        if (!blocks.length) return;
+        await this._openFlWeek(monday, [...new Set(blocks.map(b => b.source_id))], this._daysYearFor(blocks));
+        return;
+      }
+      this.daysMode = 'employee';
+      this.sortKey = 'date';
+      this.notesQuery = '';
+      this.daysYear = this._daysYearFor(mine);
+      await this.go('days');
+      // The Days tab scrolls to today once it has rendered; this scroll has to come after it.
+      this.$nextTick(() => setTimeout(() => this._scrollToWeek(monday, 0), 350));
+    },
+    _scrollToWeek(monday, tries) {
+      const el = document.getElementById('eweek-' + monday);
+      if (!el) { if (tries < 4) setTimeout(() => this._scrollToWeek(monday, tries + 1), 200); return; }
+      const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
+      this.daysFlashWeek = monday;
+      setTimeout(() => { if (this.daysFlashWeek === monday) this.daysFlashWeek = ''; }, 2200);
+    },
+    // "all" stays "all"; a year filter becomes the one year of these rows, or "all" if they span two.
+    _daysYearFor(rows) {
+      if (this.daysYear === 'all') return 'all';
+      const years = new Set(rows.map(r => r.date.slice(0, 4)));
+      return years.size === 1 ? [...years][0] : 'all';
+    },
+
     calPrev() {
       if (this.calMonth === 0) { this.calMonth = 11; this.calYear--; }
       else this.calMonth--;
@@ -1272,6 +1378,7 @@ function app() {
 
     async calSelectDay(dateStr) {
       this.form.date = dateStr;
+      this.notesOpen = false;
       await this.probeDate(dateStr);
       // A drafted day with no entry yet: start the form from the draft.
       const draft = this.draftMap()[dateStr];
@@ -1548,6 +1655,7 @@ function app() {
 
     editEntry(e) {
       this.editingDate = e.date;
+      this.notesOpen = false;
       const d = new Date(e.date + 'T00:00:00');
       this.calYear = d.getFullYear();
       this.calMonth = d.getMonth();
@@ -1563,6 +1671,54 @@ function app() {
       this.tab = 'log';
       if (location.hash.replace('#', '') !== 'log') location.hash = 'log';  // as go() does
       this.error = null;
+    },
+
+    // Notes are optional: a button opens one textarea in place; a day that has notes is
+    // always open. Opening focuses the field; leaving it (or Escape) while empty folds it away.
+    notesShown() { return this.notesOpen || !!(this.form.notes && this.form.notes.length); },
+    openNotes() {
+      this.notesOpen = true;
+      this.$nextTick(() => {
+        const ta = this.$refs.notes;
+        if (!ta) return;
+        ta.focus();
+        this.autosizeNotes(ta);
+      });
+    },
+    closeNotesIfEmpty(ev) {
+      if (this.form.notes && this.form.notes.length) return;
+      // Leaving for a button below the field (Create entry on a narrow screen): fold up only
+      // after the press is over, or the button moves out from under the pointer mid-click.
+      if (ev && ev.relatedTarget && ev.relatedTarget.closest?.('button, summary')) {
+        window.addEventListener('pointerup', () => this.closeNotesIfEmpty(), { once: true });
+        return;
+      }
+      this.notesOpen = false;
+    },
+    // `field-sizing: content` grows the field by itself; this is the fallback for browsers
+    // that lack it.
+    autosizeNotes(ta) {
+      if (CSS.supports('field-sizing', 'content')) return;
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+    },
+
+    // The day's result as a bar: net hours over the target, capped at the full width.
+    impactPct() {
+      const p = this.logPreview();
+      if (!p) return 0;
+      if (!(p.target_hours > 0)) return p.net_hours > 0 ? 100 : 0;
+      return Math.round(Math.max(0, Math.min(1, p.net_hours / p.target_hours)) * 1000) / 10;
+    },
+    // Quick pulse on a figure whenever its value changes (the first value just appears).
+    pulse(el, value) {
+      const first = !('_pulseSeen' in el);
+      const changed = el._pulseSeen !== value;
+      el._pulseSeen = value;
+      if (first || !changed) return;
+      el.classList.remove('pulse');
+      void el.offsetWidth;
+      el.classList.add('pulse');
     },
 
     // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
@@ -1618,6 +1774,7 @@ function app() {
     },
 
     async saveEntry() {
+      if (this.saving) return; // a second submit while one is in flight is ignored
       this.saving = true;
       this.error = null;
       const body = { day_type: this.form.day_type, fraction: this.formFraction(), notes: this.form.notes || null };
@@ -1646,10 +1803,9 @@ function app() {
         this.entries = [optimistic, ...this.entries];
       }
 
-      // Navigate immediately — don't await loadDays (would clobber optimistic row)
-      this.tab = 'days';
+      // The user stays in the Log tab: the toast is the confirmation, and the calendar cell
+      // of the day colours as soon as the optimistic entry is in.
       this.error = null;
-      if (location.hash.replace('#', '') !== 'days') location.hash = 'days';
 
       try {
         let saved;
@@ -1684,13 +1840,11 @@ function app() {
           this.showToast(`Saved — ${dow} is ${this.formatSurplus(saved.surplus_hours)}`, this.surplusClass(saved.surplus_hours));
         }
 
-        this.openNewEntry();
+        this.openNewEntry({ keepMonth: true });
       } catch (e) {
-        // Revert optimistic change and return the user to the log form
+        // Revert the optimistic change; the user never left the form
         this.entries = prevEntries;
         this.error = e.message;
-        this.tab = 'log';
-        if (location.hash.replace('#', '') !== 'log') location.hash = 'log';
       } finally {
         this.saving = false;
       }
@@ -1700,9 +1854,11 @@ function app() {
       if (!confirm(`Delete the entry for ${dateIso}?`)) return;
       try {
         await this.api('DELETE', `/api/entries/${dateIso}`);
-        this.openNewEntry();
+        this.entries = this.entries.filter(e => e.date !== dateIso); // the cell empties at once
+        this.loadDays(); // plans, blocks and payouts follow; fire-and-forget like go('log')
+        this.openNewEntry({ keepMonth: true });
+        this.showToast(`Deleted ${dateIso}`, 'neutral');
         await this.loadDashboard();
-        this.go('days');
       } catch (e) { this.error = e.message; }
     },
 
@@ -1795,14 +1951,17 @@ function app() {
     daysRows() {
       const entries = this.sortedEntries();
       if (this.sortKey !== 'date') return entries.map(e => ({ kind: 'entry', key: e.date, e }));
-      const totals = {};
+      const totals = {}, weeks = {}, mondayOf = {};
       for (const e of entries) {
         const ym = e.date.slice(0, 7);
         const m = (totals[ym] ||= { count: 0, net: 0, target: 0, surplus: 0 });
         m.count++; m.net += e.net_hours; m.target += e.target_hours; m.surplus += e.surplus_hours;
+        const monday = (mondayOf[e.date] = this._mondayIso(new Date(e.date + 'T12:00:00')));
+        const w = (weeks[monday] ||= { count: 0, net: 0, target: 0, surplus: 0 });
+        w.count++; w.net += e.net_hours; w.target += e.target_hours; w.surplus += e.surplus_hours;
       }
       const rows = [];
-      let current = null;
+      let current = null, currentWeek = null;
       for (const e of entries) {
         const ym = e.date.slice(0, 7);
         if (ym !== current) {
@@ -1817,7 +1976,20 @@ function app() {
             surplus: Math.round(m.surplus * 100) / 100,
           });
         }
-        rows.push({ kind: 'entry', key: e.date, e });
+        const monday = mondayOf[e.date];
+        if (monday !== currentWeek) {
+          currentWeek = monday;
+          const w = weeks[monday];
+          rows.push({
+            kind: 'wk', key: 'wk-' + monday, week: monday,
+            id: this.weekId(monday), range: this._weekRange(monday),
+            count: w.count,
+            net: Math.round(w.net * 100) / 100,
+            target: Math.round(w.target * 100) / 100,
+            surplus: Math.round(w.surplus * 100) / 100,
+          });
+        }
+        rows.push({ kind: 'entry', key: e.date, e, week: monday });
       }
       return rows;
     },
@@ -1879,6 +2051,12 @@ function app() {
       return 1 + Math.round((d - jan4) / (7 * 86400000));
     },
     _shortDay(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); },
+    // "Nov 2 – 8", or "Oct 26 – Nov 1" across a month end
+    _weekRange(mondayIso) {
+      const sunday = this._addDaysIso(mondayIso, 6);
+      const end = mondayIso.slice(5, 7) === sunday.slice(5, 7) ? String(Number(sunday.slice(8))) : this._shortDay(sunday);
+      return `${this._shortDay(mondayIso)} – ${end}`;
+    },
     _addDaysIso(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return this._dateIso(d); },
     // "W44"
     weekId(mondayIso) { return 'W' + String(this.isoWeekNo(mondayIso)).padStart(2, '0'); },
@@ -2055,13 +2233,18 @@ function app() {
     },
     // From the Log card to that week in Days > Freelance, opened and in view.
     async openWeekInDays(p) {
-      this.daysWeekOpen = { ...this.daysWeekOpen, [p.week_start]: true };
+      const year = this.daysYear !== 'all' && this.daysYear !== p.week_start.slice(0, 4) ? p.week_start.slice(0, 4) : this.daysYear;
+      await this._openFlWeek(p.week_start, [p.source_id], year);
+    },
+    // Days > Freelance with the week of `monday` opened and in view, its sources ticked.
+    async _openFlWeek(monday, sourceIds, year) {
+      this.daysWeekOpen = { ...this.daysWeekOpen, [monday]: true };
       this.daysMode = 'freelance';
       this._daysSourcesReady();
-      if (!this.daysSources.includes(p.source_id)) this.daysSources = [...this.daysSources, p.source_id];
-      if (this.daysYear !== 'all' && this.daysYear !== p.week_start.slice(0, 4)) this.daysYear = p.week_start.slice(0, 4);
+      for (const id of sourceIds) if (!this.daysSources.includes(id)) this.daysSources = [...this.daysSources, id];
+      this.daysYear = year;
       await this.go('days');
-      this.$nextTick(() => document.getElementById('wk-' + p.week_start)?.scrollIntoView({ block: 'center' }));
+      this.$nextTick(() => document.getElementById('wk-' + monday)?.scrollIntoView({ block: 'center' }));
     },
     // A block's row opens its day in Log with the block in the editor.
     async openBlockInLog(b) {

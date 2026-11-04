@@ -8,15 +8,17 @@
   <link rel="icon" href="/static/icon.png">
   <link rel="apple-touch-icon" href="/static/icon.png">
   <meta name="theme-color" content="#1a1d22">
+  <!-- The build this page loaded; the update check compares it with GET /api/version -->
+  <meta name="kronos-build" content="{{ build }}">
   <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Kronos">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/vendor/pico.min.css?v={{ vendor_v }}">
-  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/styles.css?v={{ build }}">
   <!-- Apply persisted theme before first paint to avoid flash -->
   <script>(function(){var t=localStorage.getItem('k-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/app.js?v={{ build }}" defer></script>
   <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
 <body>
@@ -30,7 +32,15 @@
     <div class="brand">
       <img src="/static/icon.png" alt="" class="brand-logo">
       <div>
-        <h1>Kronos</h1>
+        <div class="brand-line">
+          <h1>Kronos</h1>
+          <span class="brand-ver" title="build {{ build }}">v{{ app_version }}</span>
+          <!-- Shown when the server runs a newer build than this page loaded; never reloads by itself -->
+          <span class="update-slot" aria-live="polite">
+            <button type="button" class="update-pill" x-show="updateReady" x-cloak @click="applyUpdate()"
+                    :title="newVersion ? 'Kronos v' + newVersion + ' is ready' : 'A newer Kronos is ready'">Update ready — Reload</button>
+          </span>
+        </div>
         <p class="subtitle" x-text="subtitle">&nbsp;</p>
       </div>
     </div>

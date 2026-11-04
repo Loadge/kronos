@@ -317,8 +317,21 @@
           </tr>
         </thead>
         <template x-for="r in daysRows()" :key="r.key">
-          <tbody :id="r.kind === 'entry' ? 'day-row-' + r.e.date : null"
-                 :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor }">
+          <tbody :id="r.kind === 'entry' ? 'day-row-' + r.e.date : (r.kind === 'wk' ? 'eweek-' + r.week : null)"
+                 :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor, 'week-flash': !!r.week && r.week === daysFlashWeek }">
+            <template x-if="r.kind === 'wk'">
+              <tr class="week-sep">
+                <td colspan="12">
+                  <span class="week-sep-name" x-text="r.id"></span>
+                  <span class="week-sep-range" x-text="r.range"></span>
+                  <span class="week-sep-sum metric">
+                    <span x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span> ·
+                    <b x-text="r.net + 'h'"></b> / <span x-text="r.target + 'h'"></span> ·
+                    <b :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></b>
+                  </span>
+                </td>
+              </tr>
+            </template>
             <template x-if="r.kind === 'sep'">
               <tr class="month-sep">
                 <td colspan="12">

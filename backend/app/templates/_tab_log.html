@@ -43,21 +43,35 @@
     <!-- ── Col 1: sticky calendar + bulk trigger ────────────────── -->
     <div class="log-col-left">
       <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''" :aria-label="calMonthLabel()">
-        <div class="log-cal-grid">
+        <div class="log-cal-grid has-wk">
+          <div class="log-cal-dow">Wk</div>
           <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
             <div class="log-cal-dow" x-text="h"></div>
           </template>
-          <template x-for="cell in calDays()" :key="cell.key">
-            <button type="button"
-                    class="log-cal-day"
-                    :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '', cell.fl ? 'has-fl' : '']"
-                    :style="cell.style"
-                    @click="calSelectDay(cell.date)"
-                    :disabled="cell.padded || !!editingDate"
-                    x-text="cell.padded ? '' : cell.day"
-                    :aria-label="cell.padded ? null : cell.date"
-                    :aria-pressed="cell.isSelected ? 'true' : 'false'">
-            </button>
+          <!-- one row per week: its ISO number (a button that opens the week in Days), then the 7 days -->
+          <template x-for="row in calWeeks()" :key="row.key">
+            <div class="log-cal-row">
+              <button type="button" class="log-cal-wk"
+                      :class="[row.isCurrent ? 'cur' : '', row.isSelected ? 'sel' : '']"
+                      @click="calOpenWeek(row.monday)"
+                      :disabled="!row.has"
+                      x-text="row.no"
+                      :aria-label="row.label"
+                      :title="row.title">
+              </button>
+              <template x-for="cell in row.cells" :key="cell.key">
+                <button type="button"
+                        class="log-cal-day"
+                        :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '', cell.fl ? 'has-fl' : '']"
+                        :style="cell.style"
+                        @click="calSelectDay(cell.date)"
+                        :disabled="cell.padded || !!editingDate"
+                        x-text="cell.padded ? '' : cell.day"
+                        :aria-label="cell.padded ? null : cell.date"
+                        :aria-pressed="cell.isSelected ? 'true' : 'false'">
+                </button>
+              </template>
+            </div>
           </template>
         </div>
         <div class="heatmap-legend log-cal-legend">
@@ -79,11 +93,10 @@
       </div>
     </div>
 
-    <!-- ── Card surface: form (col 2) + notes (col 3) ───────────── -->
+    <!-- ── Card surface: form (col 2) + the day's result rail (col 3, wide screens) ── -->
     <div class="log-form-card">
       <div class="card-title">
         <h3><span aria-hidden="true">👔</span> Employee</h3>
-        <span class="hint muted">the day for the job — target, balance, timesheet</span>
       </div>
       <form class="log-form-grid" @submit.prevent="saveEntry()">
 
@@ -150,7 +163,7 @@
           </template>
 
           <template x-if="formHasTimes()">
-            <div>
+            <div class="log-times">
               <hr class="log-section-divider">
 
               <!-- Start / End time — Now pill lives in the label row -->
@@ -206,6 +219,27 @@
             </div>
           </template>
 
+          <!-- Notes: optional, one button that opens one textarea in place (like "+ Add break").
+               The textarea is always in the DOM and only shown with x-show; a day that has
+               notes is always open. -->
+          <div class="log-notes">
+            <button type="button" class="secondary outline"
+                    x-show="!notesShown()" @click="openNotes()">+ Add note</button>
+            <div class="log-notes-block" x-show="notesShown()">
+              <div class="log-notes-inner">
+                <div class="notes-header">
+                  <span class="notes-label-text">Notes</span>
+                  <span class="char-count" x-text="(form.notes || '').length + ' chars'"></span>
+                </div>
+                <textarea x-model="form.notes" x-ref="notes" rows="2" aria-label="Notes"
+                          placeholder="anything worth remembering about this day"
+                          @input="notesOpen = true; autosizeNotes($el)"
+                          @blur="closeNotesIfEmpty($event)"
+                          @keydown.escape="closeNotesIfEmpty()"></textarea>
+              </div>
+            </div>
+          </div>
+
           <!-- Save as template — collapsible, only for new work entries -->
           <template x-if="form.day_type === 'work' && !editingDate">
             <details class="save-template-section">
@@ -223,6 +257,11 @@
             </details>
           </template>
 
+        </div><!-- /log-col-center -->
+
+        <!-- ── Rail: the day's result and the primary action. Beside the form from
+             1100px (sticky), a plain block after it below. ──────────────────────── -->
+        <div class="log-col-rail">
           <!-- Impact preview -->
           <div class="impact-card" x-show="logPreview()" x-transition.duration.200ms>
             <div class="impact-cell">
@@ -235,20 +274,18 @@
             </div>
             <div class="impact-cell">
               <span class="impact-label">Δ</span>
-              <span class="impact-value"
+              <span class="impact-value impact-delta"
                     :class="surplusClass(logPreview()?.surplus_hours)"
+                    x-effect="pulse($el, logPreview()?.surplus_hours)"
                     x-text="formatSurplus(logPreview()?.surplus_hours)"></span>
+            </div>
+            <div class="impact-bar" aria-hidden="true">
+              <div class="impact-fill" :class="(logPreview()?.surplus_hours ?? 0) > 0.01 ? 'is-over' : ''"
+                   :style="'width:' + impactPct() + '%'"></div>
             </div>
           </div>
 
-          <!-- Notes — mobile only (col-3 panel takes over on desktop) -->
-          <label class="log-notes-inline">
-            Notes <span class="muted" style="font-size:0.75em">(optional)</span>
-            <textarea x-model="form.notes" rows="3"
-                      placeholder="anything worth remembering about this day"></textarea>
-          </label>
-
-          <!-- Primary CTA — pinned to bottom of this column -->
+          <!-- Primary CTA -->
           <div class="form-footer">
             <button type="submit" class="log-submit-btn"
                     x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
@@ -257,18 +294,7 @@
                       @click="deleteEntry(editingDate)">Delete</button>
             </template>
           </div>
-        </div><!-- /log-col-center -->
-
-        <!-- ── Notes column (desktop col 3) ───────────────────── -->
-        <div class="log-col-notes">
-          <div class="notes-header">
-            <span class="notes-label-text">Notes</span>
-            <span class="char-count" x-text="(form.notes || '').length + ' chars'"></span>
-          </div>
-          <textarea x-model="form.notes"
-                    placeholder="anything worth remembering about this day…"
-                    aria-label="Notes"></textarea>
-        </div>
+        </div><!-- /log-col-rail -->
 
       </form>
     </div><!-- /log-form-card -->
@@ -281,7 +307,6 @@
       <div class="fl-card" data-testid="freelance-panel" :class="flForm.id ? 'fl-card--editing' : ''">
         <div class="card-title fl-head">
           <h3><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</h3>
-          <span class="hint muted">blocks with their own rate — never the job's balance</span>
           <template x-if="flDayTotal()">
             <span class="fl-total metric" :key="flDayTotal().hours + '-' + flDayTotal().eur">
               <span x-text="fmtHours(flDayTotal().hours)"></span> · <b x-text="flDayTotal().eur > 0 || !flDayTotal().missing ? fmtMoney(flDayTotal().eur) : 'no rate yet'"></b>
