@@ -3344,24 +3344,7 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 }
 .save-ribbon .ribbon-action:hover { background: color-mix(in srgb, currentColor 15%, transparent); }
 
-/* ── Days: Employee · ⚡ Freelance sub-tabs, the source filter bar, the blocks table ── */
-.subtabs { display: flex; gap: 0; border-bottom: 1px solid var(--k-border); margin: -0.25rem 0 1rem; }
-.subtabs a {
-  padding: 0.4rem 1rem;
-  color: var(--k-muted);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  font-variant: small-caps;
-  letter-spacing: 0.06em;
-  font-size: 1rem;
-  cursor: pointer;
-  user-select: none;
-  transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
-}
-.subtabs a:hover { color: var(--k-text); }
-.subtabs a.on { color: var(--k-brass); border-bottom-color: var(--k-brass); }
-.subtabs a .metric { font-variant: normal; letter-spacing: 0; font-size: 0.76rem; color: var(--k-muted); margin-left: 0.4rem; }
+/* ── Days · ⚡ Freelance: the source filter bar, the blocks table ── */
 .fbar { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1rem; margin-bottom: 1rem; animation: settings-swap 0.3s ease backwards; }
 .frows { border: 1px solid var(--k-border); border-radius: 6px; background: var(--k-surface); padding: 0.3rem 0.9rem; }
 .frow,
@@ -3387,7 +3370,6 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .frow-head a { cursor: pointer; }
 .frow-name { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
 .frow-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.subtabs a .metric { white-space: nowrap; }
 .ftot {
   border: 1px solid color-mix(in srgb, var(--k-coin) 35%, var(--k-border));
   border-radius: 6px;
@@ -3493,7 +3475,6 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .fbar { grid-template-columns: 1fr; }
   .frow, .frows label.frow:has([type="checkbox"]) { grid-template-columns: auto auto minmax(0, 1fr) 40px 56px 72px; gap: 0.4rem; font-size: 0.8rem; }
   .frow .n { font-size: 0.72rem; }
-  .subtabs a { padding: 0.4rem 0.6rem; font-size: 0.9rem; }
 }
 
 /* ── the dashboard card ────────────────────────────────────────── */
@@ -3905,7 +3886,9 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .calc-link-inline { white-space: nowrap; cursor: pointer; }
 @media (max-width: 640px) {
   .page-head-title h2 { font-size: 1.45rem; }
-  .page-head-controls { margin-left: 0; }
+  .page-head-controls { margin-left: 0; width: 100%; }
+  /* the controls row spans the head, so the year still sits at the right edge as on a wide screen */
+  .page-head-controls .year-step { margin-left: auto; }
 }
 
 /* Year at a glance, pinned: a compact copy fixed at the top once the full year has scrolled

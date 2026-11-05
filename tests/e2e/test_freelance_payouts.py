@@ -80,9 +80,9 @@ def _wait_payouts(base_url: str, n: int, timeout=5.0) -> list[dict]:
 
 def _open_days_freelance(page, base_url: str) -> None:
     page.goto(f"{base_url}/#days")
-    page.wait_for_selector(".subtabs", timeout=5000)
+    page.wait_for_selector(".page-head .hm-switch", timeout=5000)
     page.evaluate("Alpine.$data(document.querySelector('main')).daysYear = 'all'")
-    page.locator(".subtabs a").nth(1).click()
+    page.locator(".page-head .hm-switch button").nth(1).click()
     page.wait_for_selector("[data-testid='days-freelance']", timeout=3000)
 
 

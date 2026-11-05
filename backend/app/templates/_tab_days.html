@@ -12,6 +12,13 @@
         </template>
       </div>
       <button type="button" class="head-btn pdf-btn" @click="openPdfModal()" :title="daysMode === 'freelance' ? 'Printable freelance timesheet' : 'Printable timesheet'" x-text="daysMode === 'freelance' ? '⚡ PDF' : 'PDF'"></button>
+      <!-- 👔 Employee · ⚡ Freelance, the same pill as Analytics, just left of the year — only once an income source exists. -->
+      <template x-if="hasFreelance()">
+        <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Days of">
+          <button type="button" role="radio" :aria-checked="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click="setDaysMode('employee')"><span aria-hidden="true">👔</span> Employee</button>
+          <button type="button" role="radio" :aria-checked="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click="setDaysMode('freelance')">⚡ Freelance</button>
+        </div>
+      </template>
       <!-- the year, or every year -->
       <button type="button" class="year-all" :class="daysYear === 'all' ? 'on' : ''" @click="daysToggleAll()" :aria-pressed="daysYear === 'all' ? 'true' : 'false'" title="Every year">All</button>
       <nav class="year-step" :class="daysYear === 'all' ? 'is-off' : ''" aria-label="Days year">
@@ -21,14 +28,6 @@
       </nav>
     </div>
   </header>
-
-  <!-- 👔 Employee · ⚡ Freelance — only once an income source exists. -->
-  <template x-if="hasFreelance()">
-    <div class="subtabs" role="tablist" aria-label="Days of">
-      <a role="tab" :aria-selected="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click.prevent="setDaysMode('employee')"><span aria-hidden="true">👔</span> Employee</a>
-      <a role="tab" :aria-selected="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click.prevent="setDaysMode('freelance')"><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</a>
-    </div>
-  </template>
 
   <!-- Timesheet picker: builds a /timesheet URL and opens it in a new tab -->
   <template x-if="pdfModal.open">

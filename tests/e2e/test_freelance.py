@@ -464,6 +464,18 @@ class TestLogStrip:
 
 
 class TestDaysFreelance:
+    def test_the_year_stays_at_the_right_edge_on_a_phone(self, page, base_url):
+        _source(base_url, "Local", 60, "EUR")
+        page.set_viewport_size({"width": 375, "height": 800})
+        for tab in ("days", "analytics"):
+            page.goto(f"{base_url}/#{tab}")
+            page.wait_for_selector(".page-head .hm-switch", timeout=5000)
+            yr = page.locator(".page-head .year-step").bounding_box()
+            head = page.locator(".page-head").bounding_box()
+            # the year selector ends at the head's right edge, even when the head wraps and the
+            # year lands on a row of its own
+            assert (head["x"] + head["width"]) - (yr["x"] + yr["width"]) < 2, (tab, yr, head)
+
     def test_subtabs_source_filter_totals_and_the_pdf_picker(self, page, base_url):
         usd = _source(base_url, "Northwind", 95, "USD")
         eur = _source(base_url, "Local", 60, "EUR")
@@ -483,11 +495,26 @@ class TestDaysFreelance:
                 },
             )
         page.goto(f"{base_url}/#days")
-        page.wait_for_selector(".subtabs", timeout=5000)
-        tabs = page.locator(".subtabs a")
-        # the tabs are named, not counted (the counts were noise); 👔 and ⚡ mark the two lives
+        page.wait_for_selector(".page-head .hm-switch", timeout=5000)
+        tabs = page.locator(".page-head .hm-switch button")
+        # named, not counted (the counts were noise); 👔 and ⚡ mark the two lives
         assert tabs.nth(0).inner_text().strip() == "👔 Employee"
         assert tabs.nth(1).inner_text().strip() == "⚡ Freelance"
+        # the switch is the Analytics pill, in the head, just left of the year selector, and the
+        # old strip under the title is gone
+        assert page.locator(".subtabs").count() == 0
+        sw = page.locator(".page-head .hm-switch").bounding_box()
+        yr = page.locator(".page-head .year-all").bounding_box()
+        assert sw["x"] + sw["width"] <= yr["x"] and abs(sw["y"] - yr["y"]) < 20
+        page.goto(f"{base_url}/#analytics")
+        page.wait_for_selector(".page-head .hm-switch", timeout=5000)
+        sw2 = page.locator(".page-head .hm-switch").bounding_box()
+        yr2 = page.locator(".page-head .year-step").bounding_box()
+        assert sw2["x"] + sw2["width"] <= yr2["x"]
+        # same height in the head on both pages: the switch does not move when you change page
+        assert abs(sw2["y"] - sw["y"]) < 2, (sw, sw2)
+        page.goto(f"{base_url}/#days")
+        page.wait_for_selector(".page-head .hm-switch", timeout=5000)
         assert page.locator(".days-table .day-row").count() == 1  # the employee table
         tabs.nth(1).click()
         page.wait_for_selector("[data-testid='days-freelance']", timeout=3000)
