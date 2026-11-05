@@ -96,7 +96,7 @@ class TestSaveAndDisplay:
         times = page.locator("input[type='time']")
         times.nth(0).fill("09:00")
         times.nth(1).fill("13:00")
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
         page.get_by_role("tab", name="Days").click()

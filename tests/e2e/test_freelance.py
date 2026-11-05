@@ -88,7 +88,7 @@ class TestOffUntilASourceExists:
         page.keyboard.press("f")
         page.wait_for_url("**/#freelance", timeout=3000)
         page.wait_for_selector(".fl-empty", timeout=3000)
-        page.locator(".fl-empty a[role='button']").click()
+        page.locator(".fl-empty a").click()
         page.wait_for_selector("#settings-sources", timeout=5000)
 
     def test_first_source_from_settings_unlocks_the_tab(self, page, base_url):
@@ -266,7 +266,7 @@ class TestFreelanceTab:
         proj.locator("input[aria-label='Planned hours a week']").fill("5")
         proj.locator("input[aria-label='Planned hours a week']").dispatch_event("change")
         page.wait_for_function(
-            "() => document.querySelector('[data-testid=fl-projection]').innerText"
+            "() => document.querySelector('[data-testid=fl-projection]').title"
             ".includes('still to bill')",
             timeout=5000,
         )
@@ -274,7 +274,8 @@ class TestFreelanceTab:
             assert c.get("/api/config").json()["freelance_hours_per_week"] == 5
 
         # the calculator: the side-job anchor — $100/h, 2 h a day, 220 days, 55,000 salary,
-        # 600 gestoría at 1.1172 -> 19,938.23 net (tests/unit/test_tax.py, by hand)
+        # 600 gestoría at 1.1172 -> 19,938.23 net (tests/unit/test_tax.py, by hand). The calculator
+        # writes Spanish decimals (€19.938,23), the rest of the app €19,938.23.
         calc = page.locator("[data-testid='fl-calc']")
         calc.locator(".seg-toggle[aria-label='Currency'] button", has_text="USD").click()
         calc.locator("input[aria-label='Exchange rate']").fill("1.1172")
@@ -285,15 +286,16 @@ class TestFreelanceTab:
         calc.locator("input[aria-label='Other expenses']").fill("0")
         calc.locator("input[aria-label='Hourly rate']").fill("100")
         page.wait_for_function(
-            "() => document.querySelector('[data-testid=calc-net]')?.innerText === '€19,938.23'",
+            "() => document.querySelector('[data-testid=calc-net]')?.innerText === '€19.938,23'",
             timeout=5000,
         )
         assert calc.locator("input[aria-label='Daily rate']").input_value() == "200"
         out = calc.locator(".calc-out").inner_text()
-        assert "€13,410.64" in out  # the IRPF
-        assert "4 × €1,584.07" in out  # the 130, four times (6336.29 / 4)
-        assert "€7,074.36" in out  # the Renta
-        assert "€1,562.23" in out  # the pluriactividad refund
+        assert "€13.410,64" in out  # the IRPF
+        assert "4 × €1.584,07" in out  # the 130, four times (6336.29 / 4)
+        assert "€7.074,36" in out  # the Renta
+        assert "€1.562,23" in out  # the pluriactividad refund
+        assert "€19.938,23" in out and "€19,938.23" not in out  # one style inside the calculator
         assert "check with an adviser" in out
         assert calc.locator(".calc-seg--net").count() == 1
         # net drives the rate back: the full-time anchor (8 h, no salary) from its net
@@ -365,7 +367,9 @@ class TestAnalytics:
             "() => document.querySelectorAll('.an-bar-fl').length === 1", timeout=3000
         )
         assert "€240" in page.locator(".an-bar-lbl").text_content()
-        assert page.locator(".an-export a", has_text="Freelance CSV").count() == 1
+        # the freelance export is a pill in the head, not a block at the bottom
+        head = page.locator(".page-head .page-head-controls")
+        assert head.get_by_role("button", name="⚡ Freelance CSV", exact=True).count() == 1
 
     def test_heatmap_tooltip_escapes_the_source_name(self, page, base_url):
         d = datetime.date(YEAR, 3, 6)
@@ -663,7 +667,7 @@ class TestHeadsAndShortcuts:
         _source(base_url)
         page.goto(f"{base_url}/#freelance")
         page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
-        page.locator(".calc-head .head-btn", has_text="Freelance options").click()
+        page.locator(".page-head .head-btn", has_text="Freelance options").click()
         page.wait_for_url("**/#settings", timeout=3000)
         page.wait_for_selector("#settings-taxes", timeout=3000)
         assert "Freelance" in page.locator(".settings-head h2").inner_text()
@@ -682,3 +686,77 @@ class TestHeadsAndShortcuts:
         )
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/freelance/tax-years/{YEAR}").json()["salary_annual"] == 55000
+
+
+# ── the shared page rules on Freelance and Plan ─────────────────────
+
+
+class TestUiConsistency:
+    def test_exports_live_in_the_head_and_the_calculator_head_is_lean(self, page, base_url):
+        _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        head = page.locator("section .page-head").first
+        pills = [t.strip() for t in head.locator(".head-btn").all_inner_texts()]
+        assert "⚡ Freelance CSV" in pills and "⚡ Payouts CSV" in pills
+        for pill in head.locator("a.head-btn").all():
+            assert pill.get_attribute("download") is not None
+            assert pill.get_attribute("role") == "button"
+        # no Export block at the bottom of the page
+        assert page.get_by_role("heading", name="Export").count() == 0
+        assert page.locator(".an-export").count() == 0
+        # the Calculator head: only "Start from this year", and the options live in the head
+        calc_head = page.locator(".calc-head")
+        assert [t.strip() for t in calc_head.locator("button").all_inner_texts()] == [
+            "Start from this year"
+        ]
+        assert "Freelance options" not in calc_head.inner_text()
+        assert page.get_by_text("Freelance options").count() == 1
+
+    def test_the_three_hints_are_gone_and_the_projection_keeps_its_figures(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date=TODAY.isoformat(), source_id=src, hours=2)
+        with httpx.Client(base_url=base_url) as c:
+            r = c.put("/api/config", json={"freelance_hours_per_week": 5})
+            assert r.status_code == 200, r.text
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        strip = page.locator("[data-testid='fl-projection']")
+        page.wait_for_function(
+            "() => !!document.querySelector('[data-testid=fl-projection]').title",
+            timeout=5000,
+        )
+        # the hero no longer repeats the year
+        assert "Billed" not in page.locator(".fl-hero .hero-label").inner_text()
+        # the sentence is not visible, its figures are in the title
+        assert "still to bill" not in strip.inner_text()
+        title = strip.get_attribute("title")
+        assert "still to bill over" in title and "weeks" in title and "/h" in title
+        # the Calculator hint
+        assert "hourly ⇄" not in page.locator("section").first.inner_text()
+        assert page.locator(".calc-head .an-hint").count() == 0
+
+    def test_page_level_titles_are_the_calculator_title(self, page, base_url):
+        _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-quarters']", timeout=5000)
+        modelo = page.locator(".fl-quarters .an-head > h2")
+        assert "Modelo 130" in modelo.inner_text()
+        assert page.locator(".fl-quarters h3").count() == 0
+
+        def size(loc):
+            return loc.evaluate("e => getComputedStyle(e).fontSize")
+
+        modelo_size = size(modelo)
+        assert modelo_size == size(page.locator(".calc-head > h2"))
+        # Plan: "Upcoming time off" follows the same rule
+        page.goto(f"{base_url}/#plan")
+        page.wait_for_selector(".plan-ledger", timeout=5000)
+        ledger = page.locator(".plan-ledger .an-head > h2")
+        assert "Upcoming time off" in ledger.inner_text()
+        assert page.locator(".plan-ledger h3").count() == 0
+        assert size(ledger) == modelo_size
+        # and its empty state is one short line
+        assert page.locator(".plan-ledger > p.muted").first.inner_text().strip() == (
+            "No time off yet."
+        )

@@ -5,6 +5,8 @@
     <div class="page-head-title"><h2><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</h2></div>
     <div class="page-head-controls">
       <button type="button" class="head-btn" @click="openFreelanceOptions()" title="Sources, taxes, projection, currency">⚙ Freelance options</button>
+      <a href="/api/freelance/export.csv" role="button" class="head-btn" download><span aria-hidden="true">⚡</span> Freelance CSV</a>
+      <a href="/api/freelance/payouts.csv" role="button" class="head-btn" download data-testid="payouts-csv"><span aria-hidden="true">⚡</span> Payouts CSV</a>
       <nav class="year-step" aria-label="Freelance year">
         <button type="button" @click="setFlYear(flYear - 1)" aria-label="Previous year">‹</button>
         <span class="year-step-v" x-text="flYear"></span>
@@ -17,8 +19,7 @@
   <template x-if="!hasFreelance()">
     <div class="fl-empty">
       <p class="fl-empty-bolt" aria-hidden="true">⚡</p>
-      <p>Freelance hours live next to the working day: blocks with their own rate, added from the Log tab, that never touch the employee's balance.</p>
-      <p><a @click.prevent="setSettingsGroup('freelance', 'sources'); go('settings')" href="#settings" class="btn-action" role="button">Add an income source</a></p>
+      <p>No income sources yet. <a @click.prevent="setSettingsGroup('freelance', 'sources'); go('settings')" href="#settings">Add one</a>.</p>
     </div>
   </template>
 
@@ -35,9 +36,8 @@
       <div class="hero fl-hero">
         <div class="hero-text">
           <div class="hero-label">
-            <span>Billed · <span x-text="flYear"></span></span>
             <span class="today-chip fl-aside-chip" :title="Math.round(flSummary.set_aside_share * 100) + '% of what the year billed, for the tax office'">
-              set aside <span x-text="fmtMoney0(flSummary.set_aside.year)"></span>
+              set aside <span x-text="fmtMoney(flSummary.set_aside.year)"></span>
             </span>
           </div>
           <div class="hero-num metric fl-gross" aria-live="polite" data-testid="fl-gross">
@@ -48,8 +48,8 @@
             <div class="fl-split" data-testid="fl-split">
               <div class="fl-splitbar" aria-hidden="true"><i class="p" :style="'width:' + flSplitPct() + '%'"></i><i class="e" :style="'width:' + (100 - flSplitPct()) + '%'"></i></div>
               <div class="fl-splitline metric">
-                <span x-show="flSummary.total.paid_out_eur > 0"><i class="fl-sw paid"></i><b x-text="fmtMoney0(flSummary.total.paid_out_eur)"></b> paid out</span>
-                <span x-show="flSummary.total.estimated_eur > 0"><i class="fl-sw est"></i><b x-text="fmtMoney0(flSummary.total.estimated_eur)"></b> estimated</span>
+                <span x-show="flSummary.total.paid_out_eur > 0"><i class="fl-sw paid"></i><b x-text="fmtMoney(flSummary.total.paid_out_eur)"></b> paid out</span>
+                <span x-show="flSummary.total.estimated_eur > 0"><i class="fl-sw est"></i><b x-text="fmtMoney(flSummary.total.estimated_eur)"></b> estimated</span>
               </div>
             </div>
           </template>
@@ -70,7 +70,7 @@
               <span class="fl-src-chip" :style="'--src:' + sourceColor(s.source_id)" :title="fmtHours(s.hours) + ' · ' + fmtMoney(s.amount, s.currency)">
                 <span class="fl-dot" aria-hidden="true"></span>
                 <span x-text="s.name"></span>
-                <b class="metric" x-text="fmtMoney0(s.gross_eur)"></b>
+                <b class="metric" x-text="fmtMoney(s.gross_eur)"></b>
               </span>
             </template>
           </div>
@@ -85,19 +85,12 @@
 
       <!-- ── The year to Dec 31, as a strip: the two inputs, the basis, where each euro goes,
            eight tiles. Nothing tall, so the 130 and the Calculator follow without a hole. ── -->
-      <div class="fl-ystrip" data-testid="fl-projection">
+      <div class="fl-ystrip" data-testid="fl-projection" :title="flSummary.projection.planned_hours > 0 ? fmtHours(flSummary.projection.planned_hours) + ' still to bill over ' + flSummary.projection.weeks_left + ' weeks' + (flSummary.projection.rate_eur ? ' at ' + fmtMoney(flSummary.projection.rate_eur) + '/h (' + (flSummary.projection.rate_basis === 'realised' ? 'realised so far' : 'the default source') + ')' : '') : null">
         <div class="fl-ystrip-head">
           <h3>The year to Dec 31</h3>
-          <span class="hint muted fl-plan-basis">
-            <template x-if="flSummary.projection.planned_hours > 0">
-              <span><b x-text="fmtHours(flSummary.projection.planned_hours)"></b> still to bill over <span x-text="flSummary.projection.weeks_left"></span> weeks
-                <template x-if="flSummary.projection.rate_eur"><span>at <span x-text="fmtMoney(flSummary.projection.rate_eur)"></span>/h <span x-text="flSummary.projection.rate_basis === 'realised' ? '(realised so far)' : '(the default source)'"></span></span></template>
-              </span>
-            </template>
-            <template x-if="!(flSummary.projection.planned_hours > 0)">
-              <span>Nothing planned beyond what is billed — set hours a week to project.</span>
-            </template>
-          </span>
+          <template x-if="!(flSummary.projection.planned_hours > 0)">
+            <span class="hint muted fl-plan-basis">Nothing planned beyond what is billed — set hours a week to project.</span>
+          </template>
           <span class="fl-plan-inputs">
             <label>
               <input type="number" class="ctl-num" x-model.number="settingsForm.freelance_hours_per_week" min="0" max="168" step="0.5" @change="flSaveProjection()" aria-label="Planned hours a week">
@@ -120,7 +113,7 @@
         <div class="fl-tiles">
           <div class="fl-tile fl-tile--gross"><span>Gross</span><b class="metric" x-text="fmtMoney(flSummary.projection.figures.gross)"></b></div>
           <div class="fl-tile"><span>Expenses</span><b class="metric" x-text="'−' + fmtMoney(flSummary.projection.figures.expenses)"></b></div>
-          <div class="fl-tile"><span x-text="'RETA · tramo ' + flSummary.projection.figures.reta_tramo + (flSummary.projection.figures.tarifa_plana ? ' · flat' : '') + ' · ' + fmtMoney0(flSummary.projection.figures.reta_monthly) + '/mo'"></span><b class="metric" x-text="'−' + fmtMoney(flSummary.projection.figures.reta_annual)"></b></div>
+          <div class="fl-tile"><span x-text="'RETA · tramo ' + flSummary.projection.figures.reta_tramo + (flSummary.projection.figures.tarifa_plana ? ' · flat' : '') + ' · ' + fmtMoney(flSummary.projection.figures.reta_monthly) + '/mo'"></span><b class="metric" x-text="'−' + fmtMoney(flSummary.projection.figures.reta_annual)"></b></div>
           <div class="fl-tile"><span x-text="'IRPF · ' + pct(flSummary.projection.figures.irpf_effective)"></span><b class="metric" x-text="'−' + fmtMoney(flSummary.projection.figures.irpf)"></b></div>
           <div class="fl-tile"><span>Refund · next year</span><b class="metric" :class="flSummary.projection.figures.reintegro > 0 ? 'surplus' : 'muted'" x-text="flSummary.projection.figures.reintegro > 0 ? '+' + fmtMoney(flSummary.projection.figures.reintegro) : '—'"></b></div>
           <div class="fl-tile fl-tile--net"><span>Net</span><b class="metric" :class="flSummary.projection.figures.net < 0 ? 'deficit' : 'surplus'" x-text="fmtMoney(flSummary.projection.figures.net)"></b></div>
@@ -128,7 +121,7 @@
           <div class="fl-tile"><span>Keeps of each €</span><b class="metric" x-text="pct(flSummary.projection.figures.net_share, 0)"></b></div>
         </div>
         <p class="muted fl-disclaimer">
-          <template x-if="flSummary.tax_inputs.salary_annual > 0"><span>On top of a <span x-text="fmtMoney0(flSummary.tax_inputs.salary_annual)"></span> salary · </span></template>
+          <template x-if="flSummary.tax_inputs.salary_annual > 0"><span>On top of a <span x-text="fmtMoney(flSummary.tax_inputs.salary_annual)"></span> salary · </span></template>
           <template x-if="flSummary.tax_inputs.inherited_from"><span>inputs from <span x-text="flSummary.tax_inputs.inherited_from"></span> · </span></template>
           <template x-if="flSummary.tax_inputs.is_default"><span>default inputs — <a @click.prevent="setSettingsGroup('freelance', 'taxes'); go('settings')" href="#settings">set this year's</a> · </span></template>
           <span x-text="flSummary.projection.figures.fiscal_year + ' rules, ' + flSummary.projection.figures.region"></span> · estimate: check with an adviser
@@ -137,8 +130,8 @@
 
       <!-- ── Modelo 130, quarter by quarter: four cards in a row ───────────── -->
       <div class="fl-quarters">
-        <div class="fl-sub-head">
-          <h3>Modelo 130 · the quarterly IRPF</h3>
+        <div class="section-header an-head">
+          <h2>Modelo 130 · the quarterly IRPF</h2>
           <span class="muted an-hint">20 % of the net yield since 1 January, less what earlier quarters paid</span>
         </div>
         <ol class="fl-rail" data-testid="fl-quarters">
@@ -168,9 +161,7 @@
       <!-- ── Calculator ──────────────────────────────────────────────────── -->
       <div class="section-header an-head calc-head" id="fl-calc">
         <h2>Calculator</h2>
-        <span class="muted an-hint">hourly ⇄ daily ⇄ net yearly — change one, the other two follow. Should you bill more, work less, is it worth it?</span>
         <span class="calc-head-btns">
-          <button type="button" class="head-btn" @click="openFreelanceOptions()" title="Change the salary, the expenses, the switches, the hours you plan — then come back">⚙ Freelance options</button>
           <button type="button" class="secondary outline compact an-reset" @click="calcFromYear()">Start from this year</button>
         </span>
       </div>
@@ -247,35 +238,35 @@
               <p class="deficit">No rate reaches that net.</p>
             </template>
             <!-- gross → expenses → RETA → IRPF → net -->
-            <div class="calc-fall" role="img" :aria-label="'Of ' + fmtMoney(calc.result.figures.gross) + ' gross: ' + fmtMoney(calc.result.figures.expenses) + ' expenses, ' + fmtMoney(calc.result.figures.reta_annual) + ' RETA, ' + fmtMoney(calc.result.figures.irpf) + ' IRPF, ' + fmtMoney(calc.result.figures.net) + ' net'">
+            <div class="calc-fall" role="img" :aria-label="'Of ' + calcMoney(calc.result.figures.gross) + ' gross: ' + calcMoney(calc.result.figures.expenses) + ' expenses, ' + calcMoney(calc.result.figures.reta_annual) + ' RETA, ' + calcMoney(calc.result.figures.irpf) + ' IRPF, ' + calcMoney(calc.result.figures.net) + ' net'">
               <template x-for="p in calcWaterfall()" :key="p.id">
-                <span class="calc-seg" :class="'calc-seg--' + p.id" :style="'width:' + p.pct + '%'" :title="p.label + ' · ' + fmtMoney(p.value) + ' · ' + p.pct + '%'">
+                <span class="calc-seg" :class="'calc-seg--' + p.id" :style="'width:' + p.pct + '%'" :title="p.label + ' · ' + calcMoney(p.value) + ' · ' + p.pct + '%'">
                   <span class="calc-seg-lbl" x-show="p.pct > 9" x-text="p.label + ' ' + Math.round(p.pct) + '%'"></span>
                 </span>
               </template>
             </div>
             <div class="calc-grid">
               <div class="calc-col">
-                <div class="an-lrow an-lrow--big"><span>Gross <span class="muted" x-text="calc.currency === 'USD' ? '· ' + fmtMoney(calc.result.gross, 'USD') : ''"></span></span><b class="metric" x-text="fmtMoney(calc.result.gross_eur)"></b></div>
-                <div class="an-lrow"><span x-text="calc.result.hours_year + ' h · ' + calc.result.billable_days + ' days'"></span><b class="metric" x-text="fmtMoney(calc.result.gross_eur / Math.max(1, calc.result.hours_year)) + '/h'"></b></div>
-                <div class="an-lrow"><span>Expenses</span><b class="metric" x-text="'−' + fmtMoney(calc.result.figures.expenses)"></b></div>
-                <div class="an-lrow"><span x-text="'RETA · tramo ' + calc.result.figures.reta_tramo + ' · base ' + fmtMoney0(calc.result.figures.reta_base) + (calc.result.figures.tarifa_plana ? ' · tarifa plana' : '')"></span><b class="metric" x-text="'−' + fmtMoney(calc.result.figures.reta_annual)"></b></div>
-                <div class="an-lrow"><span>Hard-to-justify expenses (5 %)</span><b class="metric" x-text="'−' + fmtMoney(calc.result.figures.hard_to_justify)"></b></div>
+                <div class="an-lrow an-lrow--big"><span>Gross <span class="muted" x-text="calc.currency === 'USD' ? '· ' + calcMoney(calc.result.gross, 'USD') : ''"></span></span><b class="metric" x-text="calcMoney(calc.result.gross_eur)"></b></div>
+                <div class="an-lrow"><span x-text="calc.result.hours_year + ' h · ' + calc.result.billable_days + ' days'"></span><b class="metric" x-text="calcMoney(calc.result.gross_eur / Math.max(1, calc.result.hours_year)) + '/h'"></b></div>
+                <div class="an-lrow"><span>Expenses</span><b class="metric" x-text="'−' + calcMoney(calc.result.figures.expenses)"></b></div>
+                <div class="an-lrow"><span x-text="'RETA · tramo ' + calc.result.figures.reta_tramo + ' · base ' + calcMoney(calc.result.figures.reta_base) + (calc.result.figures.tarifa_plana ? ' · tarifa plana' : '')"></span><b class="metric" x-text="'−' + calcMoney(calc.result.figures.reta_annual)"></b></div>
+                <div class="an-lrow"><span>Hard-to-justify expenses (5 %)</span><b class="metric" x-text="'−' + calcMoney(calc.result.figures.hard_to_justify)"></b></div>
                 <template x-if="calc.result.figures.startup_reduction > 0">
-                  <div class="an-lrow"><span>Start-up reduction</span><b class="metric" x-text="'−' + fmtMoney(calc.result.figures.startup_reduction)"></b></div>
+                  <div class="an-lrow"><span>Start-up reduction</span><b class="metric" x-text="'−' + calcMoney(calc.result.figures.startup_reduction)"></b></div>
                 </template>
-                <div class="an-lrow"><span>Net yield (the IRPF's base)</span><b class="metric" x-text="fmtMoney(calc.result.figures.taxable)"></b></div>
+                <div class="an-lrow"><span>Net yield (the IRPF's base)</span><b class="metric" x-text="calcMoney(calc.result.figures.taxable)"></b></div>
               </div>
               <div class="calc-col">
-                <div class="an-lrow"><span x-text="'IRPF · ' + pct(calc.result.figures.irpf_effective) + (calc.result.figures.salary > 0 ? ' on top of the salary' : '')"></span><b class="metric" x-text="'−' + fmtMoney(calc.result.figures.irpf)"></b></div>
-                <div class="an-lrow an-lrow--sub"><span>of which the 130, four times</span><b class="metric" x-text="'4 × ' + fmtMoney(calcQuarterly())"></b></div>
-                <div class="an-lrow an-lrow--sub"><span x-text="calc.result.figures.renta < 0 ? 'and the Renta returns' : 'and the Renta takes'"></span><b class="metric" x-text="fmtMoney(Math.abs(calc.result.figures.renta))"></b></div>
+                <div class="an-lrow"><span x-text="'IRPF · ' + pct(calc.result.figures.irpf_effective) + (calc.result.figures.salary > 0 ? ' on top of the salary' : '')"></span><b class="metric" x-text="'−' + calcMoney(calc.result.figures.irpf)"></b></div>
+                <div class="an-lrow an-lrow--sub"><span>of which the 130, four times</span><b class="metric" x-text="'4 × ' + calcMoney(calcQuarterly())"></b></div>
+                <div class="an-lrow an-lrow--sub"><span x-text="calc.result.figures.renta < 0 ? 'and the Renta returns' : 'and the Renta takes'"></span><b class="metric" x-text="calcMoney(Math.abs(calc.result.figures.renta))"></b></div>
                 <template x-if="calc.result.figures.reintegro > 0">
-                  <div class="an-lrow"><span>Pluriactividad refund · next year</span><b class="metric surplus" x-text="'+' + fmtMoney(calc.result.figures.reintegro)"></b></div>
+                  <div class="an-lrow"><span>Pluriactividad refund · next year</span><b class="metric surplus" x-text="'+' + calcMoney(calc.result.figures.reintegro)"></b></div>
                 </template>
-                <div class="an-lrow an-lrow--big"><span>Net a year</span><b class="metric" :class="calc.result.net < 0 ? 'deficit' : 'surplus'" x-text="fmtMoney(calc.result.net)" data-testid="calc-net"></b></div>
-                <div class="an-lrow"><span>Net a month</span><b class="metric" x-text="fmtMoney(calc.result.month.net_eur)"></b></div>
-                <div class="an-lrow"><span>Net per hour</span><b class="metric" x-text="fmtMoney(calc.result.net_per_hour_eur) + '/h'"></b></div>
+                <div class="an-lrow an-lrow--big"><span>Net a year</span><b class="metric" :class="calc.result.net < 0 ? 'deficit' : 'surplus'" x-text="calcMoney(calc.result.net)" data-testid="calc-net"></b></div>
+                <div class="an-lrow"><span>Net a month</span><b class="metric" x-text="calcMoney(calc.result.month.net_eur)"></b></div>
+                <div class="an-lrow"><span>Net per hour</span><b class="metric" x-text="calcMoney(calc.result.net_per_hour_eur) + '/h'"></b></div>
               </div>
             </div>
             <p class="muted fl-disclaimer">
@@ -286,12 +277,6 @@
           </div>
         </template>
       </div>
-
-      <h2 class="an-h2">Export</h2>
-      <p class="an-export">
-        <a href="/api/freelance/export.csv" role="button" class="secondary outline" download>Download freelance CSV</a>
-        <a href="/api/freelance/payouts.csv" role="button" class="secondary outline" download data-testid="payouts-csv">Download payouts CSV</a>
-      </p>
     </div>
   </template>
 </section>

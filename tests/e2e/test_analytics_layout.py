@@ -2,8 +2,8 @@
 
 WHY this test exists: "Year at a glance" is what the user checks daily, so it
 must lead, right after the header. "Records" and "Point-in-time" were sections
-the user never looked at: Records moved to the bottom (the last section before
-Export) and Point-in-time was removed outright — its API endpoint
+the user never looked at: Records moved to the bottom (the last section; the
+exports are pills in the page head) and Point-in-time was removed outright — its API endpoint
 (/api/analytics/cumulative) was deliberately kept, but the section and its
 date input must not come back.
 """
@@ -24,7 +24,6 @@ EXPECTED_ORDER = [
     "Daily surplus",
     "Years",
     "Records",
-    "Export",
 ]
 
 
@@ -193,8 +192,8 @@ class TestBalanceRow:
         _seed_year(base_url, freelance=True)
         self._open(page, base_url)
         section = page.locator("section[aria-label=Analytics]")
-        # only Records keeps its "for the range shown" hint
-        assert section.locator(".an-hint", has_text="for the range shown").count() == 1
+        # no hint line under Year at a glance or Records (they live in a title="" tooltip)
+        assert section.locator(".an-hint", has_text="for the range shown").count() == 0
         assert page.locator(".an-panel .an-hint").count() == 0
         assert page.locator(".an-panel .chart-caption").count() == 0
         assert "work days" not in page.locator(".an-panel").all_inner_texts()[1]

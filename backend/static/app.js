@@ -104,8 +104,8 @@ function app() {
     // Settings has two levels: three groups (Employee · Freelance · General), each a page of
     // cards with a section index; each section saves its own fields.
     SETTINGS_GROUPS: [
-      { id: 'employee',  label: 'Employee' },
-      { id: 'freelance', label: 'Freelance' },
+      { id: 'employee',  label: 'Employee',  mark: '👔' },
+      { id: 'freelance', label: 'Freelance', mark: '⚡' },
       { id: 'general',   label: 'General' },
     ],
     SETTINGS_SECTIONS: [
@@ -869,6 +869,11 @@ function app() {
     fmtHours(h) {
       return `${Math.round((Number(h) || 0) * 100) / 100}h`;
     },
+    // An exchange rate: four decimals, "1.1172".
+    fmtFx(n) { return (Number(n) || 0).toFixed(4); },
+    // The count-up of the Dashboard numbers: always two decimals while it runs, so it ends on
+    // what formatSurplus shows.
+    animText(n) { return (Number(n) || 0).toFixed(2); },
     // Day counts can be fractional (a 3h-off day is 0.62 work + 0.38 off).
     fmtDays(n) {
       return String(Math.round((Number(n) || 0) * 100) / 100);
@@ -3403,8 +3408,15 @@ function app() {
       if (n === null || n === undefined || isNaN(n)) return '—';
       return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
     },
-    // "€1,234" for captions and axes.
+    // "€1,234": only inside charts, where a label has no room for the cents. Everywhere else money
+    // reads "€1,289.71" (fmtMoney).
     fmtMoney0(n, currency = 'EUR') { return this.fmtMoney(n, currency, 0); },
+    // The Calculator speaks Spanish decimals, like its inputs do in an es browser: "€28.687,41".
+    calcMoney(n, currency = 'EUR') {
+      if (n === null || n === undefined || isNaN(n)) return '—';
+      const body = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }).format(Math.abs(n));
+      return `${n < 0 ? '-' : ''}${currency === 'USD' ? '$' : '€'}${body}`;
+    },
     // "+€170.07" / "−€12.00"
     fmtMoneySigned(n, currency = 'EUR') { return (n < 0 ? '−' : '+') + this.fmtMoney(Math.abs(n), currency); },
     pct(x, digits = 1) { return `${(Number(x) * 100).toFixed(digits)}%`; },

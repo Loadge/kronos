@@ -263,7 +263,7 @@ class TestGhostsElsewhere:
         page.wait_for_function(
             "() => document.querySelector('select')?.value === 'vacation'", timeout=5000
         )
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
         page.wait_for_function(

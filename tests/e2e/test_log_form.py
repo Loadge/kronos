@@ -95,7 +95,7 @@ class TestLogFormSubmission:
         time_inputs.nth(1).fill("17:00")
 
         # Submit
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
 
         # Saving keeps the user where they are: the confirmation is the toast.
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
@@ -109,7 +109,7 @@ class TestLogFormSubmission:
         _select_calendar_date(page, date_str)
         page.select_option("select", "vacation")
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
 

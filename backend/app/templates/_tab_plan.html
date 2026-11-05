@@ -129,9 +129,11 @@
 
     <!-- Ledger -->
     <div class="plan-ledger">
-      <h3>Upcoming time off <span class="muted plan-ledger-count" x-text="planYear"></span></h3>
+      <div class="section-header an-head">
+        <h2>Upcoming time off <span class="muted plan-ledger-count" x-text="planYear"></span></h2>
+      </div>
       <template x-if="!planLedger().length">
-        <p class="muted">Nothing drafted or logged ahead yet. Click days on the calendar to pencil in vacation, holidays or flex days.</p>
+        <p class="muted">No time off yet.</p>
       </template>
       <template x-if="planLedger().length">
         <table class="plan-table">
@@ -176,7 +178,7 @@
                 </td>
                 <td class="plan-actions">
                   <template x-if="b.kind === 'draft' || b.kind === 'overdue'">
-                    <button type="button" class="secondary outline compact plan-commit" :disabled="planBusy" @click="commitDraft(b)">Commit</button>
+                    <button type="button" class="btn-action plan-commit" :disabled="planBusy" @click="commitDraft(b)">Commit</button>
                   </template>
                   <template x-if="b.kind !== 'logged'">
                     <button type="button" class="plan-remove" :disabled="planBusy" @click="removeDraft(b.dates)"

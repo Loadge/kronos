@@ -163,8 +163,8 @@ class TestSettingsSections:
         page.wait_for_selector(".settings-index a", timeout=5000)
         groups = page.locator(".settings-group-btn")
         assert [t.split("\n")[0] for t in groups.all_inner_texts()] == [
-            "Employee",
-            "Freelance",
+            "👔 Employee",
+            "⚡ Freelance",
             "General",
         ]
         assert page.locator(
@@ -235,7 +235,7 @@ class TestSettingsSections:
         page.goto(f"{base_url}/#settings")
         page.wait_for_selector("#set-target", timeout=5000)
         page.locator(".target-schedule summary").click()
-        page.locator(".btn-action-ghost", has_text="Add a change").click()
+        page.locator(".target-schedule-actions button", has_text="Add a change").click()
         rows = page.locator(".target-schedule-row")
         assert rows.count() == 2
         rows.nth(1).locator("input[type='date']").fill("2026-06-01")

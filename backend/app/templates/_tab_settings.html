@@ -18,7 +18,7 @@
       <div class="settings-group" :class="settingsGroup === g.id ? 'open' : ''">
         <button type="button" class="settings-group-btn" @click="setSettingsGroup(g.id)"
                 :aria-expanded="settingsGroup === g.id ? 'true' : 'false'" :aria-current="settingsGroup === g.id ? 'true' : null">
-          <span x-text="g.label"></span>
+          <span><span aria-hidden="true" x-show="g.mark" x-text="g.mark"></span> <span x-text="g.label"></span></span>
         </button>
         <div class="settings-group-sections" x-show="settingsGroup === g.id">
           <template x-for="s in settingsSections(g.id)" :key="s.id">
@@ -32,7 +32,7 @@
   <div class="settings-dropdowns" aria-label="Settings sections (phone)">
     <select aria-label="Settings group" :value="settingsGroup" @change="setSettingsGroup($event.target.value)">
       <template x-for="g in SETTINGS_GROUPS" :key="g.id">
-        <option :value="g.id" x-text="g.label" :selected="settingsGroup === g.id"></option>
+        <option :value="g.id" x-text="(g.mark ? g.mark + ' ' : '') + g.label" :selected="settingsGroup === g.id"></option>
       </template>
     </select>
     <select aria-label="Settings section" :value="settingsActive" @change="settingsJump($event.target.value)">
@@ -126,7 +126,7 @@
             </div>
           </template>
           <div class="target-schedule-actions">
-            <button type="button" class="btn-action-ghost" @click="addTargetChange()">+ Add a change</button>
+            <button type="button" class="secondary outline compact" @click="addTargetChange()">+ Add a change</button>
             <span class="settings-saved" :class="settingsStatusCls('timeline')" x-text="settingsStatusText('timeline')" aria-live="polite"></span>
           </div>
         </div>
@@ -259,7 +259,7 @@
         </div>
       </div>
       <template x-if="templates.length === 0">
-        <p class="muted settings-empty">No templates yet — <a @click.prevent="go('log')" href="#log">log a day</a> and use "Save as template" below the form.</p>
+        <p class="muted settings-empty">No templates yet.</p>
       </template>
       <template x-for="t in templates" :key="t.id">
         <div class="template-item">
@@ -290,7 +290,7 @@
         </div>
       </div>
       <template x-if="sources.length === 0">
-        <p class="muted settings-empty">No sources yet. Add the first one below and the <strong>Freelance</strong> tab, the Log panel and the dashboard card appear.</p>
+        <p class="muted settings-empty">No sources yet. <a @click.prevent="$refs.srcName.focus()" href="#settings-sources">Add one</a>.</p>
       </template>
       <template x-for="s in sources" :key="s.id">
         <div class="src-item" :class="s.archived ? 'is-archived' : ''" :style="'--src:' + sourceColor(s.id)">
@@ -319,7 +319,7 @@
       <form class="src-form" @submit.prevent="srcSave()">
         <span class="fl-lbl" x-text="srcForm.id ? 'Edit source' : 'Add a source'"></span>
         <div class="src-form-row">
-          <input type="text" x-model="srcForm.name" placeholder="Client or activity" maxlength="100" aria-label="Source name" required>
+          <input type="text" x-ref="srcName" x-model="srcForm.name" placeholder="Client or activity" maxlength="100" aria-label="Source name" required>
           <input type="number" x-model="srcForm.hourly_rate" placeholder="rate" min="0.01" step="0.01" class="ctl-num" aria-label="Hourly rate" required>
           <select x-model="srcForm.currency" aria-label="Currency" class="src-cur">
             <option value="EUR">€ / h</option>

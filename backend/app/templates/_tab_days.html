@@ -96,7 +96,7 @@
             <template x-if="!settingsForm.profile_name"><span>Add your name under <a @click.prevent="pdfModal.open = false; go('settings')">Settings → Profile</a> to print it in the header.</span></template>
           </p>
           <div class="pdf-actions">
-            <button type="submit" class="log-submit-btn" :disabled="pdfModal.kind === 'freelance' && !daysSources.length" x-text="pdfModal.kind === 'freelance' ? 'Open freelance timesheet' : 'Open timesheet'"></button>
+            <button type="submit" class="btn-action btn-action--block" :disabled="pdfModal.kind === 'freelance' && !daysSources.length" x-text="pdfModal.kind === 'freelance' ? 'Open freelance timesheet' : 'Open timesheet'"></button>
           </div>
         </form>
       </div>
@@ -120,7 +120,7 @@
               <span class="frow-name"><span x-text="s.name"></span><template x-if="s.archived"><span class="src-tag">archived</span></template></span>
               <span class="n metric" x-text="s.blocks"></span>
               <span class="n metric" x-text="fmtHours(s.hours)"></span>
-              <span class="n metric" x-text="fmtMoney0(s.eur)"></span>
+              <span class="n metric" x-text="fmtMoney(s.eur)"></span>
             </label>
           </template>
         </div>
@@ -158,7 +158,7 @@
                       <span class="month-sep-sum metric">
                         <span x-text="r.count + (r.count === 1 ? ' block' : ' blocks')"></span> ·
                         <b x-text="fmtHours(r.hours)"></b> · <b class="fl-money" x-text="fmtMoney(r.eur)"></b>
-                        <template x-for="f in r.from" :key="f.id"><span class="muted" x-text="' · ' + fmtMoney0(f.eur) + ' of it from ' + f.id"></span></template>
+                        <template x-for="f in r.from" :key="f.id"><span class="muted" x-text="' · ' + fmtMoney(f.eur) + ' of it from ' + f.id"></span></template>
                       </span>
                     </td>
                   </tr>
@@ -173,7 +173,7 @@
                         <template x-if="r.current"><span class="wk-now">this week</span></template>
                         <template x-if="r.splits"><span class="wk-split" x-text="r.splits"></span></template>
                         <span class="wk-hh metric" x-text="fmtHours(r.hours)"></span>
-                        <span class="wk-mm metric fl-money" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney0(r.eur)"></span>
+                        <span class="wk-mm metric fl-money" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney(r.eur)"></span>
                         <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
                         <template x-if="r.awaiting"><span class="wk-await">awaiting payout</span></template>
                         <span class="wk-status" :class="payStatusCls(r.week)" x-text="payStatus(r.week)" aria-live="polite"></span>
@@ -200,14 +200,14 @@
                             <template x-if="l.payout && l.currency === 'USD'">
                               <span class="wk-fx metric">
                                 <template x-if="fxEditing !== l.payout.id">
-                                  <span><span x-text="l.payout.fx_rate ? '@ ' + l.payout.fx_rate.toFixed(4) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
+                                  <span><span x-text="l.payout.fx_rate ? '@ ' + fmtFx(l.payout.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
                                 </template>
                                 <template x-if="fxEditing === l.payout.id">
                                   <input type="text" inputmode="decimal" class="fxin metric" :value="l.payout.fx_rate || ''" x-init="$nextTick(() => $el.focus())"
                                     @keydown.enter.prevent="fxSave(l.payout, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(l.payout, $event.target.value)"
                                     :aria-label="'Exchange rate USD per EUR, ' + l.source.name + ' ' + r.id">
                                 </template>
-                                <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney0(l.payout.amount_eur)"></span>
+                                <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney(l.payout.amount_eur)"></span>
                               </span>
                             </template>
                           </span>
@@ -286,7 +286,7 @@
 
   <!-- empty state: only shown once loading is done -->
   <template x-if="!loading.days && !entries.length">
-    <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
+    <p class="muted">No entries yet. <a @click.prevent="go('log')">Log a day</a>.</p>
   </template>
 
   <!-- Dense table: the whole row opens the day in Log (✎ is the focusable target), notes are

@@ -319,8 +319,9 @@ class TestPayoutSplitOnScreens:
         split = page.locator("[data-testid='fl-split']")
         split.wait_for(timeout=5000)
         text = split.inner_text()
-        assert f"€{total['paid_out_eur']:,.0f} paid out" in text
-        assert f"€{total['estimated_eur']:,.0f} estimated" in text
+        # money reads with cents everywhere outside the charts: €150.00, not €150
+        assert f"€{total['paid_out_eur']:,.2f} paid out" in text
+        assert f"€{total['estimated_eur']:,.2f} estimated" in text
         # the big number stays the gross
         page.wait_for_function(
             "() => document.querySelector(\"[data-testid='fl-gross']\").innerText === '€200.00'",

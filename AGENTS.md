@@ -40,6 +40,15 @@ After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
 <!-- graft:end -->
 
+## UI work
+
+Read `UI_GUIDE.md` before touching a template or `styles.css`, and `DESIGN.md` for the look. The guide fixes
+the page head (title left; controls right: the page's buttons, then the Employee/Freelance pill, then the year),
+exports as head pills, one primary button look (`btn-action`), one formatter per kind of number (money with
+cents, hours trimmed for totals), no hint lines, and 👔/⚡ marks. Run its checklist before shipping, and change
+the guide in the same commit when a rule moves. `tests/unit/test_ui_rules.py` and `tests/e2e/test_ui_pagehead.py`
+enforce the checkable part.
+
 ## CI/CD
 
 This repo lives in the self-hosted GitLab (`origin`) and follows the homelab pipeline contract. The text of

@@ -70,7 +70,7 @@ class TestStayInLog:
         page.locator(f".log-cal-day[aria-label='{date_str}']").click()
         page.select_option("select", "vacation")
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert "Saved" in page.locator(".ribbon-msg").inner_text()
@@ -85,7 +85,7 @@ class TestStayInLog:
         assert page.url.endswith("#log")
         assert page.evaluate("Alpine.$data(document.querySelector('main')).tab") == "log"
         # the form is ready for the next day and the saved one reached the server
-        assert page.locator("button.log-submit-btn").inner_text() == "Create entry"
+        assert page.locator("button.btn-action--block").inner_text() == "Create entry"
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/entries/{date_str}").json()["day_type"] == "vacation"
 
@@ -99,7 +99,7 @@ class TestStayInLog:
         page.locator(".log-cal-day[aria-label='2025-03-10']").click()
         page.select_option("select", "vacation")
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         month = page.evaluate(
@@ -119,7 +119,7 @@ class TestStayInLog:
         page.get_by_role("button", name="Delete").wait_for(timeout=5000)
         page.select_option("select", "sick")
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
@@ -182,7 +182,7 @@ class TestVersionLabel:
     def test_the_header_shows_a_faint_version_next_to_the_title(self, page, base_url):
         _open(page, base_url, "dashboard")
         label = page.locator(".app-header .brand-ver")
-        assert label.inner_text() == "v38"
+        assert label.inner_text() == "v39"
         title = page.locator(".app-header h1")
         a, b = title.bounding_box(), label.bounding_box()
         assert b["x"] >= a["x"] + a["width"] - 1  # to the right of the title

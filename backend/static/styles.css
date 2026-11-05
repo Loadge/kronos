@@ -661,10 +661,13 @@ button.btn-action {
   font-size: 0.9rem;
   padding: 0.5rem 1rem;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, transform 0.12s ease-out;
 }
-button.btn-action:hover:not(:disabled) { opacity: 0.88; background: var(--k-brass); color: var(--k-bg); }
+button.btn-action:hover:not(:disabled) { opacity: 0.88; background: var(--k-brass); color: var(--k-bg); transform: translateY(-1px); }
+button.btn-action:active:not(:disabled) { transform: scale(0.98); }
 button.btn-action:disabled { opacity: 0.35; cursor: default; }
+/* the full-width variant: the sole action of a form (Create entry, Open timesheet) */
+button.btn-action.btn-action--block { width: 100%; margin: 0; }
 
 /* ================================================================
    LABEL HELPERS
@@ -746,19 +749,6 @@ button.btn-action:disabled { opacity: 0.35; cursor: default; }
   flex-wrap: wrap;
 }
 
-/* Ghost action button — dashed brass outline, transparent fill */
-button.btn-action-ghost {
-  width: auto;
-  background: transparent;
-  border: 1px dashed var(--k-brass);
-  color: var(--k-brass);
-  border-radius: 4px;
-  padding: 0.35rem 0.9rem;
-  cursor: pointer;
-}
-button.btn-action-ghost:hover {
-  background: color-mix(in srgb, var(--k-brass) 12%, transparent);
-}
 
 /* ================================================================
    ERROR BANNER
@@ -1021,7 +1011,6 @@ button.btn-action-ghost:hover {
 .pdf-check input { margin: 0; }
 .pdf-hint { font-size: 0.78rem; margin: 0 0 0.9rem; }
 .pdf-hint a { cursor: pointer; }
-.pdf-actions .log-submit-btn { margin: 0; }
 
 /* ── Settings: profile block ────────────────────────────────────────────── */
 
@@ -1135,7 +1124,7 @@ button.btn-action-ghost:hover {
 .plan-when { white-space: nowrap; font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 .plan-detail { width: 100%; }
 .plan-actions { white-space: nowrap; text-align: right; }
-.plan-actions .plan-commit { margin: 0; width: auto; font-size: 0.75rem; padding: 0.15rem 0.6rem; border-color: var(--k-surplus); color: var(--k-surplus); }
+.plan-actions .plan-commit { margin: 0; width: auto; font-size: 0.75rem; padding: 0.15rem 0.6rem; }
 .plan-actions .plan-remove {
   margin: 0 0 0 0.3rem; width: auto; padding: 0.1rem 0.4rem;
   background: transparent; border: none; color: var(--k-muted); font-size: 0.95rem; cursor: pointer;
@@ -1237,22 +1226,6 @@ button.btn-action-ghost:hover {
   min-width: 0;
 }
 
-/* Create entry CTA — full-width brass, sole primary action */
-.log-submit-btn {
-  width: 100%;
-  background: var(--k-brass);
-  color: var(--k-bg);
-  border: none;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 0.65rem 1rem;
-  cursor: pointer;
-  margin: 0;
-  transition: opacity 0.15s;
-}
-.log-submit-btn:hover { opacity: 0.88; }
-
 /* Footer: the action under the day's result */
 .log-col-rail .form-footer {
   margin-top: 0;
@@ -1291,12 +1264,6 @@ button.btn-action-ghost:hover {
 
 /* the bar under the figures only exists in the rail */
 .impact-bar { display: none; }
-
-.log-submit-btn {
-  transition: opacity 0.15s, transform 0.12s ease-out;
-}
-.log-submit-btn:hover { transform: translateY(-1px); }
-.log-submit-btn:active { transform: scale(0.98); }
 
 .impact-delta.pulse { animation: impact-pulse 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes impact-pulse { 0% { transform: scale(0.85); opacity: 0.5; } 60% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
@@ -1374,8 +1341,8 @@ button.btn-action-ghost:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .log-notes > button, .log-notes-block, .impact-delta.pulse { animation: none; }
-  .impact-fill, .log-submit-btn { transition: none; }
-  .log-submit-btn:hover, .log-submit-btn:active { transform: none; }
+  .impact-fill, button.btn-action { transition: none; }
+  button.btn-action:hover:not(:disabled), button.btn-action:active:not(:disabled) { transform: none; }
 }
 
 /* Section divider between form groups */
@@ -3063,8 +3030,6 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .an-rec-label { color: var(--k-muted); font-size: 0.78rem; }
 .an-rec b { font-weight: 700; }
 .an-rec-when { font-size: 0.72rem; color: var(--k-muted); margin-left: 0.5rem; }
-.an-export { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-.an-export [role="button"] { width: auto; margin: 0; }
 
 @media (max-width: 900px) {
   .an-row { grid-template-columns: 1fr; }
@@ -3863,8 +3828,12 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   cursor: pointer;
 }
 .year-all.on { background: var(--k-brass); border-color: var(--k-brass); color: var(--k-bg); }
-/* a quiet header button (PDF, the shortcuts) */
+/* a quiet header button (PDF, the shortcuts, the exports) */
 .head-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   height: 2rem;
   margin: 0;
   padding: 0 0.8rem;

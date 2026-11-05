@@ -1,7 +1,8 @@
 # Kronos design
 
 The look Kronos already has, written down so the next session keeps it. Change the CSS and this file
-together.
+together. How information is presented (page head, buttons, numbers, hints, empty states) is in
+`UI_GUIDE.md`: read it before any UI change.
 
 ## Look
 
@@ -41,6 +42,6 @@ once. Motion that nobody triggered happens at most once. Every animation has a
 
 ## Version label and updates
 
-The faint "v38" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v39" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

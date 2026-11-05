@@ -117,7 +117,7 @@ class TestFullWorkDayJourney:
         time_inputs.nth(0).fill("08:00")
         time_inputs.nth(1).fill("17:00")
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")  # saving no longer leaves the Log tab
 
@@ -191,7 +191,7 @@ class TestEditEntryJourney:
         time_inputs = page.locator("input[type='time']")
         time_inputs.nth(1).fill("18:00")  # end_time 17:00 -> 18:00: net becomes 9h
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")  # the edit is saved in place
 
@@ -262,7 +262,7 @@ class TestNonWorkDayTypes:
         day_button.click()
         page.select_option("select", day_type)
 
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
         page.get_by_role("tab", name="Days").click()

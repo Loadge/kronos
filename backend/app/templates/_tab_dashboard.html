@@ -28,10 +28,10 @@
       <div class="hero">
         <div class="hero-text" :title="daysTitle(dashboard.cumulative)">
           <div class="hero-label">
-            <span>Cumulative · since <span x-text="sinceLabel()"></span></span>
+            <span><span aria-hidden="true">👔</span> Cumulative · since <span x-text="sinceLabel()"></span></span>
           </div>
           <div class="hero-num metric" :class="surplusClass(dashboard.cumulative.surplus_hours)" aria-live="polite">
-            <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animCumulative.toFixed(2)"></span>h
+            <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animCumulative)"></span>h
           </div>
           <div class="hero-cap">
             <b x-text="dashboard.cumulative.net_hours + 'h'"></b> worked /
@@ -51,7 +51,7 @@
           <span class="chip-label">this week</span>
           <span class="chip-sub" x-text="dashboard.week.net_hours + 'h / ' + dashboard.week.target_hours + 'h'"></span>
           <span class="chip-value metric" :class="surplusClass(dashboard.week.surplus_hours)">
-            <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animWeek.toFixed(2)"></span>h
+            <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animWeek)"></span>h
           </span>
           <span class="bullet"><i :class="surplusClass(dashboard.week.surplus_hours)" :style="bulletStyle(dashboard.week.surplus_hours, 10)"></i></span>
         </div>
@@ -59,7 +59,7 @@
           <span class="chip-label">this month</span>
           <span class="chip-sub" x-text="dashboard.month.net_hours + 'h / ' + dashboard.month.target_hours + 'h'"></span>
           <span class="chip-value metric" :class="surplusClass(dashboard.month.surplus_hours)">
-            <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animMonth.toFixed(2)"></span>h
+            <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animMonth)"></span>h
           </span>
           <span class="bullet"><i :class="surplusClass(dashboard.month.surplus_hours)" :style="bulletStyle(dashboard.month.surplus_hours, 20)"></i></span>
         </button>
@@ -141,7 +141,7 @@
            Always the current week; a day opens in Log. -->
       <div class="wk">
         <div class="wk-head">
-          <h3>This week · <span x-text="weekLabel()"></span></h3>
+          <h3><span aria-hidden="true">👔</span> This week · <span x-text="weekLabel()"></span></h3>
           <span class="wk-total metric" :class="surplusClass(weekSummary().surplus)">
             <span x-text="formatSurplus(weekSummary().surplus)"></span>
             <span class="muted" x-text="'· ' + weekSummary().net + 'h of ' + weekSummary().target + 'h'"></span>

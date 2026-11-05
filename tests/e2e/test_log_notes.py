@@ -133,7 +133,7 @@ class TestNotesAreOptional:
         _add_note_button(page).click()
         _notes(page).wait_for(state="visible", timeout=3000)
         _notes(page).fill("hello")
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
 
@@ -226,7 +226,7 @@ class TestNotesCollapse:
         _open_log(page, base_url, width=600, height=900)
         _add_note_button(page).click()
         _notes(page).wait_for(state="visible", timeout=3000)
-        page.locator("button.log-submit-btn").click()
+        page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.url.endswith("#log")
         with httpx.Client(base_url=base_url) as c:
@@ -243,12 +243,12 @@ class TestRail:
         assert rail["x"] >= centre["x"] + centre["width"] - 1
         assert abs(rail["y"] - centre["y"]) < 2  # side by side, rail at the top
         assert page.locator(".log-col-rail .impact-card").count() == 1
-        assert page.locator(".log-col-rail button.log-submit-btn").count() == 1
+        assert page.locator(".log-col-rail button.btn-action--block").count() == 1
         assert (
             page.locator(".log-col-center .impact-card, .log-col-center .form-footer").count() == 0
         )
         assert page.locator(".log-col-rail .impact-card").is_visible()
-        assert page.locator(".log-col-rail button.log-submit-btn").inner_text() == "Create entry"
+        assert page.locator(".log-col-rail button.btn-action--block").inner_text() == "Create entry"
 
     def test_narrow_the_rail_is_below_the_form(self, page, base_url):
         _open_log(page, base_url, 900)
@@ -370,6 +370,6 @@ class TestResultFigure:
             == 0
         )
         assert page.locator(".log-notes-block").evaluate("e => e.getAnimations().length") == 0
-        assert page.locator("button.log-submit-btn").evaluate(
+        assert page.locator("button.btn-action--block").evaluate(
             "e => getComputedStyle(e).transitionDuration"
         ) in ("0s", "0.0001s")

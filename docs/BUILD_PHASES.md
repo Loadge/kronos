@@ -36,10 +36,43 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 and 38 built and on INT, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38 and 39 built, 37 and 38 on INT, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 39 — One look across pages (built 2026-11-05, awaiting confirmation)
+
+**Why.** An audit of the seven pages found the same things drawn differently: the
+Employee/Freelance switch sat in two places, exports lived in three, numbers had several formats and
+the primary buttons came in four styles. Miguel asked for one rule per thing, and for a guide that
+keeps it that way.
+
+**Decisions.**
+- The Employee/Freelance switch is the Analytics pill, in the page head, just left of the year selector.
+  Days uses it too, and the tab strip with its counts is gone.
+- Exports are small pills in the head, named "CSV", "JSON", "⚡ Freelance CSV" and "⚡ Payouts CSV" (Days
+  keeps "PDF"). The "Export" blocks at the bottom of Analytics and Freelance are gone.
+- Money always shows cents (€1,289.71); charts may round their labels. Hours keep trimmed totals and
+  two-decimal deltas. The Freelance calculator speaks Spanish decimals, typed and shown (€28.687,41).
+  Dates are still open: Days uses ISO and Plan and the Dashboard use "Thu, Nov 5".
+- Five hints were removed by name, and the information they carried moved to tooltips where it was worth
+  keeping. The Freelance card no longer says "nothing yet".
+- Empty states read "No X yet." with at most one link.
+- Page-level titles are all like "Calculator" (Modelo 130 and Upcoming time off included).
+- Every primary button has the look of "+ Add block" (`btn-action`); openers such as "+ Add a change" are
+  secondary outlines. The year selector stays at the right edge of the head on a phone.
+- 👔 marks the employee side next to ⚡ (Dashboard, Settings navigation, Days, Analytics).
+- `UI_GUIDE.md` holds these rules with a glossary and a checklist, and three test files enforce what can
+  be checked: the page head on every tab, the exports, the hints and the formatters.
+
+**How it was built.** An audit by a read-only subagent, a research agent for the guide, then two Sonnet
+subagents on disjoint pages (Analytics, Log, Days and Dashboard; Freelance, Settings and Plan), with the
+formatting done by the Advisor because it is money. One red control was missing a first time (the
+page-head test read DOM order, so a CSS `order` slipped past); it now compares screen positions.
+
+**Known limits.** Dates are not unified yet. The weekday averages keep one decimal on purpose, because
+the cells are narrow. The light theme was not checked.
 
 ### Phase 38 — Quieter Log and live updates (built 2026-11-04, awaiting confirmation)
 

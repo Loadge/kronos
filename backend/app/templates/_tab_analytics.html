@@ -5,6 +5,15 @@
   <header class="page-head">
     <div class="page-head-title"><h2>Analytics</h2></div>
     <div class="page-head-controls">
+      <!-- the exports: pills in the head, before the Employee/Freelance switch and the year -->
+      <a href="/api/export.csv" role="button" class="head-btn" download>CSV</a>
+      <a href="/api/export.json" role="button" class="head-btn" download>JSON</a>
+      <template x-if="hasFreelance()">
+        <a href="/api/freelance/export.csv" role="button" class="head-btn" download>⚡ Freelance CSV</a>
+      </template>
+      <template x-if="hasFreelance()">
+        <a href="/api/freelance/payouts.csv" role="button" class="head-btn" download>⚡ Payouts CSV</a>
+      </template>
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
           <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'"><span aria-hidden="true">👔</span> Employee</button>
@@ -22,9 +31,8 @@
   <!-- ── Year at a glance: always a whole year; hover a day, click to open it in Log.
        Once it has scrolled out of view, a compact copy stays pinned at the top (below). ── -->
   <div class="an-glance" data-testid="an-glance">
-  <div class="section-header an-head">
+  <div class="section-header an-head" title="Hover a day; click to open it in Log">
     <h2>Year at a glance</h2>
-    <span class="muted an-hint">hover a day · click to open it in Log</span>
   </div>
   <template x-if="heatmapCells()">
     <div>
@@ -63,7 +71,7 @@
     </div>
   </template>
   <template x-if="!heatmapCells()">
-    <p class="muted">No entries yet. <a @click.prevent="go('log')">Log your first day</a>.</p>
+    <p class="muted">No entries yet. <a @click.prevent="go('log')">Log a day</a>.</p>
   </template>
   </div><!-- /an-glance -->
 
@@ -212,9 +220,11 @@
     </aside>
   </div>
 
-  <h2 class="an-h2">Years</h2>
+  <div class="section-header an-head">
+    <h2>Years</h2>
+  </div>
   <template x-if="yearly.length === 0">
-    <p class="muted">No data yet.</p>
+    <p class="muted">No years yet.</p>
   </template>
   <div class="table-wrap" x-show="yearly.length">
     <table class="an-years">
@@ -247,9 +257,8 @@
     </table>
   </div>
 
-  <div class="section-header an-head">
+  <div class="section-header an-head" title="For the range shown">
     <h2>Records</h2>
-    <span class="muted an-hint">for the range shown</span>
   </div>
   <template x-if="anRecords().length">
     <div class="an-records">
@@ -262,17 +271,7 @@
     </div>
   </template>
   <template x-if="!anRecords().length">
-    <p class="muted">Nothing logged in this range.</p>
+    <p class="muted">No records yet.</p>
   </template>
-
-  <h2 class="an-h2">Export</h2>
-  <p class="an-export">
-    <a href="/api/export.csv" role="button" class="secondary outline" download>Download CSV</a>
-    <a href="/api/export.json" role="button" class="secondary outline" download>Download JSON</a>
-    <template x-if="hasFreelance()">
-      <a href="/api/freelance/export.csv" role="button" class="secondary outline" download>⚡ Freelance CSV</a>
-      <a href="/api/freelance/payouts.csv" role="button" class="secondary outline" download>⚡ Payouts CSV</a>
-    </template>
-  </p>
 </section>
 </template>
