@@ -22,11 +22,11 @@
     </div>
   </header>
 
-  <!-- Employee · ⚡ Freelance, with their counts — only once an income source exists. -->
+  <!-- 👔 Employee · ⚡ Freelance — only once an income source exists. -->
   <template x-if="hasFreelance()">
     <div class="subtabs" role="tablist" aria-label="Days of">
-      <a role="tab" :aria-selected="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click.prevent="setDaysMode('employee')">Employee <span class="metric" x-text="sortedEntries().length + ' day' + (sortedEntries().length !== 1 ? 's' : '')"></span></a>
-      <a role="tab" :aria-selected="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click.prevent="setDaysMode('freelance')"><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance <span class="metric" x-text="daysBlocksAll().length + ' block' + (daysBlocksAll().length !== 1 ? 's' : '')"></span></a>
+      <a role="tab" :aria-selected="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click.prevent="setDaysMode('employee')"><span aria-hidden="true">👔</span> Employee</a>
+      <a role="tab" :aria-selected="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click.prevent="setDaysMode('freelance')"><span class="fl-bolt" aria-hidden="true">⚡</span> Freelance</a>
     </div>
   </template>
 

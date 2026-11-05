@@ -25,7 +25,12 @@ a component: the light theme (`[data-theme="light"]`) only works through the var
 - A table separator names a period and sums it (`.month-sep`, `.week-sep`).
 - From 1100px a form card may have a rail beside it with the result and the main button. Below that
   it is one column.
-- Less text: a card title does not need a hint line. If a label is clear, nothing explains it.
+- Less text: a card title does not need a hint line. If a label is clear, nothing explains it. Tabs
+  are named, not counted; charts carry their caption in a `title`, not under them.
+- The two lives wear a mark: 👔 for the employee side, ⚡ for freelance (card titles, the Days tabs,
+  the Employee/Freelance switches, "Balance over time"). Both are `aria-hidden`.
+- Two charts that share a row fill the height the neighbouring column leaves, instead of leaving a
+  hole (Analytics: Weekday pattern and Daily surplus under the balance chart).
 
 ## Motion
 

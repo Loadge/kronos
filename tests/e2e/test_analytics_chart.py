@@ -168,7 +168,10 @@ class TestRangeDrivesThePage:
         assert "09:00" in mon.locator(".weekday-times").inner_text()
         assert "19:15" in mon.locator(".weekday-times").inner_text()
         assert page.locator(".an-hist i").count() == 12
-        assert "2 work days" in page.locator(".an-two .chart-caption").last.inner_text()
+        # the caption moved off the page onto the chart itself (hover and screen readers)
+        hist = page.locator(".an-panel .an-hist")
+        assert "2 work days" in hist.get_attribute("title")
+        assert "2 work days" in hist.get_attribute("aria-label")
 
 
 class TestYearAtAGlance:

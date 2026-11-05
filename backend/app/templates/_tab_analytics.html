@@ -7,7 +7,7 @@
     <div class="page-head-controls">
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
-          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'">Employee</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'"><span aria-hidden="true">👔</span> Employee</button>
           <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
         </div>
       </template>
@@ -83,7 +83,7 @@
       <div class="an-minibar-ctl">
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
-          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'">Employee</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'"><span aria-hidden="true">👔</span> Employee</button>
           <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
         </div>
       </template>
@@ -105,7 +105,7 @@
 
   <!-- ── Balance over time: the zoomable chart, with the visible range as a ledger ── -->
   <div class="section-header an-head">
-    <h2>Balance over time</h2>
+    <h2><span aria-hidden="true">👔</span> Balance over time</h2>
     <span class="muted an-hint">drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset</span>
   </div>
   <div class="an-row">
@@ -128,6 +128,50 @@
       <div class="an-brush" x-ref="anBrush" title="The whole history — drag the window to pan">
         <div class="an-brush-svg" x-html="anChart.brush"></div>
         <div class="an-brush-win" :style="anBrushWinStyle()"></div>
+      </div>
+      <!-- Weekday pattern and Daily surplus sit under the brush, side by side: the aside (with a
+           freelance block) is the taller column, and these two panels take the spare height. -->
+      <div class="an-panels">
+        <section class="an-panel" aria-labelledby="an-weekday-h">
+          <h2 id="an-weekday-h">Weekday pattern</h2>
+          <template x-if="weekdayPattern()">
+            <div class="weekday-grid" role="group" aria-label="Δ per work day, and the average start → end. When do I really arrive and leave?" title="Δ per work day, and the average start → end. When do I really arrive and leave?">
+              <template x-for="cell in weekdayPattern()" :key="cell.label">
+                <div class="weekday-cell" :title="cell.title">
+                  <div class="weekday-bar">
+                    <template x-if="cell.avg !== null">
+                      <i :class="cell.avg >= 0 ? 'up' : 'down'" :style="cell.barStyle"></i>
+                    </template>
+                  </div>
+                  <div class="weekday-label" x-text="cell.label"></div>
+                  <div class="weekday-avg"
+                       :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
+                       x-text="cell.text"></div>
+                  <div class="weekday-times metric" x-text="cell.times"></div>
+                </div>
+              </template>
+            </div>
+          </template>
+          <template x-if="!weekdayPattern()">
+            <p class="muted">No work days in this range.</p>
+          </template>
+        </section>
+        <section class="an-panel" aria-labelledby="an-hist-h">
+          <h2 id="an-hist-h">Daily surplus</h2>
+          <template x-if="anHistogram()">
+            <div class="an-hist-box">
+              <div class="an-hist" role="img" :aria-label="anHistogram().caption" :title="anHistogram().caption">
+                <template x-for="b in anHistogram().buckets" :key="b.lo">
+                  <i :class="b.lo >= 0 ? 'up' : 'down'" :style="'height:' + b.pct + '%'" :title="b.title"></i>
+                </template>
+              </div>
+              <div class="an-hist-x metric"><span>−3h</span><span>−2h</span><span>−1h</span><span>0</span><span>+1h</span><span>+2h</span><span>+3h</span></div>
+            </div>
+          </template>
+          <template x-if="!anHistogram()">
+            <p class="muted">No work days in this range.</p>
+          </template>
+        </section>
       </div>
     </div>
     <aside class="an-ledger" aria-label="Range">
@@ -166,59 +210,6 @@
         </div>
       </template>
     </aside>
-  </div>
-
-  <div class="an-two">
-    <div>
-      <div class="section-header an-head">
-        <h2>Weekday pattern</h2>
-        <span class="muted an-hint">for the range shown</span>
-      </div>
-      <template x-if="weekdayPattern()">
-        <div>
-          <div class="weekday-grid">
-            <template x-for="cell in weekdayPattern()" :key="cell.label">
-              <div class="weekday-cell" :title="cell.title">
-                <div class="weekday-bar">
-                  <template x-if="cell.avg !== null">
-                    <i :class="cell.avg >= 0 ? 'up' : 'down'" :style="cell.barStyle"></i>
-                  </template>
-                </div>
-                <div class="weekday-label" x-text="cell.label"></div>
-                <div class="weekday-avg"
-                     :class="cell.avg !== null ? surplusClass(cell.avg) : 'muted'"
-                     x-text="cell.text"></div>
-                <div class="weekday-times metric" x-text="cell.times"></div>
-              </div>
-            </template>
-          </div>
-          <p class="muted chart-caption">Δ per work day, and the average start → end. When do I really arrive and leave?</p>
-        </div>
-      </template>
-      <template x-if="!weekdayPattern()">
-        <p class="muted">No work days in this range.</p>
-      </template>
-    </div>
-    <div>
-      <div class="section-header an-head">
-        <h2>Daily surplus</h2>
-        <span class="muted an-hint">for the range shown</span>
-      </div>
-      <template x-if="anHistogram()">
-        <div>
-          <div class="an-hist">
-            <template x-for="b in anHistogram().buckets" :key="b.lo">
-              <i :class="b.lo >= 0 ? 'up' : 'down'" :style="'height:' + b.pct + '%'" :title="b.title"></i>
-            </template>
-          </div>
-          <div class="an-hist-x metric"><span>−3h</span><span>−2h</span><span>−1h</span><span>0</span><span>+1h</span><span>+2h</span><span>+3h</span></div>
-          <p class="muted chart-caption" x-text="anHistogram().caption"></p>
-        </div>
-      </template>
-      <template x-if="!anHistogram()">
-        <p class="muted">No work days in this range.</p>
-      </template>
-    </div>
   </div>
 
   <h2 class="an-h2">Years</h2>

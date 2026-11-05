@@ -135,6 +135,9 @@ class TestLogPanel:
         panel = page.locator("[data-testid='freelance-panel']")
         assert panel.is_visible()
         assert "add freelance" in page.locator(".fl-jump").inner_text()
+        # no blocks yet: the panel head carries no "nothing yet" note (the form says it all)
+        assert "nothing yet" not in panel.inner_text()
+        assert page.locator(".fl-head .fl-total").count() == 0
 
         # two quarter hours up from 1h, a note, Add: the row, the total and the chip appear
         page.locator(".fl-step[aria-label='Quarter hour more']").click()
@@ -482,7 +485,9 @@ class TestDaysFreelance:
         page.goto(f"{base_url}/#days")
         page.wait_for_selector(".subtabs", timeout=5000)
         tabs = page.locator(".subtabs a")
-        assert "1 day" in tabs.nth(0).inner_text() and "2 blocks" in tabs.nth(1).inner_text()
+        # the tabs are named, not counted (the counts were noise); 👔 and ⚡ mark the two lives
+        assert tabs.nth(0).inner_text().strip() == "👔 Employee"
+        assert tabs.nth(1).inner_text().strip() == "⚡ Freelance"
         assert page.locator(".days-table .day-row").count() == 1  # the employee table
         tabs.nth(1).click()
         page.wait_for_selector("[data-testid='days-freelance']", timeout=3000)

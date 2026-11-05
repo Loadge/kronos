@@ -313,9 +313,6 @@
               <template x-if="flDayTotal().missing && flDayTotal().eur > 0"><span class="muted" x-text="' · ' + flDayTotal().missing + ' without a rate'"></span></template>
             </span>
           </template>
-          <template x-if="!flDayTotal()">
-            <span class="fl-total muted" x-text="flDayLabel() + ' · nothing yet'"></span>
-          </template>
         </div>
 
         <!-- the week's payouts, read-only; they are typed in Days > Freelance -->

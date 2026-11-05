@@ -945,12 +945,6 @@ button.btn-action-ghost:hover {
   overflow: visible;
 }
 
-.chart-caption {
-  font-size: 0.78rem;
-  margin-top: 0.35rem;
-  margin-bottom: 0;
-}
-
 /* ================================================================
    HEATMAP
    ================================================================ */
@@ -2076,7 +2070,8 @@ button.btn-action-ghost:hover {
 .weekday-bar {
   position: relative;
   width: 100%;
-  height: 70px;
+  flex: 1 1 70px;
+  min-height: 60px;
   border-bottom: 1px solid var(--k-border-strong);
 }
 .weekday-bar::after {
@@ -2096,7 +2091,7 @@ button.btn-action-ghost:hover {
 }
 .weekday-bar i.up { background: var(--k-surplus); bottom: 50%; border-radius: 3px 3px 0 0; }
 .weekday-bar i.down { background: var(--k-deficit); top: 50%; border-radius: 0 0 3px 3px; }
-.weekday-times { font-size: 0.66rem; color: var(--k-muted); white-space: pre-line; line-height: 1.3; text-align: center; }
+.weekday-times { font-size: 0.66rem; color: var(--k-muted); white-space: pre-line; line-height: 1.3; text-align: center; min-height: 2.6em; }
 
 .weekday-label {
   font-size: 0.72rem;
@@ -2916,9 +2911,13 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
   display: grid;
   grid-template-columns: minmax(0, 1fr) 250px;
   gap: 1.5rem;
-  align-items: start;
+  align-items: stretch;
 }
-.an-chart-col { min-width: 0; }
+/* The aside keeps its own height; the chart column stretches to the row, and the two panels under
+   the brush take whatever height is left, so the column ends where the aside ends. */
+.an-chart-col { min-width: 0; display: flex; flex-direction: column; }
+.an-chart-col > :not(.an-panels) { flex: none; }
+.an-ledger { align-self: start; }
 .an-chart-head {
   display: flex;
   align-items: center;
@@ -3020,14 +3019,24 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .an-lrow b { font-weight: 600; }
 .an-lrow--big b { font-size: 1.25rem; }
 
-/* weekday + histogram side by side */
-.an-two { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+/* weekday + histogram side by side, under the brush */
+.an-panels {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 1rem 1.5rem;
+  margin-top: 1rem;
+}
+.an-panel { margin: 0; flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; }
+.an-panel h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+.an-panel > p { margin: 0; }
+.an-panel .weekday-grid, .an-hist-box { flex: 1 1 auto; margin: 0; }
+.an-hist-box { display: flex; flex-direction: column; min-height: 0; }
 .an-hist {
+  flex: 1 1 auto;
   display: flex;
   align-items: flex-end;
   gap: 3px;
-  height: 110px;
-  margin-top: 0.75rem;
+  min-height: 70px;
   border-bottom: 1px solid var(--k-border-strong);
 }
 .an-hist i { flex: 1; display: block; border-radius: 3px 3px 0 0; min-height: 1px; }
@@ -3062,8 +3071,11 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
   .an-presets { flex-direction: row; flex-wrap: wrap; }
   .an-records { grid-template-columns: 1fr; }
 }
+@media (max-width: 1100px) {
+  .an-panels { flex-direction: column; }
+  .an-panel { flex: 1 1 auto; }
+}
 @media (max-width: 760px) {
-  .an-two { grid-template-columns: 1fr; }
   .weekday-times { font-size: 0.58rem; }
 }
 
