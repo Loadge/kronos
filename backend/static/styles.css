@@ -8,7 +8,7 @@
 
 /* ================================================================
    D2 TOKEN SYSTEM
-   Dark values are the production defaults (app ships data-theme="dark").
+   Kronos is dark only: <html data-theme="dark"> is fixed, there is no theme switch.
    ================================================================ */
 
 :root {
@@ -37,7 +37,7 @@
 }
 
 /* ================================================================
-   PICO OVERRIDES — dark (production default)
+   PICO OVERRIDES — dark
    Map --pico-* → --k-* so Pico components pick up D2 colours.
    ================================================================ */
 
@@ -52,53 +52,6 @@
   --pico-primary:                       var(--k-brass);
   --pico-primary-focus:                 color-mix(in srgb, var(--k-brass) 40%, transparent);
   --pico-primary-inverse:               var(--k-bg);
-  --pico-form-element-border-color:     var(--k-border-strong);
-  --pico-form-element-focus-color:      var(--k-brass);
-  --pico-form-element-background-color: transparent;
-  --pico-form-element-color:            var(--k-text);
-  --pico-form-element-placeholder-color:var(--k-muted);
-  --pico-table-border-color:            var(--k-border);
-  --pico-table-row-stripped-background-color: transparent;
-  /* Range inputs (the leave slider) follow the brass accent, not Pico's blue */
-  --pico-range-border-color:            var(--k-border-strong);
-  --pico-range-active-border-color:     color-mix(in srgb, var(--k-brass) 45%, var(--k-border-strong));
-  --pico-range-thumb-color:             var(--k-brass);
-  --pico-range-thumb-active-color:      var(--k-brass);
-  --pico-range-thumb-border-color:      var(--k-bg);
-}
-
-/* ================================================================
-   PICO OVERRIDES — light (parchment theme, future toggle support)
-   ================================================================ */
-
-[data-theme="light"] {
-  --k-bg:           #f4ede1;
-  --k-surface:      #faf4e8;
-  --k-border:       #d9cfbb;
-  --k-border-strong:#b5a992;
-  --k-text:         #1f1b15;
-  --k-muted:        #6d6353;
-  --k-brass:        #a8761a;
-  --k-ink:          #1a3a52;
-  --k-surplus:      #3d6b2e;
-  --k-deficit:      #a23826;
-  --paid:           #0b6f68;
-  --k-work:         #a8761a;
-  --k-vacation:     #1a3a52;
-  --k-sick:         #b07022;
-  --k-holiday:      #516b77;
-  --k-flex:         #5c3a8a;
-
-  --pico-background-color:              var(--k-bg);
-  --pico-card-background-color:         var(--k-surface);
-  --pico-card-sectioning-background-color: color-mix(in srgb, var(--k-border) 30%, var(--k-surface));
-  --pico-color:                         var(--k-text);
-  --pico-muted-color:                   var(--k-muted);
-  --pico-muted-border-color:            var(--k-border);
-  --pico-border-color:                  var(--k-border-strong);
-  --pico-primary:                       var(--k-brass);
-  --pico-primary-focus:                 color-mix(in srgb, var(--k-brass) 40%, transparent);
-  --pico-primary-inverse:               var(--k-surface);
   --pico-form-element-border-color:     var(--k-border-strong);
   --pico-form-element-focus-color:      var(--k-brass);
   --pico-form-element-background-color: transparent;
@@ -177,7 +130,6 @@ h1, h2, h3, h4 {
 }
 
 .brand h1 { margin: 0; line-height: 1; }
-.subtitle  { margin: 0.25rem 0 0; font-size: 0.9rem; color: var(--k-muted); }
 
 /* ================================================================
    TABS — underline-only, active = 2px brass underline + small-caps
@@ -261,7 +213,7 @@ h1, h2, h3, h4 {
   .header-controls { grid-area: unset; }
 }
 
-/* ── Header controls (shortcut btn + theme toggle) ───────────── */
+/* ── Header controls (shortcuts, settings) ───────────────────── */
 .header-controls {
   grid-area: toggle;
   align-self: center;
@@ -361,7 +313,6 @@ h1, h2, h3, h4 {
 /* ── Settings gear: brass on dark, ink on light; a quarter-turn on hover, a slow
       full turn while Settings is open ──────────────────────────────────────── */
 .settings-btn { color: var(--k-brass); }
-[data-theme="light"] .settings-btn { color: var(--k-ink); }
 .settings-btn:hover { color: var(--k-brass); border-color: var(--k-brass); }
 .settings-btn .gear {
   width: 18px;
@@ -2668,7 +2619,7 @@ tbody.today-row > tr:first-child > td:first-child {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 180px minmax(0, 720px);
+  grid-template-columns: 200px minmax(0, 720px);
   gap: 2.5rem;
   align-items: start;
 }
@@ -3051,7 +3002,6 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
    ================================================================ */
 
 :root { --k-coin: #f0c659; }
-[data-theme="light"] { --k-coin: #b8831f; }
 
 .fl-bolt { color: var(--k-coin); font-style: normal; }
 .tabs a.tab-freelance { animation: fl-tab-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
@@ -3524,6 +3474,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .settings-saved.is-error { color: var(--k-deficit); }
 @keyframes saved-pop { from { transform: scale(0.85); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .settings-saved.is-saved { animation: none; } }
+.settings-group-btn > span { white-space: nowrap; }
 .settings-group-btn:hover { color: var(--k-brass); background: transparent; }
 .settings-group.open .settings-group-btn { border-left-color: var(--k-brass); color: var(--k-brass); }
 .settings-group-sections { display: flex; flex-direction: column; margin-left: 0.6rem; border-left: 1px solid var(--k-border); animation: fl-row-in 0.25s ease backwards; }
@@ -3829,7 +3780,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 }
 .year-all.on { background: var(--k-brass); border-color: var(--k-brass); color: var(--k-bg); }
 /* a quiet header button (PDF, the shortcuts, the exports) */
-.head-btn {
+.head-btn, a.head-btn[role="button"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3843,11 +3794,12 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   background: transparent;
   color: var(--k-text);
   font-size: 0.8rem;
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   transition: border-color var(--k-transition-fast), color var(--k-transition-fast);
 }
-.head-btn:hover, .head-btn:focus-visible { border-color: var(--k-brass); color: var(--k-brass); background: transparent; }
+.head-btn:hover, .head-btn:focus-visible, a.head-btn[role="button"]:hover, a.head-btn[role="button"]:focus-visible { border-color: var(--k-brass); color: var(--k-brass); background: transparent; }
 .calc-head { flex-wrap: wrap; }
 .calc-head .an-hint { flex: 1 1 18rem; }
 .calc-head-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; }

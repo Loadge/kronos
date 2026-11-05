@@ -32,6 +32,9 @@ def _freelance_source(base_url):
     yield
     with httpx.Client(base_url=base_url) as c:
         c.delete("/api/data")
+        # the sources outlive /api/data, and a leftover one adds the Freelance tab everywhere
+        for s in c.get("/api/freelance/sources").json():
+            c.delete(f"/api/freelance/sources/{s['id']}")
 
 
 def _open(page, base_url, tab):

@@ -119,7 +119,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
   the projection, the currency) and **General** (Data) — a section index under the open group
   (two dropdowns on the phone), a card per section. No save buttons: a field saves itself half
   a second after you stop typing, a switch at once, and the card says *saved ✓*
-- **Command palette** (<kbd>.</kbd>), keyboard shortcuts, dark and light themes
+- **Command palette** (<kbd>.</kbd>), keyboard shortcuts, a dark brass look
 - **PWA-installable**, with a service worker for the app shell
 - **CSV import/export** and full JSON backup/restore
 - **Currency** — sources bill in euros or dollars; everything is added up in euros with the
@@ -510,7 +510,7 @@ human can check a change without touching real data:
 ```sh
 python bin/kctl.py up --seed                                   # ~3 months of sample data
 python bin/kctl.py api GET /api/analytics/monthly
-python bin/kctl.py shot "/#analytics" --out .artifacts/analytics.png [--viewport phone] [--theme light]
+python bin/kctl.py shot "/#analytics" --out .artifacts/analytics.png [--viewport phone]
 python bin/kctl.py down                                        # kill it, delete the temp DB
 ```
 

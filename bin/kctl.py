@@ -493,7 +493,7 @@ def cmd_shot(args) -> int:
         try:
             context = browser.new_context(
                 locale="en-GB",
-                color_scheme=args.theme,
+                color_scheme="dark",
                 viewport={"width": width, "height": height},
             )
             page = context.new_page()
@@ -562,7 +562,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="output .png (relative paths resolve against the repo root)",
     )
     shot.add_argument("--viewport", default="desktop", choices=sorted(VIEWPORTS))
-    shot.add_argument("--theme", default="dark", choices=("dark", "light"))
     shot.add_argument("--json", action="store_true")
     shot.set_defaults(func=cmd_shot)
 

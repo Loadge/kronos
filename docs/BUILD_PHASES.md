@@ -71,8 +71,10 @@ subagents on disjoint pages (Analytics, Log, Days and Dashboard; Freelance, Sett
 formatting done by the Advisor because it is money. One red control was missing a first time (the
 page-head test read DOM order, so a CSS `order` slipped past); it now compares screen positions.
 
-**Known limits.** Dates are not unified yet. The weekday averages keep one decimal on purpose, because
-the cells are narrow. The light theme was not checked.
+**Known limits.** The weekday averages keep one decimal on purpose, because the cells are narrow.
+Dates keep two forms on purpose (ISO to look things up, short with the weekday to glance at). Follow-up
+the same day: the light theme was removed (Kronos is dark only), the line under the title came out, and
+the anchor pills and the Settings navigation were fixed (off-centre label, a name on two lines).
 
 ### Phase 38 — Quieter Log and live updates (built 2026-11-04, awaiting confirmation)
 

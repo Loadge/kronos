@@ -16,8 +16,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="/static/vendor/pico.min.css?v={{ vendor_v }}">
   <link rel="stylesheet" href="/static/styles.css?v={{ build }}">
-  <!-- Apply persisted theme before first paint to avoid flash -->
-  <script>(function(){var t=localStorage.getItem('k-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="/static/app.js?v={{ build }}" defer></script>
   <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
@@ -41,7 +39,6 @@
                     :title="newVersion ? 'Kronos v' + newVersion + ' is ready' : 'A newer Kronos is ready'">Update ready — Reload</button>
           </span>
         </div>
-        <p class="subtitle" x-text="subtitle">&nbsp;</p>
       </div>
     </div>
     <nav class="tabs" role="tablist" @keydown.right.prevent="focusTab(1,$event.target)" @keydown.left.prevent="focusTab(-1,$event.target)">
@@ -80,11 +77,6 @@
           <path d="M10.00 0.00L9.81 1.95L7.02 2.91L6.32 4.22L7.07 7.07L5.56 8.31L2.91 7.02L1.48 7.45L0.00 10.00L-1.95 9.81L-2.91 7.02L-4.22 6.32L-7.07 7.07L-8.31 5.56L-7.02 2.91L-7.45 1.48L-10.00 0.00L-9.81 -1.95L-7.02 -2.91L-6.32 -4.22L-7.07 -7.07L-5.56 -8.31L-2.91 -7.02L-1.48 -7.45L-0.00 -10.00L1.95 -9.81L2.91 -7.02L4.22 -6.32L7.07 -7.07L8.31 -5.56L7.02 -2.91L7.45 -1.48Z" class="gear-teeth"/>
           <circle r="3.2"/>
         </svg>
-      </button>
-      <button class="theme-toggle" @click="toggleTheme()"
-              :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
-              :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
-        <span x-text="theme === 'dark' ? '☀' : '🌙'"></span>
       </button>
     </div>
   </header>

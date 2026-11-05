@@ -697,7 +697,8 @@ class TestUiConsistency:
         page.goto(f"{base_url}/#freelance")
         page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
         head = page.locator("section .page-head").first
-        pills = [t.strip() for t in head.locator(".head-btn").all_inner_texts()]
+        # the pills are flex boxes, so their innerText puts the mark and the name on two lines
+        pills = [" ".join(t.split()) for t in head.locator(".head-btn").all_inner_texts()]
         assert "⚡ Freelance CSV" in pills and "⚡ Payouts CSV" in pills
         for pill in head.locator("a.head-btn").all():
             assert pill.get_attribute("download") is not None

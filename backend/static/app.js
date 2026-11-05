@@ -17,7 +17,6 @@ function app() {
   return {
     // ---------- nav + global state ---------------------------------------
     tab: 'dashboard',
-    subtitle: '',
     error: null,
 
     // ---------- dashboard -----------------------------------------------
@@ -188,9 +187,6 @@ function app() {
     // ---------- bulk log modal ------------------------------------------
     bulkModal: { open: false, year: new Date().getFullYear(), month: new Date().getMonth(), selected: [], _dragging: false, _dragAnchor: null, _dragCurrent: null, submitting: false },
 
-    // ---------- theme ---------------------------------------------------
-    theme: localStorage.getItem('k-theme') || 'dark',
-
     // ---------- command palette -----------------------------------------
     palette: { open: false, query: '', selected: 0 },
 
@@ -198,8 +194,8 @@ function app() {
     // init
     // =====================================================================
     async init() {
-      // Apply persisted theme before first render
-      document.documentElement.setAttribute('data-theme', this.theme);
+      // Kronos is dark only; a theme remembered by an older version is forgotten.
+      try { localStorage.removeItem('k-theme'); } catch { /* storage may be blocked */ }
 
       const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'freelance', 'settings'];
       const hash = location.hash.replace('#', '');
@@ -333,12 +329,6 @@ function app() {
       const next = tabs[(tabs.indexOf(el) + dir + tabs.length) % tabs.length];
       next.focus();
       next.click();
-    },
-
-    toggleTheme() {
-      this.theme = this.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', this.theme);
-      localStorage.setItem('k-theme', this.theme);
     },
 
     toggleWorkDay(i) {
@@ -981,11 +971,6 @@ function app() {
         this.series = series;
         this.yoy = yoy;
         this.dashboard = dashboard;
-        const h = dashboard.cumulative.surplus_hours;
-        const abs = Math.abs(h).toFixed(2);
-        if (h > 0.01) this.subtitle = `${abs}h ahead overall`;
-        else if (h < -0.01) this.subtitle = `${abs}h behind overall`;
-        else this.subtitle = 'on target';
         this.traj = this.buildTrajectory();
         this.$nextTick(() => this.tickUpDashboard());
       } catch (e) { this.error = e.message; }

@@ -6,10 +6,12 @@ together. How information is presented (page head, buttons, numbers, hints, empt
 
 ## Look
 
-Dark antique brass, with a parchment light theme. Everything comes from the `--k-*` variables at the
-top of `backend/static/styles.css` (`--k-bg`, `--k-surface`, `--k-border`, `--k-text`, `--k-muted`,
+Dark antique brass, and only dark: Kronos has no light theme (Miguel, 2026-11-05) and no theme
+switch; `<html data-theme="dark">` is fixed. The printable timesheet keeps its own light or dark
+paper, a separate template. Everything comes from the `--k-*` variables at the top of
+`backend/static/styles.css` (`--k-bg`, `--k-surface`, `--k-border`, `--k-text`, `--k-muted`,
 `--k-brass`, plus one variable per day type and for surplus and deficit). Never write a raw colour in
-a component: the light theme (`[data-theme="light"]`) only works through the variables.
+a component.
 
 - Headings and labels use small-caps with a little letter spacing, never upper case.
 - Numbers (hours, money, dates in tables) use the `.metric` class: monospace with tabular figures.
