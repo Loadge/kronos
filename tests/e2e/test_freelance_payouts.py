@@ -670,8 +670,8 @@ class TestWeekLine:
         assert page.locator(".blk-head").count() == 0
         assert page.locator(".wk-colhead").count() == 1
 
-    @pytest.mark.parametrize("width", [1240, 1280, 1536, 1920])
-    def test_a_paid_usd_week_is_one_line_from_1240px(self, page, base_url, width):
+    @pytest.mark.parametrize("width", [1280, 1536, 1920])
+    def test_a_paid_usd_week_is_one_line_from_1280px(self, page, base_url, width):
         usd = _source(base_url, "Northwind", 60, "USD")
         _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=16.25, fx_rate=1.1224)
         _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=2000, fx_rate=1.1224)
@@ -681,6 +681,33 @@ class TestWeekLine:
         parts = (".wk-id", ".wk-h", ".payin", ".wk-fx", ".wk-conv", ".wk-gap", ".wk-eph", ".wk-tag")
         ys = {p: _centre(page, f"{sel} {p}") for p in parts}
         assert max(ys.values()) - min(ys.values()) <= 6, ys
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+
+    @pytest.mark.parametrize("width", [1920, 1280, 1279, 1024, 768, 640, 375])
+    def test_a_long_amount_stays_whole(self, page, base_url, width):
+        """$3,984.75 and +$1,015.25: four figures with cents, as on a real week."""
+        usd = _source(base_url, "Northwind", 99, "USD")
+        _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=20.25, fx_rate=1.1224)
+        tuesday = (MONDAY + datetime.timedelta(days=1)).isoformat()
+        _block(base_url, date=tuesday, source_id=usd, hours=20, fx_rate=1.1224)
+        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=5000, fx_rate=1.1224)
+        page.set_viewport_size({"width": width, "height": 900})
+        _open_days_freelance(page, base_url)
+        cells = page.evaluate(
+            """(id) => [...document.querySelectorAll(`#wk-${id} .wk-h, #wk-${id} .wk-est,
+                #wk-${id} .wk-gap, #wk-${id} .wk-eph`)].map(c => {
+              const num = c.querySelector('b') || c;
+              const r = document.createRange(); r.selectNodeContents(num);
+              const tops = new Set([...r.getClientRects()].filter(x => x.width > 0)
+                .map(x => Math.round(x.top + x.height / 2)));
+              return [c.innerText, tops.size, c.scrollWidth - c.clientWidth];
+            })""",
+            MONDAY.isoformat(),
+        )
+        assert len(cells) == 4, cells
+        for text, lines, spill in cells:
+            assert spill <= 1, (text, spill)
+            assert width <= 600 or lines == 1, (text, lines)
         assert page.evaluate("document.documentElement.scrollWidth") <= width
 
     @pytest.mark.parametrize("width,split", [(1280, False), (1536, True)])
@@ -699,7 +726,7 @@ class TestWeekLine:
         ys = [_centre(page, f"{sel} {p}") for p in (".wk-id", ".wk-now", ".wk-h", ".payin")]
         assert max(ys) - min(ys) <= 6, ys
 
-    @pytest.mark.parametrize("width", [1280, 1240, 1200, 1024, 768, 640, 375])
+    @pytest.mark.parametrize("width", [1280, 1279, 1240, 1200, 1024, 768, 640, 375])
     @pytest.mark.parametrize("expand", [False, True])
     def test_nothing_scrolls_sideways_and_the_numbers_are_there(
         self, page, base_url, width, expand

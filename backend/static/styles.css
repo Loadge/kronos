@@ -3373,11 +3373,11 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .days-table tr.wk-row td { border-top: 1px solid var(--k-border); }
 .days-table tr.wk-row.cur td { background: color-mix(in srgb, var(--k-brass) 4%, transparent); }
 .days-table th.wk-colhead { padding: 0; font-weight: 500; }
-/* One grid for the column header, the week line and the line of each source: from 1240px it is a
+/* One grid for the column header, the week line and the line of each source: from 1280px it is a
    single row; below that the week is two stacked lines (title and tag, then the numbers) and on a
    phone the numbers are labelled blocks. The first column takes what is left, so the rows line up. */
 .wk-cols, .wk-line {
-  display: grid; grid-template-columns: minmax(16rem, 1fr) 3.2rem 4.2rem minmax(17rem, 1fr) 3.6rem 3.8rem 6.6rem;
+  display: grid; grid-template-columns: minmax(15rem, 1fr) 3.2rem 5.2rem minmax(16.5rem, 1fr) 5.2rem 3.8rem 6.6rem;
   grid-template-areas: "head h est pay gap eph tail";
   column-gap: 0.3rem; align-items: center; padding: 0.25rem 0.5rem;
   contain: inline-size; /* the table sizes itself by its block rows; these grids take the width they are given */
@@ -3386,6 +3386,7 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .wk-cols span, .wk-cells { min-width: 0; }
 .wk-cells { display: contents; }
 .wk-cols .wk-h, .wk-cols .wk-est, .wk-cols .wk-gap, .wk-cols .wk-eph, .wk-h, .wk-est, .wk-gap, .wk-eph { text-align: right; }
+.wk-h, .wk-est, .wk-eph, .wk-gap:not(.wide) { white-space: nowrap; } /* a number never breaks in two */
 .wk-h { grid-area: h; } .wk-est { grid-area: est; } .wk-pay { grid-area: pay; } .wk-gap { grid-area: gap; } .wk-eph { grid-area: eph; }
 .wk-gap.wide { grid-area: gap-start / gap-start / gap-end / eph-end; }
 /* `.wk-head` is also the dashboard's week-strip head (styled above): the Days arrow overrides it here */
@@ -3436,11 +3437,11 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .wk-fx .pen { border: none; background: transparent; color: var(--k-brass); cursor: pointer; padding: 0 0.15rem; font-size: 0.85rem; width: auto; margin: 0; }
 .wk-fx .fxin { width: 4.8rem; margin: 0; padding: 0.1rem 0.3rem; height: auto; font-size: 0.76rem; text-align: right; }
 /* the current week has no room for two tags on one line: the month row still says what it splits */
-@media (min-width: 1240px) and (max-width: 1535px) { .wk-now ~ .wk-split { display: none; } }
-/* a USD payout's rate and euro amount need the 17rem of the single line: under 1240px, two lines */
-@media (max-width: 1239px) {
+@media (min-width: 1280px) and (max-width: 1535px) { .wk-now ~ .wk-split { display: none; } }
+/* a USD payout's rate and euro amount need the 16.5rem of the single line: under 1280px, two lines */
+@media (max-width: 1279px) {
   .wk-cols, .wk-line {
-    grid-template-columns: 3.6rem 5rem minmax(0, 1fr) 4.6rem 4.6rem;
+    grid-template-columns: 3.6rem 5.2rem minmax(0, 1fr) 5.2rem 4.6rem;
     grid-template-areas: "head head head tail tail" "h est pay gap eph";
     row-gap: 0.1rem;
   }

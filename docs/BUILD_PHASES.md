@@ -49,7 +49,7 @@ always visible, and the arrow only collapses the days, so a collapsed week is on
 right under it.
 
 **Decisions.**
-- From 1240px a one-source week is one line: arrow, week, range, tags, Hours, Estimate, Payout, Gap, € / h and
+- From 1280px a one-source week is one line: arrow, week, range, tags, Hours, Estimate, Payout, Gap, € / h and
   the status tag. The source name moves to a tooltip and the week's euro amount to a tooltip on Estimate.
 - A week with two or more sources shows its totals on the week line, and one line per source stays under it,
   always visible. The arrow only hides the days.
@@ -59,15 +59,15 @@ right under it.
   never hidden; the arrows still work and clearing the search puts each week back as it was.
 - The week columns have one header at the top of the table, and each open week has a small header for its
   block columns, so with everything collapsed there is only one header.
-- Under 1240px the week is two stacked lines, and on a phone it keeps the labelled blocks with no header rows.
-  The plan said 1100px, but a paid USD week does not fit on one line below 1240px: Pico's root font grows with
-  the screen, and at 1200px the page scrolled sideways.
-- From 1240px to 1535px the current week drops its "splits" tag when it has one, because "this week" and
+- Under 1280px the week is two stacked lines, and on a phone it keeps the labelled blocks with no header rows.
+  The plan said 1100px, but a paid USD week with four-figure amounts does not fit on one line below 1280px:
+  Pico's root font grows with the screen, and at 1200px the page scrolled sideways.
+- From 1280px to 1535px the current week drops its "splits" tag when it has one, because "this week" and
   "splits Oct/Nov" do not fit next to each other. The month row still says what comes from that week.
 - The geometry audit now measures the week tags, with every week open and with every week collapsed.
 
 **Known limits.** On a phone a long source name wraps to two lines in a day row, as it did before this phase.
-Between 601px and 1239px the source name of a one-source week is only in the tooltip, which a touch screen does
+Between 601px and 1279px the source name of a one-source week is only in the tooltip, which a touch screen does
 not show. The picture baselines do not cover this table, because they show Days in Employee mode.
 
 ### Phase 41 — Kronos on a phone (built 2026-11-05, checked by Miguel on his phone on INT, waiting for PROD)
