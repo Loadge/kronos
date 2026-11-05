@@ -36,10 +36,28 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39 and 40 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39, 40 and 41 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 41 — Kronos on a phone (built 2026-11-05, awaiting confirmation)
+
+**Why.** The first `/ui-review` showed that desktop tables were being squeezed onto the phone: Days was 755px
+wide inside a 343px space, so Net and the delta needed sideways scrolling, and Notes were hidden altogether.
+
+**Decisions.**
+- Up to 640px, each row of Days (Employee and Freelance) is two lines: what the day is and its numbers, then
+  times, breaks, the running total and the note. Nothing is dropped and nothing scrolls sideways. The column
+  headers go, so sorting by header is a desktop thing, and the pencil goes because the whole row opens the day.
+- In Analytics the Range card comes right after the chart on a phone, before Weekday pattern, and the Years
+  table fits without scrolling.
+- Controls are at least 24px each way on a phone; text links inside a sentence are exempt.
+- A label of the Calculator's bar hides when its segment is too narrow for it.
+- The geometry audit gained the tap size and the scroll inside Days, and its data now has real rows.
+
+**Known limits.** The Days loading skeleton on a phone was not looked at. The thresholds that hide the
+Calculator's labels are estimates from character counts. Desktop did not move: no 1280px baseline changed.
 
 ### Phase 40 — Eyes on the UI (built 2026-11-05, awaiting confirmation)
 

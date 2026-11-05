@@ -34,6 +34,7 @@ SCREENS = [
     ("freelance", DESKTOP),
     ("settings", DESKTOP),
     ("dashboard", PHONE),
+    ("days", PHONE),
     ("log", PHONE),
     ("analytics", PHONE),
 ]

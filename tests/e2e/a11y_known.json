@@ -42,7 +42,11 @@
   ],
   "days@375": [
     "color-contrast .brand-ver",
+    "color-contrast .non-work.day-row > .deficit.num.metric",
+    "color-contrast .non-work.day-row > .deficit.num.metric:nth-child(9)",
     "color-contrast .non-work.day-row > .dow",
+    "color-contrast .non-work.day-row > .neutral.num.metric",
+    "color-contrast .non-work.day-row > .neutral.num.metric:nth-child(9)",
     "color-contrast .non-work.day-row > td:nth-child(3) > .flex.day-pill",
     "color-contrast .non-work.day-row > td:nth-child(3) > .holiday.day-pill",
     "color-contrast .non-work.day-row > td:nth-child(3) > .sick.day-pill",

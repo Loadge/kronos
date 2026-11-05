@@ -230,16 +230,17 @@
                     <td class="metric" x-text="r.b.date"></td>
                     <td class="dow" x-text="r.dow"></td>
                     <td><span class="fl-dot" aria-hidden="true"></span> <span x-text="r.b.source_name"></span></td>
-                    <td class="num metric" x-text="r.b.start_time || '—'"></td>
-                    <td class="num metric" x-text="r.b.end_time || '—'"></td>
+                    <td class="num metric phone-hide" x-text="r.b.start_time || '—'"></td>
+                    <td class="num metric phone-hide" x-text="r.b.end_time || '—'"></td>
                     <td class="num metric" x-text="fmtHours(r.b.hours)"></td>
-                    <td class="num metric" x-text="fmtMoney(r.b.rate, r.b.currency)"></td>
-                    <td class="num metric" x-text="fmtMoney(r.b.amount, r.b.currency)"></td>
+                    <td class="num metric phone-hide" x-text="fmtMoney(r.b.rate, r.b.currency)"></td>
+                    <td class="num metric phone-hide" x-text="fmtMoney(r.b.amount, r.b.currency)"></td>
                     <td class="num metric" :class="r.b.amount_eur === null ? 'deficit' : (r.b.payout_id != null ? 'fl-est' : 'fl-money')" :title="r.b.payout_id != null ? 'estimate; the week\'s payout counts' : null" x-text="r.b.amount_eur === null ? 'no rate' : fmtMoney(r.b.amount_eur)"></td>
-                    <td class="notes-col" x-html="r.b.notes ? highlightNotes(r.b.notes, notesQuery) : ''"></td>
-                    <td class="act-col" @click.stop>
+                    <td class="notes-col phone-hide" x-html="r.b.notes ? highlightNotes(r.b.notes, notesQuery) : ''"></td>
+                    <td class="act-col phone-hide" @click.stop>
                       <button type="button" class="row-edit" @click="openBlockInLog(r.b)" aria-label="Edit" title="Edit this block in Log">✎</button>
                     </td>
+                    <td class="day-sub"><span class="day-sub-meta metric" x-text="blockSub(r.b)"></span><template x-if="r.b.notes"><span class="day-sub-note" x-html="(blockSub(r.b) ? ' · ' : '') + highlightNotes(r.b.notes, notesQuery)"></span></template></td>
                   </tr>
                 </template>
               </tbody>
@@ -349,15 +350,15 @@
                 <td class="metric" x-text="r.e.date"></td>
                 <td class="dow" x-text="r.e._dow"></td>
                 <td><span class="day-pill" :class="r.e.day_type" x-text="pillLabel(r.e)"></span><template x-if="hasBlocks(r.e.date)"><span class="days-fl metric" :title="flTotalLabel({ hours: blockHours(blocksOn(r.e.date)), eur: blockEur(blocksOn(r.e.date)), missing: 0 }) + ' freelance'" x-text="'⚡' + fmtHours(blockHours(blocksOn(r.e.date)))"></span></template></td>
-                <td class="num metric" x-text="r.e.start_time || '—'"></td>
-                <td class="num metric" x-text="r.e.end_time || '—'"></td>
-                <td class="num metric" x-text="r.e.total_break_minutes ? r.e.total_break_minutes + 'm' : '—'"></td>
+                <td class="num metric phone-hide" x-text="r.e.start_time || '—'"></td>
+                <td class="num metric phone-hide" x-text="r.e.end_time || '—'"></td>
+                <td class="num metric phone-hide" x-text="r.e.total_break_minutes ? r.e.total_break_minutes + 'm' : '—'"></td>
                 <td class="num metric" x-text="r.e.net_hours + 'h'"></td>
-                <td class="num metric" x-text="r.e.target_hours + 'h'"></td>
+                <td class="num metric phone-hide" x-text="r.e.target_hours + 'h'"></td>
                 <td class="num metric" :class="surplusClass(r.e.surplus_hours)" x-text="formatSurplus(r.e.surplus_hours)"></td>
                 <td class="num metric" :class="surplusClass(r.e._cumulative)" x-text="formatSurplus(r.e._cumulative)"></td>
-                <td class="notes-col" x-html="r.e.notes ? highlightNotes(r.e.notes, notesQuery) : ''"></td>
-                <td class="act-col" @click.stop>
+                <td class="notes-col phone-hide" x-html="r.e.notes ? highlightNotes(r.e.notes, notesQuery) : ''"></td>
+                <td class="act-col phone-hide" @click.stop>
                   <template x-if="!r.e._saving">
                     <button type="button" class="row-edit" @click="editEntry(r.e)" aria-label="Edit" :title="'Edit ' + r.e.date">✎</button>
                   </template>
@@ -365,6 +366,8 @@
                     <span class="saving-indicator" aria-label="Saving…">⏳</span>
                   </template>
                 </td>
+                <!-- line 2 of the row on a phone (hidden above 640px): the cells that stay out of line 1 -->
+                <td class="day-sub" data-testid="day-sub"><span class="day-sub-meta metric" x-text="daySub(r.e)"></span><template x-if="r.e.notes"><span class="day-sub-note" x-html="(daySub(r.e) ? ' · ' : '') + highlightNotes(r.e.notes, notesQuery)"></span></template></td>
               </tr>
             </template>
           </tbody>

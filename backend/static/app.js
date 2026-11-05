@@ -849,6 +849,25 @@ function app() {
       return `${sign}${Math.abs(h).toFixed(2)}h`;
     },
 
+    // Line 2 of a Days row on a phone, only what the day has: "09:30-18:00 · 60m · Σ +24.50h".
+    // The note follows it, drawn apart so a search can highlight it.
+    daySub(e) {
+      const parts = [];
+      if (e.start_time && e.end_time) parts.push(`${e.start_time}-${e.end_time}`);
+      if (e.total_break_minutes) parts.push(`${e.total_break_minutes}m`);
+      if (e._cumulative !== undefined && e._cumulative !== null) parts.push(`Σ ${this.formatSurplus(e._cumulative)}`);
+      return parts.join(' · ');
+    },
+    // The same for a freelance block: times, the rate, and the amount in the source's own
+    // currency when that is not the euro already shown on line 1.
+    blockSub(b) {
+      const parts = [];
+      if (b.start_time && b.end_time) parts.push(`${b.start_time}-${b.end_time}`);
+      if (b.rate !== undefined && b.rate !== null) parts.push(`${this.fmtMoney(b.rate, b.currency)}/h`);
+      if (b.currency !== 'EUR' && b.amount !== undefined && b.amount !== null) parts.push(this.fmtMoney(b.amount, b.currency));
+      return parts.join(' · ');
+    },
+
     subdialLabel(h) {
       if (h > 0.01) return 'Surplus';
       if (h < -0.01) return 'Deficit';

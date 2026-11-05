@@ -2800,9 +2800,53 @@ tbody.today-row > tr:first-child > td:first-child {
 .month-sep-sum b.surplus { color: var(--k-surplus); }
 .month-sep-sum b.deficit { color: var(--k-deficit); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* line 2 of a row, which exists only on a phone (see the 640px block below) */
+.days-table td.day-sub { display: none; }
+.day-sub-meta { color: var(--k-muted); }
+.day-sub-note { color: var(--k-muted); font-size: 0.8rem; line-height: 1.35; }
+.day-sub-note mark { background: color-mix(in srgb, var(--k-brass) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 0.1em; }
+.day-sub-note code { font-size: 0.82em; background: var(--k-border); padding: 0.1em 0.35em; border-radius: 0.25em; }
 @media (max-width: 640px) {
-  .days-table td.notes-col, .days-table th.notes-col { display: none; }
   .row-edit { opacity: 1; }
+  /* Every row is two lines, so nothing scrolls sideways and nothing is dropped: line 1 is what the
+     day is (date, weekday, type, Net, delta), line 2 is the detail (times, breaks, Σ, the note).
+     The whole row opens the day, so the Start, End, Breaks, Target, Σ, Notes and pencil cells go. */
+  .days-table, .days-table thead, .days-table tbody { display: block; }
+  .days-table thead { display: none; }
+  .days-table td.phone-hide { display: none; }
+  /* the Σ cell has no class of its own, so the accessibility scan keeps its selector: line 2 has it */
+  .days-table:not(.days-table--fl) tr.day-row td:nth-child(10) { display: none; }
+  .days-table td[colspan] { display: block; }
+  /* the table no longer scrolls sideways, so its week lines need no sticky inset */
+  .days-table .wk-head, .days-table .wk-line { position: static; width: auto; }
+  .days-table tr.month-sep, .days-table tr.week-sep, .days-table tr.wk-row, .days-table tr.wk-lines { display: block; }
+  .days-table tr.day-row {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid var(--k-border);
+  }
+  .days-table tr.day-row td { padding: 0.05rem 0; border-bottom: none; min-width: 0; }
+  .days-table td.day-sub {
+    display: block;
+    grid-column: 1 / -1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: 0.78rem;
+    line-height: 1.35;
+    padding-top: 0.1rem;
+  }
+  .days-table:not(.days-table--fl) tr.day-row td:nth-child(3) { white-space: normal; }
+  /* the detail line of a day off stays as bright as a work day's: it is the part that says what the day was */
+  .days-table tr.non-work td.day-sub { opacity: 1; }
+  .days-table tr.skel-row td:nth-child(n + 4) { display: none; }
+  /* the source name wraps beside its dot rather than being cut: it is what tells two blocks apart */
+  .days-table--fl tr.blk td:nth-child(3) { display: flex; align-items: baseline; gap: 0.25rem; white-space: normal; line-height: 1.2; }
+  .days-table--fl tr.blk td:nth-child(3) .fl-dot { flex: none; margin-right: 0; }
+  .days-table--fl tr.blk td.day-sub { padding-left: 1rem; }
+  .days-table tr.month-sep td, .days-table tr.week-sep td { padding-right: 0.5rem; }
 }
 
 /* ================================================================
@@ -2980,6 +3024,12 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .an-years th { text-align: left; padding: 0.4rem 0.6rem; font-size: 0.72rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); font-weight: 500; }
 .an-years td { padding: 0.4rem 0.6rem; }
 .an-years th.num, .an-years td.num { text-align: right; }
+@media (max-width: 640px) {
+  /* seven columns in 343px: tighter, and the headers may wrap */
+  .an-years { font-size: 0.78rem; }
+  .an-years th { padding: 0.3rem 0.25rem; font-size: 0.64rem; letter-spacing: 0.02em; vertical-align: bottom; }
+  .an-years td { padding: 0.35rem 0.25rem; }
+}
 .an-records { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2.5rem; }
 .an-rec {
   display: flex;
@@ -2995,7 +3045,11 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .an-rec-when { font-size: 0.72rem; color: var(--k-muted); margin-left: 0.5rem; }
 
 @media (max-width: 900px) {
-  .an-row { grid-template-columns: 1fr; }
+  .an-row { grid-template-columns: 1fr; row-gap: 0; }
+  /* the Range card belongs to the chart: chart, brush, Range, and only then the two panels */
+  .an-chart-col { display: contents; }
+  .an-ledger { order: 1; margin-top: 1.25rem; }
+  .an-panels { order: 2; }
   .an-presets { flex-direction: row; flex-wrap: wrap; }
   .an-records { grid-template-columns: 1fr; }
 }
@@ -3372,8 +3426,9 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .wk-await { flex-basis: 100%; margin-left: 1.4rem; }
   .wk-cols { display: none; }
   .wk-line { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "src src src" "h est eph" "pay pay gap"; row-gap: 0.4rem; padding: 0.55rem 0.3rem 0.55rem 1.35rem; }
-  .days-table--fl tr.blk td:first-child { padding-left: 1.35rem; }
+  .days-table--fl tr.blk td:first-child { padding-left: 1rem; }
   .days-table--fl tr.blk td:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { left: 0.7rem; }
+  .days-table--fl tr.blk { column-gap: 0.3rem; }
   .wk-src { grid-area: src; } .wk-h { grid-area: h; } .wk-est { grid-area: est; } .wk-pay { grid-area: pay; } .wk-gap { grid-area: gap; } .wk-eph { grid-area: eph; }
   .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
   .wk-gap.wide { grid-column: auto; align-items: flex-start; }
@@ -3685,7 +3740,10 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .calc-out { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
 /* gross → expenses → RETA → IRPF → net */
 .calc-fall { display: flex; height: 26px; border-radius: 6px; overflow: hidden; border: 1px solid var(--k-border); margin-bottom: 0.9rem; }
-.calc-seg { display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); min-width: 0; }
+.calc-seg { display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); min-width: 0; container-type: inline-size; }
+/* a label is never clipped: a segment narrower than its label shows none (the title keeps it) */
+@container (max-width: 7.5rem) { .calc-seg-lbl { display: none; } }
+@container (min-width: 5.5rem) { .calc-seg--net .calc-seg-lbl, .calc-seg--reta .calc-seg-lbl, .calc-seg--irpf .calc-seg-lbl { display: initial; } }
 .calc-seg--expenses { background: color-mix(in srgb, var(--k-muted) 45%, transparent); }
 .calc-seg--reta { background: color-mix(in srgb, var(--k-sick) 70%, transparent); }
 .calc-seg--irpf { background: color-mix(in srgb, var(--k-deficit) 70%, transparent); }
@@ -4008,6 +4066,18 @@ tbody.week-flash > tr > td { animation: week-wash 2s ease-out forwards; }
 }
 @media (min-width: 720px) {
   .update-slot { position: absolute; left: 0; top: 100%; margin-top: 0.5rem; z-index: 2; }
+}
+
+/* A finger needs 24px each way (WCAG 2.2, target size). The small controls grow on a phone only;
+   a text link inside a sentence is exempt and stays as it is. */
+@media (max-width: 640px) {
+  .log-cal-nav { min-width: 1.75rem; min-height: 1.75rem; }
+  .now-pill { min-height: 1.5rem; }
+  .fl-by { display: inline-flex; align-items: center; min-width: 1.5rem; min-height: 1.5rem; }
+  .plan-note-btn { min-height: 1.5rem; }
+  .frow input[type="checkbox"] { width: 1.5rem; height: 1.5rem; }
+  /* Pico draws the switch in em: a bigger font-size makes the whole switch bigger */
+  input[type="checkbox"][role="switch"] { font-size: 1.2rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .update-pill, .update-pill::before { animation: none; transition: none; }

@@ -76,6 +76,10 @@ Kronos has one helper per kind of number in `app.js`. Never format by hand in a 
 
 MDN documents tabular figures and `Intl.NumberFormat`, the helper the formatters use.
 
+# On a phone
+
+A phone is not a small desktop. A table with more columns than fit becomes rows of two lines: line 1 says what the row is and holds the numbers that matter, line 2 holds the detail, and nothing is dropped. Days and the Plan ledger work this way. The column headers go, and with them sorting by clicking a header, because a phone has no room for them. The whole row is the tap target, so the pencil goes too. Nothing that matters scrolls sideways: the heatmap is the one deliberate exception, because a year does not fit. A control is at least 24px each way, which is the WCAG 2.2 minimum; a link inside a sentence is exempt. When two blocks sit side by side on a desktop, the one that explains the main chart comes right after it on a phone, as the Range card does in Analytics.
+
 # Titles, hints and empty states
 
 - A title outside a card is an h2 in `.section-header.an-head`, 1.25rem, like "Calculator". Inside a card it is `.card-title h3`.

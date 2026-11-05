@@ -25,8 +25,13 @@ ONE_LINE = (
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
 
+# What a finger must be able to hit: 24px each way (WCAG 2.2, target size minimum). Inline links in
+# a sentence are exempt, so they are not in this list.
+TAPPABLE = "button, select, input, [role=tab], a[role=button]"
+TAP_MIN = 24
+
 MEASURE = """
-([centred, oneLine]) => {
+([centred, oneLine, tappable, tapMin, phone]) => {
   const bad = [];
   const text = el => el.innerText.trim().replace(/\\s+/g, ' ');
   const label = el => `${el.className} "${text(el).slice(0, 30)}"`;
@@ -52,9 +57,62 @@ MEASURE = """
     if (el.scrollWidth - el.clientWidth > 1) bad.push(['clipped', label(el)]);
   }
   if (document.documentElement.scrollWidth > window.innerWidth + 1) bad.push(['h-scroll', 'page']);
+  if (phone) {
+    for (const el of document.querySelectorAll(tappable)) {
+      if (!visible(el) || el.type === 'hidden' || el.closest('.visually-hidden')) continue;
+      const b = el.getBoundingClientRect();
+      if (b.width < tapMin - 0.5 || b.height < tapMin - 0.5) {
+        const size = `${Math.round(b.width)}x${Math.round(b.height)}`;
+        const name = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
+        const home = el.parentElement ? el.parentElement.className : '';
+        const what = `${el.tagName.toLowerCase()} ${label(el)} ${name} in ${home}`;
+        bad.push(['tap-small', what, size]);
+      }
+    }
+    for (const el of document.querySelectorAll('.days-wrap')) {
+      if (visible(el) && el.scrollWidth > el.clientWidth + 1) bad.push(['inner-scroll', label(el)]);
+    }
+  }
   return bad;
 }
 """
+
+
+def _seed_days(c: httpx.Client) -> None:
+    """Rows for the Days tables: a worked day with breaks and a long note, a vacation day, and
+    freelance blocks in euros and dollars. An empty table never shows a row that is too wide."""
+    sources = {s["name"]: s["id"] for s in c.get("/api/freelance/sources").json()}
+    local = sources["Local"]
+    r = c.post(
+        "/api/freelance/sources",
+        json={"name": "Northwind overseas", "hourly_rate": 70, "currency": "USD"},
+    )
+    assert r.status_code == 201, r.text
+    overseas = r.json()["id"]
+    note = {"notes": "Evening call, then the invoice"}
+    day, made = date.today(), 0
+    while made < 6:
+        day -= timedelta(days=1)
+        if day.weekday() >= 5 or day.year != date.today().year:
+            continue
+        body = {"date": day.isoformat(), "day_type": "work"}
+        if made == 3:
+            body["day_type"] = "vacation"
+        else:
+            body |= {"start_time": "09:30", "end_time": "18:00", "breaks": [{"break_minutes": 60}]}
+        if made == 0:
+            body["notes"] = "Dentist at eleven, then the long review with the whole team"
+        r = c.post("/api/entries", json=body)
+        assert r.status_code == 201, r.text
+        if made < 2:
+            blocks = [
+                {"source_id": local, "start_time": "19:00", "end_time": "21:00"} | note,
+                {"source_id": overseas, "hours": 1.5, "fx_rate": 1.1},
+            ]
+            for block in blocks:
+                r = c.post("/api/freelance/blocks", json={"date": day.isoformat()} | block)
+                assert r.status_code == 201, r.text
+        made += 1
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +131,7 @@ def _freelance_source(base_url):
         body = {"dates": soon, "day_type": "vacation", "notes": "long weekend"}
         r = c.post("/api/plans", json=body)
         assert r.status_code == 200, r.text
+        _seed_days(c)
     yield
     with httpx.Client(base_url=base_url) as c:
         c.delete("/api/data")
@@ -82,7 +141,8 @@ def _freelance_source(base_url):
 
 
 def _problems(page):
-    return page.evaluate(MEASURE, [CENTRED, ONE_LINE])
+    phone = page.viewport_size["width"] <= 640
+    return page.evaluate(MEASURE, [CENTRED, ONE_LINE, TAPPABLE, TAP_MIN, phone])
 
 
 @pytest.mark.parametrize("width,height", VIEWPORTS)
@@ -98,7 +158,20 @@ def test_text_is_centred_and_on_one_line(page, base_url, tab, width, height):
         if nav.is_visible():
             nav.click()
     page.wait_for_timeout(300)  # let the entry animations settle
-    assert _problems(page) == []
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_days_freelance_fits_with_every_week_open(page, base_url, width, height):
+    """The ⚡ table has its own rows (month, week, source lines, blocks): open them all."""
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{base_url}/#days")
+    page.wait_for_selector("main .page-head", timeout=5000)
+    page.get_by_role("radio", name="Freelance").click()
+    page.get_by_test_id("wk-expand-all").click()
+    page.wait_for_selector(".days-table--fl tr.blk", timeout=5000)
+    page.wait_for_timeout(300)
+    assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
 @pytest.mark.parametrize("tab", ["settings", "analytics", "freelance"])
@@ -114,11 +187,12 @@ def test_labels_survive_larger_text(page, base_url, tab):
     if tab == "settings":
         page.locator(".settings-group-btn", has_text="Freelance").click()
     page.wait_for_timeout(300)
-    assert _problems(page) == []
+    assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
 def test_the_measurement_can_fail(page, base_url):
     """A positive control: a button with lopsided padding and a wrapping label must be reported."""
+    page.set_viewport_size({"width": 1280, "height": 900})
     page.goto(f"{base_url}/#analytics")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate(
@@ -137,6 +211,30 @@ def test_the_measurement_can_fail(page, base_url):
     )
     found = _problems(page)
     assert {p[0] for p in found} == {"off-centre", "wraps", "clipped"}, found
+
+
+def test_the_phone_checks_can_fail(page, base_url):
+    """A positive control for the two checks that only run on a phone: a 14px button must be
+    reported as `tap-small`, and a table wider than its wrap as `inner-scroll`."""
+    page.set_viewport_size({"width": 375, "height": 800})
+    page.goto(f"{base_url}/#analytics")
+    page.wait_for_selector("main .page-head", timeout=5000)
+    page.wait_for_timeout(300)
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+    page.evaluate(
+        """() => {
+          const b = document.createElement('button');
+          b.style.cssText = 'width:14px;height:14px;padding:0;margin:0;display:block';
+          document.querySelector('.page-head').after(b);
+          const w = document.createElement('div');
+          w.className = 'days-wrap';
+          w.style.cssText = 'overflow-x:auto;width:100px';
+          w.innerHTML = '<div style="width:300px;height:10px"></div>';
+          document.querySelector('.page-head').after(w);
+        }"""
+    )
+    found = {p[0] for p in _problems(page)}
+    assert {"tap-small", "inner-scroll"} <= found, found
 
 
 def test_there_is_no_theme_switch_and_no_line_under_the_title(page, base_url):
