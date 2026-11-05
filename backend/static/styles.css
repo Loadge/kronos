@@ -1420,6 +1420,7 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 .save-template-section[open] summary::before { content: '▾'; }
 .save-template-section summary:hover { color: var(--k-text); }
 .save-template-section summary::-webkit-details-marker { display: none; }
+.save-template-section summary::after { display: none; } /* Pico's chevron: one arrow is enough */
 .save-template-body {
   display: flex;
   gap: 0.5rem;

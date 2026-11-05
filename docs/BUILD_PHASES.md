@@ -41,7 +41,7 @@ through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (t
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
 
-### Phase 41 — Kronos on a phone (built 2026-11-05, awaiting confirmation)
+### Phase 41 — Kronos on a phone (built 2026-11-05, checked by Miguel on his phone on INT, waiting for PROD)
 
 **Why.** The first `/ui-review` showed that desktop tables were being squeezed onto the phone: Days was 755px
 wide inside a 343px space, so Net and the delta needed sideways scrolling, and Notes were hidden altogether.

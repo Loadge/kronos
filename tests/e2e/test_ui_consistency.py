@@ -174,3 +174,29 @@ class TestDashboardMark:
         assert hero.locator("span[aria-hidden=true]").first.inner_text() == "👔"
         # the Freelance strip keeps its ⚡
         assert "⚡" in page.locator("[data-testid=freelance-card]").inner_text()
+
+
+ARROWS = """s => ['::before', '::after'].filter(p => {
+    const c = getComputedStyle(s, p);
+    return c.display !== 'none' && c.content !== 'none' && c.content !== 'normal';
+}).length"""
+
+
+class TestDisclosures:
+    def test_a_collapsible_wears_one_arrow(self, page, base_url):
+        """Pico draws a chevron after every summary; ours draws its own arrow before the text."""
+        page.goto(f"{base_url}/#log")
+        page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
+        page.evaluate(
+            f"Alpine.$data(document.querySelector('main')).openDayInLog('{TODAY.isoformat()}')"
+        )
+        summary = page.locator(".save-template-section summary")
+        summary.wait_for(timeout=5000)
+        assert summary.evaluate(ARROWS) == 1
+        summary.click()  # the open state draws its arrow from another rule
+        assert summary.evaluate(ARROWS) == 1
+
+        page.goto(f"{base_url}/#settings")
+        summary = page.locator(".target-schedule > summary")
+        summary.wait_for(timeout=5000)
+        assert summary.evaluate(ARROWS) == 1
