@@ -369,7 +369,7 @@ class TestAnalytics:
         assert "€240" in page.locator(".an-bar-lbl").text_content()
         # the freelance export is a pill in the head, not a block at the bottom
         head = page.locator(".page-head .page-head-controls")
-        assert head.get_by_role("button", name="⚡ Freelance CSV", exact=True).count() == 1
+        assert head.get_by_role("button", name="Freelance CSV", exact=True).count() == 1
 
     def test_heatmap_tooltip_escapes_the_source_name(self, page, base_url):
         d = datetime.date(YEAR, 3, 6)

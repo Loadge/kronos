@@ -9,15 +9,15 @@
       <a href="/api/export.csv" role="button" class="head-btn" download>CSV</a>
       <a href="/api/export.json" role="button" class="head-btn" download>JSON</a>
       <template x-if="hasFreelance()">
-        <a href="/api/freelance/export.csv" role="button" class="head-btn" download>⚡ Freelance CSV</a>
+        <a href="/api/freelance/export.csv" role="button" class="head-btn" download><span aria-hidden="true">⚡</span> Freelance CSV</a>
       </template>
       <template x-if="hasFreelance()">
-        <a href="/api/freelance/payouts.csv" role="button" class="head-btn" download>⚡ Payouts CSV</a>
+        <a href="/api/freelance/payouts.csv" role="button" class="head-btn" download><span aria-hidden="true">⚡</span> Payouts CSV</a>
       </template>
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
           <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'"><span aria-hidden="true">👔</span> Employee</button>
-          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
       <nav class="year-step" aria-label="Analytics year">
@@ -55,14 +55,14 @@
         <span class="legend-item"><span class="hm-swatch hm-ghost hm-ghost-vacation"></span> Planned</span>
         <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
       </div>
-      <div class="heatmap-scroll">
+      <div class="heatmap-scroll" tabindex="0" role="region" aria-label="Year at a glance">
         <div class="heatmap"
              :style="`grid-template-columns: ${heatmapCells().colTemplate}`"
              @mousemove="hmHover($event)" @mouseleave="hmTip.show = false" @click="hmClick($event)">
           <template x-for="cell in heatmapCells().cells" :key="cell.key">
             <div :class="cell.type === 'label' ? 'hm-month-label' : cell.type === 'week' ? 'hm-week-label' : 'hm-cell ' + cell.cls + (cell.weekend ? ' hm-weekend' : '') + (cell.today ? ' hm-today' : '')"
                  :style="`grid-row: ${cell.row}; grid-column: ${cell.col};` + (cell.style || '')"
-                 :aria-label="cell.title || null"
+                 :role="cell.title ? 'img' : null" :aria-label="cell.title || null"
                  :data-date="cell.type === 'day' ? cell.date : null"
                  x-text="cell.type === 'label' || cell.type === 'week' ? cell.label : ''"></div>
           </template>
@@ -92,7 +92,7 @@
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Heatmap shows">
           <button type="button" role="radio" :aria-checked="hmMode === 'employee' ? 'true' : 'false'" :class="hmMode === 'employee' ? 'on' : ''" @click="hmMode = 'employee'"><span aria-hidden="true">👔</span> Employee</button>
-          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'">⚡ Freelance</button>
+          <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
       <nav class="year-step" aria-label="Analytics year">
@@ -226,7 +226,7 @@
   <template x-if="yearly.length === 0">
     <p class="muted">No years yet.</p>
   </template>
-  <div class="table-wrap" x-show="yearly.length">
+  <div class="table-wrap" x-show="yearly.length" tabindex="0" role="region" aria-label="Years">
     <table class="an-years">
       <thead>
         <tr>

@@ -16,7 +16,7 @@
       <template x-if="hasFreelance()">
         <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Days of">
           <button type="button" role="radio" :aria-checked="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click="setDaysMode('employee')"><span aria-hidden="true">👔</span> Employee</button>
-          <button type="button" role="radio" :aria-checked="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click="setDaysMode('freelance')">⚡ Freelance</button>
+          <button type="button" role="radio" :aria-checked="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click="setDaysMode('freelance')"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
       <!-- the year, or every year -->

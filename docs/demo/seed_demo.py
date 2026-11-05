@@ -8,8 +8,8 @@ Freelance tab.
 
 The dates are fixed (the tour was made on 2026-11-04 and Tue 3 Nov is left empty
 for the "Create entry" scene), so the data does not depend on the day it runs.
-The server still reads its own clock for "today"; for the exact frames of the
-GIF, serve it on 2026-11-04.
+For the exact frames of the GIF, serve it with KRONOS_NOW frozen on that day; the
+screenshot baselines (tests/e2e/test_ui_snapshots.py) use the same data and day.
 
 NEVER run this against your real data — it deletes all work entries, freelance
 blocks, payouts and income sources first.

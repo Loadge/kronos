@@ -1,0 +1,83 @@
+{
+  "analytics@1280": [
+    "color-contrast .brand-ver"
+  ],
+  "analytics@375": [
+    "color-contrast .brand-ver"
+  ],
+  "dashboard@1280": [
+    "color-contrast .brand-ver",
+    "color-contrast .ql-holiday",
+    "color-contrast .wd--empty.wd:nth-child(3) > .wd-top > .wd-dow",
+    "color-contrast .wd--empty.wd:nth-child(5) > .wd-top > .wd-dow",
+    "color-contrast .wd--empty.wd:nth-child(6) > .wd-top > .wd-dow",
+    "color-contrast .wd--today > .wd-top > .wd-dow",
+    "color-contrast .wd--weekend.wd--empty.wd:nth-child(7) > .wd-top > .wd-dow",
+    "color-contrast .wd--weekend.wd--empty.wd:nth-child(8) > .wd-top > .wd-dow"
+  ],
+  "dashboard@375": [
+    "color-contrast .brand-ver",
+    "color-contrast .ql-holiday",
+    "color-contrast .wd--empty.wd:nth-child(3) > .wd-top > .wd-dow",
+    "color-contrast .wd--empty.wd:nth-child(5) > .wd-top > .wd-dow",
+    "color-contrast .wd--empty.wd:nth-child(6) > .wd-top > .wd-dow",
+    "color-contrast .wd--today > .wd-top > .wd-dow",
+    "color-contrast .wd--weekend.wd--empty.wd:nth-child(7) > .wd-top > .wd-dow",
+    "color-contrast .wd--weekend.wd--empty.wd:nth-child(8) > .wd-top > .wd-dow"
+  ],
+  "days@1280": [
+    "color-contrast .brand-ver",
+    "color-contrast .non-work.day-row > .deficit.num",
+    "color-contrast .non-work.day-row > .deficit.num.metric",
+    "color-contrast .non-work.day-row > .deficit.num.metric:nth-child(9)",
+    "color-contrast .non-work.day-row > .dow",
+    "color-contrast .non-work.day-row > .neutral.num",
+    "color-contrast .non-work.day-row > .neutral.num.metric",
+    "color-contrast .non-work.day-row > .neutral.num.metric:nth-child(9)",
+    "color-contrast .non-work.day-row > .surplus.num",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .flex.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .holiday.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .sick.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .vacation.day-pill"
+  ],
+  "days@375": [
+    "color-contrast .brand-ver",
+    "color-contrast .non-work.day-row > .dow",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .flex.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .holiday.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .sick.day-pill",
+    "color-contrast .non-work.day-row > td:nth-child(3) > .vacation.day-pill"
+  ],
+  "freelance@1280": [
+    "color-contrast .brand-ver",
+    "color-contrast span > .calc-seg-lbl"
+  ],
+  "freelance@375": [
+    "color-contrast .brand-ver",
+    "color-contrast span > .calc-seg-lbl"
+  ],
+  "log@1280": [
+    "color-contrast .brand-ver"
+  ],
+  "log@375": [
+    "color-contrast .brand-ver"
+  ],
+  "plan@1280": [
+    "color-contrast .brand-ver",
+    "color-contrast .flex",
+    "color-contrast .holiday",
+    "color-contrast .subdial-label"
+  ],
+  "plan@375": [
+    "color-contrast .brand-ver",
+    "color-contrast .flex",
+    "color-contrast .holiday",
+    "color-contrast .subdial-label"
+  ],
+  "settings@1280": [
+    "color-contrast .brand-ver"
+  ],
+  "settings@375": [
+    "color-contrast .brand-ver"
+  ]
+}

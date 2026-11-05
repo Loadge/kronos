@@ -1,4 +1,4 @@
-.PHONY: install test lint format e2e smoke cli-check check seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
+.PHONY: install test lint format e2e snapshots snapshots-update smoke cli-check check seed migrate revision run build up down logs shell clean staging-up staging-down staging-logs
 
 PY ?= python
 PIP ?= pip
@@ -26,6 +26,14 @@ format:
 ## e2e — run the E2E suite (live server + Playwright browser)
 e2e:
 	pytest tests/e2e -q -p no:cacheprovider
+
+## snapshots — compare the key screens with their baselines, in the CI image (needs Docker)
+snapshots:
+	$(PY) bin/snapshots.py
+
+## snapshots-update — replace the baselines; review the new pictures before committing
+snapshots-update:
+	$(PY) bin/snapshots.py --update
 
 ## smoke — read-only HTTP smoke checks against $(SMOKE_URL) (default localhost:$(APP_PORT))
 smoke:

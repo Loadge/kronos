@@ -36,10 +36,38 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38 and 39 built, 37 and 38 on INT, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39 and 40 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 40 — Eyes on the UI (built 2026-11-05, awaiting confirmation)
+
+**Why.** Three layout bugs in a row were seen only by Miguel, after the tests were green. He asked for a
+practice that looks at the UI, and for the tools to back it.
+
+**Decisions.**
+- Ten key screens are compared with approved pictures (`pytest-playwright-visual-snapshot`). The pictures
+  are made in the same Linux image as the pipeline, because text renders differently on Windows, and
+  `make snapshots` and `make snapshots-update` run from any machine with Docker. They need the same page
+  every day, so they use the demo data and a frozen "now": `KRONOS_NOW` is a new setting read by
+  `backend/app/services/clock.py`, for disposable instances only. It also replaces the `TZ` trick of the demo GIF.
+- Playwright is pinned, because a new Chromium moves pixels; a bump needs new baselines in the same commit.
+- Aria snapshots pin the header and the head of every page by role and name, with extra children forbidden.
+- axe scans every tab at both widths. Today's serious findings live in an allowlist that can only shrink, and
+  `docs/a11y_report.md` explains them.
+- A red e2e run keeps its traces, screenshots and picture diffs as job artifacts for two weeks.
+- `/ui-review` is a new skill: a fresh reviewer looks at every page against `UI_GUIDE.md` before PROD. It
+  advises, it does not gate. No script calling a vision API was built, because that needs an API key and a
+  subagent does the same job.
+- The scan paid for itself at once: the heatmap cells got a role, the two scrolling areas can take focus, and
+  the ⚡ marks are hidden from screen readers on every page, as the guide already said.
+- The first `/ui-review` caught a real bug the geometry audit had missed: with a row in its ledger, the Plan
+  page scrolled sideways on a phone. The ledger's rows now wrap on a phone, and the audit's data has such a row.
+
+**Known limits.** The contrast findings are recorded, not fixed: the rows of days off in Days are most of
+them, and that is a design decision. Baselines are about 1.5 MB, and each approved change adds to the repo's
+history. If the snapshot tests flake in two pipelines, they move to a non-blocking job.
 
 ### Phase 39 — One look across pages (built 2026-11-05, awaiting confirmation)
 

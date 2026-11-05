@@ -67,7 +67,7 @@ class TestAnalyticsExports:
     def test_head_holds_the_export_pills_before_the_switch(self, page, base_url):
         _open_analytics(page, base_url)
         head = page.locator("main .page-head .page-head-controls")
-        for name in ("CSV", "JSON", "⚡ Freelance CSV", "⚡ Payouts CSV"):
+        for name in ("CSV", "JSON", "Freelance CSV", "Payouts CSV"):
             pill = head.get_by_role("button", name=name, exact=True)
             assert pill.count() == 1, f"missing head pill {name!r}"
             assert "head-btn" in pill.get_attribute("class")
@@ -85,8 +85,8 @@ class TestAnalyticsExports:
         hrefs = {
             "CSV": "/api/export.csv",
             "JSON": "/api/export.json",
-            "⚡ Freelance CSV": "/api/freelance/export.csv",
-            "⚡ Payouts CSV": "/api/freelance/payouts.csv",
+            "Freelance CSV": "/api/freelance/export.csv",
+            "Payouts CSV": "/api/freelance/payouts.csv",
         }
         for name, href in hrefs.items():
             assert head.get_by_role("button", name=name, exact=True).get_attribute("href") == href
@@ -101,8 +101,8 @@ class TestAnalyticsExports:
         head = page.locator("main .page-head .page-head-controls")
         assert head.get_by_role("button", name="CSV", exact=True).count() == 1
         assert head.get_by_role("button", name="JSON", exact=True).count() == 1
-        assert head.get_by_role("button", name="⚡ Freelance CSV", exact=True).count() == 0
-        assert head.get_by_role("button", name="⚡ Payouts CSV", exact=True).count() == 0
+        assert head.get_by_role("button", name="Freelance CSV", exact=True).count() == 0
+        assert head.get_by_role("button", name="Payouts CSV", exact=True).count() == 0
 
     def test_no_export_block_at_the_bottom(self, page, base_url):
         _open_analytics(page, base_url)

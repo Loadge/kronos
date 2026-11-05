@@ -30,14 +30,13 @@ The dates are fixed, so the result does not depend on the day you run it:
   the seed never calls the network.
 
 The tour was made on **Wed 2026-11-04**: the browser's clock is pinned to that
-day (10:12), but the server reads its own. To reproduce the exact frames on
-another day, serve with a `TZ` in which it still is 4 Nov (the day only matters
-for the dashboard's "this week" and the "today" highlight).
+day (10:12), and `KRONOS_NOW` freezes the server's clock on the same instant,
+so the frames come out the same on any day.
 
 ## 2. Serve it on a spare port
 
 ```sh
-KRONOS_DATA_DIR=/tmp/kronos-demo TZ=America/New_York python -m uvicorn app.main:app --host 127.0.0.1 --port 8799 --app-dir backend
+KRONOS_DATA_DIR=/tmp/kronos-demo KRONOS_NOW=2026-11-04T10:12:00+01:00 python -m uvicorn app.main:app --host 127.0.0.1 --port 8799 --app-dir backend
 ```
 
 ## 3. Capture the frames

@@ -98,6 +98,7 @@ MDN documents tabular figures and `Intl.NumberFormat`, the helper the formatters
 - 2026-11-05: dates keep two forms on purpose, ISO for lookup and short for glancing (see Numbers and dates).
 - 2026-11-05: Kronos is dark only: the light theme and its switch were removed.
 - 2026-11-05: the "ahead overall" line under the title was removed; the Dashboard hero already says it.
+- 2026-11-05: the screenshot baselines, the aria snapshots and the accessibility scan joined the pipeline, and `/ui-review` became the look before PROD.
 
 # Look at it
 
@@ -106,6 +107,14 @@ Tests that read the markup cannot see a label that sits off-centre in its button
 1. Shoot every screen you touched at 1280px and at 375px (`python bin/kctl.py shot "/#<tab>" --out .artifacts/x.png`, add `--viewport phone`) and open the images. Say what you saw.
 2. Run `tests/e2e/test_ui_geometry.py`. It measures every tab at both widths: the text of a control sits in its middle, no label takes two lines, no text is clipped, the page does not scroll sideways. It has a positive control, a test that must report a deliberately broken button, so it cannot pass by measuring nothing.
 3. A change adds the assertion for what it touched, and one bad style is planted to see the audit turn red.
+
+Three more tools watch what the geometry audit cannot.
+
+- Screenshot baselines (`tests/e2e/test_ui_snapshots.py`) compare ten key screens pixel by pixel with an approved picture, drawn from the demo data on a frozen day. They notice what nobody wrote a rule for. The pictures are Linux pictures, because text renders differently on Windows, so they are made in the same image as the pipeline: `make snapshots` compares and `make snapshots-update` replaces them. When a change is meant to move a screen, update the baseline in the same commit and open the new picture before committing it. A red run leaves the expected picture, the new one and their diff in `.artifacts/snapshot_failures/`, and the pipeline keeps them as job artifacts.
+- Aria snapshots (`tests/e2e/test_ui_aria.py`) pin the header and the head of every page by role and name. They run on any system with no picture to maintain, and an extra child fails, so a line that comes back under the title or a control added without a decision is caught here.
+- The accessibility scan (`tests/e2e/test_ui_a11y.py`) runs axe on every tab at both widths. What it found on the day it was added is in `tests/e2e/a11y_known.json` and explained in `docs/a11y_report.md`. A new serious finding fails, and an entry that no longer happens fails too, so the list can only shrink.
+
+Before pressing PROD on a phase that changes the UI, ask for `/ui-review`: a reviewer who has not seen the change looks at every page against this guide. It advises, it does not block.
 
 A framework's defaults can undo your CSS silently: Pico styles `a[role=button]` with more weight than a plain class, which is how the new export pills ended up off-centre. When a control looks wrong, compare its computed style with what you wrote.
 
@@ -122,13 +131,14 @@ Answer yes or no. Any "no" is a reason to stop.
 7. Does every list, table and chart have an empty state with at most one action?
 8. Is anything important only in a tooltip, or behind more than one opener?
 9. Does reduced motion still turn the animation off? (Kronos is dark only: there is no theme to check.)
-10. Did you open the screenshots (1280px and 375px) next to the neighbouring page, and does `test_ui_geometry.py` pass?
+10. Did you open the screenshots (1280px and 375px) next to the neighbouring page, does `test_ui_geometry.py` pass, and did `make snapshots` show only what you meant to change?
 11. Did you update this guide or `DESIGN.md` if a pattern changed?
 
 # How the guide is enforced
 
 - `tests/e2e/test_ui_pagehead.py` walks every tab and asserts that it has one page head, that the title comes first, that the year selector is the last control, that the pill comes after the page's buttons and just before the year, that the pill keeps its height between Days and Analytics, and that the controls end at the right edge of the head.
 - `tests/e2e/test_ui_geometry.py` measures the drawn boxes on every tab at 1280px and 375px: centred text, one line, no clipping, no sideways scroll, no theme switch and no line under the title.
+- `tests/e2e/test_ui_snapshots.py`, `tests/e2e/test_ui_aria.py` and `tests/e2e/test_ui_a11y.py` are described in "Look at it".
 - `tests/e2e/test_ui_consistency.py` asserts the export names in the head, the removed hints and that the primary buttons share one look.
 - `tests/unit/test_ui_rules.py` reads the templates and fails on a bottom "Export" block, the old export names, a second primary-button class, a ghost button, money without cents outside a chart, a hand-made number format, an h3 as page-level title and any hint from the removed list.
 - To see the app's buttons, tabs and heads side by side, run `python bin/kctl.py up --seed`, then `python bin/kctl.py shot "/#<tab>"` for each tab, and compare them. Do it by hand before each UI phase; a pixel diff in the pipeline would be flaky.

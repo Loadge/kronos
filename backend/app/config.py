@@ -14,6 +14,9 @@ DB_PATH = DATA_DIR / "kronos.db"
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DB_PATH.as_posix()}")
 
 TIMEZONE = os.getenv("TZ", "Europe/Madrid")
+# An ISO instant ("2026-11-04T10:12:00+01:00") that freezes "now" for a disposable instance: the
+# screenshot baselines and the demo GIF need the same "today" every day. Never set in a real one.
+FIXED_NOW = os.getenv("KRONOS_NOW", "")
 
 STATIC_DIR = BACKEND_DIR / "static"
 TEMPLATES_DIR = APP_DIR / "templates"

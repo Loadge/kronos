@@ -7,6 +7,8 @@ tab, for the controls that carry text.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import httpx
 import pytest
 
@@ -65,6 +67,12 @@ def _freelance_source(base_url):
             json={"name": "Local", "hourly_rate": 60, "currency": "EUR"},
         )
         assert r.status_code == 201, r.text
+        # a row in the Plan ledger: its table once pushed the whole page past the edge of a phone,
+        # which an empty ledger never shows
+        soon = [(date.today() + timedelta(days=n)).isoformat() for n in (7, 8, 9)]
+        body = {"dates": soon, "day_type": "vacation", "notes": "long weekend"}
+        r = c.post("/api/plans", json=body)
+        assert r.status_code == 200, r.text
     yield
     with httpx.Client(base_url=base_url) as c:
         c.delete("/api/data")

@@ -10,10 +10,12 @@ from __future__ import annotations
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from app.config import TIMEZONE
+from app.config import FIXED_NOW, TIMEZONE
 
 
 def local_now() -> datetime:
+    if FIXED_NOW:
+        return datetime.fromisoformat(FIXED_NOW).astimezone(ZoneInfo(TIMEZONE))
     return datetime.now(ZoneInfo(TIMEZONE))
 
 

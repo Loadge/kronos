@@ -47,8 +47,11 @@ the page head (title left; controls right: the page's buttons, then the Employee
 exports as head pills, one primary button look (`btn-action`), one formatter per kind of number (money with
 cents, hours trimmed for totals), no hint lines, and 👔/⚡ marks. Run its checklist before shipping, and change
 the guide in the same commit when a rule moves. `tests/unit/test_ui_rules.py`, `tests/e2e/test_ui_pagehead.py`
-and `tests/e2e/test_ui_geometry.py` enforce the checkable part. A UI change is not done until you have opened
-screenshots at 1280 and 375 px and the geometry audit is green (`software/AGENTS.md`, "UI validation").
+and `tests/e2e/test_ui_geometry.py` enforce the checkable part, plus `test_ui_aria.py`, `test_ui_a11y.py` and
+`test_ui_snapshots.py` (Linux only, so they skip on Windows: run `make snapshots`, which needs Docker). A change
+that moves a screen updates its baseline with `make snapshots-update` in the same commit; open the new pictures
+first. A UI change is not done until you have opened screenshots at 1280 and 375 px and the geometry audit is
+green (`software/AGENTS.md`, "UI validation").
 
 ## CI/CD
 

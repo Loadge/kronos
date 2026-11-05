@@ -3,3 +3,8 @@ pytest>=8.0
 httpx>=0.27
 ruff>=0.6
 pytest-playwright>=0.5
+# Pinned: Playwright brings its own Chromium, and a new browser moves pixels. Bumping it means
+# running `make snapshots-update` and reviewing the new baselines in the same commit.
+playwright==1.62.0
+pytest-playwright-visual-snapshot==0.5.1
+axe-playwright-python==0.1.8

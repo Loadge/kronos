@@ -1093,11 +1093,23 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 .plan-ledger-note { font-size: 0.78rem; margin-top: 0.9rem; }
 
 @media (max-width: 900px) {
-  .plan-layout { grid-template-columns: 1fr; }
+  .plan-layout { grid-template-columns: minmax(0, 1fr); }
   .plan-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
   .plan-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* four columns do not fit a phone: the date, the type and the actions on one line, the detail below */
+  .plan-table, .plan-table tbody { display: block; }
+  .plan-table tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--k-border);
+  }
+  .plan-table tr:last-child { border-bottom: none; }
+  .plan-table td { padding: 0.15rem 0.3rem; border-bottom: none; }
+  .plan-table .plan-detail { grid-column: 1 / -1; grid-row: 2; width: auto; }
 }
 
 /* ── Partial-day leave slider on the Log tab ────────────────────────────── */
@@ -1971,7 +1983,7 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 
 .weekday-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(7, 1fr);
   gap: 0.4rem;
   margin: 0.75rem 0 0.25rem;
 }
@@ -2493,7 +2505,7 @@ tbody.today-row > tr:first-child > td:first-child {
 .wk-total .muted { font-weight: 400; }
 .wk-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(7, 1fr);
   gap: 0.5rem;
 }
 .wd {
@@ -3781,6 +3793,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .year-all.on { background: var(--k-brass); border-color: var(--k-brass); color: var(--k-bg); }
 /* a quiet header button (PDF, the shortcuts, the exports) */
 .head-btn, a.head-btn[role="button"] {
+  gap: 0.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
