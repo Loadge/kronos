@@ -522,6 +522,9 @@ class TestDaysFreelance:
         assert page.locator(".days-table .day-row").count() == 1  # the employee table
         tabs.nth(1).click()
         page.wait_for_selector("[data-testid='days-freelance']", timeout=3000)
+        # the week lines are always there; the blocks show once the weeks are open
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        page.get_by_test_id("wk-expand-all").click()
         assert page.locator(".days-table--fl .day-row").count() == 2
         total = page.locator("[data-testid='days-fl-total']")
         assert "€242.00" in total.inner_text() and "2 blocks" in total.inner_text()

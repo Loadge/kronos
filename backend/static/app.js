@@ -127,7 +127,8 @@ function app() {
     sources: [],          // income sources (archived included; pickers filter)
     blocks: [],           // every freelance block, loaded with the entries
     payouts: [],          // every weekly payout, loaded next to the blocks
-    daysWeekOpen: {},     // Days > Freelance: week key (its Monday) -> opened by hand; unset = open only the current week
+    daysWeekOpen: {},     // Days > Freelance: week key (its Monday) -> days shown by hand; unset = only the current week shows its days
+    daysWeekOpenQ: {},    // the same while the notes search has text (unset = open, so a hit is never hidden); emptied when the search clears
     payDraft: {},         // `${source}|${week}` -> the payout text being typed, until it is saved
     fxEditing: null,      // id of the payout whose exchange rate is being edited
     // the Log tab's block editor: `id` set while editing an existing block
@@ -196,6 +197,9 @@ function app() {
     async init() {
       // Kronos is dark only; a theme remembered by an older version is forgotten.
       try { localStorage.removeItem('k-theme'); } catch { /* storage may be blocked */ }
+
+      // Clearing the notes search puts every week back as it was before the search.
+      this.$watch('notesQuery', q => { if (!q.trim()) this.daysWeekOpenQ = {}; });
 
       const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'freelance', 'settings'];
       const hash = location.hash.replace('#', '');
@@ -2073,14 +2077,22 @@ function app() {
     payoutOf(sourceId, weekStart) { return this.payouts.find(p => p.source_id === sourceId && p.week_start === weekStart) || null; },
     // "$2,100" (cents only when there are some)
     payAmountLabel(p) { return this.fmtMoney(p.amount, p.currency, Number.isInteger(p.amount) ? 0 : 2); },
+    // "Open" means the week shows its day rows; the week's numbers are always there. While the
+    // notes search has text the weeks answer to their own map and default to open.
     daysWeekIsOpen(key) {
+      if (this.notesQuery.trim()) return key in this.daysWeekOpenQ ? this.daysWeekOpenQ[key] : true;
       return key in this.daysWeekOpen ? this.daysWeekOpen[key] : key === this._mondayIso(new Date());
     },
-    daysWeekToggle(key) { this.daysWeekOpen = { ...this.daysWeekOpen, [key]: !this.daysWeekIsOpen(key) }; },
+    daysWeekToggle(key) {
+      const next = !this.daysWeekIsOpen(key);
+      if (this.notesQuery.trim()) this.daysWeekOpenQ = { ...this.daysWeekOpenQ, [key]: next };
+      else this.daysWeekOpen = { ...this.daysWeekOpen, [key]: next };
+    },
     daysWeeksSetAll(open) {
       const next = {};
       for (const w of this.daysWeeks()) next[w.key] = open;
-      this.daysWeekOpen = next;
+      if (this.notesQuery.trim()) this.daysWeekOpenQ = next;
+      else this.daysWeekOpen = next;
     },
     // One entry per ISO week (newest first) that has a block shown or a payout of a ticked
     // source with no blocks; `lines` has one entry per source with blocks or a payout that week.
@@ -2125,7 +2137,8 @@ function app() {
       });
     },
     // Rows of the table: a month separator ahead of the weeks whose Monday falls in it; each
-    // week is one line, its source lines (when open) and then its block rows.
+    // week is one line (with a line per source under it when it has several sources) and, only
+    // when the week is open, a header for the block columns and then its block rows.
     daysFlRows() {
       const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const rows = [];
@@ -2151,7 +2164,8 @@ function app() {
             hours: this.blockHours(inMonth), eur: this.lineEur(lines), from });
         }
         rows.push({ ...w, kind: 'week', key: 'w-' + w.key, week: w.key });
-        w.blocks.forEach((b, i) => rows.push({ kind: 'block', key: 'b-' + b.id, b, last: i === w.blocks.length - 1, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] }));
+        if (w.open && w.blocks.length) rows.push({ kind: 'bhead', key: 'h-' + w.key, week: w.key });
+        if (w.open) w.blocks.forEach((b, i) => rows.push({ kind: 'block', key: 'b-' + b.id, b, last: i === w.blocks.length - 1, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] }));
       }
       return rows;
     },

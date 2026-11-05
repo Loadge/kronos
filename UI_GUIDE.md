@@ -94,6 +94,7 @@ A phone is not a small desktop. A table with more columns than fit becomes rows 
 # Decisions log
 
 - 2026-11-05: the Employee/Freelance pill sits in the page head, left of the year, on every page that has it. It replaced the tab strip of Days.
+- 2026-11-05: in Days > Freelance a week's numbers are always on screen, and the arrow only shows or hides its days. On a wide screen a one-source week is a single line.
 - 2026-11-05: exports are `.head-btn` pills in the head with short names. The bottom "Export" blocks went away.
 - 2026-11-05: hours keep trimmed totals and two-decimal deltas; money always has cents; the calculator uses Spanish decimals.
 - 2026-11-05: tab counts ("65 days", "4 blocks") were removed; tabs are named, not counted.

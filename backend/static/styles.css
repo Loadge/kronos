@@ -2818,8 +2818,6 @@ tbody.today-row > tr:first-child > td:first-child {
   /* the Σ cell has no class of its own, so the accessibility scan keeps its selector: line 2 has it */
   .days-table:not(.days-table--fl) tr.day-row td:nth-child(10) { display: none; }
   .days-table td[colspan] { display: block; }
-  /* the table no longer scrolls sideways, so its week lines need no sticky inset */
-  .days-table .wk-head, .days-table .wk-line { position: static; width: auto; }
   .days-table tr.month-sep, .days-table tr.week-sep, .days-table tr.wk-row, .days-table tr.wk-lines { display: block; }
   .days-table tr.day-row {
     display: grid;
@@ -3368,78 +3366,118 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .days-table .fl-money { color: var(--k-coin); }
 .days-table .fl-est, .fl-block .fl-est { color: var(--k-muted); }
 
-/* ── payouts: one compact line per ISO week, opened to the source lines (docs/mockups/payouts-p2.html) ── */
+/* ── payouts: every ISO week is one line that is always there; the arrow shows or hides its day rows ── */
 .wk-tools { font-size: 0.78rem; margin: 0 0 0.4rem 0.2rem; color: var(--k-muted); }
 .wk-tools a { cursor: pointer; }
 .days-table tr.wk-row td, .days-table tr.wk-lines td { padding: 0; white-space: normal; }
 .days-table tr.wk-row td { border-top: 1px solid var(--k-border); }
 .days-table tr.wk-row.cur td { background: color-mix(in srgb, var(--k-brass) 4%, transparent); }
+.days-table th.wk-colhead { padding: 0; font-weight: 500; }
+/* One grid for the column header, the week line and the line of each source: from 1240px it is a
+   single row; below that the week is two stacked lines (title and tag, then the numbers) and on a
+   phone the numbers are labelled blocks. The first column takes what is left, so the rows line up. */
+.wk-cols, .wk-line {
+  display: grid; grid-template-columns: minmax(16rem, 1fr) 3.2rem 4.2rem minmax(17rem, 1fr) 3.6rem 3.8rem 6.6rem;
+  grid-template-areas: "head h est pay gap eph tail";
+  column-gap: 0.3rem; align-items: center; padding: 0.25rem 0.5rem;
+  contain: inline-size; /* the table sizes itself by its block rows; these grids take the width they are given */
+}
+.wk-cols { font-size: 0.7rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); text-align: left; }
+.wk-cols span, .wk-cells { min-width: 0; }
+.wk-cells { display: contents; }
+.wk-cols .wk-h, .wk-cols .wk-est, .wk-cols .wk-gap, .wk-cols .wk-eph, .wk-h, .wk-est, .wk-gap, .wk-eph { text-align: right; }
+.wk-h { grid-area: h; } .wk-est { grid-area: est; } .wk-pay { grid-area: pay; } .wk-gap { grid-area: gap; } .wk-eph { grid-area: eph; }
+.wk-gap.wide { grid-area: gap-start / gap-start / gap-end / eph-end; }
+/* `.wk-head` is also the dashboard's week-strip head (styled above): the Days arrow overrides it here */
 .wk-head {
   display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; width: 100%; text-align: left;
   background: transparent; border: none; border-radius: 0; cursor: pointer; padding: 0.5rem 0.6rem;
   font-size: 0.88rem; color: var(--k-text); font-weight: 400; margin: 0;
 }
 .wk-head:hover { background: color-mix(in srgb, var(--k-brass) 6%, transparent); }
+.days-table .wk-head {
+  grid-area: head; display: flex; justify-content: flex-start; align-items: center; gap: 0.4rem; flex-wrap: wrap; width: 100%; text-align: left;
+  background: transparent; border: none; border-radius: 0; cursor: pointer; padding: 0.3rem 0;
+  font-size: 0.88rem; color: var(--k-text); font-weight: 400; margin: 0; min-width: 0;
+}
 .wk-head .chev { color: var(--k-muted); display: inline-block; transition: transform 0.15s; width: 0.8rem; }
 tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
+.days-table .wk-head:hover { background: transparent; }
+.wk-head:hover .chev { color: var(--k-brass); }
 .wk-id { color: var(--k-brass); }
-.wk-range { color: var(--k-muted); }
-.wk-now { font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-brass); border: 1px solid var(--k-brass); border-radius: 2px; padding: 0 0.35rem; }
-.wk-split { font-size: 0.7rem; color: var(--k-muted); border-left: 2px solid var(--k-coin); padding-left: 0.4rem; }
-.wk-hh { margin-left: auto; min-width: 3.2rem; text-align: right; }
-.wk-mm { min-width: 4.6rem; text-align: right; font-weight: 600; }
-.wk-tag { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.1rem 0.5rem; border-radius: 2px; min-width: 5.6rem; text-align: center; white-space: nowrap; }
+.wk-range { color: var(--k-muted); white-space: nowrap; }
+.wk-now { font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--k-brass); border: 1px solid var(--k-brass); border-radius: 2px; padding: 0 0.35rem; white-space: nowrap; }
+.wk-split { font-size: 0.7rem; color: var(--k-muted); border-left: 2px solid var(--k-coin); padding-left: 0.4rem; white-space: nowrap; }
+.wk-main { cursor: pointer; transition: background var(--k-transition-fast); }
+.wk-main:hover { background: color-mix(in srgb, var(--k-brass) 6%, transparent); }
+.wk-sum { font-weight: 600; }
+.wk-tail { grid-area: tail; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.wk-status:empty { display: none; }
+.wk-tag { font-size: 0.64rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 0.1rem 0.35rem; border-radius: 2px; text-align: center; white-space: nowrap; }
 .wk-tag.paid { color: var(--paid); border: 1px solid var(--paid); background: color-mix(in srgb, var(--paid) 16%, transparent); }
-.days-table .wk-mm.is-paid { color: var(--paid); }
+.days-table .wk-sum.is-paid { color: var(--paid); }
 .wk-tag.est { color: var(--k-muted); border: 1px dashed var(--k-muted); }
-.wk-await, .quiet { color: var(--k-muted); font-style: italic; font-size: 0.78rem; }
-.wk-status { font-size: 0.74rem; color: var(--k-muted); min-width: 4.5rem; text-align: right; }
+.quiet { color: var(--k-muted); font-style: italic; font-size: 0.78rem; }
+.wk-status { font-size: 0.68rem; line-height: 1.1; color: var(--k-muted); text-align: center; white-space: nowrap; }
 .wk-status.is-saved { color: var(--k-surplus); }
 .wk-status.is-invalid, .wk-status.is-error { color: var(--k-deficit); }
-.wk-cols, .wk-line {
-  display: grid; grid-template-columns: minmax(0, 1.5fr) 0.6fr 0.9fr minmax(0, 2.4fr) 0.8fr 0.8fr;
-  gap: 0.6rem; align-items: center; padding: 0.35rem 0.6rem 0.35rem 2.1rem;
-}
-.wk-cols { font-size: 0.7rem; font-variant: small-caps; letter-spacing: 0.08em; color: var(--k-muted); border-bottom: 1px solid var(--k-border-strong); }
-.wk-cols .r, .wk-h, .wk-est, .wk-gap, .wk-eph { text-align: right; }
-.wk-line { --src: var(--k-coin); font-size: 0.86rem; border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent); }
-.wk-src { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+.wk-line { --src: var(--k-coin); font-size: 0.84rem; border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent); }
+.wk-src { grid-area: head; display: flex; align-items: center; gap: 0.45rem; min-width: 0; padding-left: 1.4rem; }
+.wk-src.wk-name1 { display: none; grid-area: src; }
 .wk-line.has-pay .wk-est { color: var(--k-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-muted) 50%, transparent); }
-.wk-pay { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+.wk-pay { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; cursor: default; }
 .wk-pay .cur { color: var(--k-muted); }
 .wk-line.has-pay .wk-pay .cur { color: var(--paid); }
 .wk-conv { color: var(--paid); }
-.wk-pay .payin { font-size: 0.86rem; width: 5.8rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
+.wk-pay .payin { font-size: 0.84rem; width: 4.6rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
 .wk-pay .payin:not(:placeholder-shown) { border-bottom-style: solid; color: var(--paid); font-weight: 600; }
 .wk-pay .payin::placeholder { color: var(--k-muted); font-style: italic; }
 .wk-fx { font-size: 0.76rem; color: var(--k-muted); display: inline-flex; align-items: baseline; gap: 0.3rem; }
 .wk-fx .pen { border: none; background: transparent; color: var(--k-brass); cursor: pointer; padding: 0 0.15rem; font-size: 0.85rem; width: auto; margin: 0; }
 .wk-fx .fxin { width: 4.8rem; margin: 0; padding: 0.1rem 0.3rem; height: auto; font-size: 0.76rem; text-align: right; }
-.wk-gap.wide { grid-column: span 2; text-align: right; }
+/* the current week has no room for two tags on one line: the month row still says what it splits */
+@media (min-width: 1240px) and (max-width: 1535px) { .wk-now ~ .wk-split { display: none; } }
+/* a USD payout's rate and euro amount need the 17rem of the single line: under 1240px, two lines */
+@media (max-width: 1239px) {
+  .wk-cols, .wk-line {
+    grid-template-columns: 3.6rem 5rem minmax(0, 1fr) 4.6rem 4.6rem;
+    grid-template-areas: "head head head tail tail" "h est pay gap eph";
+    row-gap: 0.1rem;
+  }
+  .wk-cols { grid-template-areas: "h est pay gap eph"; }
+  .wk-gap.wide { grid-area: gap-start / gap-start / gap-end / eph-end; }
+  .wk-tail { justify-self: end; align-items: flex-end; }
+}
+@media (max-width: 640px) {
+  /* a week line is a block here, so the column header stays and the block header goes */
+  .days-table--fl thead, .days-table--fl thead tr, .days-table--fl thead th { display: block; }
+  .days-table--fl tr.blk-head { display: none; }
+}
 @media (max-width: 600px) {
-  .wk-head, .wk-line { position: sticky; left: 0; box-sizing: border-box; width: min(100%, calc(100vw - 4rem)); }
+  .days-table--fl thead { display: none; }
   .wk-range { white-space: nowrap; }
-  .wk-tag { min-width: 0; }
-  .wk-head { gap: 0.35rem 0.6rem; padding: 0.5rem 0.3rem; }
-  .wk-range { flex: 1; }
-  .wk-hh { margin-left: 1.4rem; }
-  .wk-mm { margin-right: auto; }
-  .wk-await { flex-basis: 100%; margin-left: 1.4rem; }
-  .wk-cols { display: none; }
-  .wk-line { grid-template-columns: 1fr 1fr 1fr; grid-template-areas: "src src src" "h est eph" "pay pay gap"; row-gap: 0.4rem; padding: 0.55rem 0.3rem 0.55rem 1.35rem; }
+  .wk-head { position: sticky; left: 0; box-sizing: border-box; width: min(100%, calc(100vw - 4rem)); gap: 0.35rem 0.6rem; padding: 0.5rem 0.3rem; }
+  .days-table .wk-head { position: static; width: 100%; gap: 0.35rem 0.6rem; padding: 0.3rem 0; min-height: 1.5rem; }
+  .wk-line { grid-template-columns: 1fr 1fr auto; grid-template-areas: "head head tail" "src src src" "h est eph" "pay pay gap"; row-gap: 0; padding: 0.4rem 0.3rem 0.55rem 0.5rem; }
+  .wk-src { padding-left: 0.9rem; }
+  .wk-src.wk-name1 { display: flex; grid-area: src; align-items: center; gap: 0.45rem; padding-left: 1.4rem; margin-top: 0.1rem; }
+  .wk-tail { align-items: flex-end; gap: 0.15rem; }
+  .wk-line:not(.wk-main) { grid-template-areas: "head head head" "h est eph" "pay pay gap"; }
+  .wk-h, .wk-est, .wk-eph, .wk-gap, .wk-pay { margin-top: 0.4rem; }
+  .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
+  .wk-gap.wide { grid-area: gap; align-items: flex-start; }
+  .wk-line [data-l]::before { content: attr(data-l); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--k-muted); }
   .days-table--fl tr.blk td:first-child { padding-left: 1rem; }
   .days-table--fl tr.blk td:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { left: 0.7rem; }
   .days-table--fl tr.blk { column-gap: 0.3rem; }
-  .wk-src { grid-area: src; } .wk-h { grid-area: h; } .wk-est { grid-area: est; } .wk-pay { grid-area: pay; } .wk-gap { grid-area: gap; } .wk-eph { grid-area: eph; }
-  .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
-  .wk-gap.wide { grid-column: auto; align-items: flex-start; }
-  .wk-line [data-l]::before { content: attr(data-l); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--k-muted); }
 }
 /* the blocks of a week hang under its line: inset, and a thin rail from the week line to the last block */
-.days-table--fl tr.blk td:first-child { padding-left: 2.1rem; position: relative; }
+.days-table--fl tr.blk td:first-child, .days-table--fl tr.blk-head th:first-child { padding-left: 2.1rem; position: relative; }
 .days-table--fl tr.wk-lines.has-blocks td { position: relative; }
-.days-table--fl tr.blk td:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { content: ""; position: absolute; left: 1rem; top: 0; bottom: -1px; border-left: 1px solid var(--k-border-strong); pointer-events: none; }
+.days-table--fl tr.blk td:first-child::before, .days-table--fl tr.blk-head th:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { content: ""; position: absolute; left: 1rem; top: 0; bottom: -1px; border-left: 1px solid var(--k-border-strong); pointer-events: none; }
 .days-table--fl tr.blk-last td:first-child::before { bottom: 50%; }
+/* the header of the block columns, under the line of an open week */
+.days-table tr.blk-head th { position: relative; background: transparent; padding: 0.3rem 0.6rem; font-size: 0.7rem; box-shadow: inset 0 -1px 0 var(--k-border); }
 .fl-payout { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.2rem 0.5rem; font-size: 0.86rem; --src: var(--k-coin); }
 .fl-payout-txt { flex: 1; min-width: 0; }
 .fl-payout-txt .fl-money { color: var(--paid); }

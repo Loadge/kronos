@@ -1,9 +1,10 @@
 """E2E: weekly payouts in the browser.
 
-A source pays a lump sum per ISO week; Days > Freelance has one compact line per week that
-opens to a payout field per source. Whatever is typed there is what the week is worth in every
-sum on screen (the Days "selected" total, the dashboard card), the Log card shows it read-only,
-and a week without a payout looks as it always did.
+A source pays a lump sum per ISO week; Days > Freelance has one compact line per week, always
+visible, with the payout field on it (a week with several sources has a line per source under
+it) and an arrow that shows or hides the week's days. Whatever is typed is what the week is worth
+in every sum on screen (the Days "selected" total, the dashboard card), the Log card shows it
+read-only, and a week without a payout looks as it always did.
 """
 
 from __future__ import annotations
@@ -117,7 +118,7 @@ class TestPayoutsInDays:
             ".includes('€150.00')",
             timeout=3000,
         )
-        gap = page.locator(".wk-line", has_text="Local").locator(".wk-gap")
+        gap = page.locator(".wk-line[data-source='Local']").locator(".wk-gap")
         assert gap.inner_text().strip() == "+€30"
         # the block row keeps its estimate, muted: it is not what counts any more
         cell = page.locator(".days-table--fl .day-row td.fl-est")
@@ -167,18 +168,18 @@ class TestPayoutsInDays:
         assert "estimated" in now.inner_text().lower() and "awaiting payout" not in now.inner_text()
         assert "estimated" in old.inner_text().lower() and "awaiting payout" in old.inner_text()
 
-        # a closed week still lists its blocks
-        assert page.locator(".days-table--fl .day-row").count() == 2
+        # a closed week keeps its numbers and hides its days: only the current week shows them
+        assert page.locator(".days-table--fl .day-row").count() == 1
         assert old.locator(".wk-head").get_attribute("aria-expanded") == "false"
-        assert page.locator("tr.wk-lines").count() == 1  # only the current week is open
+        assert page.locator(".wk-main").count() == 2
         old.locator(".wk-head").click()
         assert old.locator(".wk-head").get_attribute("aria-expanded") == "true"
-        assert page.locator("tr.wk-lines").count() == 2
-        page.locator("[data-testid='wk-collapse-all']").click()
-        assert page.locator("tr.wk-lines").count() == 0
         assert page.locator(".days-table--fl .day-row").count() == 2
+        page.locator("[data-testid='wk-collapse-all']").click()
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        assert page.locator(".wk-main").count() == 2  # the lines stay
         page.locator("[data-testid='wk-expand-all']").click()
-        assert page.locator("tr.wk-lines").count() == 2
+        assert page.locator(".days-table--fl .day-row").count() == 2
 
     def test_a_payout_for_a_week_without_hours_counts_on_its_own(self, page, base_url):
         src = _source(base_url, "Local", 60)
@@ -186,8 +187,7 @@ class TestPayoutsInDays:
         _open_days_freelance(page, base_url)
         row = _week_row(page, LAST_MONDAY)
         assert "paid out" in row.inner_text().lower()
-        page.locator("[data-testid='wk-expand-all']").click()
-        assert "payout with no hours" in page.locator("tr.wk-lines").inner_text()
+        assert "payout with no hours" in row.inner_text()  # on its line, no need to open it
         total = page.locator("[data-testid='days-fl-total']")
         assert "€400.00" in total.inner_text()
         # the source filter applies to the week too
@@ -199,7 +199,7 @@ class TestPayoutsInDays:
         _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=1, fx_rate=1.2)  # $60
         _payout(base_url, source_id=src, week_start=MONDAY.isoformat(), amount=100, fx_rate=1.25)
         _open_days_freelance(page, base_url)
-        line = page.locator(".wk-line", has_text="Northwind")
+        line = page.locator(".wk-line[data-source='Northwind']")
         assert "@ 1.2500" in line.inner_text() and "= €80" in line.inner_text()
         assert line.locator(".wk-gap").inner_text().strip() == "+$40"
         assert "€80.00" in page.locator("[data-testid='days-fl-total']").inner_text()
@@ -290,7 +290,13 @@ class TestPayoutOnTheLogCard:
         row = _week_row(page, MONDAY)
         row.wait_for(timeout=3000)
         assert row.locator(".wk-head").get_attribute("aria-expanded") == "true"
-        assert page.locator("tr.wk-lines").count() >= 1
+        assert page.locator(".days-table--fl .day-row").count() >= 1
+        page.wait_for_function(
+            "(id) => { const r = document.getElementById('wk-' + id).getBoundingClientRect();"
+            " return r.top >= 0 && r.bottom <= innerHeight; }",
+            arg=MONDAY.isoformat(),
+            timeout=3000,
+        )
 
 
 def _split_fixture(base_url: str) -> None:
@@ -506,3 +512,218 @@ class TestPayoutSplitOnScreens:
         page.locator("[data-testid='an-freelance']").wait_for(timeout=5000)
         assert page.locator("[data-testid='an-fl-paid']").count() == 0
         assert page.locator("[data-testid='an-fl-est']").count() == 0
+
+
+def _two_weeks_in_one_month() -> tuple[datetime.date, datetime.date]:
+    """Two consecutive Mondays before this week that share a month (no month separator between)."""
+    for k in range(1, 6):
+        newer = MONDAY - datetime.timedelta(days=7 * k)
+        older = newer - datetime.timedelta(days=7)
+        if newer.month == older.month:
+            return newer, older
+    raise AssertionError("no two Mondays share a month")
+
+
+def _wednesday(monday: datetime.date) -> str:
+    return (monday + datetime.timedelta(days=2)).isoformat()
+
+
+def _expanded(page, monday: datetime.date) -> str | None:
+    return _week_row(page, monday).locator(".wk-head").get_attribute("aria-expanded")
+
+
+def _centre(page, selector: str) -> float:
+    box = page.locator(selector).first.bounding_box()
+    return box["y"] + box["height"] / 2
+
+
+class TestWeekLine:
+    """The week is one always-visible line; the arrow only shows or hides its days."""
+
+    def test_a_collapsed_one_source_week_is_one_line_with_its_payout_field(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        newer, older = _two_weeks_in_one_month()
+        _block(base_url, date=_wednesday(newer), source_id=src, hours=2)
+        _block(base_url, date=_wednesday(older), source_id=src, hours=3)
+        _open_days_freelance(page, base_url)
+        first, second = _week_row(page, newer), _week_row(page, older)
+        assert _expanded(page, newer) == "false"
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        assert page.locator(".days-table--fl .blk-head").count() == 0
+        field = page.locator(f"input[aria-label='Payout Local {_wk(newer)}']")
+        assert field.is_visible()
+        sel = f"tr#wk-{newer.isoformat()}"
+        ys = {
+            "id": _centre(page, f"{sel} .wk-id"),
+            "hours": _centre(page, f"{sel} .wk-h"),
+            "field": _centre(page, f"{sel} .payin"),
+            "tag": _centre(page, f"{sel} .wk-tag"),
+        }
+        assert max(ys.values()) - min(ys.values()) <= 4, ys
+        assert "2h" in first.locator(".wk-h").inner_text()
+        # the source name has no room on the line: it is a tooltip
+        assert first.locator(".wk-main").get_attribute("title") == "Local"
+        assert first.locator(".wk-main").get_attribute("data-source") == "Local"
+        # the Estimate cell carries the week's euro amount
+        assert first.locator(".wk-est").get_attribute("title") == "€120.00"
+        # two collapsed weeks sit one under the other
+        gap = second.bounding_box()["y"] - first.bounding_box()["y"]
+        assert 0 < gap < 60, gap
+
+    def test_typing_a_payout_in_a_collapsed_week_saves_it_and_keeps_it_collapsed(
+        self, page, base_url
+    ):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=src, hours=2)
+        _open_days_freelance(page, base_url)
+        field = page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']")
+        # clicking the field is not clicking the line
+        field.click()
+        assert _expanded(page, LAST_MONDAY) == "false"
+        field.fill("150")
+        got = _wait_payouts(base_url, 1)
+        assert got[0]["amount"] == 150 and got[0]["week_start"] == LAST_MONDAY.isoformat()
+        page.wait_for_function(
+            "(id) => document.querySelector('#wk-' + id).textContent.includes('paid out')",
+            arg=LAST_MONDAY.isoformat(),
+            timeout=3000,
+        )
+        # the saved reload neither opened the week nor took the field's focus or draft
+        assert _expanded(page, LAST_MONDAY) == "false"
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        assert field.evaluate("e => e === document.activeElement")
+        assert field.input_value() == "150"
+        # the hours cell is part of the line: it toggles
+        _week_row(page, LAST_MONDAY).locator(".wk-h").click()
+        assert _expanded(page, LAST_MONDAY) == "true"
+        assert page.locator(".days-table--fl .day-row").count() == 1
+
+    def test_a_collapsed_week_with_two_sources_keeps_a_line_per_source(self, page, base_url):
+        local = _source(base_url, "Local", 60)
+        side = _source(base_url, "Side", 50)
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=local, hours=1)
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=side, hours=1)
+        _open_days_freelance(page, base_url)
+        assert _expanded(page, LAST_MONDAY) == "false"
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        lines = page.locator(".wk-line:not(.wk-main)")
+        assert lines.count() == 2
+        assert [lines.nth(i).get_attribute("data-source") for i in range(2)] == ["Local", "Side"]
+        assert "Local" in lines.nth(0).inner_text() and "Side" in lines.nth(1).inner_text()
+        assert lines.nth(0).locator("input.payin").is_visible()
+        main = _week_row(page, LAST_MONDAY).locator(".wk-main")
+        assert main.get_attribute("title") is None  # no single source to name
+        assert "€110.00" in main.inner_text()  # 60 + 50, the week's euro total
+        assert "2h" in main.locator(".wk-h").inner_text()
+        assert main.locator(".payin").count() == 0  # the fields are on the source lines
+
+    def test_the_search_opens_every_week_and_clearing_it_restores_them(self, page, base_url):
+        src = _source(base_url, "Local", 60)
+        newer, older = _two_weeks_in_one_month()
+        _block(base_url, date=_wednesday(newer), source_id=src, hours=1, notes="alpha work")
+        _block(base_url, date=_wednesday(older), source_id=src, hours=1, notes="alpha more")
+        _open_days_freelance(page, base_url)
+        assert page.locator(".days-table--fl .day-row").count() == 0
+        _week_row(page, older).locator(".wk-head").click()  # opened by hand before the search
+        assert _expanded(page, older) == "true" and _expanded(page, newer) == "false"
+
+        search = page.get_by_label("Filter entries by notes")
+        search.fill("alpha")
+        # a hit is never hidden: both weeks show it
+        page.wait_for_function(
+            "() => document.querySelectorAll('.days-table--fl .day-row').length === 2", timeout=3000
+        )
+        assert _expanded(page, newer) == "true" and _expanded(page, older) == "true"
+        # the arrows still work during a search
+        _week_row(page, older).locator(".wk-head").click()
+        assert _expanded(page, older) == "false"
+        assert page.locator(".days-table--fl .day-row").count() == 1
+
+        page.get_by_label("Clear search").click()
+        # and each week is back as it was before the search
+        page.wait_for_function(
+            "() => document.querySelectorAll('.days-table--fl .day-row').length === 1", timeout=3000
+        )
+        assert _expanded(page, older) == "true" and _expanded(page, newer) == "false"
+
+    def test_the_block_header_is_under_each_open_week_and_the_week_header_is_one(
+        self, page, base_url
+    ):
+        src = _source(base_url, "Local", 60)
+        newer, older = _two_weeks_in_one_month()
+        _block(base_url, date=_wednesday(newer), source_id=src, hours=1)
+        _block(base_url, date=_wednesday(older), source_id=src, hours=1)
+        _open_days_freelance(page, base_url)
+        assert page.locator(".blk-head").count() == 0  # every week collapsed
+        assert page.locator(".wk-colhead").count() == 1
+        page.get_by_test_id("wk-expand-all").click()
+        assert page.locator(".blk-head").count() == 2  # one per open week
+        assert page.locator(".wk-colhead").count() == 1 and page.locator(".wk-cols").count() == 1
+        assert "Hours" in page.locator(".wk-cols").inner_text()
+        assert "€ / h" in page.locator(".wk-cols").inner_text()
+        # the block header sits right under its week line, above its block
+        head = page.locator(f"tbody:has(tr#wk-{newer.isoformat()}) + tbody .blk-head")
+        assert "Date" in head.inner_text() and "Amount" in head.inner_text()
+        week_bottom = _week_row(page, newer).bounding_box()
+        assert 0 <= head.bounding_box()["y"] - (week_bottom["y"] + week_bottom["height"]) < 40
+        page.get_by_test_id("wk-collapse-all").click()
+        assert page.locator(".blk-head").count() == 0
+        assert page.locator(".wk-colhead").count() == 1
+
+    @pytest.mark.parametrize("width", [1240, 1280, 1536, 1920])
+    def test_a_paid_usd_week_is_one_line_from_1240px(self, page, base_url, width):
+        usd = _source(base_url, "Northwind", 60, "USD")
+        _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=16.25, fx_rate=1.1224)
+        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=2000, fx_rate=1.1224)
+        page.set_viewport_size({"width": width, "height": 900})
+        _open_days_freelance(page, base_url)
+        sel = f"tr#wk-{MONDAY.isoformat()}"
+        parts = (".wk-id", ".wk-h", ".payin", ".wk-fx", ".wk-conv", ".wk-gap", ".wk-eph", ".wk-tag")
+        ys = {p: _centre(page, f"{sel} {p}") for p in parts}
+        assert max(ys.values()) - min(ys.values()) <= 6, ys
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+
+    @pytest.mark.parametrize("width,split", [(1280, False), (1536, True)])
+    def test_the_current_week_that_splits_stays_on_one_line(self, page, base_url, width, split):
+        src = _source(base_url, "Local", 60)
+        _block(base_url, date="2026-10-30", source_id=src, hours=1)
+        _block(base_url, date="2026-11-01", source_id=src, hours=1)
+        page.clock.set_fixed_time("2026-10-28T12:00:00")
+        page.set_viewport_size({"width": width, "height": 900})
+        _open_days_freelance(page, base_url)
+        page.get_by_test_id("wk-collapse-all").click()
+        row = page.locator("tr#wk-2026-10-26")
+        assert row.locator(".wk-now").is_visible()
+        assert row.locator(".wk-split").is_visible() is split
+        sel = "tr#wk-2026-10-26"
+        ys = [_centre(page, f"{sel} {p}") for p in (".wk-id", ".wk-now", ".wk-h", ".payin")]
+        assert max(ys) - min(ys) <= 6, ys
+
+    @pytest.mark.parametrize("width", [1280, 1240, 1200, 1024, 768, 640, 375])
+    @pytest.mark.parametrize("expand", [False, True])
+    def test_nothing_scrolls_sideways_and_the_numbers_are_there(
+        self, page, base_url, width, expand
+    ):
+        local = _source(base_url, "Local", 60)
+        side = _source(base_url, "Side", 50)
+        usd = _source(base_url, "Northwind", 60, "USD")
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=local, hours=1)
+        _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=side, hours=1)
+        _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=16.25, fx_rate=1.1224)
+        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=2000, fx_rate=1.1224)
+        page.set_viewport_size({"width": width, "height": 900})
+        _open_days_freelance(page, base_url)
+        page.get_by_test_id("wk-expand-all" if expand else "wk-collapse-all").click()
+        page.wait_for_timeout(300)
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+        assert page.locator(".days-table--fl .day-row").count() == (3 if expand else 0)
+        # the numbers of a collapsed week are on screen at every width
+        cur = _week_row(page, MONDAY)
+        assert cur.locator(".wk-h").is_visible() and "16.25h" in cur.locator(".wk-h").inner_text()
+        assert cur.locator(".payin").is_visible() and cur.locator(".wk-tag").is_visible()
+        # the arrow hides and shows the days
+        arrow = _week_row(page, LAST_MONDAY).locator(".wk-head")
+        assert arrow.get_attribute("aria-expanded") == ("true" if expand else "false")
+        arrow.click()
+        assert arrow.get_attribute("aria-expanded") == ("false" if expand else "true")
+        assert page.evaluate("document.documentElement.scrollWidth") <= width

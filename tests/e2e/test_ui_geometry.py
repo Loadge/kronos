@@ -20,7 +20,7 @@ TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"
 CENTRED = ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a"
 ONE_LINE = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, "
-    ".settings-group-btn, .year-step-v"
+    ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range"
 )
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
@@ -161,15 +161,21 @@ def test_text_is_centred_and_on_one_line(page, base_url, tab, width, height):
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
+@pytest.mark.parametrize("state", ["open", "collapsed"])
 @pytest.mark.parametrize("width,height", VIEWPORTS)
-def test_days_freelance_fits_with_every_week_open(page, base_url, width, height):
+def test_days_freelance_fits_with_every_week_open(page, base_url, width, height, state):
     """The ⚡ table has its own rows (month, week, source lines, blocks): open them all."""
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{base_url}/#days")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.get_by_role("radio", name="Freelance").click()
-    page.get_by_test_id("wk-expand-all").click()
-    page.wait_for_selector(".days-table--fl tr.blk", timeout=5000)
+    if state == "open":
+        page.get_by_test_id("wk-expand-all").click()
+        page.wait_for_selector(".days-table--fl tr.blk", timeout=5000)
+    else:  # the week lines alone: they are the page now
+        page.get_by_test_id("wk-collapse-all").click()
+        page.wait_for_selector(".days-table--fl .wk-main", timeout=5000)
+        assert not page.locator(".days-table--fl tr.blk").count()
     page.wait_for_timeout(300)
     assert not (found := _problems(page)), "\n".join(map(str, found))
 

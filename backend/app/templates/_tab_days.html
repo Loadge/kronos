@@ -134,6 +134,43 @@
       <template x-if="!daysFlRows().length">
         <p class="muted" x-text="daysSources.length ? 'No freelance blocks here.' : 'No source selected.'"></p>
       </template>
+      {#- The cells of one source's line: Hours, Estimate, Payout, Gap, € / h. A one-source week draws
+          them on its own line (`one`), a week with several sources draws them once per source. Both
+          loop with `l`, so the cells exist in one place only. -#}
+      {% macro wk_cells(one) %}
+      <span class="wk-h metric" data-l="Hours" x-text="l.hours > 0 ? fmtHours(l.hours) : '0h'"></span>
+      <span class="wk-est metric" data-l="Estimate"{% if one %} :title="fmtMoney(r.eur)"{% endif %} x-text="l.hours > 0 ? fmtMoney(l.estimate, l.currency, Number.isInteger(l.estimate) ? 0 : 2) : '—'"></span>
+      <span class="wk-pay" data-l="Payout" @click.stop>
+        <span class="cur metric" x-text="l.currency === 'USD' ? '$' : '€'"></span>
+        <input type="text" inputmode="decimal" class="payin metric" autocomplete="off"
+          :value="payText(l.source.id, r.week, l.payout)"
+          @input="payTyped(l.source.id, r.week, $event.target.value)"
+          :placeholder="l.payout ? '' : 'payout'"
+          :aria-label="'Payout ' + l.source.name + ' ' + r.id">
+        <template x-if="l.payout && l.currency === 'USD'">
+          <span class="wk-fx metric">
+            <template x-if="fxEditing !== l.payout.id">
+              <span><span x-text="l.payout.fx_rate ? '@ ' + fmtFx(l.payout.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
+            </template>
+            <template x-if="fxEditing === l.payout.id">
+              <input type="text" inputmode="decimal" class="fxin metric" :value="l.payout.fx_rate || ''" x-init="$nextTick(() => $el.focus())"
+                @keydown.enter.prevent="fxSave(l.payout, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(l.payout, $event.target.value)"
+                :aria-label="'Exchange rate USD per EUR, ' + l.source.name + ' ' + r.id">
+            </template>
+            <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney(l.payout.amount_eur)"></span>
+          </span>
+        </template>
+      </span>
+      <template x-if="l.gap !== null">
+        <span class="wk-gap metric" data-l="Gap" :class="l.gap >= 0 ? 'surplus' : 'deficit'"><b x-text="payGapLabel(l.gap, l.currency)"></b></span>
+      </template>
+      <template x-if="l.gap !== null">
+        <span class="wk-eph metric" data-l="€ / h" x-text="l.eph === null ? 'no rate' : fmtMoney(l.eph)"></span>
+      </template>
+      <template x-if="l.gap === null">
+        <span class="wk-gap wide quiet" x-text="l.noHours ? 'payout with no hours' : (l.payout ? '' : (r.awaiting ? 'awaiting payout' : ''))"></span>
+      </template>
+      {% endmacro %}
       <template x-if="daysFlRows().length">
         <p class="wk-tools"><a @click.prevent="daysWeeksSetAll(true)" href="#" data-testid="wk-expand-all">Expand all</a> · <a @click.prevent="daysWeeksSetAll(false)" href="#" data-testid="wk-collapse-all">Collapse all</a></p>
       </template>
@@ -142,11 +179,11 @@
           <table class="days-table days-table--fl">
             <thead>
               <tr>
-                <th>Date</th><th></th><th>Source</th>
-                <th class="num">Start</th><th class="num">End</th><th class="num">Hours</th>
-                <th class="num">Rate</th><th class="num">Amount</th><th class="num">€</th>
-                <th class="notes-col">Note</th>
-                <th class="act-col"><span class="visually-hidden">Edit</span></th>
+                <th colspan="11" class="wk-colhead">
+                  <div class="wk-cols">
+                    <span class="wk-h">Hours</span><span class="wk-est">Estimate</span><span class="wk-pay">Payout</span><span class="wk-gap">Gap</span><span class="wk-eph">€ / h</span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <template x-for="r in daysFlRows()" :key="r.key">
@@ -166,63 +203,59 @@
                 <template x-if="r.kind === 'week'">
                   <tr class="wk-row" :id="'wk-' + r.week" :class="[r.current ? 'cur' : '', r.open ? 'open' : '']" :data-week="r.id">
                     <td colspan="11">
-                      <button type="button" class="wk-head" @click="daysWeekToggle(r.week)" :aria-expanded="r.open ? 'true' : 'false'" :aria-label="r.id + ' ' + r.range">
-                        <span class="chev" aria-hidden="true">▸</span>
-                        <b class="metric wk-id" x-text="r.id"></b>
-                        <span class="wk-range" x-text="r.range"></span>
-                        <template x-if="r.current"><span class="wk-now">this week</span></template>
-                        <template x-if="r.splits"><span class="wk-split" x-text="r.splits"></span></template>
-                        <span class="wk-hh metric" x-text="fmtHours(r.hours)"></span>
-                        <span class="wk-mm metric fl-money" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney(r.eur)"></span>
-                        <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
-                        <template x-if="r.awaiting"><span class="wk-await">awaiting payout</span></template>
-                        <span class="wk-status" :class="payStatusCls(r.week)" x-text="payStatus(r.week)" aria-live="polite"></span>
-                      </button>
+                      <div class="wk-line wk-main" data-testid="wk-main" @click="daysWeekToggle(r.week)"
+                        :class="r.lines.length === 1 && r.lines[0].payout ? 'has-pay' : ''"
+                        :style="r.lines.length === 1 ? '--src:' + sourceColor(r.lines[0].source.id) : null"
+                        :title="r.lines.length === 1 ? r.lines[0].source.name : null"
+                        :data-source="r.lines.length === 1 ? r.lines[0].source.name : null">
+                        <button type="button" class="wk-head" @click.stop="daysWeekToggle(r.week)" :aria-expanded="r.open ? 'true' : 'false'" :aria-label="r.id + ' ' + r.range">
+                          <span class="chev" aria-hidden="true">▸</span>
+                          <b class="metric wk-id" x-text="r.id"></b>
+                          <span class="wk-range" x-text="r.range"></span>
+                          <template x-if="r.current"><span class="wk-now">this week</span></template>
+                          <template x-if="r.splits"><span class="wk-split" x-text="r.splits"></span></template>
+                        </button>
+                        <template x-if="r.lines.length === 1">
+                          <span class="wk-src wk-name1"><span class="fl-dot" aria-hidden="true"></span><span x-text="r.lines[0].source.name"></span></span>
+                        </template>
+                        <template x-for="l in (r.lines.length === 1 ? r.lines : [])" :key="l.key">
+                          <div class="wk-cells">
+                            {{ wk_cells(true) }}
+                          </div>
+                        </template>
+                        <template x-if="r.lines.length > 1">
+                          <span class="wk-h metric" data-l="Hours" x-text="fmtHours(r.hours)"></span>
+                        </template>
+                        <template x-if="r.lines.length > 1">
+                          <span class="wk-pay wk-sum metric fl-money" data-l="Payout" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney(r.eur)"></span>
+                        </template>
+                        <span class="wk-tail">
+                          <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
+                          <span class="wk-status" :class="payStatusCls(r.week)" x-text="payStatus(r.week)" aria-live="polite"></span>
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 </template>
-                <template x-if="r.kind === 'week' && r.open">
-                  <tr class="wk-lines" :class="r.blocks.length ? 'has-blocks' : ''">
+                <template x-if="r.kind === 'week' && r.lines.length > 1">
+                  <tr class="wk-lines" :class="r.open && r.blocks.length ? 'has-blocks' : ''">
                     <td colspan="11">
-                      <div class="wk-cols" aria-hidden="true"><span>Source</span><span class="r">Hours</span><span class="r">Estimate</span><span>Payout</span><span class="r">Gap</span><span class="r">€ / h</span></div>
                       <template x-for="l in r.lines" :key="l.key">
                         <div class="wk-line" :class="l.payout ? 'has-pay' : ''" :style="'--src:' + sourceColor(l.source.id)" :data-source="l.source.name">
                           <span class="wk-src"><span class="fl-dot" aria-hidden="true"></span><span x-text="l.source.name"></span></span>
-                          <span class="wk-h metric" data-l="Hours" x-text="l.hours > 0 ? fmtHours(l.hours) : '0h'"></span>
-                          <span class="wk-est metric" data-l="Estimate" x-text="l.hours > 0 ? fmtMoney(l.estimate, l.currency, Number.isInteger(l.estimate) ? 0 : 2) : '—'"></span>
-                          <span class="wk-pay" data-l="Payout">
-                            <span class="cur metric" x-text="l.currency === 'USD' ? '$' : '€'"></span>
-                            <input type="text" inputmode="decimal" class="payin metric" autocomplete="off"
-                              :value="payText(l.source.id, r.week, l.payout)"
-                              @input="payTyped(l.source.id, r.week, $event.target.value)"
-                              :placeholder="l.payout ? '' : 'payout'"
-                              :aria-label="'Payout ' + l.source.name + ' ' + r.id">
-                            <template x-if="l.payout && l.currency === 'USD'">
-                              <span class="wk-fx metric">
-                                <template x-if="fxEditing !== l.payout.id">
-                                  <span><span x-text="l.payout.fx_rate ? '@ ' + fmtFx(l.payout.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
-                                </template>
-                                <template x-if="fxEditing === l.payout.id">
-                                  <input type="text" inputmode="decimal" class="fxin metric" :value="l.payout.fx_rate || ''" x-init="$nextTick(() => $el.focus())"
-                                    @keydown.enter.prevent="fxSave(l.payout, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(l.payout, $event.target.value)"
-                                    :aria-label="'Exchange rate USD per EUR, ' + l.source.name + ' ' + r.id">
-                                </template>
-                                <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney(l.payout.amount_eur)"></span>
-                              </span>
-                            </template>
-                          </span>
-                          <template x-if="l.gap !== null">
-                            <span class="wk-gap metric" data-l="Gap" :class="l.gap >= 0 ? 'surplus' : 'deficit'"><b x-text="payGapLabel(l.gap, l.currency)"></b></span>
-                          </template>
-                          <template x-if="l.gap !== null">
-                            <span class="wk-eph metric" data-l="€ / h" x-text="l.eph === null ? 'no rate' : fmtMoney(l.eph)"></span>
-                          </template>
-                          <template x-if="l.gap === null">
-                            <span class="wk-gap wide quiet" x-text="l.noHours ? 'payout with no hours' : (l.payout ? '' : (r.awaiting ? 'awaiting payout' : ''))"></span>
-                          </template>
+                          {{ wk_cells(false) }}
                         </div>
                       </template>
                     </td>
+                  </tr>
+                </template>
+                <template x-if="r.kind === 'bhead'">
+                  <tr class="blk-head">
+                    <th>Date</th><th><span class="visually-hidden">Day</span></th><th>Source</th>
+                    <th class="num">Start</th><th class="num">End</th><th class="num">Hours</th>
+                    <th class="num">Rate</th><th class="num">Amount</th><th class="num">€</th>
+                    <th class="notes-col">Note</th>
+                    <th class="act-col"><span class="visually-hidden">Edit</span></th>
                   </tr>
                 </template>
                 <template x-if="r.kind === 'block'">
