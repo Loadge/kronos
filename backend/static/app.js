@@ -968,7 +968,7 @@ function app() {
       return em - sm;
     },
 
-    todayIso() { return new Date().toISOString().slice(0, 10); },
+    todayIso() { return this._dateIso(new Date()); },
 
     // =====================================================================
     // dashboard
@@ -1942,7 +1942,7 @@ function app() {
       const k = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       // Anchor: most recent logged date ≤ today (auto-scroll target)
-      const today = new Date().toISOString().slice(0, 10);
+      const today = this.todayIso();
       const anchorDate = byDate.filter(e => e.date <= today).slice(-1)[0]?.date ?? null;
 
       const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2276,7 +2276,7 @@ function app() {
     },
 
     scrollToToday() {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = this.todayIso();
       const source = this.daysYear === 'all'
         ? this.entries
         : this.entries.filter(e => e.date.startsWith(this.daysYear));

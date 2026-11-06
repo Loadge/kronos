@@ -119,7 +119,8 @@ class TestDashboard:
         assert "SICK" in cell.inner_text().upper()
 
     def test_hero_chips_and_trajectory(self, page, base_url):
-        today = datetime.date.today()
+        # the server's day, not this machine's: CI runs on UTC and the app on Madrid time
+        today = datetime.date.fromisoformat(httpx.get(f"{base_url}/api/dashboard").json()["today"])
         monday = today - datetime.timedelta(days=today.weekday())
         _post(base_url, _work(monday.isoformat(), "09:00", "19:00"))  # 9h net → +1
         page.goto(f"{base_url}/#dashboard")
