@@ -486,6 +486,12 @@ class TestAHandOnTheStrip:
         )
         assert names[0] == "week-wash"
         assert set(names[1:]) == {"none"}
+        # and the cells let it through: an opaque one stays a dark patch on the wash
+        for row in (f"#eweek-{W32} tr", f"#day-row-{_day(W32, 4)} tr"):
+            backgrounds = page.locator(row).first.evaluate(
+                "tr => [...tr.children].map(td => getComputedStyle(td).backgroundColor)"
+            )
+            assert set(backgrounds) == {"rgba(0, 0, 0, 0)"}, (row, backgrounds)
 
     def test_the_tooltip_leaves_with_the_pointer_after_a_click(self, page, base_url):
         _week(base_url, W32)

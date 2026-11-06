@@ -4137,7 +4137,7 @@ tbody.row-in > tr { animation: bz-row-in 0.24s ease-out var(--wd, 0ms) both; }
   .bz-chip { margin-left: auto; }
   /* a row is a grid of small cells here: the flash washes the row, not each cell on its own */
   tbody.week-flash > tr { animation: week-wash 2s ease-out forwards; }
-  tbody.week-flash > tr > td { animation: none; }
+  tbody.week-flash > tr > td { animation: none; background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bz-bar, .bz-btn, .bz-tip { transition: none; }
