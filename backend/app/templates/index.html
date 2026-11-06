@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/static/vendor/pico.min.css?v={{ vendor_v }}">
   <link rel="stylesheet" href="/static/styles.css?v={{ build }}">
   <script src="/static/app.js?v={{ build }}" defer></script>
+  <script src="/static/dial.js?v={{ build }}" defer></script>
   <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
 <body>
@@ -28,7 +29,8 @@
       <span class="egg-emoji" :class="{ 'egg-go': eggAnimating }">🎢</span>
     </div>
     <div class="brand">
-      <img src="/static/icon.png" alt="" class="brand-logo">
+      <!-- the logo opens the year dial -->
+      <button type="button" class="brand-btn" aria-label="Open the year dial" @click="openDial()"><img src="/static/icon.png" alt="" class="brand-logo"></button>
       <div>
         <div class="brand-line">
           <h1>Kronos</h1>
@@ -63,6 +65,7 @@
           <div class="shortcut-row"><kbd>A</kbd><span>Analytics</span></div>
           <div class="shortcut-row"><kbd>F</kbd><span>Freelance</span></div>
           <div class="shortcut-row"><kbd>S</kbd><span>Settings</span></div>
+          <div class="shortcut-row"><kbd>Y</kbd><span>Year dial</span></div>
           <div class="shortcut-row"><kbd>.</kbd><span>Command palette</span></div>
           <div class="shortcut-row"><kbd>Ctrl+↵</kbd><span>Save form</span></div>
           <div class="shortcut-row"><kbd>Esc</kbd><span>Dismiss, or back to Dashboard</span></div>
@@ -103,6 +106,7 @@
   {% include "_tab_analytics.html" %}
   {% include "_tab_freelance.html" %}
   {% include "_tab_settings.html" %}
+  {% include "_dial.html" %}
 
   <!-- Command palette -->
   <template x-if="palette.open">

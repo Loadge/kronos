@@ -28,6 +28,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import httpx
 import pytest
 from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
@@ -35,6 +36,19 @@ from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
 BACKEND_DIR = Path(__file__).parent.parent.parent / "backend"
 DEMO_NOW = "2026-11-04T10:12:00+01:00"  # the day docs/demo/seed_demo.py was made for
+
+
+# httpx gives a server 5 seconds; a runner with eight workers has taken longer than that to answer a
+# fixture. A slow answer is not a failed test, so the clients of this suite wait longer.
+_client_init = httpx.Client.__init__
+
+
+def _patient_client(self, *args, **kwargs):
+    kwargs.setdefault("timeout", 30)
+    _client_init(self, *args, **kwargs)
+
+
+httpx.Client.__init__ = _patient_client
 
 
 def _find_free_port() -> int:

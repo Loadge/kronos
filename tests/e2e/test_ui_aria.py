@@ -22,6 +22,7 @@ YEAR = """
 
 HEADER = """
 - /children: equal
+- button "Open the year dial"
 - heading "Kronos" [level=1]
 - text: /v\\d+/
 - tablist:

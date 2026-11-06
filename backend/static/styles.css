@@ -25,6 +25,18 @@
   --k-deficit:      #e07b63;
   --paid:           #36c9b9;  /* money a source has paid out: teal, apart from estimates (brass) and surplus (green) */
 
+  /* -- the year dial's metal: brass in shade; only the dial (.yd) uses these ------ */
+  --k-metal-void:    #0e0c09;  /* the deepest shade: the dial's back, its outlines */
+  --k-metal-well:    #141109;  /* the sunk sub-dials, the edge of the face */
+  --k-metal-glow:    #2a251b;  /* the lamp: the top of the face and the backdrop */
+  --k-metal-face:    #1c1913;  /* the face */
+  --k-metal-line:    #6e5822;  /* engraved lines and rims */
+  --k-metal-edge:    #8a6f2c;  /* month edges, the crown's shade */
+  --k-metal-groove:  #3b2f12;  /* the crown's knurling */
+  --k-metal-ring-hi: #b08d3a;  /* the turning ring, lit, in shade and warm again */
+  --k-metal-ring-mid:#5a4a22;
+  --k-metal-ring-lo: #94762f;
+
   /* -- chip palette ---------------------------------------------- */
   --k-work:    #e0b341;
   --k-vacation:#8ab0c4;
@@ -4404,4 +4416,220 @@ tbody.row-in > tr { animation: bz-row-in 0.24s ease-out var(--wd, 0ms) both; }
 @media (prefers-reduced-motion: reduce) {
   .update-pill, .update-pill::before { animation: none; transition: none; }
   .update-pill:hover, .update-pill:focus-visible, .update-pill:active { transform: none; }
+}
+
+/* ================================================================
+   YEAR DIAL — the year as a brass chronograph
+   The logo in the header opens it. dial.js draws the ticks and turns the ring; the colours are
+   the app's own tokens, and the metal ones above are only for this.
+   ================================================================ */
+
+html.yd-lock, html.yd-lock body { overflow: hidden; }
+
+.brand-btn, .brand-btn:hover, .brand-btn:active, .brand-btn:focus {
+  display: block;
+  flex-shrink: 0;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  line-height: 0;
+  cursor: pointer;
+}
+.brand-btn:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 3px; }
+.brand-btn .brand-logo { display: block; transition: transform 0.5s cubic-bezier(0.34, 1.9, 0.64, 1); }
+.brand-btn:hover .brand-logo, .brand-btn:focus-visible .brand-logo { transform: rotate(-14deg); }
+.brand-btn:active .brand-logo { transform: rotate(-24deg) scale(0.94); }
+
+.yd {
+  --yd-bar: 56px;     /* the room the bar below the dial takes */
+  --yd-panel: 0px;    /* the room of the note panel, on a phone */
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: radial-gradient(circle at 50% 46%, var(--k-metal-glow) 0%, var(--k-bg) 58%, var(--k-metal-void) 100%);
+  animation: yd-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes yd-in { from { opacity: 0; transform: scale(1.04); } }
+
+.yd-stage {
+  position: relative;
+  flex: none;
+  width: min(94vw, calc(100svh - var(--yd-bar) - var(--yd-panel) - 12px));
+  aspect-ratio: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+.yd-stage.turning { cursor: grabbing; }
+.yd-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* what takes the keys and the fingers: the whole dial, under the crown */
+.yd-ring { position: absolute; inset: 0; border-radius: 50%; outline: none; touch-action: none; }
+.yd-ring:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 70%, transparent); }
+.yd-stage:has(.yd-ring:focus-visible) .yd-index { stroke: var(--k-text); stroke-width: 3; }
+
+/* the light does not turn with the ring: it stays where the lamp is */
+.yd-sheen {
+  position: absolute;
+  inset: 0.6%;
+  border-radius: 50%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  background: conic-gradient(from 215deg, transparent 0 8%, color-mix(in srgb, var(--k-coin) 22%, transparent) 14%, transparent 22% 56%, color-mix(in srgb, var(--k-coin) 12%, transparent) 62%, transparent 70%);
+  -webkit-mask: radial-gradient(closest-side, transparent 84.5%, #000 85.5% 100%);
+  mask: radial-gradient(closest-side, transparent 84.5%, #000 85.5% 100%);
+}
+
+/* the crown at three o'clock: the button is bigger than the brass under it, so a thumb can find it */
+.yd-crown, .yd-crown:hover, .yd-crown:active, .yd-crown:focus {
+  position: absolute;
+  top: 50%;
+  left: 97.3%;
+  width: max(2.8%, 24px);
+  height: max(7.4%, 28px);
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+.yd-crown:focus-visible { outline: 2px solid var(--k-text); outline-offset: 2px; }
+.yd-crown-art { transition: transform 120ms ease-out; }
+.yd-stage:has(.yd-crown:hover) .yd-crown-art rect { fill: url(#yd-brass-hi); }
+.yd-stage:has(.yd-crown:active) .yd-crown-art { transform: translateX(-5px); }
+
+.yd-month { fill: var(--k-coin); font: 600 25px system-ui, sans-serif; font-variant: small-caps; letter-spacing: 3px; text-anchor: middle; }
+.yd-edge { stroke: var(--k-metal-edge); stroke-width: 2; }
+.yd-edge-s { stroke: var(--k-metal-line); stroke-width: 1.5; }
+
+.yd-ticks path { fill: none; stroke-width: 3.4; stroke-linecap: round; }
+.yd-future { opacity: 0.45; }
+.yd-t-surplus { stroke: var(--k-surplus); }
+.yd-t-deficit { stroke: var(--k-deficit); }
+.yd-t-neutral { stroke: var(--k-muted); }
+.yd-t-vacation, .yd-t-draft-vacation { stroke: var(--k-vacation); }
+.yd-t-sick, .yd-t-draft-sick { stroke: var(--k-sick); }
+.yd-t-holiday, .yd-t-draft-holiday { stroke: var(--k-holiday); }
+.yd-t-flex, .yd-t-draft-flex { stroke: var(--k-flex); }
+.yd-t-work, .yd-t-draft-work { stroke: var(--k-work); }
+.yd-t-empty { stroke: var(--k-border); }
+.yd-ticks path[class^="yd-t-draft-"] { stroke-dasharray: 3 3; opacity: 0.8; }
+.yd-t-fl { stroke: var(--k-brass); }
+.yd-t-paid { stroke: var(--paid); }
+
+.yd-index { fill: var(--k-brass); stroke: var(--k-metal-void); stroke-width: 2; transform-origin: 0 -428px; }
+.yd-index.tick { animation: yd-tick 90ms ease-out; }
+@keyframes yd-tick { 40% { transform: rotate(-9deg) translateY(2px); } }
+
+.yd-date { fill: var(--k-text); font: 700 50px system-ui, sans-serif; text-anchor: middle; font-variant: small-caps; letter-spacing: 2px; }
+.yd-wk { fill: var(--k-muted); font: 500 22px ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; text-anchor: middle; }
+.yd-big { fill: var(--k-text); font: 700 70px ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; text-anchor: middle; }
+.yd-big--vacation { fill: var(--k-vacation); }
+.yd-big--sick { fill: var(--k-sick); }
+.yd-big--holiday { fill: var(--k-holiday); }
+.yd-big--flex { fill: var(--k-flex); }
+.yd-big--none { fill: var(--k-border-strong); }
+.yd-sub { fill: var(--k-muted); font: 500 24px ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; text-anchor: middle; }
+.yd-sub--surplus { fill: var(--k-surplus); }
+.yd-sub--deficit { fill: var(--k-deficit); }
+.yd-lab { fill: var(--k-muted); font: 600 15px system-ui, sans-serif; font-variant: small-caps; letter-spacing: 2px; text-anchor: middle; }
+.yd-val { fill: var(--k-text); font: 600 16px ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; text-anchor: middle; }
+.yd-note {
+  margin: 0;
+  color: var(--k-muted);
+  font: italic 21px/1.25 system-ui, sans-serif;
+  text-align: center;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.yd-fl { fill: var(--k-coin); font: 600 20px ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; text-anchor: middle; }
+.yd-fl.paid { fill: var(--paid); }
+.yd-hand { stroke: var(--k-brass); stroke-width: 3; stroke-linecap: round; }
+.yd-sec { stroke: var(--k-deficit); stroke-width: 2; stroke-linecap: round; transition: transform 160ms cubic-bezier(0.34, 1.8, 0.64, 1); }
+.yd-pip { fill: var(--k-border); opacity: 0.55; }
+.yd-pip--surplus { fill: var(--k-surplus); }
+.yd-pip--deficit { fill: var(--k-deficit); }
+.yd-pip--neutral { fill: var(--k-muted); }
+.yd-pip--leave { fill: var(--k-vacation); }
+.yd-pip.on { opacity: 1; stroke: var(--k-coin); stroke-width: 1.5; }
+
+/* on a phone the note and the freelance line sit under the dial, not on its face */
+.yd-panel { display: none; width: min(94vw, 460px); min-height: var(--yd-panel); text-align: center; }
+.yd-panel .yd-note { font-size: 0.95rem; line-height: 1.3; }
+.yd-panel .yd-fl { margin: 0.25rem 0 0; color: var(--k-coin); fill: none; font-size: 0.95rem; }
+.yd-panel .yd-fl.paid { color: var(--paid); }
+.yd-panel .yd-nums { display: flex; justify-content: center; gap: 1.25rem; margin: 0.35rem 0 0; color: var(--k-muted); font-size: 0.85rem; }
+.yd-panel .yd-nums b { color: var(--k-text); font-weight: 600; }
+
+.yd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  min-height: 40px;
+  max-width: 100vw;
+  padding: 0 8px;
+}
+.yd-bar > * { margin: 0; }
+.yd .btn-action { min-height: 32px; }
+.yd-btn, .yd-btn:hover, .yd-btn:focus {
+  width: auto;
+  min-width: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--k-brass) 60%, var(--k-border));
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--k-brass);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background var(--k-transition-fast), transform 0.12s ease-out;
+}
+.yd-btn:hover, .yd-btn:focus-visible { background: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+.yd-btn:active { transform: scale(0.95); }
+.yd-btn.on { background: color-mix(in srgb, var(--k-brass) 24%, transparent); }
+/* the cross sits in the corner of the screen, so the bar keeps one row on a phone */
+.yd-btn--x, .yd-btn--x:hover, .yd-btn--x:focus {
+  position: fixed; z-index: 2; top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 0; width: 36px; min-height: 36px;
+}
+
+@media (max-width: 640px) {
+  .yd { --yd-panel: 84px; }
+  .yd-panel { display: block; }
+  .yd-face-only { display: none; }
+  .yd-date { font-size: 60px; }
+  .yd-big { font-size: 86px; }
+  /* the sub-dials are 5px text at this size: their figures move to the panel under the dial */
+  .yd-lab, .yd-val { display: none; }
+}
+@media (max-width: 460px) {
+  .yd { --yd-bar: 100px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yd { animation: none; }
+  .yd-index.tick { animation: none; }
+  .yd-sec, .yd-crown-art, .yd-btn, .brand-btn .brand-logo { transition: none; }
 }

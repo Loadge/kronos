@@ -125,3 +125,26 @@ def test_the_scan_can_fail(demo_page, demo_url):
         if any("planted-unlabelled" in str(n["target"]) for n in v["nodes"])
     }
     assert "button-name" in ids, ids
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_the_open_year_dial_has_no_serious_violations(demo_page, demo_url, width, height):
+    """The dial open over the Dashboard, scanned on its own (the page behind it has its own
+    entries in the list). It has no entry of its own: it must have no serious violation at all."""
+    page = demo_page(width, height)
+    _open(page, demo_url, "dashboard")
+    page.get_by_role("button", name="Open the year dial").click()
+    page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=5000)
+    page.wait_for_timeout(300)
+    violations = Axe().run(page, context="#yd").response["violations"]
+    assert _blocking(violations) == []
+    # the control: the scan did look at the dial, and an unlabelled button in it would be found
+    page.evaluate(
+        """() => {
+          const b = document.createElement('button');
+          b.id = 'planted-unlabelled';
+          document.querySelector('#yd .yd-bar').append(b);
+        }"""
+    )
+    found = Axe().run(page, context="#yd").response["violations"]
+    assert "button-name" in {v["id"] for v in found}

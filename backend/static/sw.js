@@ -18,6 +18,7 @@ const PRECACHE_URLS = [
   '/manifest.json',
   '/static/styles.css?v=__BUILD__',
   '/static/app.js?v=__BUILD__',
+  '/static/dial.js?v=__BUILD__',
   '/static/icon.png',
   '/static/vendor/pico.min.css',
   '/static/vendor/alpine.min.js',

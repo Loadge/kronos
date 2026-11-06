@@ -98,6 +98,7 @@ A phone is not a small desktop. A table with more columns than fit becomes rows 
 - 2026-11-06: Days > Employee works the same way, and its week numbers sit under the table's own columns, which hold still when a week opens.
 - 2026-11-06: in Days, a strip with one tick per week (the bezel) replaces Expand all and Collapse all. Press a tick to open its week and jump to it, drag to open or close several, and use the chip's + and - for all of them.
 - 2026-11-06: in Log, a day being edited is left on the calendar: click it again, or click another day. The ← button and the "New entry" and "Edit <date>" subtitle are gone, and unsaved changes are discarded without asking.
+- 2026-11-06: the logo (or Y) opens the year dial, a full-screen dialog with no page head, because it is an instrument and not a page.
 - 2026-11-06: in Log a day can be dragged on the day ribbon, and the time fields stay as the precise editor. A drag never saves: Create entry and Save changes are still the only writes.
 - 2026-11-05: exports are `.head-btn` pills in the head with short names. The bottom "Export" blocks went away.
 - 2026-11-05: hours keep trimmed totals and two-decimal deltas; money always has cents; the calculator uses Spanish decimals.

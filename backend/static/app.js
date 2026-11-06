@@ -13,6 +13,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// What the year dial reads for the day under its index (see dialData): kept out of Alpine's state.
+const _dial = { entries: new Map(), keys: [], sums: [], reset: false };
+
 // The bezel's own scratch space: what a drag in progress needs, kept out of Alpine's reactive state so that
 // moving the pointer never re-renders anything.
 const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0, rove: '', waveTimer: 0 };
@@ -306,6 +309,10 @@ function app() {
     // ---------- command palette -----------------------------------------
     palette: { open: false, query: '', selected: 0 },
 
+    // ---------- year dial (the logo, or Y) ------------------------------
+    dialOpen: false,
+    _dialBack: null,       // what had the focus before it opened
+
     // =====================================================================
     // init
     // =====================================================================
@@ -328,6 +335,8 @@ function app() {
       // Keyboard shortcuts
       let _keyBuf = '';
       document.addEventListener('keydown', (e) => {
+        // The year dial takes every key while it is open (Esc and Tab it handles itself).
+        if (this.dialOpen) return;
         const tag = e.target?.tagName?.toUpperCase() || '';
         const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target?.isContentEditable;
 
@@ -362,6 +371,10 @@ function app() {
           case 'f': case 'F': e.preventDefault(); this.go('freelance'); break;
           case 's': case 'S': e.preventDefault(); this.go('settings');  break;
           case '.': e.preventDefault(); this.openPalette(); break;
+          case 'y': case 'Y':
+            e.preventDefault();
+            if (!this.bulkModal.open && !this.pdfModal.open) this.openDial();
+            break;
         }
 
         // W6 — "kronos" easter egg key buffer
@@ -889,6 +902,7 @@ function app() {
       { id: 'analytics', label: 'Analytics',     hint: 'A'   },
       { id: 'freelance', label: 'Freelance',     hint: 'F'   },
       { id: 'calc',      label: 'Rate calculator', hint: ''  },
+      { id: 'dial',      label: 'Year dial',     hint: 'Y'   },
       { id: 'settings',  label: 'Settings',      hint: 'S'   },
     ],
 
@@ -918,6 +932,7 @@ function app() {
     async paletteRun(cmd) {
       this.closePalette();
       if (cmd.id === 'pdf') { await this.go('days'); this.openPdfModal(); return; }
+      if (cmd.id === 'dial') { this.openDial(); return; }
       if (cmd.id === 'calc') { await this.go('freelance'); this.$nextTick(() => document.getElementById('fl-calc')?.scrollIntoView({ behavior: 'smooth', block: 'start' })); return; }
       this.go(cmd.id);
     },
@@ -925,6 +940,162 @@ function app() {
     paletteConfirm() {
       const cmds = this.filteredCommands();
       if (cmds.length) this.paletteRun(cmds[this.palette.selected] ?? cmds[0]);
+    },
+
+    // =====================================================================
+    // year dial (dial.js draws and turns it; these hand it the days and the words)
+    // =====================================================================
+    async openDial() {
+      if (this.dialOpen) return;
+      const a = document.activeElement;
+      this._dialBack = a && a !== document.body && !a.closest('.palette-backdrop') ? a : null;
+      this.dialOpen = true;
+      // the days, blocks and balance it reads may still be on their way
+      if (!this.dashboard && !this.loading.dashboard) this.loadDashboard();
+      for (let n = 0; n < 100 && (!this.dashboard || this.loading.dashboard || this.loading.days); n++) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      if (!this.dialOpen) return;
+      await this.$nextTick();
+      const root = document.getElementById('yd');
+      if (!root || !window.KronosDial) { this.dialOpen = false; return; }
+      window.KronosDial.open(root, this.dialData(), {
+        year: y => this.dialYear(y),
+        read: iso => this.dialRead(iso),
+        go: iso => this.dialGo(iso),
+        close: () => this.closeDial(),
+        getSound: () => this.dialSound(),
+        setSound: on => this.dialSetSound(on),
+      });
+    },
+
+    closeDial() {
+      if (!this.dialOpen) return;
+      window.KronosDial?.close();
+      // the focus goes back now, while the dial is still in the page: the element that has it is
+      // never the one Alpine removes next
+      const back = this._dialBack;
+      this._dialBack = null;
+      (back && back.isConnected ? back : document.querySelector('.brand-btn'))?.focus({ preventScroll: true });
+      this.dialOpen = false;
+    },
+
+    // Enter and "Open in Log": that day in Log, and the dial closes.
+    dialGo(iso) {
+      this.openDayInLog(iso).catch(e => { this.error = e.message; });
+      this.closeDial();
+    },
+
+    dialSound() {
+      try { return localStorage.getItem('k-dial-sound') === '1'; } catch { return false; }
+    },
+    dialSetSound(on) {
+      try { localStorage.setItem('k-dial-sound', on ? '1' : '0'); } catch { /* storage may be blocked */ }
+    },
+
+    // What the dial needs once, when it opens: today, the years it can show, and the running balance,
+    // counted as the Dashboard counts it: from the "Cumulative since" date, and from Jan 1 of each year
+    // with "Reset on January 1st" on. The needle's scale is the largest it reaches.
+    dialData() {
+      const today = this.todayIso();
+      const sorted = [...this.entries].sort((a, b) => (a.date < b.date ? -1 : 1));
+      _dial.entries = new Map(sorted.map(e => [e.date, e]));
+      _dial.keys = [];
+      _dial.sums = [];
+      const from = this.settingsForm.cumulative_start_date || '';
+      _dial.reset = !!this.settingsForm.reset_annually;
+      let run = 0, max = 0, year = '';
+      for (const e of sorted) {
+        if (_dial.reset && e.date.slice(0, 4) !== year) { year = e.date.slice(0, 4); run = 0; }
+        if (e.date >= from) run += e.surplus_hours;
+        _dial.keys.push(e.date);
+        _dial.sums.push(run);
+        max = Math.max(max, Math.abs(run));
+      }
+      const years = [...new Set([...sorted.map(e => Number(e.date.slice(0, 4))), Number(today.slice(0, 4))])].sort((a, b) => a - b);
+      return { today, years, balanceMax: Math.round(max * 100) / 100 };
+    },
+
+    // The running balance up to and including that day (see dialData).
+    dialBalanceAt(iso) {
+      let lo = 0, hi = _dial.keys.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (_dial.keys[mid] <= iso) lo = mid + 1; else hi = mid;
+      }
+      if (!lo || (_dial.reset && _dial.keys[lo - 1].slice(0, 4) !== iso.slice(0, 4))) return 0;
+      return Math.round(_dial.sums[lo - 1] * 100) / 100;
+    },
+
+    // One tick per day of the year y: { k: its kind, v: its signed length -1..1, fl: 'fl' | 'paid' }.
+    dialYear(y) {
+      const prefix = `${y}-`;
+      const draft = this.draftMap();
+      const bar = e => e.day_type === 'work' || this.isPartial(e);   // a partial day takes the bar of its surplus
+      const fl = new Map();
+      for (const b of this.blocks) {
+        if (!b.date.startsWith(prefix)) continue;
+        fl.set(b.date, fl.get(b.date) === 'paid' || b.payout_id != null ? 'paid' : 'fl');
+      }
+      let maxAbs = 0;
+      for (const [iso, e] of _dial.entries) {
+        if (iso.startsWith(prefix) && bar(e)) maxAbs = Math.max(maxAbs, Math.abs(e.surplus_hours));
+      }
+      const out = [];
+      for (let d = new Date(y, 0, 1, 12); d.getFullYear() === y; d.setDate(d.getDate() + 1)) {
+        const iso = this._dateIso(d), e = _dial.entries.get(iso), p = draft[iso];
+        let t;
+        if (e && bar(e)) {
+          const s = e.surplus_hours;
+          t = Math.abs(s) < 0.01 ? { k: 'neutral', v: 0 } : { k: s > 0 ? 'surplus' : 'deficit', v: s / maxAbs };
+        } else if (e) t = { k: e.day_type, v: 0 };
+        else if (p) t = { k: `draft-${p.day_type}`, v: 0 };
+        else t = { k: 'empty', v: 0 };
+        if (fl.has(iso)) t.fl = fl.get(iso);
+        out.push(t);
+      }
+      return out;
+    },
+
+    // What one day says, in words and numbers already formatted: the face, the balance, the week.
+    dialRead(iso) {
+      const today = this.todayIso();
+      const day = new Date(iso + 'T12:00:00');
+      const e = _dial.entries.get(iso) || null;
+      const p = e ? null : this.draftMap()[iso];
+      const r = { date: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) };
+      r.wk = [this.weekId(this._mondayIso(day)), iso === today ? 'today' : '', this.isPartial(e) ? this.pillLabel(e) : ''].filter(Boolean).join(' · ');
+      if (e && (e.day_type === 'work' || this.isPartial(e))) {
+        r.big = this.fmtHours(e.net_hours); r.bigKind = 'work';
+        r.sub = this.formatSurplus(e.surplus_hours); r.subKind = this.surplusClass(e.surplus_hours);
+      } else if (e) {
+        r.big = e.day_type; r.bigKind = e.day_type; r.sub = ''; r.subKind = 'muted';
+      } else if (p) {
+        r.big = p.day_type; r.bigKind = p.day_type; r.sub = 'planned'; r.subKind = 'muted';
+      } else {
+        r.big = '–'; r.bigKind = 'none'; r.sub = iso > today ? 'still to come' : 'no entry'; r.subKind = 'muted';
+      }
+      r.note = (e || p)?.notes || '';
+      const fl = this.flDayTotal(iso);
+      r.fl = fl ? { text: `⚡ ${this.flTotalLabel(fl)}`, paid: this.blocksOn(iso).some(b => b.payout_id != null) } : null;
+      const bal = this.dialBalanceAt(iso);
+      r.balance = { value: bal, text: this.formatSurplus(bal) };
+      // the week: seven pips from Monday, the selected one lit, and its sum
+      const monday = new Date(day);
+      monday.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+      let sum = 0;
+      const pips = [];
+      for (let n = 0; n < 7; n++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + n);
+        const k = this._dateIso(d), we = _dial.entries.get(k);
+        sum += we?.surplus_hours || 0;
+        if (we && (we.day_type === 'work' || this.isPartial(we))) pips.push({ k: this.surplusClass(we.surplus_hours), h: we.net_hours / 10, on: k === iso });
+        else pips.push({ k: we ? 'leave' : 'empty', h: null, on: k === iso });
+      }
+      r.week = { pips, sum: this.formatSurplus(Math.round(sum * 100) / 100) };
+      r.text = `${r.date}, ${r.big}${r.sub ? ' ' + r.sub : ''}`;
+      return r;
     },
 
     // =====================================================================
@@ -4212,9 +4383,9 @@ function app() {
       if (!this.form.date) return '';
       return new Date(this.form.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
     },
-    flDayTotal() {
-      const list = this.flDayBlocks();
-      const lines = this.flLines(list, { from: this.form.date, to: this.form.date });
+    flDayTotal(iso = this.form.date) {
+      const list = this.blocksOn(iso);
+      const lines = this.flLines(list, { from: iso, to: iso });
       if (!lines.length) return null;
       return { hours: this.blockHours(list), eur: this.lineEur(lines), missing: this.lineMissing(lines) };
     },

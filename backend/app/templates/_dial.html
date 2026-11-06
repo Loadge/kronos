@@ -1,0 +1,111 @@
+<!-- The year dial: the year as a brass chronograph whose outer ring turns. dial.js draws
+     the ticks and turns the ring; app.js hands it the days and the words (see openDial). -->
+<template x-if="dialOpen">
+  <div class="yd" id="yd" role="dialog" aria-modal="true" aria-label="Year dial">
+    <div class="yd-stage" data-yd="stage" data-day="">
+      <svg class="yd-svg" viewBox="-520 -520 1040 1040" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="yd-face" cx="50%" cy="38%" r="62%">
+            <stop offset="0" style="stop-color: var(--k-metal-glow)"/>
+            <stop offset="0.75" style="stop-color: var(--k-metal-face)"/>
+            <stop offset="1" style="stop-color: var(--k-metal-well)"/>
+          </radialGradient>
+          <linearGradient id="yd-ring" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" style="stop-color: var(--k-metal-ring-hi)"/>
+            <stop offset="0.45" style="stop-color: var(--k-metal-ring-mid)"/>
+            <stop offset="1" style="stop-color: var(--k-metal-ring-lo)"/>
+          </linearGradient>
+          <linearGradient id="yd-brass" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color: var(--k-metal-edge)"/>
+            <stop offset="0.5" style="stop-color: var(--k-brass)"/>
+            <stop offset="1" style="stop-color: var(--k-metal-line)"/>
+          </linearGradient>
+          <linearGradient id="yd-brass-hi" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color: var(--k-metal-ring-hi)"/>
+            <stop offset="0.5" style="stop-color: var(--k-coin)"/>
+            <stop offset="1" style="stop-color: var(--k-metal-edge)"/>
+          </linearGradient>
+          <linearGradient id="yd-lit" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" style="stop-color: var(--k-coin); stop-opacity: 0.32"/>
+            <stop offset="1" style="stop-color: var(--k-coin); stop-opacity: 0.04"/>
+          </linearGradient>
+        </defs>
+
+        <!-- the crown, at three o'clock: the button over it brings the ring back to today -->
+        <g class="yd-crown-art">
+          <rect x="492" y="-34" width="26" height="68" rx="6" fill="url(#yd-brass)"/>
+          <path d="M497 -30v60M503 -30v60M509 -30v60" stroke="var(--k-metal-groove)" stroke-width="2"/>
+        </g>
+
+        <circle r="500" fill="var(--k-metal-void)"/>
+        <!-- what turns -->
+        <g data-yd="rotor">
+          <circle r="486" fill="none" stroke="url(#yd-ring)" stroke-width="28"/>
+          <circle r="486" fill="none" stroke="var(--k-bg)" stroke-width="28" stroke-dasharray="3 7.05" opacity="0.6"/>
+          <circle r="470" fill="none" stroke="var(--k-metal-line)" stroke-width="1.5"/>
+          <circle r="432" fill="none" stroke="var(--k-metal-line)" stroke-width="1.5"/>
+          <g data-yd="months"></g>
+          <g data-yd="ticks" class="yd-ticks"></g>
+          <g data-yd="flring" class="yd-ticks yd-flring"></g>
+          <circle data-yd="pip" r="7" fill="var(--k-brass)" stroke="var(--k-metal-void)" stroke-width="2"/>
+        </g>
+        <!-- what stays -->
+        <circle r="296" fill="url(#yd-face)" stroke="var(--k-metal-line)" stroke-width="2"/>
+        <path d="M-9 -426 L9 -426 L9 -304 L-9 -304 Z" fill="url(#yd-lit)"/>
+        <path class="yd-index" data-yd="index" d="M0 -430 L-15 -462 L15 -462 Z"/>
+        <line x1="0" y1="-430" x2="0" y2="-300" stroke="var(--k-brass)" stroke-width="1.5" opacity="0.55"/>
+
+        <text class="yd-date" data-yd="date" y="-176"></text>
+        <text class="yd-wk" data-yd="wk" y="-142"></text>
+        <text class="yd-big" data-yd="big" y="-62"></text>
+        <text class="yd-sub" data-yd="sub" y="-22"></text>
+        <foreignObject class="yd-face-only" x="-210" y="-6" width="420" height="60"><div class="yd-note" data-yd="note"></div></foreignObject>
+        <text class="yd-fl yd-face-only" data-yd="fl" y="90"></text>
+
+        <!-- sub-dials: the balance, the seconds, the week -->
+        <g transform="translate(-150 142)">
+          <circle r="68" fill="var(--k-metal-well)" stroke="var(--k-metal-line)" stroke-width="1.5"/>
+          <g data-yd="balticks"></g>
+          <line data-yd="bal" class="yd-hand" y1="8" y2="-52" transform="rotate(0)"/>
+          <circle r="5" fill="var(--k-brass)"/>
+          <text class="yd-lab" y="34">balance</text>
+          <text class="yd-val" data-yd="balv" y="54"></text>
+        </g>
+        <g transform="translate(0 176)">
+          <circle r="56" fill="var(--k-metal-well)" stroke="var(--k-metal-line)" stroke-width="1.5"/>
+          <g data-yd="secticks"></g>
+          <line data-yd="sec" class="yd-sec" y1="10" y2="-46"/>
+          <circle r="4" fill="var(--k-deficit)"/>
+        </g>
+        <g transform="translate(150 142)">
+          <circle r="68" fill="var(--k-metal-well)" stroke="var(--k-metal-line)" stroke-width="1.5"/>
+          <g data-yd="week"></g>
+          <text class="yd-lab" y="34">week</text>
+          <text class="yd-val" data-yd="weekv" y="54"></text>
+        </g>
+      </svg>
+      <div class="yd-sheen"></div>
+      <div class="yd-ring" data-yd="ring" tabindex="0" role="slider" aria-label="Day of the year"
+           aria-valuemin="1" aria-valuemax="365" aria-valuenow="1" aria-valuetext=""></div>
+      <button type="button" class="yd-crown" data-yd="crown" aria-label="Back to today"></button>
+    </div>
+
+    <!-- on a phone the note and the freelance line leave the face and sit here -->
+    <div class="yd-panel">
+      <p class="yd-note" data-yd="note2"></p>
+      <p class="yd-fl" data-yd="fl2"></p>
+      <p class="yd-nums metric"><span>Balance <b data-yd="balv2"></b></span> <span>Week <b data-yd="weekv2"></b></span></p>
+    </div>
+
+    <div class="yd-bar">
+      <nav class="year-step" aria-label="Dial year">
+        <button type="button" data-yd="prev" aria-label="Previous year">‹</button>
+        <span class="year-step-v" data-yd="year"></span>
+        <button type="button" data-yd="next" aria-label="Next year">›</button>
+      </nav>
+      <button type="button" class="btn-action" data-yd="go">Open in Log</button>
+      <button type="button" class="yd-btn" data-yd="sound">Sound off</button>
+      <button type="button" class="yd-btn yd-btn--x" data-yd="close" aria-label="Close the year dial">✕</button>
+    </div>
+  </div>
+</template>

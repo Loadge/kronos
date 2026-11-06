@@ -30,6 +30,8 @@ a component.
   way to open, close and reach weeks. Lit brass means open, teal means open and paid out.
 - The day ribbon (`.dr`) draws the day in Log: a brass bar you can drag, notches for breaks, a flag where
   the target is reached, and the surplus in lit coin after it. It only writes what the time fields write.
+- The year dial (`.yd`, `dial.js`) opens from the logo: the year as a chronograph whose outer ring turns,
+  one day per detent. It is the one place with brushed metal: the `--k-metal-*` tokens stay inside it.
 - From 1100px a form card may have a rail beside it with the result and the main button. Below that
   it is one column.
 - Less text: a card title does not need a hint line. If a label is clear, nothing explains it. Tabs
@@ -44,10 +46,11 @@ a component.
 Kronos should feel tactile and alive. Every interaction answers: buttons lift on hover and press on
 click, things that open or change animate briefly (about 150-300 ms), a figure that changes pulses
 once. Motion that nobody triggered happens at most once. Every animation has a
-`prefers-reduced-motion: reduce` override that turns it off.
+`prefers-reduced-motion: reduce` override that turns it off. The one exception to the "at most once" is the
+small second hand of the year dial, which ticks because it is a clock, and only while the dial is open.
 
 ## Version label and updates
 
-The faint "v46" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v47" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

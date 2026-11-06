@@ -14,6 +14,7 @@ Docker image under `/static/mockups/`; moved here so the public mirror and PROD 
 | UX round after 34–35 | `ux-u1.html`, `ux-u2.html` (+ `_ux_base.css`) | U1's Log; U2's Days, Analytics and Freelance; the shared Settings and timesheet |
 | 37 — Freelance payouts | `payouts-p1.html`, `payouts-p2.html` (+ `_ux_base.css`) | Open |
 | 44 — Folding the weeks | `days-fold.html` | The bezel |
+| 47 — The year dial | `year-dial.html` | A working prototype, built as designed |
 
 ## Phase 31 — `redesign-r{1,2,3}.html`
 

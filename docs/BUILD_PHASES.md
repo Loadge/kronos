@@ -45,10 +45,32 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 45 confirmed and archived; 46 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 46 and 47 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 47 — The year dial (built 2026-11-06, awaiting confirmation)
+
+**Why.** Miguel asked for something fun and said the bezel was the coolest of the options, so this is its big
+brother. A working prototype came first (`docs/mockups/year-dial.html`), then the real thing.
+
+**Decisions.**
+- Pressing the logo, the key Y or the palette opens a full-screen dialog: the year as a chronograph. The outer
+  ring turns under a fixed index, one day per detent, and the day under the index is read out in the middle.
+- Each day is a tick: outward for surplus, inward for deficit, a fixed bar for leave, dashed for a draft. An
+  inner ring marks freelance days, teal when they are paid out. A brass pip marks today.
+- The ring can be dragged and flicked, turned by the wheel or the keys, and a press on the ring turns to that
+  day. The crown goes back to today by the short way. Enter or "Open in Log" opens the day.
+- The balance sub-dial counts as the Dashboard does, with "Cumulative since" and "Reset on January 1st"
+  respected, so on today it says the same figure.
+- Sound is a click made on the spot with Web Audio. It is off by default and kept in the browser.
+- The little second hand is the one thing in Kronos that moves with nobody touching it, because it is a clock.
+  Everything stops when the dial closes.
+- `dial.js` is its own file, so the physics stay out of `app.js`.
+
+**Known limits.** On a phone the figures of the sub-dials move to the panel under the dial, because they would
+be 5px text on the face. The opening turn is 150 days whatever the date.
 
 ### Phase 46 — The day ribbon (built 2026-11-06, awaiting confirmation)
 

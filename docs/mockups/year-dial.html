@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kronos year dial</title>
+<!-- A working prototype of the year dial (Phase 47): the year as a chronograph whose outer ring turns.
+     Invented data. Drag the ring, flick it, use the wheel, the arrows or the crown. -->
+<style>
+:root {
+  --k-bg: #17140f; --k-surface: #1f1c16; --k-border: #3d3a33; --k-border-strong: #57524a;
+  --k-text: #ece6d7; --k-muted: #a49b87; --k-brass: #e0b341; --k-coin: #f5d27a;
+  --k-surplus: #7db369; --k-deficit: #e07b63; --paid: #36c9b9;
+  --k-vacation: #8ab0c4; --k-sick: #d49b4a; --k-holiday: #516b77; --k-flex: #9b82c4;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--k-bg); color: var(--k-text); font-family: system-ui, sans-serif; }
+
+.yd { position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 46%, #2a251b 0%, #17140f 58%, #0e0c09 100%); }
+.yd-stage { position: relative; width: min(94vw, 90vh); aspect-ratio: 1; container-type: inline-size;
+  user-select: none; -webkit-user-select: none; touch-action: none; cursor: grab; outline: none; }
+.yd-stage.turning { cursor: grabbing; }
+.yd-stage:focus-visible .yd-index { stroke: var(--k-text); stroke-width: 3; }
+.yd-stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* the light does not turn with the ring: it stays where the lamp is */
+.yd-sheen { position: absolute; inset: 0.6%; border-radius: 50%; pointer-events: none; mix-blend-mode: screen;
+  background: conic-gradient(from 215deg, transparent 0 8%, rgba(245, 210, 122, 0.22) 14%, transparent 22% 56%, rgba(245, 210, 122, 0.12) 62%, transparent 70%);
+  -webkit-mask: radial-gradient(closest-side, transparent 84.5%, #000 85.5% 100%);
+  mask: radial-gradient(closest-side, transparent 84.5%, #000 85.5% 100%); }
+
+.yd-month { fill: var(--k-coin); font: 600 25px system-ui, sans-serif; font-variant: small-caps; letter-spacing: 3px; text-anchor: middle; }
+.yd-t-surplus { stroke: var(--k-surplus); } .yd-t-deficit { stroke: var(--k-deficit); }
+.yd-t-neutral { stroke: var(--k-muted); } .yd-t-vacation { stroke: var(--k-vacation); }
+.yd-t-sick { stroke: var(--k-sick); } .yd-t-holiday { stroke: var(--k-holiday); }
+.yd-t-flex { stroke: var(--k-flex); } .yd-t-empty { stroke: var(--k-border); }
+.yd-t-planned { stroke: var(--k-vacation); stroke-dasharray: 3 3; opacity: 0.8; }
+.yd-t-fl { stroke: var(--k-brass); } .yd-t-paid { stroke: var(--paid); }
+.yd-ticks path { fill: none; stroke-width: 3.4; stroke-linecap: round; }
+
+.yd-index { fill: var(--k-brass); stroke: #0e0c09; stroke-width: 2; transform-origin: 0 -428px; }
+.yd-index.tick { animation: yd-tick 90ms ease-out; }
+@keyframes yd-tick { 40% { transform: rotate(-9deg) translateY(2px); } }
+
+.yd-date { fill: var(--k-text); font: 700 50px system-ui, sans-serif; text-anchor: middle; font-variant: small-caps; letter-spacing: 2px; }
+.yd-wk { fill: var(--k-muted); font: 500 22px ui-monospace, Consolas, monospace; text-anchor: middle; }
+.yd-big { font: 700 70px ui-monospace, Consolas, monospace; text-anchor: middle; }
+.yd-sub { fill: var(--k-muted); font: 500 24px ui-monospace, Consolas, monospace; text-anchor: middle; }
+.yd-lab { fill: var(--k-muted); font: 600 15px system-ui, sans-serif; font-variant: small-caps; letter-spacing: 2px; text-anchor: middle; }
+.yd-val { fill: var(--k-text); font: 600 16px ui-monospace, Consolas, monospace; text-anchor: middle; }
+.yd-note { color: var(--k-muted); font: italic 21px/1.25 system-ui, sans-serif; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.yd-hand { stroke: var(--k-brass); stroke-width: 3; stroke-linecap: round; }
+.yd-sec { stroke: var(--k-deficit); stroke-width: 2; stroke-linecap: round; transition: transform 160ms cubic-bezier(0.34, 1.8, 0.64, 1); }
+
+.yd-crown { cursor: pointer; }
+.yd-crown:hover rect { fill: url(#yd-brass-hi); }
+.yd-crown:active { transform: translateX(-5px); }
+
+.yd-bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; }
+.yd-bar button { background: transparent; color: var(--k-brass); border: 1px solid color-mix(in srgb, var(--k-brass) 60%, var(--k-border)); border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; }
+.yd-bar button:hover { background: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .yd-index.tick { animation: none; } .yd-sec { transition: none; } }
+</style>
+</head>
+<body>
+<div class="yd" id="yd">
+  <div class="yd-stage" id="stage" tabindex="0" role="slider" aria-label="Day of the year" aria-valuemin="1">
+    <svg viewBox="-520 -520 1040 1040" aria-hidden="true">
+      <defs>
+        <radialGradient id="yd-face" cx="50%" cy="38%" r="62%">
+          <stop offset="0" stop-color="#2b261c"/><stop offset="0.75" stop-color="#1c1913"/><stop offset="1" stop-color="#141109"/>
+        </radialGradient>
+        <linearGradient id="yd-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#b08d3a"/><stop offset="0.45" stop-color="#5a4a22"/><stop offset="1" stop-color="#94762f"/>
+        </linearGradient>
+        <linearGradient id="yd-brass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#8a6f2c"/><stop offset="0.5" stop-color="#e0b341"/><stop offset="1" stop-color="#6e5822"/>
+        </linearGradient>
+        <linearGradient id="yd-brass-hi" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#a98a3c"/><stop offset="0.5" stop-color="#f5d27a"/><stop offset="1" stop-color="#8a6f2c"/>
+        </linearGradient>
+        <linearGradient id="yd-lit" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f5d27a" stop-opacity="0.32"/><stop offset="1" stop-color="#f5d27a" stop-opacity="0.04"/>
+        </linearGradient>
+      </defs>
+
+      <!-- the crown, at three o'clock: a press brings the ring back to today -->
+      <g class="yd-crown" id="crown" role="button" aria-label="Back to today">
+        <rect x="492" y="-34" width="26" height="68" rx="6" fill="url(#yd-brass)"/>
+        <path d="M497 -30v60M503 -30v60M509 -30v60" stroke="#3b2f12" stroke-width="2"/>
+      </g>
+
+      <circle r="500" fill="#0e0c09"/>
+      <!-- what turns -->
+      <g id="rotor">
+        <circle r="486" fill="none" stroke="url(#yd-ring)" stroke-width="28"/>
+        <circle r="486" fill="none" stroke="#17140f" stroke-width="28" stroke-dasharray="3 7.05" opacity="0.6"/>
+        <circle r="470" fill="none" stroke="#6e5822" stroke-width="1.5"/>
+        <circle r="432" fill="none" stroke="#6e5822" stroke-width="1.5"/>
+        <g id="months"></g>
+        <g id="ticks" class="yd-ticks"></g>
+        <circle id="todayPip" r="7" fill="var(--k-brass)" stroke="#0e0c09" stroke-width="2"/>
+      </g>
+      <!-- what stays -->
+      <circle r="296" fill="url(#yd-face)" stroke="#6e5822" stroke-width="2"/>
+      <path d="M-9 -426 L9 -426 L9 -304 L-9 -304 Z" fill="url(#yd-lit)"/>
+      <path class="yd-index" id="index" d="M0 -430 L-15 -462 L15 -462 Z"/>
+      <line x1="0" y1="-430" x2="0" y2="-300" stroke="var(--k-brass)" stroke-width="1.5" opacity="0.55"/>
+
+      <text class="yd-date" id="date" y="-176"></text>
+      <text class="yd-wk" id="wk" y="-142"></text>
+      <text class="yd-big" id="big" y="-62"></text>
+      <text class="yd-sub" id="sub" y="-22"></text>
+      <foreignObject x="-210" y="-6" width="420" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="yd-note" id="note"></div></foreignObject>
+
+      <!-- sub-dials: the balance, the seconds, the week -->
+      <g transform="translate(-150 142)">
+        <circle r="68" fill="#141109" stroke="#6e5822" stroke-width="1.5"/>
+        <g id="balTicks"></g>
+        <line id="bal" class="yd-hand" y1="8" y2="-52" transform="rotate(0)"/>
+        <circle r="5" fill="var(--k-brass)"/>
+        <text class="yd-lab" y="34">balance</text>
+        <text class="yd-val" id="balv" y="54"></text>
+      </g>
+      <g transform="translate(0 176)">
+        <circle r="56" fill="#141109" stroke="#6e5822" stroke-width="1.5"/>
+        <g id="secTicks"></g>
+        <line id="sec" class="yd-sec" y1="10" y2="-46"/>
+        <circle r="4" fill="var(--k-deficit)"/>
+      </g>
+      <g transform="translate(150 142)">
+        <circle r="68" fill="#141109" stroke="#6e5822" stroke-width="1.5"/>
+        <g id="week"></g>
+        <text class="yd-lab" y="34">week</text>
+        <text class="yd-val" id="weekv" y="54"></text>
+      </g>
+    </svg>
+    <div class="yd-sheen"></div>
+  </div>
+  <div class="yd-bar"><button id="sound" type="button">Sound off</button></div>
+</div>
+
+<script>
+// ---- invented data: a year of a person who works a bit too much ----
+function rnd(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const YEAR = 2026, TODAY = '2026-11-06', r = rnd(46);
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const data = {};
+for (let d = new Date(YEAR, 0, 1); d.getFullYear() === YEAR; d.setDate(d.getDate() + 1)) {
+  const k = iso(d), dow = d.getDay();
+  if (k > TODAY) { if (k >= '2026-11-23' && k <= '2026-11-25') data[k] = { type: 'planned' }; continue; }
+  if (dow === 0 || dow === 6) continue;
+  const x = r();
+  if (d.getMonth() === 7 && d.getDate() < 15) { data[k] = { type: 'vacation', net: 0, surplus: 0 }; continue; }
+  if (x < 0.02) { data[k] = { type: 'sick', net: 0, surplus: 0 }; continue; }
+  if (x < 0.05) { data[k] = { type: 'holiday', net: 0, surplus: 0 }; continue; }
+  const surplus = Math.round((r() * 3.2 - 1.1) * 4) / 4;
+  data[k] = { type: 'work', net: 8 + surplus, surplus, fl: r() < 0.28 ? (r() < 0.3 ? 'paid' : 'est') : null,
+    notes: r() < 0.14 ? ['Release day, long one', 'Dentist at 13:00', 'Migration went fine', 'Sprint review ran late'][Math.floor(r() * 4)] : '' };
+}
+
+// ---- the dial ----
+const days = [];
+for (let d = new Date(YEAR, 0, 1); d.getFullYear() === YEAR; d.setDate(d.getDate() + 1)) days.push(iso(d));
+const N = days.length, STEP = 360 / N, $ = id => document.getElementById(id);
+const polar = (deg, rad) => { const a = (deg - 90) * Math.PI / 180; return [Math.cos(a) * rad, Math.sin(a) * rad]; };
+const f1 = n => n.toFixed(1);
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const BASE = 366, REACH = 56;
+const maxAbs = Math.max(...Object.values(data).map(e => Math.abs(e.surplus || 0)), 1);
+
+const lines = {};
+const add = (cls, seg) => { (lines[cls] ||= []).push(seg); };
+let run = 0;
+const balanceAt = {};
+days.forEach((k, i) => {
+  const e = data[k], deg = i * STEP;
+  run += e?.surplus || 0; balanceAt[k] = Math.round(run * 100) / 100;
+  const seg = (a, b) => { const [x1, y1] = polar(deg, a), [x2, y2] = polar(deg, b); return `M${f1(x1)} ${f1(y1)}L${f1(x2)} ${f1(y2)}`; };
+  if (!e) add('empty', seg(BASE - 3, BASE + 3));
+  else if (e.type === 'work') {
+    const len = Math.max(5, Math.abs(e.surplus) / maxAbs * REACH);
+    if (Math.abs(e.surplus) < 0.01) add('neutral', seg(BASE - 4, BASE + 4));
+    else if (e.surplus > 0) add('surplus', seg(BASE, BASE + len));
+    else add('deficit', seg(BASE - len, BASE));
+    if (e.fl) add(e.fl === 'paid' ? 'paid' : 'fl', seg(308, 314));
+  } else if (e.type === 'planned') add('planned', seg(BASE - 22, BASE + 22));
+  else add(e.type, seg(BASE - 22, BASE + 22));
+});
+{ const [x, y] = polar(days.indexOf(TODAY) * STEP, 422); $('todayPip').setAttribute('cx', f1(x)); $('todayPip').setAttribute('cy', f1(y)); }
+$('ticks').innerHTML = Object.entries(lines).map(([c, s]) => `<path class="yd-t-${c}" d="${s.join('')}"/>`).join('');
+
+let mhtml = '';
+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach((m, i) => {
+  const first = days.findIndex(k => k.slice(5, 7) === String(i + 1).padStart(2, '0'));
+  const len = days.filter(k => k.slice(5, 7) === String(i + 1).padStart(2, '0')).length;
+  const [x1, y1] = polar(first * STEP - STEP / 2, 432), [x2, y2] = polar(first * STEP - STEP / 2, 470);
+  mhtml += `<line x1="${f1(x1)}" y1="${f1(y1)}" x2="${f1(x2)}" y2="${f1(y2)}" stroke="#8a6f2c" stroke-width="2"/>`;
+  mhtml += `<text class="yd-month" transform="rotate(${f1((first + len / 2) * STEP)}) translate(0 -442)">${m}</text>`;
+});
+$('months').innerHTML = mhtml;
+
+let t = '';
+for (let i = 0; i < 12; i++) { const [a, b] = polar(i * 30, 62), [c, d] = polar(i * 30, 68); t += `<line x1="${f1(a)}" y1="${f1(b)}" x2="${f1(c)}" y2="${f1(d)}" stroke="#6e5822" stroke-width="1.5"/>`; }
+$('balTicks').innerHTML = t;
+t = '';
+for (let i = 0; i < 60; i += 5) { const [a, b] = polar(i * 6, 50), [c, d] = polar(i * 6, 56); t += `<line x1="${f1(a)}" y1="${f1(b)}" x2="${f1(c)}" y2="${f1(d)}" stroke="#6e5822" stroke-width="1.5"/>`; }
+$('secTicks').innerHTML = t;
+
+// a click you can hear, made on the spot: no sound file
+let audio = null, soundOn = false;
+function click(speed) {
+  if (!soundOn) return;
+  audio ||= new (window.AudioContext || window.webkitAudioContext)();
+  const n = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+  o.type = 'square'; o.frequency.value = 1900 + Math.min(speed, 2) * 500;
+  g.gain.setValueAtTime(0.05, n); g.gain.exponentialRampToValueAtTime(0.0001, n + 0.018);
+  o.connect(g).connect(audio.destination); o.start(n); o.stop(n + 0.02);
+}
+$('sound').onclick = e => { soundOn = !soundOn; e.target.textContent = soundOn ? 'Sound on' : 'Sound off'; };
+
+// position in days, a float; the detent is the nearest whole day
+let pos = 0, vel = 0, target = null, dragging = false, shown = -1, needle = 0;
+const mod = (n, m) => ((n % m) + m) % m;
+
+function read(i) {
+  const k = days[i], e = data[k], d = new Date(k + 'T12:00:00');
+  $('date').textContent = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const week = (() => { const x = new Date(d); x.setDate(x.getDate() + 3 - (x.getDay() + 6) % 7); const y = new Date(x.getFullYear(), 0, 4); return 1 + Math.round(((x - y) / 864e5 - 3 + (y.getDay() + 6) % 7) / 7); })();
+  $('wk').textContent = `W${week}${k === TODAY ? ' · today' : ''}`;
+  const big = $('big'), sub = $('sub');
+  if (e?.type === 'work') {
+    big.textContent = `${e.net}h`; big.style.fill = 'var(--k-text)';
+    sub.textContent = `${e.surplus >= 0 ? '+' : '−'}${Math.abs(e.surplus).toFixed(2)}h`;
+    sub.style.fill = e.surplus > 0.01 ? 'var(--k-surplus)' : e.surplus < -0.01 ? 'var(--k-deficit)' : 'var(--k-muted)';
+  } else if (e) { big.textContent = e.type; big.style.fill = `var(--k-${e.type === 'planned' ? 'vacation' : e.type})`; sub.textContent = ''; }
+  else { big.textContent = '–'; big.style.fill = 'var(--k-border-strong)'; sub.textContent = k > TODAY ? 'still to come' : 'no entry'; sub.style.fill = ''; }
+  $('note').textContent = e?.notes || '';
+  const b = balanceAt[k]; $('balv').textContent = `${b >= 0 ? '+' : '−'}${Math.abs(b).toFixed(1)}h`;
+  needle = Math.max(-135, Math.min(135, b / Math.max(30, Math.abs(balanceAt[TODAY])) * 135));
+  // the week: seven pips around Monday
+  const mon = new Date(d); mon.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  let w = '', sum = 0;
+  for (let n = 0; n < 7; n++) {
+    const x = new Date(mon); x.setDate(mon.getDate() + n);
+    const de = data[iso(x)], s = de?.surplus || 0; sum += s;
+    const h = de?.type === 'work' ? 10 + Math.min(1, de.net / 10) * 26 : 4;
+    const col = !de ? 'var(--k-border)' : de.type !== 'work' ? 'var(--k-vacation)' : s > 0.01 ? 'var(--k-surplus)' : s < -0.01 ? 'var(--k-deficit)' : 'var(--k-muted)';
+    w += `<rect x="${-42 + n * 12.4}" y="${14 - h}" width="9" height="${h}" rx="1.5" fill="${col}" opacity="${iso(x) === k ? 1 : 0.55}"/>`;
+  }
+  $('week').innerHTML = w;
+  $('weekv').textContent = `${sum >= 0 ? '+' : '−'}${Math.abs(sum).toFixed(2)}h`;
+  const st = $('stage'); st.setAttribute('aria-valuemax', N); st.setAttribute('aria-valuenow', i + 1);
+  st.setAttribute('aria-valuetext', `${$('date').textContent}, ${big.textContent} ${sub.textContent}`);
+}
+
+let needleNow = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(40, now - last) / 16.67; last = now;
+  if (!dragging) {
+    if (target !== null) {                         // a target: ease toward it
+      const d = target - pos; pos += d * Math.min(1, 0.14 * dt);
+      if (Math.abs(d) < 0.01) { pos = target; target = null; vel = 0; }
+    } else if (Math.abs(vel) > 0.02) {             // a flick: friction
+      pos += vel * dt; vel *= Math.pow(0.955, dt);
+    } else {                                       // the detent pulls it home, with a little bounce
+      const home = Math.round(pos), d = home - pos;
+      vel = 0; pos += d * Math.min(1, 0.32 * dt);
+      if (Math.abs(d) < 0.002) pos = home;
+    }
+  }
+  $('rotor').setAttribute('transform', `rotate(${(-pos * STEP).toFixed(3)})`);
+  const i = mod(Math.round(pos), N);
+  if (i !== shown) {
+    shown = i; read(i);
+    if (!calm) { const x = $('index'); x.classList.remove('tick'); void x.getBBox(); x.classList.add('tick'); }
+    click(Math.abs(vel)); if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(4);
+  }
+  needleNow += (needle - needleNow) * Math.min(1, 0.16 * dt);
+  $('bal').setAttribute('transform', `rotate(${needleNow.toFixed(2)})`);
+  requestAnimationFrame(frame);
+}
+
+// turning: the angle of the pointer around the centre
+const stage = $('stage');
+const angleOf = ev => { const b = stage.getBoundingClientRect(); return Math.atan2(ev.clientY - (b.top + b.height / 2), ev.clientX - (b.left + b.width / 2)) * 180 / Math.PI; };
+let lastA = 0, lastT = 0;
+stage.addEventListener('pointerdown', ev => {
+  if (ev.target.closest('#crown')) return;
+  dragging = true; target = null; vel = 0; lastA = angleOf(ev); lastT = ev.timeStamp;
+  stage.setPointerCapture(ev.pointerId); stage.classList.add('turning');
+});
+stage.addEventListener('pointermove', ev => {
+  if (!dragging) return;
+  const a = angleOf(ev); let d = a - lastA;
+  if (d > 180) d -= 360; if (d < -180) d += 360;
+  pos -= d / STEP;
+  const dt = Math.max(1, ev.timeStamp - lastT);
+  vel = vel * 0.6 + (-d / STEP) / dt * 16.67 * 0.4;
+  lastA = a; lastT = ev.timeStamp;
+});
+const end = () => { dragging = false; stage.classList.remove('turning'); if (calm) vel = 0; };
+stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
+stage.addEventListener('wheel', ev => { ev.preventDefault(); target = (target ?? Math.round(pos)) + Math.sign(ev.deltaY); }, { passive: false });
+stage.addEventListener('keydown', ev => {
+  const go = { ArrowRight: 1, ArrowLeft: -1, ArrowUp: 7, ArrowDown: -7, PageUp: 30, PageDown: -30 }[ev.key];
+  if (go) { ev.preventDefault(); target = (target ?? Math.round(pos)) + go; }
+  if (ev.key === 'Home') { ev.preventDefault(); today(); }
+});
+function today() { const i = days.indexOf(TODAY), c = mod(Math.round(pos), N); let d = i - c; if (d > N / 2) d -= N; if (d < -N / 2) d += N; target = Math.round(pos) + d; if (calm) { pos = target; target = null; } }
+$('crown').addEventListener('click', today);
+
+// the second hand of the little dial: a real clock, ticking
+function second() { const s = new Date().getSeconds(); $('sec').style.transform = `rotate(${s * 6}deg)`; }
+if (!calm) setInterval(second, 1000); second();
+
+// on opening the ring winds round to today once
+pos = days.indexOf(TODAY) - (calm ? 0 : 150); target = calm ? null : days.indexOf(TODAY);
+requestAnimationFrame(frame);
+stage.focus();
+window.__dial = { get pos() { return pos; }, get shown() { return days[shown]; }, set soundTest(v) { soundOn = v; } };
+</script>
+</body>
+</html>
