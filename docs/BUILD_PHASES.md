@@ -45,10 +45,32 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 45 confirmed and archived; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 46 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 46 — The day ribbon (built 2026-11-06, awaiting confirmation)
+
+**Why.** This is slice 1 of Phase 36, the one that replaces typing for the common case. Miguel left a free
+evening to the Advisor with "implement something fun", and this was first in the plan he had already written.
+
+**Decisions.**
+- The day is a strip from 06:00 to midnight above the time fields, and it opens earlier when the day does. The
+  fields stay as the precise editor, and a drag only writes into them.
+- The grips at the ends change the times and dragging the bar moves the whole day with its breaks. Breaks are
+  notches that can be moved and resized, a double press on the bar adds one, and pulling one off the lane
+  removes it. A break that is only minutes has no place in the day, so it is drawn dashed until it is dragged.
+- Everything snaps to 15 minutes. A floating tag shows the time, the net and the delta while dragging.
+- A flag marks the moment the day reaches its target, and the bar is lit after it. A day under target shows
+  the missing stretch as a dashed outline.
+- Timed freelance blocks have their own lane. A click opens a block in the editor and a drag on the empty
+  lane fills the editor. Blocks are not moved on the ribbon, because that would write money.
+- A drag never saves. A finger on the bar waits until it moves sideways, so a vertical swipe scrolls the page.
+- Every handle is a slider for the keyboard and for screen readers.
+
+**Known limits.** An end cannot go past 23:45, because a time field has no 24:00. A grip stops at a break
+instead of pushing it along. On a phone a 30-minute notch is about 7px wide, so it takes care to hit.
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 
@@ -70,7 +92,7 @@ page's. Nothing here moves the employee's numbers or the timesheet by itself.
 
 **Slices, most valuable first.**
 
-1. **The day ribbon (Log).** Under the Employee card, the day as a strip from 06:00 to 24:00: the
+1. **The day ribbon (Log).** Built as Phase 46. Under the Employee card, the day as a strip from 06:00 to 24:00: the
    employee span as a brass bar, breaks as notches cut out of it, the freelance blocks as coin bars
    in their source colours, now as a hairline. Drag a bar's end to change the time, drag the bar to
    move it, drag a notch to move a break, drag in an empty stretch to add a block (the source

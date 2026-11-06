@@ -17,6 +17,115 @@ if ('serviceWorker' in navigator) {
 // moving the pointer never re-renders anything.
 const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0, rove: '', waveTimer: 0 };
 
+// The day ribbon (Log). Everything is minutes since midnight. The helpers are pure: they take the form as it
+// stands and answer with numbers, so the methods further down only draw and write. The scratch state of a
+// drag lives here, out of Alpine, as the bezel's does: moving the pointer re-renders only when a value snaps.
+const DR_LO = 360;        // the ribbon opens at 06:00 (earlier if the day does) ...
+const DR_HI = 1440;       // ... and ends at midnight
+const DR_END_MAX = 1425;  // the latest an end can be, 23:45: a time field has no 24:00
+const DR_STEP = 15;
+const _dr = {
+  cur: null, active: false, field: null, pending: false, moved: false, kind: '', i: -1, id: null, pid: -1,
+  x0: 0, y0: 0, left: 0, width: 1, laneTop: 0, laneBottom: 0, lo: DR_LO, pm0: 0, off: 0,
+  base: null, dashes: [], orig: null, flag0: false, lastTap: { at: -1e9, x: 0 },
+};
+
+function drMin(v) {
+  const m = typeof v === 'string' ? /^(\d{2}):(\d{2})(?::\d{2})?$/.exec(v) : null;
+  if (!m || +m[1] > 23 || +m[2] > 59) return null;
+  return +m[1] * 60 + +m[2];
+}
+function drHHMM(m) {
+  const r = Math.round(m);
+  return `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
+}
+const drSnap = m => Math.round(m / DR_STEP) * DR_STEP;
+const drClamp = (v, a, b) => Math.max(a, Math.min(b, v));  // a wins if the room is negative
+const drPct = (m, lo) => (m - lo) / (DR_HI - lo) * 100;
+
+// The form's day as numbers: the span, the breaks that have a place in it (ranged) and those that are only
+// minutes. `i` is the break's index in form.breaks.
+function drDay(f) {
+  const s = drMin(f.start_time), e = drMin(f.end_time);
+  const ranged = [], dashes = [];
+  (f.breaks || []).forEach((b, i) => {
+    const bs = drMin(b.start_time), be = drMin(b.end_time), mins = Number(b.break_minutes) || 0;
+    if (bs !== null && be !== null && be > bs) ranged.push({ i, s: bs, e: be });
+    else if (mins > 0) dashes.push({ i, min: mins });
+  });
+  return { s, e, ok: s !== null && e !== null && e > s, ranged, dashes };
+}
+// Minutes-only breaks have no place in the day: they are drawn side by side, centred in the bar.
+function drDashes(d) {
+  if (!d.ok || !d.dashes.length) return [];
+  const total = d.dashes.reduce((t, k) => t + k.min, 0);
+  let at = Math.max(d.s, d.s + (d.e - d.s - total) / 2);
+  return d.dashes.map(k => { const seg = { i: k.i, min: k.min, s: at, e: Math.min(d.e, at + k.min) }; at += k.min; return seg; });
+}
+// Earlier than 06:00 opens the range at that hour.
+function drLo(d, starts) {
+  let lo = DR_LO;
+  for (const t of [d.s, ...d.ranged.map(b => b.s), ...starts]) if (t !== null && t < lo) lo = Math.floor(t / 60) * 60;
+  return lo;
+}
+// The moment the day's net reaches the target, walking from the start and skipping the breaks; null when the
+// bar ends first. A break that begins at that very moment stays after it.
+function drFlag(d, dashes, targetHours) {
+  if (!d.ok || !(targetHours > 0)) return null;
+  const cuts = [...d.ranged, ...dashes].map(k => [k.s, k.e]).sort((p, q) => p[0] - q[0]);
+  let need = targetHours * 60, t = d.s;
+  for (const [a, z] of cuts) {
+    if (a <= t) { t = Math.max(t, z); continue; }
+    if (a - t >= need) break;
+    need -= a - t;
+    t = z;
+  }
+  return t + need <= d.e + 1e-6 ? t + need : null;
+}
+// How far each handle may go with the day as it stands. A grip stops at the first break (the form never holds
+// a break outside its bar); `day` is the range of a whole-day move.
+function drLimits(d, lo) {
+  const first = d.ranged.length ? Math.min(...d.ranged.map(b => b.s)) : Infinity;
+  const last = d.ranged.length ? Math.max(...d.ranged.map(b => b.e)) : -Infinity;
+  return {
+    start: [lo, Math.min(d.e - DR_STEP, first)],
+    end: [Math.max(d.s + DR_STEP, last), DR_END_MAX],
+    day: [lo - d.s, DR_END_MAX - d.e],
+  };
+}
+// The room a break has: the bar, less its neighbours. Two breaks never overlap.
+function drRoom(d, self) {
+  let a = d.s, z = d.e;
+  for (const o of d.ranged) {
+    if (o.i === self.i) continue;
+    if (o.e <= self.s) a = Math.max(a, o.e);
+    else if (o.s >= self.e) z = Math.min(z, o.s);
+  }
+  return [a, z];
+}
+// Where a new break of `len` minutes goes when the bar is double-clicked at `pm`: the quarter clicked, moved to
+// the nearest free stretch if it is taken; null when no stretch is long enough.
+function drPlaceBreak(d, pm, len) {
+  const cuts = d.ranged.map(b => [b.s, b.e]).sort((p, q) => p[0] - q[0]);
+  const free = [];
+  let at = d.s;
+  for (const [a, z] of cuts) { if (a > at) free.push([at, a]); at = Math.max(at, z); }
+  if (d.e > at) free.push([at, d.e]);
+  const room = free.filter(([a, z]) => z - a >= len);
+  if (!room.length) return null;
+  const gap = ([a, z]) => (pm < a ? a - pm : pm > z ? pm - z : 0);
+  room.sort((p, q) => gap(p) - gap(q));
+  const [a, z] = room[0];
+  return drClamp(Math.floor(pm / DR_STEP) * DR_STEP, a, z - len);
+}
+function drTicks(lo) {
+  const out = [];
+  for (let h = Math.ceil(lo / 60); h <= 24; h++) {
+    out.push({ h, style: `left:${drPct(h * 60, lo).toFixed(3)}%`, lab: h % 3 === 0 ? String(h).padStart(2, '0') : '', six: h % 6 === 0 });
+  }
+  return out;
+}
+
 function app() {
   return {
     // ---------- nav + global state ---------------------------------------
@@ -39,6 +148,7 @@ function app() {
     // Stored on the server as a fraction of that date's target (see formFraction()).
     form: { date: '', day_type: 'work', start_time: '09:00', end_time: '17:00', notes: '', breaks: [], leave_hours: null },
     notesOpen: false,
+    drActive: null,            // the ribbon handle being dragged: { kind, i, off }
     editingDate: null,
 
     // ---------- log calendar --------------------------------------------
@@ -1680,6 +1790,385 @@ function app() {
         target_hours: target,
         surplus_hours: Math.round((netHours - target) * 100) / 100,
       };
+    },
+
+    // =====================================================================
+    // the day ribbon (Log): the day drawn from 06:00 to midnight, and dragged
+    // =====================================================================
+    // The timed blocks of the selected day; an hours-only block has no place in the day.
+    _drTimed() {
+      if (!this.hasFreelance()) return [];
+      const out = [];
+      for (const b of this.flDayBlocks()) {
+        const s = drMin(b.start_time), e = drMin(b.end_time);
+        if (s !== null && e !== null && e > s) out.push({ b, s, e });
+      }
+      return out;
+    },
+    // The range is frozen while a drag is in progress: the strip must not rescale under the pointer.
+    _drLo(d) { return _dr.active ? _dr.lo : drLo(d, this._drTimed().map(t => t.s)); },
+
+    // Everything the ribbon draws, computed once per render: positions are percentages of the range.
+    dayRibbon() {
+      const d = drDay(this.form), timed = this._drTimed(), hh = drHHMM;
+      const lo = _dr.active ? _dr.lo : drLo(d, timed.map(t => t.s));
+      const pct = m => drPct(m, lo);
+      const at = (m, w) => `left:${pct(m).toFixed(3)}%` + (w === undefined ? '' : `;width:${w.toFixed(3)}%`);
+      const span = (a, z) => at(a, pct(z) - pct(a));
+      const tagAt = m => `--x:${pct(m).toFixed(3)}%`;
+      const p = this.logPreview(), live = this.drActive;
+      const r = { lo, hasFl: this.hasFreelance(), ticks: drTicks(lo), items: [], flag: null, over: null, miss: null, now: null, blocks: [], ghost: null, tag: null };
+      if (d.ok) {
+        const lim = drLimits(d, lo), dash = drDashes(d);
+        const on = (kind, i = -1) => !!live && live.kind === kind && live.i === i;
+        const grip = (kind, i, m, label, text, range) => ({
+          key: kind + i, kind, i, slider: true, cls: `dr-grip dr-grip--${kind}` + (on(kind, i) ? ' is-live' : ''),
+          style: at(m), label, text, now: m, min: range[0], max: range[1],
+        });
+        r.items.push(grip('start', -1, d.s, 'Start time', `Start ${hh(d.s)}`, lim.start));
+        r.items.push({
+          key: 'bar', kind: 'bar', i: -1, slider: true, cls: 'dr-bar' + (on('bar') ? ' is-live' : ''), style: span(d.s, d.e),
+          label: 'Day', text: `Day from ${hh(d.s)} to ${hh(d.e)}`, now: d.s, min: d.s + lim.day[0], max: d.s + lim.day[1],
+        });
+        for (const b of d.ranged) {
+          const room = drRoom(d, b), name = `Break ${b.i + 1}`;
+          r.items.push({
+            key: 'nbody' + b.i, kind: 'nbody', i: b.i, slider: true, style: span(b.s, b.e), label: name,
+            cls: 'dr-notch' + (on('nbody', b.i) ? ' is-live' : '') + (live && live.off && live.i === b.i && live.kind === 'nbody' ? ' is-off' : ''),
+            text: `Break from ${hh(b.s)} to ${hh(b.e)}`, now: b.s, min: room[0], max: room[1] - (b.e - b.s),
+          });
+          r.items.push(grip('nstart', b.i, b.s, `${name} start`, `${name} start ${hh(b.s)}`, [room[0], b.e - DR_STEP]));
+          r.items.push(grip('nend', b.i, b.e, `${name} end`, `${name} end ${hh(b.e)}`, [b.s + DR_STEP, room[1]]));
+        }
+        for (const k of dash) {
+          r.items.push({
+            key: 'dash' + k.i, kind: 'dash', i: k.i, slider: false, style: span(k.s, k.e),
+            cls: 'dr-notch dr-notch--dash' + (on('dash', k.i) ? ' is-live' : '') + (live && live.off && live.i === k.i && live.kind === 'dash' ? ' is-off' : ''),
+            title: `${this.minutesToLabel(k.min)} break, no time yet: drag it to place it`,
+          });
+        }
+        r.items.push(grip('end', -1, d.e, 'End time', `End ${hh(d.e)}`, lim.end));
+
+        const target = p ? p.target_hours : 0, reached = drFlag(d, dash, target);
+        if (reached !== null) {
+          r.flag = { style: at(reached), title: `Target reached at ${hh(reached)}` };
+          if (reached < d.e - 0.01) r.over = { style: span(reached, d.e) };
+        } else if (p && p.net_hours < target - 1e-6) {
+          const short = Math.min((target - p.net_hours) * 60, DR_HI - d.e);
+          if (short > 0.5) r.miss = { style: span(d.e, d.e + short), title: `${this.fmtHours(target - p.net_hours)} short of the target` };
+        }
+
+        if (live && live.kind !== 'flnew' && p) {
+          const k = d.ranged.find(x => x.i === live.i);
+          let mid = null, big = '';
+          if (live.kind === 'start') { mid = d.s; big = hh(d.s); }
+          else if (live.kind === 'end') { mid = d.e; big = hh(d.e); }
+          else if (live.kind === 'nstart' && k) { mid = k.s; big = hh(k.s); }
+          else if (live.kind === 'nend' && k) { mid = k.e; big = hh(k.e); }
+          else if ((live.kind === 'nbody' || live.kind === 'dash') && k) { mid = (k.s + k.e) / 2; big = `${hh(k.s)}–${hh(k.e)}`; }
+          else if (live.kind === 'bar' || live.kind === 'new') { mid = (d.s + d.e) / 2; big = `${hh(d.s)}–${hh(d.e)}`; }
+          if (mid !== null && live.off) r.tag = { style: tagAt(mid), big: 'Remove', net: '', delta: '', cls: '' };
+          else if (mid !== null) r.tag = { style: tagAt(mid), big, net: this.fmtHours(p.net_hours), delta: this.formatSurplus(p.surplus_hours), cls: this.surplusClass(p.surplus_hours) };
+        }
+      }
+      r.blocks = timed.map(({ b, s, e }) => ({
+        id: b.id, s, e, editing: this.flForm.id === b.id,
+        style: span(s, e) + ';--src:' + this.sourceColor(b.source_id),
+        label: `Edit block ${b.source_name} ${b.start_time} to ${b.end_time}`, title: `${b.source_name} · ${b.start_time}–${b.end_time}`,
+      }));
+      if (live && live.kind === 'flnew') {
+        const s = drMin(this.flForm.start_time), e = drMin(this.flForm.end_time);
+        if (s !== null && e !== null && e > s) {
+          r.ghost = { style: span(s, e) };
+          r.tag = { style: tagAt((s + e) / 2), big: `${hh(s)}–${hh(e)}`, net: this.fmtHours(this.flFormHours()), delta: '', cls: '' };
+        }
+      }
+      if (this.form.date === this.todayIso()) {
+        const now = drMin(this.nowDisplay);
+        if (now !== null && now >= lo) r.now = { style: at(now), title: `Now ${this.nowDisplay}` };
+      }
+      _dr.cur = r;
+      return r;
+    },
+
+    // ---------- the pointer ----------------------------------------------------------------
+    // One code path for mouse, pen and finger. The handle nearest the pointer wins, within half of its hit
+    // area (24px with a mouse, 44px with a finger). A finger on the body of the bar, on an empty stretch or on
+    // a block waits until it has moved sideways by 6px: until then it may be a swipe that scrolls the page.
+    drDown(ev) {
+      if (_dr.active && !(_dr.field && _dr.field.isConnected)) _dr.active = false;  // the strip went away mid-drag
+      if (_dr.active || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+      const laneEl = ev.target.closest('.dr-lane'), r = _dr.cur;
+      if (!laneEl || !r) return;
+      const field = ev.currentTarget, box = field.getBoundingClientRect(), lane = laneEl.getBoundingClientRect();
+      const lo = r.lo, d = drDay(this.form), dashes = drDashes(d);
+      const x = ev.clientX - box.left, pm = lo + x / box.width * (DR_HI - lo);
+      const px = m => (m - lo) / (DR_HI - lo) * box.width;
+      const reach = ev.pointerType === 'mouse' ? 12 : 22;
+      let hit = null;
+      if (laneEl.dataset.lane === 'emp') {
+        if (!d.ok) {
+          hit = { kind: 'new' };
+        } else {
+          // `dir` points from a grip into its own span; `w` is that span in pixels. A grip reaches the whole
+          // way outwards but only a third of its span inwards, so a short notch keeps a middle to be moved by.
+          const bar = px(d.e) - px(d.s);
+          const grips = [{ kind: 'start', i: -1, m: d.s, w: bar, dir: 1 }, { kind: 'end', i: -1, m: d.e, w: bar, dir: -1 }];
+          for (const b of d.ranged) {
+            const w = px(b.e) - px(b.s);
+            grips.push({ kind: 'nstart', i: b.i, m: b.s, w, dir: 1 }, { kind: 'nend', i: b.i, m: b.e, w, dir: -1 });
+          }
+          let best = Infinity;
+          for (const g of grips) {
+            const gap = Math.abs(px(g.m) - x), inward = (x - px(g.m)) * g.dir > 0;
+            if (gap <= (inward ? Math.min(reach, g.w / 3) : reach) && gap < best) { best = gap; hit = g; }
+          }
+          // inside a break, the break's body beats the bar's end grips: a break at the edge of the day stays movable
+          const inside = d.ranged.find(b => pm > b.s && pm < b.e);
+          if (hit && inside && (hit.kind === 'start' || hit.kind === 'end')) hit = { kind: 'nbody', i: inside.i };
+          if (!hit) {
+            const note = d.ranged.find(b => pm >= b.s && pm <= b.e), dash = dashes.find(k => pm >= k.s && pm <= k.e);
+            if (note) hit = { kind: 'nbody', i: note.i };
+            else if (dash) hit = { kind: 'dash', i: dash.i };
+            else if (pm >= d.s && pm <= d.e) hit = { kind: 'bar' };
+          }
+        }
+      } else {
+        const b = r.blocks.find(t => x >= px(t.s) - 3 && x <= px(t.e) + 3);
+        hit = b ? { kind: 'block', id: b.id } : { kind: 'flnew' };
+      }
+      if (!hit) return;
+      Object.assign(_dr, {
+        active: true, field, moved: false, kind: hit.kind, i: hit.i ?? -1, id: hit.id ?? null, pid: ev.pointerId,
+        pending: ev.pointerType !== 'mouse' && ['bar', 'new', 'flnew', 'block'].includes(hit.kind),
+        x0: ev.clientX, y0: ev.clientY, left: box.left, width: box.width, laneTop: lane.top, laneBottom: lane.bottom,
+        lo, pm0: pm, off: hit.m === undefined ? 0 : hit.m - pm, base: d, dashes, flag0: !!r.flag,
+        orig: { start_time: this.form.start_time, end_time: this.form.end_time, breaks: this.form.breaks.map(b => ({ ...b })), fl: { ...this.flForm } },
+      });
+      field.setPointerCapture(ev.pointerId);
+    },
+    drMove(ev) {
+      if (!_dr.active || ev.pointerId !== _dr.pid) return;
+      const at = x => _dr.lo + (x - _dr.left) / _dr.width * (DR_HI - _dr.lo);
+      if (_dr.pending) {
+        if (Math.abs(ev.clientX - _dr.x0) < 6) return;
+        _dr.pending = false;
+        _dr.pm0 = at(ev.clientX);  // the 6px it waited are not a jump
+        _dr.x0 = ev.clientX;
+        _dr.y0 = ev.clientY;
+      } else if (!_dr.moved && Math.hypot(ev.clientX - _dr.x0, ev.clientY - _dr.y0) < 4) {
+        return;
+      }
+      if (!_dr.moved) { _dr.moved = true; this.drActive = { kind: _dr.kind, i: _dr.i, off: false }; }
+      const pm = at(ev.clientX), delta = drSnap(pm - _dr.pm0), before = this.logPreview()?.net_hours ?? null;
+      let changed = false;
+      switch (_dr.kind) {
+        case 'start': case 'end': changed = this._drEdge(_dr.kind, drSnap(pm + _dr.off)); break;
+        case 'bar': changed = this._drDay(delta, _dr.base); break;
+        case 'nstart': case 'nend': changed = this._drBreakEdge(_dr.i, _dr.kind, drSnap(pm + _dr.off), _dr.base); break;
+        case 'nbody': case 'dash': {
+          // off the lane by more than 40px, a release takes the break away
+          const off = ev.clientY < _dr.laneTop - 40 || ev.clientY > _dr.laneBottom + 40;
+          if (this.drActive.off !== off) this.drActive = { ...this.drActive, off };
+          if (!off) changed = _dr.kind === 'nbody' ? this._drBreakMove(_dr.i, delta, _dr.base) : this._drDash(_dr.i, delta);
+          break;
+        }
+        case 'new': changed = this._drNew(drSnap(_dr.pm0), drSnap(pm)); break;
+        case 'flnew': changed = this._drFl(drSnap(_dr.pm0), drSnap(pm)); break;
+      }
+      if (changed) this._drBuzz(before);
+    },
+    drUp(ev) {
+      if (!_dr.active || ev.pointerId !== _dr.pid) return;
+      const field = ev.currentTarget, { kind, moved, i } = _dr, away = !!this.drActive?.off;
+      _dr.active = false;
+      _dr.pending = false;
+      try { field.releasePointerCapture(ev.pointerId); } catch { /* already let go */ }
+      this.drActive = null;
+      if (!moved) { this._drTap(ev, kind, field); return; }
+      _dr.lastTap = { at: -1e9, x: 0 };
+      if (away) this._drRemove(i, field);
+      else this._drLand(kind, i, field);
+    },
+    // A press that did not move: a block opens in the editor, two quick ones on the bar add a break.
+    _drTap(ev, kind, field) {
+      if (kind === 'block') {
+        const b = this.flDayBlocks().find(x => x.id === _dr.id);
+        if (b) this.flEdit(b);
+        return;
+      }
+      if (kind !== 'bar' && kind !== 'start' && kind !== 'end') return;  // the grips are part of the bar
+      const last = _dr.lastTap;
+      if (Math.abs(ev.clientX - last.x) <= 12 && ev.timeStamp - last.at < 450) {
+        _dr.lastTap = { at: -1e9, x: 0 };
+        this._drAddBreak(_dr.lo + (ev.clientX - _dr.left) / _dr.width * (DR_HI - _dr.lo), field);
+      } else {
+        _dr.lastTap = { at: ev.timeStamp, x: ev.clientX };
+      }
+    },
+    // The browser took the gesture (a swipe that scrolls the page) or it was cut short: the day goes back.
+    drCancel(ev) {
+      if (!_dr.active || ev.pointerId !== _dr.pid) return;
+      _dr.active = false;
+      _dr.pending = false;
+      this.drActive = null;
+      const o = _dr.orig, f = this.form;
+      f.start_time = o.start_time;
+      f.end_time = o.end_time;
+      o.breaks.forEach((b, i) => { if (f.breaks[i]) Object.assign(f.breaks[i], b); });
+      if (_dr.kind === 'flnew') this.flForm = { ...o.fl };
+    },
+    // After a drag: the handle settles with a spring, the flag waves if the day just reached the target, and a
+    // block dragged out on the freelance lane takes you to its editor, "+ Add block" ready.
+    _drLand(kind, i, field) {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const flag0 = _dr.flag0;
+      this.$nextTick(() => {
+        if (kind === 'flnew') {
+          document.querySelector('.fl-editor')?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
+          this._bzFx(document.querySelector('.fl-submit'), 'bz-bump', 400);
+          return;
+        }
+        const sel = { start: '[data-dr="start"]', end: '[data-dr="end"]', new: '[data-dr="end"]', bar: '[data-dr="bar"]' }[kind]
+          || `[data-i="${i}"][data-dr="${kind === 'dash' ? 'nbody' : kind}"]`;
+        this._bzFx(field.querySelector(sel), 'dr-pop', 520);
+        if (!flag0) this._bzFx(field.querySelector('.dr-flag'), 'dr-wave', 900);
+      });
+    },
+
+    // ---------- the keyboard ---------------------------------------------------------------
+    // Left and Right step 15 minutes, Shift 60; Home and End go to the limits; Delete takes a break away.
+    drKey(ev) {
+      if (ev.ctrlKey || ev.altKey || ev.metaKey) return;
+      const el = ev.target.closest('[data-dr], [data-block]');
+      if (!el) return;
+      if (el.dataset.block !== undefined) {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        const blk = this.flDayBlocks().find(x => String(x.id) === el.dataset.block);
+        if (blk) this.flEdit(blk);
+        return;
+      }
+      const kind = el.dataset.dr, i = Number(el.dataset.i);
+      const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[ev.key] || 0;
+      const end = ev.key === 'End' ? 1 : ev.key === 'Home' ? -1 : 0;
+      const del = ev.key === 'Delete' || ev.key === 'Backspace';
+      const d = drDay(this.form);
+      if ((!dir && !end && !del) || !d.ok) return;
+      ev.preventDefault();
+      const b = d.ranged.find(x => x.i === i), room = b ? drRoom(d, b) : null;
+      if (del) {
+        if (!b) return;
+        this._drRemove(i, el.closest('.dr-field'));
+        this.$nextTick(() => document.querySelector('.dr-bar')?.focus());
+        return;
+      }
+      const lim = drLimits(d, this._drLo(d)), step = (ev.shiftKey ? 60 : 15) * dir, before = this.logPreview()?.net_hours ?? null;
+      const pick = (low, high, stepped) => (end ? (end < 0 ? low : high) : stepped);
+      let changed = false;
+      if (kind === 'start') changed = this._drEdge('start', pick(lim.start[0], lim.start[1], d.s + step));
+      else if (kind === 'end') changed = this._drEdge('end', pick(lim.end[0], lim.end[1], d.e + step));
+      else if (kind === 'bar') changed = this._drDay(pick(lim.day[0], lim.day[1], step), d);
+      else if (b && kind === 'nbody') changed = this._drBreakMove(i, pick(room[0] - b.s, room[1] - b.e, step), d);
+      else if (b && kind === 'nstart') changed = this._drBreakEdge(i, 'nstart', pick(room[0], b.e - DR_STEP, b.s + step), d);
+      else if (b && kind === 'nend') changed = this._drBreakEdge(i, 'nend', pick(b.s + DR_STEP, room[1], b.e + step), d);
+      if (changed) this._drBuzz(before);
+    },
+
+    // ---------- writes: the form's own fields, and nothing else -----------------------------
+    _drPut(obj, key, m) {
+      const t = drHHMM(m);
+      if (obj[key] === t) return false;
+      obj[key] = t;
+      return true;
+    },
+    _drEdge(which, v) {
+      const d = drDay(this.form);
+      if (!d.ok) return false;
+      const [a, z] = drLimits(d, this._drLo(d))[which];
+      return this._drPut(this.form, which + '_time', drClamp(v, a, z));
+    },
+    // The whole day by `delta` minutes from `base`, its ranged breaks with it.
+    _drDay(delta, base) {
+      const k = drClamp(delta, this._drLo(base) - base.s, DR_END_MAX - base.e), f = this.form;
+      let ch = this._drPut(f, 'start_time', base.s + k);
+      ch = this._drPut(f, 'end_time', base.e + k) || ch;
+      for (const b of base.ranged) {
+        const row = f.breaks[b.i];
+        if (!row) continue;
+        ch = this._drPut(row, 'start_time', b.s + k) || ch;
+        ch = this._drPut(row, 'end_time', b.e + k) || ch;
+      }
+      return ch;
+    },
+    _drBreakMove(i, delta, base) {
+      const b = base.ranged.find(x => x.i === i), row = this.form.breaks[i];
+      if (!b || !row) return false;
+      const [a, z] = drRoom(base, b), k = drClamp(delta, a - b.s, z - b.e);
+      const ch = this._drPut(row, 'start_time', b.s + k);
+      return this._drPut(row, 'end_time', b.e + k) || ch;
+    },
+    _drBreakEdge(i, which, v, base) {
+      const b = base.ranged.find(x => x.i === i), row = this.form.breaks[i];
+      if (!b || !row) return false;
+      const [a, z] = drRoom(base, b);
+      const s = which === 'nstart' ? drClamp(v, a, b.e - DR_STEP) : b.s;
+      const e = which === 'nend' ? drClamp(v, b.s + DR_STEP, z) : b.e;
+      const ch = this._drPut(row, 'start_time', s);
+      const ch2 = this._drPut(row, 'end_time', e);
+      row.break_minutes = this.rangeMinutes(row.start_time, row.end_time);
+      return ch || ch2;
+    },
+    // A break that was only minutes is dragged to a place in the day and keeps its minutes.
+    _drDash(i, delta) {
+      const seg = _dr.dashes.find(k => k.i === i), row = this.form.breaks[i];
+      if (!seg || !row) return false;
+      const [a, z] = drRoom(_dr.base, { i, s: seg.s, e: seg.e });
+      if (z - a < seg.min) return false;
+      const s = drClamp(drSnap(seg.s + delta), a, z - seg.min);
+      const ch = this._drPut(row, 'start_time', s);
+      return this._drPut(row, 'end_time', s + seg.min) || ch;
+    },
+    // A day with no bar yet: the drag draws it.
+    _drNew(a, b) {
+      const s = drClamp(Math.min(a, b), _dr.lo, DR_END_MAX - DR_STEP), e = drClamp(Math.max(a, b), s + DR_STEP, DR_END_MAX);
+      const ch = this._drPut(this.form, 'start_time', s);
+      return this._drPut(this.form, 'end_time', e) || ch;
+    },
+    // A drag across the empty freelance lane fills the block editor; it never saves.
+    _drFl(a, b) {
+      const s = drClamp(Math.min(a, b), _dr.lo, DR_END_MAX - DR_STEP), e = drClamp(Math.max(a, b), s + DR_STEP, DR_END_MAX);
+      this.flForm.id = null;
+      this.flForm.by = 'times';
+      const ch = this._drPut(this.flForm, 'start_time', s);
+      return this._drPut(this.flForm, 'end_time', e) || ch;
+    },
+    _drAddBreak(pm, field) {
+      const d = drDay(this.form), s = d.ok ? drPlaceBreak(d, pm, 30) : null;
+      if (s === null) return;
+      this.form.breaks.push({ break_minutes: 30, start_time: drHHMM(s), end_time: drHHMM(s + 30) });
+      const i = this.form.breaks.length - 1;
+      try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
+      this.$nextTick(() => this._bzFx(field.querySelector(`[data-dr="nbody"][data-i="${i}"]`), 'dr-open', 460));
+    },
+    // The break goes, with a small puff where it was.
+    _drRemove(i, field) {
+      const el = field && field.querySelector(`[data-i="${i}"]:is([data-dr="nbody"], [data-dr="dash"])`);
+      if (el && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        const puff = document.createElement('i');
+        puff.className = 'dr-puff';
+        puff.style.cssText = el.style.cssText;
+        el.parentElement.appendChild(puff);
+        setTimeout(() => puff.remove(), 460);
+      }
+      this.form.breaks.splice(i, 1);
+      try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
+    },
+    // A tick at every snap, a longer one where the day's net crosses its target.
+    _drBuzz(before) {
+      const p = this.logPreview();
+      const crossed = !!p && before !== null && (before >= p.target_hours) !== (p.net_hours >= p.target_hours);
+      try { navigator.vibrate?.(crossed ? 20 : 8); } catch { /* not allowed here */ }
     },
 
     editEntry(e) {

@@ -22,7 +22,7 @@ ONE_LINE = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, "
     ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range, "
     ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma, "
-    ".bz-count"
+    ".bz-count, .dr-tick b, .dr-tag-big"
 )
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
@@ -257,6 +257,28 @@ def test_a_bezel_count_that_wraps_is_reported(page, base_url, freelance):
     page.wait_for_timeout(300)
     assert not (found := _problems(page)), "\n".join(map(str, found))
     page.add_style_tag(content=".bz-count { white-space: normal; width: 3ch; overflow: hidden; }")
+    page.wait_for_timeout(100)
+    assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_a_day_ribbon_label_that_wraps_is_reported(page, base_url, width, height):
+    """A positive control for the day ribbon's ruler: a label on two lines must be reported. The
+    tag a drag floats over the ribbon is measured too (it only exists while a handle moves)."""
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{base_url}/#log")
+    page.wait_for_selector(".dr-tick b", timeout=5000)
+    page.wait_for_timeout(300)
+    assert page.locator(".dr-tick b").evaluate_all("l => l.filter(e => e.offsetParent).length") >= 4
+    page.locator(".dr-grip--end").scroll_into_view_if_needed()
+    box = page.locator(".dr-grip--end").bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] / 2 + 12, box["y"] + box["height"] / 2, steps=4)
+    page.wait_for_selector(".dr-tag-big", timeout=3000)
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+    page.mouse.up()
+    page.add_style_tag(content=".dr-tick b { white-space: normal; width: 1ch; overflow: hidden; }")
     page.wait_for_timeout(100)
     assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
 

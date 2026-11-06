@@ -1288,6 +1288,173 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
   button.btn-action:hover:not(:disabled), button.btn-action:active:not(:disabled) { transform: none; }
 }
 
+/* ── The day ribbon (Log) ─────────────────────────────────────────────────
+   The day from 06:00 to midnight as an instrument of brass: the employee span is a bar with a grip at each
+   end, breaks are notches cut out of it, timed freelance blocks are thin bars on a second lane, the target is
+   a flag. A drag writes the same fields the time inputs write. Positions are percentages set in the markup.
+   The grips are 44px wide boxes (a finger) drawn as 14px dots; the script reaches 12px with a mouse. */
+.dr {
+  --dr-cut: var(--k-bg);          /* what a notch is cut down to: the card's background */
+  --dr-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dr-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dr-lane: 2.75rem;
+  --dr-bar: 1.5rem;
+  --dr-hit: 44px;
+  margin: 0 0 1rem;
+  padding-top: 0.25rem;
+}
+@media (min-width: 900px) { .dr { --dr-cut: var(--k-surface); } }
+/* the side padding holds the end grips; anything that sticks out is clipped, so the page never scrolls sideways */
+.dr-in { padding: 0 14px; overflow-x: clip; --dr-hours: 18; }
+.dr-field {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 4px 0;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+.dr-lane {
+  position: relative; border-radius: 6px; touch-action: pan-y;
+  background-color: color-mix(in srgb, var(--k-border) 18%, transparent);
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--k-border) 70%, transparent) 1px, transparent 1px);
+  background-size: calc(100% / var(--dr-hours)) 100%;
+}
+.dr-lane--emp { height: var(--dr-lane); }
+.dr-lane--fl { height: 1.75rem; cursor: crosshair; }
+
+.dr-bar, .dr-notch, .dr-over, .dr-miss {
+  position: absolute; box-sizing: border-box; height: var(--dr-bar);
+  top: calc((var(--dr-lane) - var(--dr-bar)) / 2);
+}
+.dr-bar {
+  z-index: 1; border-radius: 5px; background: var(--k-brass); cursor: grab; touch-action: pan-y; outline: none;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--k-brass) 30%, transparent);
+}
+/* the part of the day after the flag: the surplus, in the lit coin tone */
+.dr-over {
+  z-index: 2; border-radius: 0 5px 5px 0; background: var(--k-coin); pointer-events: none;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--k-coin) 40%, transparent);
+}
+/* a day under target: the stretch that is missing, as an outline after the bar */
+.dr-miss {
+  z-index: 1; border: 1.5px dashed color-mix(in srgb, var(--k-deficit) 75%, transparent); border-radius: 5px; pointer-events: none;
+}
+.dr-notch {
+  z-index: 3; border-radius: 3px; background: var(--dr-cut); cursor: grab; touch-action: none; outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k-brass) 40%, transparent);
+}
+/* a break that is only minutes has no place in the day yet: dashed, centred, waiting to be dragged */
+.dr-notch--dash {
+  background: color-mix(in srgb, var(--dr-cut) 65%, transparent); box-shadow: none; border: 1.5px dashed var(--k-muted);
+}
+.dr-notch.is-off { opacity: 0.45; border: 1.5px dashed var(--k-deficit); box-shadow: none; }
+
+.dr-grip {
+  position: absolute; z-index: 5; top: 0; bottom: 0; width: var(--dr-hit); margin-left: calc(var(--dr-hit) / -2);
+  display: flex; align-items: center; justify-content: center; cursor: ew-resize; touch-action: none; outline: none;
+}
+.dr-grip::before {
+  content: ""; width: 14px; height: 14px; border-radius: 50%; box-sizing: border-box;
+  background: var(--k-brass); border: 2px solid var(--dr-cut);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--k-brass) 55%, transparent), 0 1px 4px color-mix(in srgb, var(--k-bg) 80%, transparent);
+  transition: transform 0.16s var(--dr-spring), background 0.16s;
+}
+.dr-grip--nstart::before, .dr-grip--nend::before { width: 11px; height: 11px; background: var(--dr-cut); border: 2px solid var(--k-brass); box-shadow: none; opacity: 0; transition: opacity 0.14s, transform 0.16s var(--dr-spring); }
+/* a notch is a clean cut at rest: its grips show when a hand or the keyboard is on it */
+.dr-grip--nstart:hover::before, .dr-grip--nend:hover::before, .dr-grip--nstart:focus-visible::before, .dr-grip--nend:focus-visible::before,
+.dr-grip--nstart.is-live::before, .dr-grip--nend.is-live::before { opacity: 1; }
+.dr-grip:hover::before, .dr-grip.is-live::before { transform: scale(1.3); background: var(--k-coin); }
+.dr-grip--nstart:hover::before, .dr-grip--nend:hover::before, .dr-grip--nstart.is-live::before, .dr-grip--nend.is-live::before { background: var(--k-coin); border-color: var(--k-coin); }
+/* a click leaves no ring; the keyboard does */
+.dr-grip:focus-visible::before { outline: 2px solid var(--k-text); outline-offset: 2px; }
+.dr-bar:focus-visible, .dr-notch:focus-visible { outline: 2px solid var(--k-text); outline-offset: 2px; }
+.dr-bar.is-live { cursor: grabbing; box-shadow: 0 0 14px color-mix(in srgb, var(--k-brass) 55%, transparent); }
+
+/* the target flag: a pole on the bar and a pennant, brass-bright */
+.dr-flag {
+  position: absolute; z-index: 4; width: 14px; margin-left: -7px; touch-action: pan-y;
+  top: calc((var(--dr-lane) - var(--dr-bar)) / 2 - 10px); height: calc(var(--dr-bar) + 10px);
+}
+.dr-flag::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--k-coin); }
+.dr-flag i {
+  position: absolute; left: 8px; top: 0; width: 10px; height: 9px; background: var(--k-coin);
+  clip-path: polygon(0 0, 100% 50%, 0 100%); transform-origin: 0 50%;
+}
+
+/* now: a hairline across both lanes */
+.dr-now {
+  position: absolute; z-index: 7; top: 0; bottom: 0; width: 0; margin-left: -0.75px; pointer-events: none;
+  border-left: 1.5px solid var(--k-brass); box-shadow: 0 0 6px color-mix(in srgb, var(--k-brass) 60%, transparent);
+}
+.dr-now::before { content: ""; position: absolute; top: -3px; left: -4px; width: 6px; height: 6px; border-radius: 50%; background: var(--k-brass); }
+
+/* the freelance lane: a timed block is a thin bar in its source's colour with a full-height hit area.
+   Pico paints [role=button] on hover, focus and press, so every state is set here, as the bezel's ticks do. */
+.dr-block, .dr-block[role="button"], .dr-block[role="button"]:hover, .dr-block[role="button"]:focus, .dr-block[role="button"]:active {
+  position: absolute; z-index: 2; top: 0; bottom: 0; display: block; box-sizing: border-box; min-width: 8px; width: auto; margin: 0;
+  padding: 0.6rem 0; border: none; border-radius: 0; box-shadow: none; color: inherit; font: inherit; cursor: pointer;
+  background-color: var(--src, var(--k-coin)); background-clip: content-box; touch-action: pan-y; outline: none;
+}
+.dr-block[role="button"]:hover { filter: brightness(1.25); }
+.dr-block[role="button"].is-editing { filter: drop-shadow(0 0 5px var(--src, var(--k-coin))) brightness(1.15); }
+.dr-block[role="button"]:focus-visible { outline: 2px solid var(--k-text); outline-offset: 1px; }
+/* the block being dragged out on the empty lane, before it is anything */
+.dr-ghost {
+  position: absolute; z-index: 1; top: 0.35rem; bottom: 0.35rem; pointer-events: none; border-radius: 3px;
+  border: 1.5px dashed var(--k-coin); background: color-mix(in srgb, var(--k-coin) 14%, transparent);
+}
+
+/* the floating tag over what is being dragged; it stays inside the strip (--x is the centre, as a percentage) */
+.dr-tag {
+  position: absolute; z-index: 9; bottom: calc(100% + 6px); width: 7.4rem; transform: translateX(-50%); pointer-events: none;
+  left: clamp(3.7rem, var(--x, 50%), calc(100% - 3.7rem));
+  display: flex; flex-direction: column; align-items: center; padding: 0.2rem 0.4rem 0.25rem; text-align: center;
+  border: 1px solid var(--k-brass); border-radius: 8px; background: var(--k-surface);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--k-bg) 70%, transparent);
+  animation: dr-tag-in 0.18s var(--dr-spring);
+}
+.dr-tag-big { font-size: 1.15rem; line-height: 1.15; font-weight: 700; white-space: nowrap; color: var(--k-text); }
+.dr-tag-sub { display: flex; gap: 0.5rem; font-size: 0.72rem; line-height: 1.3; white-space: nowrap; color: var(--k-muted); }
+.dr-tag-sub .surplus { color: var(--k-surplus); }
+.dr-tag-sub .deficit { color: var(--k-deficit); }
+@keyframes dr-tag-in { from { opacity: 0; transform: translateX(-50%) translateY(5px) scale(0.88); } }
+
+/* the ruler: an hour tick, a label every 3 hours (every 6 on a phone) */
+.dr-ruler { position: relative; height: 1.35rem; margin-top: 2px; }
+.dr-tick { position: absolute; top: 0; width: 0; height: 100%; font-style: normal; }
+.dr-tick::before { content: ""; position: absolute; top: 0; left: -0.5px; width: 1px; height: 4px; background: var(--k-border-strong); }
+.dr-tick.has-lab::before { height: 6px; background: var(--k-muted); }
+.dr-tick b {
+  position: absolute; top: 9px; left: 0; transform: translateX(-50%); font-size: 0.68rem; line-height: 1; font-weight: 400;
+  white-space: nowrap; color: var(--k-muted); font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) { .dr-tick:not(.six) b { display: none; } }
+
+/* easing to a new place when the inputs, the keys or another day change it; a drag follows the pointer exactly */
+.dr-bar, .dr-notch, .dr-over, .dr-miss, .dr-grip, .dr-flag, .dr-block, .dr-now, .dr-ghost {
+  transition: left 0.28s var(--dr-ease), width 0.28s var(--dr-ease), filter 0.16s;
+}
+.dr--drag, .dr--drag * { cursor: grabbing !important; }
+.dr--drag .dr-bar, .dr--drag .dr-notch, .dr--drag .dr-over, .dr--drag .dr-miss, .dr--drag .dr-grip, .dr--drag .dr-flag,
+.dr--drag .dr-block, .dr--drag .dr-now, .dr--drag .dr-ghost { transition: none; }
+
+/* after an action only: the handle settles with a spring, a new notch opens, a removed one puffs out, the flag waves */
+.dr-grip.dr-pop::before { animation: dr-pop 0.5s var(--dr-spring); }
+@keyframes dr-pop { from { transform: scale(1.8); } }
+.dr-bar.dr-pop, .dr-notch.dr-pop { animation: dr-settle 0.45s var(--dr-spring); }
+@keyframes dr-settle { from { transform: scaleY(1.25); } }
+.dr-notch.dr-open { animation: dr-open 0.42s var(--dr-spring); }
+@keyframes dr-open { from { transform: scaleX(0.15); opacity: 0.2; } }
+.dr-puff {
+  position: absolute; z-index: 6; pointer-events: none; height: var(--dr-bar); border-radius: 50%;
+  top: calc((var(--dr-lane) - var(--dr-bar)) / 2); background: color-mix(in srgb, var(--k-brass) 55%, transparent);
+  animation: dr-puff 0.42s ease-out forwards;
+}
+@keyframes dr-puff { to { transform: scale(1.9, 1.7); opacity: 0; } }
+.dr-flag.dr-wave i { animation: dr-wave 0.9s ease-out; }
+@keyframes dr-wave { 20% { transform: rotate(-20deg); } 40% { transform: rotate(14deg); } 60% { transform: rotate(-8deg); } 80% { transform: rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .dr-bar, .dr-notch, .dr-over, .dr-miss, .dr-grip, .dr-flag, .dr-block, .dr-now, .dr-ghost, .dr-grip::before { transition: none; }
+  .dr-grip.dr-pop::before, .dr-bar.dr-pop, .dr-notch.dr-pop, .dr-notch.dr-open, .dr-puff, .dr-flag.dr-wave i, .dr-tag { animation: none; }
+}
+
 /* Section divider between form groups */
 .log-section-divider {
   border: none;
