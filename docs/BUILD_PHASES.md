@@ -45,10 +45,28 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 45 confirmed and archived; 46, 47, 48 and 49 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 46 to 50 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 50 — Small brass surprises (built 2026-11-06, awaiting confirmation)
+
+**Why.** Miguel asked for something fun with room for whimsy, and the moments that matter in a day of logging
+had no reaction of their own.
+
+**Decisions.**
+- The big balance and the Freelance hero roll digit by digit like an odometer, on first view and on a change.
+  The real text stays in the element for screen readers and tests.
+- A day saved in Log takes a brass stamp on its calendar cell.
+- The save that completes a week puts a brass seal in the toast ("W45 sealed +4.75h"). It only counts the work
+  days of the current or the previous week, and each week seals once per browser.
+- A payout saved in Days > Freelance sends coins to the Selected card: five above the estimate, one otherwise.
+- A bead on the header's hairline shows the hour of the day, from 06:00 to 24:00. It needs that hairline, so it
+  is hidden below 720px.
+- Typing "kronos" also winds the logo one full turn.
+
+**Known limits.** The vibrations are written but were not tried on a real phone.
 
 ### Phase 49 — Every page at its best (built 2026-11-06, awaiting confirmation)
 

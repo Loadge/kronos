@@ -50,8 +50,12 @@ once. Motion that nobody triggered happens at most once. Every animation has a
 `prefers-reduced-motion: reduce` override that turns it off. The one exception to the "at most once" is the
 small second hand of the year dial, which ticks because it is a clock, and only while the dial is open.
 
+Moments that deserve a reaction get a small one of brass: the big numbers roll like a mechanical counter
+(`.odo`), a saved day is stamped on the calendar, the save that completes a week seals it in the toast, a
+payout drops coins toward the Selected card, and a bead on the header's hairline shows the hour of the day.
+
 ## Version label and updates
 
-The faint "v49" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v50" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

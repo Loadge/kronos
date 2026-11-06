@@ -31,7 +31,7 @@
             <span><span aria-hidden="true">👔</span> Cumulative · since <span x-text="sinceLabel()"></span></span>
           </div>
           <div class="hero-num metric" :class="surplusClass(dashboard.cumulative.surplus_hours)" aria-live="polite">
-            <span x-text="dashboard.cumulative.surplus_hours > 0.01 ? '+' : dashboard.cumulative.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animCumulative)"></span>h
+            <span class="odo" x-effect="odoSet($el, heroHours(dashboard.cumulative.surplus_hours))"></span>
           </div>
           <div class="hero-cap">
             <b x-text="dashboard.cumulative.net_hours + 'h'"></b> worked /

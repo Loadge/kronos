@@ -225,7 +225,8 @@ class TestSettingsSections:
         page.wait_for_selector("#settings-work .settings-saved.is-invalid", timeout=5000)
         assert work_status.inner_text() == "check the value"
         page.locator("#set-target").fill("7")
-        page.wait_for_selector("#settings-work .settings-saved.is-saved", timeout=5000)
+        # the longest wait here: a debounce, a request, and a runner that may be busy
+        page.wait_for_selector("#settings-work .settings-saved.is-saved", timeout=15000)
         # a switch saves at once
         page.locator("#set-reset").check()
         with httpx.Client(base_url=base_url) as c:

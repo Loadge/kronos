@@ -66,9 +66,9 @@ class TestVersionEndpoint:
     def test_reports_the_phase_number_and_the_build(self, client):
         r = client.get("/api/version")
         assert r.status_code == 200
-        assert r.json() == {"version": "49", "build": BUILD_ID}
+        assert r.json() == {"version": "50", "build": BUILD_ID}
         assert HEX10.match(r.json()["build"])
-        assert APP_VERSION == "49"
+        assert APP_VERSION == "50"
 
     def test_is_never_cached(self, client):
         assert client.get("/api/version").headers["cache-control"] == "no-store"
@@ -87,7 +87,7 @@ class TestIndexPage:
 
     def test_shows_the_version_label_next_to_the_title(self, client):
         html = client.get("/").text
-        assert re.search(r"<h1>Kronos</h1>\s*<span class=\"brand-ver\"[^>]*>v49</span>", html)
+        assert re.search(r"<h1>Kronos</h1>\s*<span class=\"brand-ver\"[^>]*>v50</span>", html)
 
     def test_has_the_update_pill(self, client):
         assert 'class="update-pill"' in client.get("/").text

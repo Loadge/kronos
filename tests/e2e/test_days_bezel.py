@@ -942,3 +942,12 @@ def test_nothing_scrolls_sideways_the_count_is_one_line_and_the_buttons_are_big_
         assert n >= 53
         assert last["x"] + last["width"] <= strip["x"] + strip["width"] + 0.5
         assert ticks.first.bounding_box()["x"] >= strip["x"] - 0.5
+
+
+def test_with_one_week_in_view_a_tick_stays_a_tick(page, base_url):
+    """ "All" with a single week of data: the strip does not stretch it into a block."""
+    _week(base_url, W44)
+    _open_days(page, base_url)
+    _set(page, "daysYear = 'all'")
+    assert page.locator(TICK).count() == 1
+    assert page.locator(TICK).bounding_box()["width"] <= 32

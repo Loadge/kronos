@@ -41,7 +41,7 @@
             </span>
           </div>
           <div class="hero-num metric fl-gross" aria-live="polite" data-testid="fl-gross">
-            <span x-text="fmtMoney(animFlGross)"></span>
+            <span class="odo" x-effect="odoSet($el, fmtMoney(flSummary.total.gross_eur ?? 0))"></span>
           </div>
           <!-- how much of it is paid out and how much is still an estimate; only once a payout counts -->
           <template x-if="flSplitOn()">

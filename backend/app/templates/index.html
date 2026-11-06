@@ -84,6 +84,8 @@
         </svg>
       </button>
     </div>
+    <!-- The hour of the day on the hairline under the header: 06:00 at the left edge, 24:00 at the right -->
+    <span class="day-bead" aria-hidden="true" :style="'--bead:' + dayBeadFrac()" :title="'Now ' + nowDisplay"></span>
   </header>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>
@@ -92,7 +94,11 @@
   <div class="save-ribbon-host">
     <div class="save-ribbon" role="status" aria-live="polite"
          :class="[toast.kind, toast.show ? 'ribbon-show' : '']">
-      <span class="ribbon-tick"></span>
+      <span class="ribbon-tick" x-show="!toast.seal"></span>
+      <!-- a week completed by this save: a small brass seal with its id -->
+      <template x-if="toast.seal">
+        <span class="ribbon-seal" aria-hidden="true"><b x-text="toast.seal"></b></span>
+      </template>
       <span class="ribbon-msg" x-text="toast.msg"></span>
       <!-- an optional action (Undo after removing a freelance block) -->
       <template x-if="toast.action">

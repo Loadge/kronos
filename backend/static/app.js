@@ -293,10 +293,10 @@ function app() {
     newVersion: '',
 
     // ---------- W1 animated metrics (tick-up) ---------------------------
-    animWeek: 0, animMonth: 0, animCumulative: 0,
+    animWeek: 0, animMonth: 0,
 
     // ---------- W5 save ribbon ------------------------------------------
-    toast: { msg: '', kind: 'neutral', show: false, action: null },
+    toast: { msg: '', kind: 'neutral', show: false, action: null, seal: null },
     _toastTimer: null,
 
     // ---------- W6 easter egg + streaks ---------------------------------
@@ -1563,21 +1563,21 @@ function app() {
       return notches;
     },
 
-    // W1 — animate the three metric values from 0 → real (ease-out cubic, 600ms)
+    // W1 — animate the two small metric values from 0 → real (ease-out cubic, 600ms). The big
+    // balance is an odometer (odoSet) and rolls by itself.
     tickUpDashboard() {
       if (!this.dashboard) return;
       const targets = {
         week:       Math.abs(this.dashboard.week.surplus_hours),
         month:      Math.abs(this.dashboard.month.surplus_hours),
-        cumulative: Math.abs(this.dashboard.cumulative.surplus_hours),
       };
       // Unchanged numbers (a background refresh) or a dashboard that isn't showing: no show.
-      const settled = this.animWeek === targets.week && this.animMonth === targets.month && this.animCumulative === targets.cumulative;
+      const settled = this.animWeek === targets.week && this.animMonth === targets.month;
       if (settled || this.tab !== 'dashboard' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        this.animWeek = targets.week; this.animMonth = targets.month; this.animCumulative = targets.cumulative;
+        this.animWeek = targets.week; this.animMonth = targets.month;
         return;
       }
-      this.animWeek = 0; this.animMonth = 0; this.animCumulative = 0;
+      this.animWeek = 0; this.animMonth = 0;
       const start = performance.now();
       const token = (this._tickToken = (this._tickToken || 0) + 1);
       const tick = (now) => {
@@ -1586,9 +1586,8 @@ function app() {
         const e = 1 - Math.pow(1 - t, 3); // ease-out cubic
         this.animWeek       = targets.week       * e;
         this.animMonth      = targets.month      * e;
-        this.animCumulative = targets.cumulative * e;
         if (t < 1) requestAnimationFrame(tick);
-        else { this.animWeek = targets.week; this.animMonth = targets.month; this.animCumulative = targets.cumulative; }
+        else { this.animWeek = targets.week; this.animMonth = targets.month; }
       };
       requestAnimationFrame(tick);
     },
@@ -2496,6 +2495,134 @@ function app() {
       el.classList.add('pulse');
     },
 
+    // =====================================================================
+    // brass surprises: the odometer, the stamp, the seal, the coins, the bead
+    // =====================================================================
+    _reduced() { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; },
+
+    // The sign and two decimals of a balance, as the big number on the Dashboard shows it.
+    heroHours(h) {
+      const v = Number(h) || 0;
+      return `${v > 0.01 ? '+' : v < -0.01 ? '\u2212' : '\u00b1'}${Math.abs(v).toFixed(2)}h`;
+    },
+
+    // `el` becomes an odometer that shows `text`: every digit is a reel of 0-9 that turns to its
+    // value (the rightmost fastest, with a small overshoot), everything else stays still. The real
+    // text stays in the element, visually hidden, for screen readers and for innerText; the reels
+    // are aria-hidden and draw their digits with CSS, so they add no text. It rolls on its first
+    // text and whenever the text changes; a text that has not changed does nothing.
+    odoSet(el, text) {
+      if (!el) return;
+      text = String(text ?? '');
+      if (el.dataset.odo === text) return;
+      const reduced = this._reduced();
+      const shape = text.replace(/\d/g, '#');
+      el.dataset.odo = text;
+      el.classList.add('odo');
+      if (el.dataset.odoShape !== shape) {
+        el.dataset.odoShape = shape;
+        el.textContent = '';
+        const sr = document.createElement('span');
+        sr.className = 'odo-sr';
+        el.appendChild(sr);
+        let right = (text.match(/\d/g) || []).length;
+        for (const ch of text) {
+          const part = document.createElement('span');
+          part.setAttribute('aria-hidden', 'true');
+          if (/\d/.test(ch)) {
+            right--;
+            part.className = 'odo-reel';
+            part.style.setProperty('--odo-t', `${430 + 120 * Math.min(right, 6)}ms`);
+            part.style.setProperty('--d', reduced ? ch : '0');
+            part.appendChild(document.createElement('i'));
+          } else {
+            part.className = 'odo-ch';  // drawn from data-ch by CSS, so it adds no text either
+          }
+          el.appendChild(part);
+        }
+        void el.offsetWidth;  // the reels stand on 0 before they turn
+      }
+      const parts = el.children;
+      el.firstElementChild.textContent = text;
+      let i = 1;
+      for (const ch of text) {
+        const part = parts[i++];
+        if (part.classList.contains('odo-reel')) part.style.setProperty('--d', ch);
+        else if (part.dataset.ch !== ch) part.dataset.ch = ch;
+      }
+      this.pulse(el, text);
+    },
+
+    // A day saved in Log takes a brass stamp on its calendar cell (once, on that cell only).
+    stampDay(iso) {
+      if (this._reduced()) return;
+      this.$nextTick(() => {
+        const cell = document.querySelector(`.log-cal-day[aria-label="${iso}"]`);
+        if (!cell) return;
+        this._bzFx(cell, 'cal-stamp', 900);
+        try {
+          if (window.matchMedia('(pointer: coarse)').matches && navigator.userActivation?.hasBeenActive) navigator.vibrate?.(12);
+        } catch { /* a browser without vibration */ }
+      });
+    },
+
+    // The week this save has just completed, or null: every work day of the week has an entry, the
+    // saved day was not one yet, the week is the current or the previous one and it has not been
+    // sealed before in this browser. Returns the week id and the week's delta.
+    _sealFor(saved, wasNew) {
+      if (!saved || !wasNew) return null;
+      const work = this.settingsForm.work_week_days || [];
+      if (!work.length) return null;
+      const day = new Date(saved.date + 'T12:00:00');
+      if (!work.includes((day.getDay() + 6) % 7)) return null;
+      const monday = this._mondayIso(day), thisMonday = this._mondayIso(new Date());
+      if (monday !== thisMonday && monday !== this._addDaysIso(thisMonday, -7)) return null;
+      const sunday = this._addDaysIso(monday, 6);
+      const week = this.entries.filter(x => x.date >= monday && x.date <= sunday && x.date !== saved.date).concat([saved]);
+      const have = new Set(week.map(x => x.date));
+      if (!work.every(i => have.has(this._addDaysIso(monday, i)))) return null;
+      let done = [];
+      try { done = JSON.parse(localStorage.getItem('k-week-sealed') || '[]'); } catch { done = []; }
+      if (!Array.isArray(done)) done = [];
+      if (done.includes(monday)) return null;
+      try { localStorage.setItem('k-week-sealed', JSON.stringify([...done, monday].slice(-80))); } catch { /* storage blocked */ }
+      return { id: this.weekId(monday), delta: this._r2(week.reduce((t, x) => t + (x.surplus_hours || 0), 0)) };
+    },
+
+    // A payout saved in Days > Freelance: coins arc from its field to the Selected card, five when
+    // the payout is above the estimate and one when it is not; the card's amount bumps once when
+    // the last one lands. They are fixed elements clamped to the viewport, gone when they land.
+    payCoins(input, above) {
+      if (this._reduced() || !input) return;
+      const target = document.querySelector('[data-testid="days-fl-total"] b');
+      if (!target) return;
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const clamp = (v, hi) => Math.max(10, Math.min(hi - 10, v));
+      const a = input.getBoundingClientRect(), b = target.getBoundingClientRect();
+      const x0 = clamp(a.left + a.width / 2, vw), y0 = clamp(a.top + a.height / 2, vh);
+      const x1 = clamp(b.left + b.width / 2, vw), y1 = clamp(b.top + b.height / 2, vh);
+      const n = above ? 5 : 1, dur = 700, gap = 120;
+      for (let i = 0; i < n; i++) {
+        const coin = document.createElement('span');
+        coin.className = 'coin-fly';
+        coin.setAttribute('aria-hidden', 'true');
+        coin.style.cssText = `left:${x0}px;top:${y0}px;--dx:${x1 - x0}px;--dy:${y1 - y0}px;--up:${-Math.min(40 + (i % 3) * 18, Math.max(0, Math.min(y0, y1) - 14))}px;animation-delay:${i * gap}ms`;
+        coin.appendChild(document.createElement('i'));
+        document.body.appendChild(coin);
+        const gone = () => coin.remove();
+        coin.addEventListener('animationend', (ev) => { if (ev.target === coin) gone(); });
+        setTimeout(gone, i * gap + dur + 400);
+      }
+      setTimeout(() => this._bzFx(document.querySelector('[data-testid="days-fl-total"] b'), 'coin-bump', 320), (n - 1) * gap + dur);
+    },
+
+    // Where the bead sits on the hairline under the header: 06:00 at the left edge, 24:00 at the right.
+    dayBeadFrac() {
+      const [h, m] = (this.nowDisplay || '00:00').split(':').map(Number);
+      const mins = (h || 0) * 60 + (m || 0);
+      return Math.max(0, Math.min(1, (mins - 360) / 1080));
+    },
+
     // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
     addBreak() {
       this.form.breaks.push({ break_minutes: 30, start_time: '', end_time: '' });
@@ -2611,11 +2738,17 @@ function app() {
 
         // W5 ribbon
         if (saved) {
-          const dow = new Date(saved.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-          this.showToast(`Saved — ${dow} is ${this.formatSurplus(saved.surplus_hours)}`, this.surplusClass(saved.surplus_hours));
+          const seal = this._sealFor(saved, !prevEntries.some(x => x.date === saved.date));
+          if (seal) {
+            this.showToast(`${seal.id} sealed ${this.formatSurplus(seal.delta)}`, this.surplusClass(seal.delta), null, seal.id);
+          } else {
+            const dow = new Date(saved.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+            this.showToast(`Saved — ${dow} is ${this.formatSurplus(saved.surplus_hours)}`, this.surplusClass(saved.surplus_hours));
+          }
         }
 
         this.openNewEntry({ keepMonth: true });
+        if (saved) this.stampDay(saved.date);
       } catch (e) {
         // Revert the optimistic change; the user never left the form
         this.entries = prevEntries;
@@ -3153,6 +3286,7 @@ function app() {
       if (!(k in this.payDraft)) return;
       const text = String(this.payDraft[k]).trim();
       const existing = this.payoutOf(sourceId, weekStart);
+      const src = this.sourceById(sourceId);
       const drop = () => { const d = { ...this.payDraft }; delete d[k]; this.payDraft = d; };
       if (text === '') {
         if (!existing) { drop(); this._setStatus(st, ''); return; }
@@ -3162,7 +3296,6 @@ function app() {
           drop();
           await this.reloadFlData();
           this._setStatus(st, 'saved');
-          const src = this.sourceById(sourceId);
           this.showToast(`Payout deleted — ${this.weekId(weekStart)} ${src ? src.name : ''}`.trim(), 'neutral', {
             label: 'Undo',
             run: async () => {
@@ -3182,9 +3315,13 @@ function app() {
       try {
         if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { source_id: sourceId, week_start: weekStart, amount, note: existing.note });
         else await this.api('POST', '/api/freelance/payouts', { source_id: sourceId, week_start: weekStart, amount });
+        const field = document.activeElement?.classList.contains('payin') ? document.activeElement : null;
+        const input = field || [...document.querySelectorAll('.payin')].find(x => x.getAttribute('aria-label') === `Payout ${src?.name} ${this.weekId(weekStart)}`);
         drop();
         await this.reloadFlData();
         this._setStatus(st, 'saved');
+        const mine = this.payoutOf(sourceId, weekStart);
+        if (mine) this.payCoins(input, mine.amount > mine.estimate_amount);
       } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
     },
     payStatus(weekStart) { return this.settingsStatusText('wk-' + weekStart); },
@@ -4374,13 +4511,14 @@ function app() {
     // =====================================================================
     // `action` is optional: { label, run } adds a button to the ribbon (Undo), which then
     // stays a little longer so there is time to press it.
-    showToast(msg, kind, action = null) {
+    // `seal` (a week id) puts a small brass seal in the ribbon, which then stays a little longer.
+    showToast(msg, kind, action = null, seal = null) {
       if (this._toastTimer) clearTimeout(this._toastTimer);
-      this.toast = { msg, kind: kind || 'neutral', show: false, action };
+      this.toast = { msg, kind: kind || 'neutral', show: false, action, seal };
       this.$nextTick(() => {
         this.toast.show = true;
         const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const delay = action ? 5000 : reduced ? 1200 : 1800;
+        const delay = action ? 5000 : seal ? 3200 : reduced ? 1200 : 1800;
         this._toastTimer = setTimeout(() => { this.toast.show = false; }, delay);
       });
     },
@@ -4733,30 +4871,16 @@ function app() {
       // the projection's inputs are settings: have them before the strip renders
       await Promise.all([this.loadSources(), this.loadFlSummary(), this.blocks.length ? Promise.resolve() : this.loadDays(), this._settingsSaved ? Promise.resolve() : this.loadSettings()]);
       if (!this.calc.result && this.flSummary) { this.calcFromYear(false); }
-      this.$nextTick(() => this.tickUpFreelance());
     },
     async loadFlSummary(year = this.flYear) {
       try { this.flSummary = await this.api('GET', `/api/freelance/summary?year=${year}`); this._flStale = false; }
       catch (e) { this.error = e.message; }
     },
-    setFlYear(y) { this.flYear = y; this.loadFlSummary(y).then(() => this.$nextTick(() => this.tickUpFreelance())); },
+    setFlYear(y) { this.flYear = y; this.loadFlSummary(y); },
     flYears() {
       const ys = new Set(this.blocks.map(b => Number(b.date.slice(0, 4))));
       ys.add(new Date().getFullYear());
       return [...ys].sort((a, b) => b - a);
-    },
-    animFlGross: 0,
-    tickUpFreelance() {
-      const target = this.flSummary?.total.gross_eur ?? 0;
-      if (this.animFlGross === target || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { this.animFlGross = target; return; }
-      const from = 0, start = performance.now(), token = (this._flTick = (this._flTick || 0) + 1);
-      const tick = now => {
-        if (token !== this._flTick) return;
-        const t = Math.min(1, (now - start) / 700), e = 1 - Math.pow(1 - t, 3);
-        this.animFlGross = from + (target - from) * e;
-        if (t < 1) requestAnimationFrame(tick); else this.animFlGross = target;
-      };
-      requestAnimationFrame(tick);
     },
     // The dashboard card: this week and month from the blocks already loaded (as the week
     // strip does), the share to set aside from the year's inputs.
@@ -5053,6 +5177,7 @@ function app() {
       if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         this.eggAnimating = true;
         setTimeout(() => { this.eggAnimating = false; }, 1300);
+        this._bzFx(document.querySelector('.brand-logo'), 'logo-wind', 1200);
       }
       this.$nextTick(() => {
         const panel = document.querySelector('.streaks-panel');
