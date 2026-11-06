@@ -30,6 +30,10 @@ it for the history of a decision, not by default). This file keeps only open and
 | 31 | Visual redesign: 5 tabs + gear, dashboard hero with trajectory and week strip, Settings cards, dense Days | `35ad663` |
 | 33 | Interactive Analytics: zoomable SVG chart whose range drives the page, heatmap tooltip + click | `35ad663` |
 | 34–35 | Freelance hours: income sources, blocks with a rate snapshot, ECB rate, Freelance tab, 130, calculator, Days / Analytics / PDF | `3baed75`, `9314942` |
+| 37 | Freelance payouts: what a source really paid for a week replaces the estimate everywhere | `e494a3c`, `b3bb814` |
+| 38 | Quieter Log and live updates: Wk column, + Add note, the result rail, version label and Update ready pill | `7eddb1c`, `3fce538` |
+| 39 | One look across pages: one switch, one place for exports, one number format, `UI_GUIDE.md` | `f7f8cd5`, `4420f93`, `2addb57` |
+| 40 | Eyes on the UI: screenshot baselines, aria snapshots, axe scan, `/ui-review` | `cbd9c68` |
 | 41 | Kronos on a phone: two-line rows in Days, tap sizes of 24px, Analytics in phone order | `3808b78`, `8be17e5` |
 | 42 | One line per week in Days > Freelance: the numbers always on screen, the arrow only hides the days | `f5faa45`, `2e5e539` |
 | 43 | One line per week in Days > Employee, with Σ on the week line | `50ec193`, `c26a1b5` |
@@ -41,168 +45,10 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39 and 40 built, waiting for Miguel's check; 41 to 45 confirmed and archived; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
-
-### Phase 40 — Eyes on the UI (built 2026-11-05, awaiting confirmation)
-
-**Why.** Three layout bugs in a row were seen only by Miguel, after the tests were green. He asked for a
-practice that looks at the UI, and for the tools to back it.
-
-**Decisions.**
-- Ten key screens are compared with approved pictures (`pytest-playwright-visual-snapshot`). The pictures
-  are made in the same Linux image as the pipeline, because text renders differently on Windows, and
-  `make snapshots` and `make snapshots-update` run from any machine with Docker. They need the same page
-  every day, so they use the demo data and a frozen "now": `KRONOS_NOW` is a new setting read by
-  `backend/app/services/clock.py`, for disposable instances only. It also replaces the `TZ` trick of the demo GIF.
-- Playwright is pinned, because a new Chromium moves pixels; a bump needs new baselines in the same commit.
-- Aria snapshots pin the header and the head of every page by role and name, with extra children forbidden.
-- axe scans every tab at both widths. Today's serious findings live in an allowlist that can only shrink, and
-  `docs/a11y_report.md` explains them.
-- A red e2e run keeps its traces, screenshots and picture diffs as job artifacts for two weeks.
-- `/ui-review` is a new skill: a fresh reviewer looks at every page against `UI_GUIDE.md` before PROD. It
-  advises, it does not gate. No script calling a vision API was built, because that needs an API key and a
-  subagent does the same job.
-- The scan paid for itself at once: the heatmap cells got a role, the two scrolling areas can take focus, and
-  the ⚡ marks are hidden from screen readers on every page, as the guide already said.
-- The first `/ui-review` caught a real bug the geometry audit had missed: with a row in its ledger, the Plan
-  page scrolled sideways on a phone. The ledger's rows now wrap on a phone, and the audit's data has such a row.
-
-**Known limits.** The contrast findings are recorded, not fixed: the rows of days off in Days are most of
-them, and that is a design decision. Baselines are about 1.5 MB, and each approved change adds to the repo's
-history. If the snapshot tests flake in two pipelines, they move to a non-blocking job.
-
-### Phase 39 — One look across pages (built 2026-11-05, awaiting confirmation)
-
-**Why.** An audit of the seven pages found the same things drawn differently: the
-Employee/Freelance switch sat in two places, exports lived in three, numbers had several formats and
-the primary buttons came in four styles. Miguel asked for one rule per thing, and for a guide that
-keeps it that way.
-
-**Decisions.**
-- The Employee/Freelance switch is the Analytics pill, in the page head, just left of the year selector.
-  Days uses it too, and the tab strip with its counts is gone.
-- Exports are small pills in the head, named "CSV", "JSON", "⚡ Freelance CSV" and "⚡ Payouts CSV" (Days
-  keeps "PDF"). The "Export" blocks at the bottom of Analytics and Freelance are gone.
-- Money always shows cents (€1,289.71); charts may round their labels. Hours keep trimmed totals and
-  two-decimal deltas. The Freelance calculator speaks Spanish decimals, typed and shown (€28.687,41).
-  Dates are still open: Days uses ISO and Plan and the Dashboard use "Thu, Nov 5".
-- Five hints were removed by name, and the information they carried moved to tooltips where it was worth
-  keeping. The Freelance card no longer says "nothing yet".
-- Empty states read "No X yet." with at most one link.
-- Page-level titles are all like "Calculator" (Modelo 130 and Upcoming time off included).
-- Every primary button has the look of "+ Add block" (`btn-action`); openers such as "+ Add a change" are
-  secondary outlines. The year selector stays at the right edge of the head on a phone.
-- 👔 marks the employee side next to ⚡ (Dashboard, Settings navigation, Days, Analytics).
-- `UI_GUIDE.md` holds these rules with a glossary and a checklist, and three test files enforce what can
-  be checked: the page head on every tab, the exports, the hints and the formatters.
-
-**How it was built.** An audit by a read-only subagent, a research agent for the guide, then two Sonnet
-subagents on disjoint pages (Analytics, Log, Days and Dashboard; Freelance, Settings and Plan), with the
-formatting done by the Advisor because it is money. One red control was missing a first time (the
-page-head test read DOM order, so a CSS `order` slipped past); it now compares screen positions.
-
-**Known limits.** The weekday averages keep one decimal on purpose, because the cells are narrow.
-Dates keep two forms on purpose (ISO to look things up, short with the weekday to glance at). Follow-up
-the same day: the light theme was removed (Kronos is dark only), the line under the title came out, and
-the anchor pills and the Settings navigation were fixed (off-centre label, a name on two lines).
-
-### Phase 38 — Quieter Log and live updates (built 2026-11-04, awaiting confirmation)
-
-**Why.** After using Phase 37 on PROD, Miguel asked for four things: the work week number on the Log
-calendar, a Notes field that does not feel out of place on a big screen, no jump to Days after
-logging a day, and a way for Kronos to tell the browser that a newer version is waiting.
-
-**Decisions.**
-- The Log calendar has a "Wk" column on its left with the ISO week of each row. Each number is a
-  button that opens that week in Days, and a week with no entry and no freelance block is dimmed.
-- Days > Employee has a separator row per ISO week while it is sorted by date (W45, its dates, the
-  days, net against target and the surplus). The jump lands on it and flashes the week's rows. A week
-  with only freelance blocks opens Days > Freelance instead.
-- Notes is a "+ Add note" button, like "+ Add break". It opens one textarea in place, stays open when
-  the day has a note and folds away when it is left empty.
-- From 1100px the right column of the form is a rail with the day's result (net, target, surplus and
-  a fill bar) and the Create entry button. Below that the form is one column, as before.
-- The two card hints ("the day for the job" and "blocks with their own rate") are gone.
-- Saving or deleting a day keeps the user in Log, and the calendar stays on its month. The toast is
-  the confirmation.
-- The title has a faint "v38" next to it. It is the phase number and is bumped by hand in
-  `backend/app/version.py` when a phase lands.
-- Every build has an id, a 10-character hash of the static files and the templates. The page carries
-  the id it loaded and asks `/api/version` when the tab becomes visible, when the connection comes back
-  and every 10 minutes. If the server has another id, a pill says "Update ready — Reload". The page
-  never reloads by itself, because the user may be typing.
-- The service worker names its cache after the build id, so nobody has to bump it any more. The page
-  itself is network-first and `app.js` and `styles.css` carry the id in their URL, so the reload brings
-  the new files instead of the cached ones.
-
-**How it was built.** Mockups first for the Notes field (a margin note, a day rail and a full-width
-layout). Miguel proposed the "+ Add note" button and kept the rail as the second choice, so the
-result is both. Then three units, each one written by a Sonnet subagent and reviewed blind: the week
-column and the jump, the Notes button and the rail, and the version, the update check and staying
-in Log.
-
-**Known limits.** A week that crosses a month edge gets its separator only above the days of its
-later month, with the totals of the whole week. The first time after this deploy, a browser that still
-has the old service worker shows the old page once, and the pill needs one more reload to appear,
-because that worker serves its cached shell first. The Notes control was not checked in the light
-theme.
-
-### Phase 37 — Freelance payouts (built 2026-11-04, awaiting confirmation)
-
-**Why.** Kronos estimates freelance money as hours times the rate stored on each block. What a
-client actually pays differs from that: there are bonuses, and the rate changes from week to week.
-A "payout" is what one income source really paid for one ISO week, and wherever it exists it is
-the money Kronos uses for that source and week, instead of the estimate.
-
-**Decisions.**
-- A payout is per source and ISO week (Monday to Sunday), typed in the source's currency.
-- It replaces the estimate in every sum for that source and week, and the blocks stay untouched.
-  The hours are still the blocks' hours, so the €/h moves with the money.
-- A USD payout takes the ECB rate of the week's Sunday, and it can be edited. With no rate it
-  counts as missing, never at 1:1.
-- The payout is spread over the week's days pro-rata by each block's estimate, so a week that
-  crosses a month or a year edge splits by work date, the 130 and the tax year included.
-- A payout without blocks is allowed and counts 0h on the week's Sunday.
-- It is entered in Days, in the ⚡ Freelance week headers (one per ISO week, per source). The Log
-  tab shows a read-only line when the day's week has one.
-- Every total shows the split between paid out and estimated, on the Freelance tab, the dashboard
-  card and Analytics.
-- The freelance PDF prints a payout line under each paid week, and a payouts CSV joins the export.
-- The backup goes to version 4, and versions 1 to 3 still restore.
-
-**How it was built.** Mockups first: Miguel chose P2 (`docs/mockups/payouts-p2.html`), where each
-week is one compact line ("estimated", "part paid out" or "paid out", plus a quiet "awaiting
-payout") that opens to show the payout of each source. Then five units, each one written by a
-Sonnet subagent and reviewed blind before the next: the table and its API, the money rule, the
-Days and Log screens, the split on the other screens, and the PDF, CSV and seed. Full spec and
-interview: `.agents/changes/backlog/freelance-payouts/`.
-
-**Choices made on the way.**
-- One rule computes every euro, `money_lines()` in `services/freelance.py`: the payout's cents are
-  split over the week's blocks by largest remainder, so a week always adds up to its payout to the
-  cent. The browser follows the same rule through each block's `effective_eur`.
-- A payout splits by the blocks' estimates, and by their minutes when one of them has no rate.
-- In Days a week is listed under the month of its Monday, but each month's total counts what is
-  dated in it, like the Freelance tab, and says "€X of it from W40" when part comes from a week
-  listed under the month before.
-- A paid week's blocks keep their own estimate, shown muted, in Days and in the Log card.
-- The split and the "weeks awaiting a payout" line only appear once at least one payout exists,
-  so nothing changes for a year without payouts.
-- The freelance PDF without payouts is byte for byte what it was before (a test pins it).
-
-**Review round (2026-11-04, after Miguel tried it on INT).** The blocks of a week hang under its
-line, indented, with a thin rail. Paid-out money has its own colour, teal (`--paid`), everywhere it
-shows, while estimates keep the brass. The dashboard card shows "Estimated" and "Paid out" side
-by side for the week and the month, with the gap against the estimate of the paid part only
-("+€40 vs est."). The Log's "in Days" is now a pill button ("W45 in Days").
-
-**Known limits.** A month with freelance money but no week starting in it has no total line in
-Days (only a lone block on a Sunday the 1st). Once the first payout is entered, every earlier
-week with blocks shows "awaiting payout" until it has one. The heatmap tooltip still shows each
-block's estimate.
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 
