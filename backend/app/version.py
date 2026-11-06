@@ -1,6 +1,6 @@
 """Which Kronos this is: the label people read and the fingerprint the browser compares.
 
-``APP_VERSION`` is the phase number shown as "v42" next to the title. Miguel bumps it by
+``APP_VERSION`` is the phase number shown as "v43" next to the title. Miguel bumps it by
 hand when a phase lands; nothing computes it.
 
 ``compute_build_id`` is the opposite: nobody types it. It is a short hash of the files the
@@ -16,7 +16,7 @@ import hashlib
 from collections.abc import Iterable
 from pathlib import Path
 
-APP_VERSION = "42"
+APP_VERSION = "43"
 
 
 def compute_build_id(root_dirs: Iterable[Path]) -> str:

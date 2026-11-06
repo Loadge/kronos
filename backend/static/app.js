@@ -1358,6 +1358,7 @@ function app() {
       this.daysMode = 'employee';
       this.sortKey = 'date';
       this.notesQuery = '';
+      this.daysWeekOpen = { ...this.daysWeekOpen, [monday]: true };
       this.daysYear = this._daysYearFor(mine);
       await this.go('days');
       // The Days tab scrolls to today once it has rendered; this scroll has to come after it.
@@ -1960,7 +1961,8 @@ function app() {
     },
 
     // The table's rows: entries, with a separator (and that month's subtotal) ahead of each
-    // month while sorted by date — under a net-hours sort a month boundary means nothing.
+    // month while sorted by date — under a net-hours sort a month boundary means nothing. Each
+    // week is one line that is always there; only an open week lists its days.
     daysRows() {
       const entries = this.sortedEntries();
       if (this.sortKey !== 'date') return entries.map(e => ({ kind: 'entry', key: e.date, e }));
@@ -1970,11 +1972,14 @@ function app() {
         const m = (totals[ym] ||= { count: 0, net: 0, target: 0, surplus: 0 });
         m.count++; m.net += e.net_hours; m.target += e.target_hours; m.surplus += e.surplus_hours;
         const monday = (mondayOf[e.date] = this._mondayIso(new Date(e.date + 'T12:00:00')));
-        const w = (weeks[monday] ||= { count: 0, net: 0, target: 0, surplus: 0 });
+        const w = (weeks[monday] ||= { count: 0, net: 0, target: 0, surplus: 0, last: '', cum: 0 });
         w.count++; w.net += e.net_hours; w.target += e.target_hours; w.surplus += e.surplus_hours;
+        // the running Σ at the last day of the week inside the filter, whichever way the rows are sorted
+        if (e.date > w.last) { w.last = e.date; w.cum = e._cumulative; }
       }
       const rows = [];
-      let current = null, currentWeek = null;
+      const thisMonday = this._mondayIso(new Date());
+      let current = null, currentWeek = null, currentOpen = true;
       for (const e of entries) {
         const ym = e.date.slice(0, 7);
         if (ym !== current) {
@@ -1992,19 +1997,25 @@ function app() {
         const monday = mondayOf[e.date];
         if (monday !== currentWeek) {
           currentWeek = monday;
+          currentOpen = this.daysWeekIsOpen(monday);
           const w = weeks[monday];
           rows.push({
             kind: 'wk', key: 'wk-' + monday, week: monday,
             id: this.weekId(monday), range: this._weekRange(monday),
+            open: currentOpen, current: monday === thisMonday, cumulative: w.cum,
             count: w.count,
             net: Math.round(w.net * 100) / 100,
             target: Math.round(w.target * 100) / 100,
             surplus: Math.round(w.surplus * 100) / 100,
           });
         }
-        rows.push({ kind: 'entry', key: e.date, e, week: monday });
+        if (currentOpen) rows.push({ kind: 'entry', key: e.date, e, week: monday });
       }
       return rows;
+    },
+    // The Mondays of the weeks Days > Employee lists (the filters applied).
+    _empWeekKeys() {
+      return [...new Set(this.sortedEntries().map(e => this._mondayIso(new Date(e.date + 'T12:00:00'))))];
     },
 
     // ── Days · ⚡ Freelance: the blocks, filtered by year, note and the sources ticked ──
@@ -2088,10 +2099,13 @@ function app() {
       if (this.notesQuery.trim()) this.daysWeekOpenQ = { ...this.daysWeekOpenQ, [key]: next };
       else this.daysWeekOpen = { ...this.daysWeekOpen, [key]: next };
     },
+    // The weeks of the mode on screen; the other mode's weeks keep their state.
     daysWeeksSetAll(open) {
-      const next = {};
-      for (const w of this.daysWeeks()) next[w.key] = open;
-      if (this.notesQuery.trim()) this.daysWeekOpenQ = next;
+      const keys = this.daysMode === 'employee' ? this._empWeekKeys() : this.daysWeeks().map(w => w.key);
+      const q = !!this.notesQuery.trim();
+      const next = { ...(q ? this.daysWeekOpenQ : this.daysWeekOpen) };
+      for (const k of keys) next[k] = open;
+      if (q) this.daysWeekOpenQ = next;
       else this.daysWeekOpen = next;
     },
     // One entry per ISO week (newest first) that has a block shown or a payout of a ticked
@@ -2283,7 +2297,11 @@ function app() {
       const anchorDate = source.filter(e => e.date <= today).map(e => e.date).sort().slice(-1)[0] ?? null;
       if (!anchorDate) return;
       const el = document.getElementById('day-row-' + anchorDate);
-      if (!el) return;
+      if (!el) {
+        // the anchor's week is closed: its line stands in for the day
+        if (this.daysMode === 'employee' && this.sortKey === 'date') this._scrollToWeek(this._mondayIso(new Date(anchorDate + 'T12:00:00')), 0);
+        return;
+      }
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('today-flash');
       setTimeout(() => el.classList.remove('today-flash'), 2400);

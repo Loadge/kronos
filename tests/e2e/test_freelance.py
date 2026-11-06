@@ -519,7 +519,13 @@ class TestDaysFreelance:
         assert abs(sw2["y"] - sw["y"]) < 2, (sw, sw2)
         page.goto(f"{base_url}/#days")
         page.wait_for_selector(".page-head .hm-switch", timeout=5000)
-        assert page.locator(".days-table .day-row").count() == 1  # the employee table
+        # the employee table: its week lines are always there, the day shows once the weeks are open
+        assert page.locator(".days-table .day-row").count() == 0
+        page.get_by_test_id("wk-expand-all").click()
+        assert page.locator(".days-table .day-row").count() == 1
+        # the open state is shared with the Freelance weeks: close them again
+        page.get_by_test_id("wk-collapse-all").click()
+        assert page.locator(".days-table .day-row").count() == 0
         tabs.nth(1).click()
         page.wait_for_selector("[data-testid='days-freelance']", timeout=3000)
         # the week lines are always there; the blocks show once the weeks are open

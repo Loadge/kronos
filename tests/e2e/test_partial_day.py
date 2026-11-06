@@ -102,7 +102,9 @@ class TestSaveAndDisplay:
         page.get_by_role("tab", name="Days").click()
         page.wait_for_url("**/#days", timeout=5000)
 
-        # Days table: pill carries the hours, net/target reflect the worked half.
+        # Days table: pill carries the hours, net/target reflect the worked half. The week lines
+        # are always there; the day itself shows once the weeks are open.
+        page.get_by_test_id("wk-expand-all").click()
         row = page.locator(f"#day-row-{date_str}")
         row.wait_for(timeout=5000)
         page.wait_for_function(

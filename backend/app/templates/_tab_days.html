@@ -326,6 +326,9 @@
   <!-- Dense table: the whole row opens the day in Log (✎ is the focusable target), notes are
        always visible in the last column, a separator with its subtotal opens every month while
        sorted by date. One <tbody> per row keeps the `day-row-<date>` anchor for scrollToToday. -->
+  <template x-if="entries.length && sortKey === 'date'">
+    <p class="wk-tools"><a @click.prevent="daysWeeksSetAll(true)" href="#" data-testid="wk-expand-all">Expand all</a> · <a @click.prevent="daysWeeksSetAll(false)" href="#" data-testid="wk-collapse-all">Collapse all</a></p>
+  </template>
   <template x-if="entries.length">
     <div class="table-wrap days-wrap">
       <table class="days-table">
@@ -348,21 +351,37 @@
             <th class="notes-col">Notes</th>
             <th class="act-col"><span class="visually-hidden">Edit</span></th>
           </tr>
+          <!-- never seen: it holds each column at the width of its widest usual value, so opening
+               or closing a week does not move the numbers of the others -->
+          <tr class="days-sizer" aria-hidden="true">
+            <td class="metric">2026-12-31</td><td class="dow">Mon</td>
+            <td><span class="day-pill sick">sick · 2h</span><span class="days-fl metric">⚡2.5h</span></td>
+            <td class="num metric">00:00</td><td class="num metric">00:00</td><td class="num metric">120m</td>
+            <td class="num metric">44.75h</td><td class="num metric">40h</td><td class="num metric">+10.00h</td>
+            <td class="num metric">+110.00h</td><td class="notes-col"></td><td class="act-col"></td>
+          </tr>
         </thead>
         <template x-for="r in daysRows()" :key="r.key">
           <tbody :id="r.kind === 'entry' ? 'day-row-' + r.e.date : (r.kind === 'wk' ? 'eweek-' + r.week : null)"
                  :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor, 'week-flash': !!r.week && r.week === daysFlashWeek }">
             <template x-if="r.kind === 'wk'">
-              <tr class="week-sep">
-                <td colspan="12">
-                  <span class="week-sep-name" x-text="r.id"></span>
-                  <span class="week-sep-range" x-text="r.range"></span>
-                  <span class="week-sep-sum metric">
-                    <span x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span> ·
-                    <b x-text="r.net + 'h'"></b> / <span x-text="r.target + 'h'"></span> ·
-                    <b :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></b>
-                  </span>
+              <!-- a week is one line that is always there, numbered under the table's own columns:
+                   Date to Breaks hold the title, then Net, Target, Δ and Σ, then Notes and the pencil -->
+              <tr class="week-sep" :class="r.open ? 'open' : ''" data-testid="e-week" @click="daysWeekToggle(r.week)">
+                <td colspan="6" class="ws-head">
+                  <button type="button" class="week-sep-btn" @click.stop="daysWeekToggle(r.week)" :aria-expanded="r.open ? 'true' : 'false'" :aria-label="r.id + ' ' + r.range">
+                    <span class="chev" aria-hidden="true">▸</span>
+                    <span class="week-sep-name" x-text="r.id"></span>
+                    <span class="week-sep-range" x-text="r.range"></span>
+                    <template x-if="r.current"><span class="wk-now">this week</span></template>
+                  </button>
+                  <span class="ws-days metric" x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span>
                 </td>
+                <td class="num metric ws-net" data-testid="e-week-net" x-text="r.net + 'h'"></td>
+                <td class="num metric ws-target" data-testid="e-week-target" x-text="r.target + 'h'"></td>
+                <td class="num metric ws-delta" data-l="Δ" data-testid="e-week-delta" :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></td>
+                <td class="num metric ws-sigma" data-l="Σ" data-testid="e-week-sigma" :class="surplusClass(r.cumulative)" x-text="formatSurplus(r.cumulative)"></td>
+                <td colspan="2" class="ws-end"></td>
               </tr>
             </template>
             <template x-if="r.kind === 'sep'">

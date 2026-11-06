@@ -20,6 +20,7 @@ Prerequisites
 from __future__ import annotations
 
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -28,6 +29,7 @@ import time
 from pathlib import Path
 
 import pytest
+from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,6 +54,27 @@ def _wait_for_server(port: int, timeout: float = 15.0) -> None:
         except OSError:
             time.sleep(0.2)
     raise TimeoutError(f"Server on port {port} did not start within {timeout}s")
+
+
+# ── the snapshot plugin under xdist ───────────────────────────────────────────
+
+
+def pytest_configure(config):
+    """Empty the picture diffs once, before the workers start."""
+    if not hasattr(config, "workerinput"):
+        shutil.rmtree(config.getini("playwright_visual_snapshot_failures_path"), ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_snapshot_failures(pytestconfig):
+    """Replaces the plugin's fixture, which empties the folder in every worker: one worker
+    deleting it while another creates it fills a run with FileExistsError, and could wipe the
+    diffs of a test that has already failed. It only sets the paths here."""
+    SnapshotPaths.snapshots_path = Path(pytestconfig.getini("playwright_visual_snapshots_path"))
+    SnapshotPaths.failures_path = Path(
+        pytestconfig.getini("playwright_visual_snapshot_failures_path")
+    )
+    SnapshotPaths.failures_path.mkdir(parents=True, exist_ok=True)
 
 
 # ── server fixture ────────────────────────────────────────────────────────────

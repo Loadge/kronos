@@ -36,10 +36,35 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39, 40, 41 and 42 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39, 40, 41, 42 and 43 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 43 — One line per week in Employee (built 2026-11-06, awaiting confirmation)
+
+**Why.** After Phase 42 Miguel asked for the same behaviour in Days > Employee: the week's numbers always
+visible, and the arrow only collapsing the days.
+
+**Decisions.**
+- A week is a line with Net, Target, Δ and Σ under the table's own columns, plus the number of days. Σ on the
+  week line is new: it is the running total at the last day of that week, because collapsing would hide it.
+- Clicking the arrow or anywhere on the line toggles the week. On load only the current week shows its days,
+  and Expand all and Collapse all appear above the table.
+- Open and closed weeks are shared with Freelance, so a week stays open when the pill changes. Expand all only
+  touches the weeks of the side on screen.
+- The notes search works as in Freelance: every week opens, the arrows still work, and clearing it puts each
+  week back.
+- Sorted by Net the table stays a flat list of days, with no weeks and no arrows.
+- From 1280px a hidden row in the table's head holds each column at its widest usual value, so opening a week
+  does not move the numbers of the others. Below that it would push the table past the page, so the columns
+  can still shift.
+- The Log calendar's week button opens the week it jumps to. The scroll to today lands on the week line when
+  that day is hidden.
+- On a phone a week is two lines: arrow, week, range and tag, then days, net / target, Δ and Σ.
+
+**Known limits.** Between 641px and 900px an open table still scrolls inside its own box, as it always did, so
+Σ can sit off screen there. A value wider than the hidden row can still widen its column.
 
 ### Phase 42 — One line per week (built 2026-11-05, awaiting confirmation)
 

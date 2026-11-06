@@ -2818,7 +2818,7 @@ tbody.today-row > tr:first-child > td:first-child {
   /* the Σ cell has no class of its own, so the accessibility scan keeps its selector: line 2 has it */
   .days-table:not(.days-table--fl) tr.day-row td:nth-child(10) { display: none; }
   .days-table td[colspan] { display: block; }
-  .days-table tr.month-sep, .days-table tr.week-sep, .days-table tr.wk-row, .days-table tr.wk-lines { display: block; }
+  .days-table tr.month-sep, .days-table tr.wk-row, .days-table tr.wk-lines { display: block; }
   .days-table tr.day-row {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto auto;
@@ -2845,7 +2845,7 @@ tbody.today-row > tr:first-child > td:first-child {
   .days-table--fl tr.blk td:nth-child(3) { display: flex; align-items: baseline; gap: 0.25rem; white-space: normal; line-height: 1.2; }
   .days-table--fl tr.blk td:nth-child(3) .fl-dot { flex: none; margin-right: 0; }
   .days-table--fl tr.blk td.day-sub { padding-left: 1rem; }
-  .days-table tr.month-sep td, .days-table tr.week-sep td { padding-right: 0.5rem; }
+  .days-table tr.month-sep td { padding-right: 0.5rem; }
 }
 
 /* ================================================================
@@ -4003,20 +4003,55 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .log-cal-wk:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .log-cal-wk:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; }
 
+/* Days > Employee: a week is one line that is always there. Date to Breaks hold the title (arrow,
+   week, range, tag, days); Net, Target, Δ and Σ sit in the table's own columns, so they line up with
+   its headers. The arrow is `.week-sep-btn`, not `.wk-head`: that class is the dashboard's week strip. */
+.days-table tr.days-sizer { visibility: collapse; }
+@media (max-width: 1279px) { .days-table tr.days-sizer { display: none; } } /* it would push the table past the page */
+.days-table tr.week-sep { cursor: pointer; }
 .days-table tr.week-sep td {
-  padding: 0.3rem 0.6rem 0.2rem 0.75rem;
+  padding: 0.25rem 0.6rem;
   background: transparent;
   border-top: 1px solid var(--k-border);
-  box-shadow: inset 1px 0 0 var(--k-brass);
-  font-size: 0.74rem;
-  white-space: normal;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: background var(--k-transition-fast);
 }
-.week-sep-name { font-weight: 600; color: var(--k-brass); letter-spacing: 0.04em; margin-right: 0.5rem; }
-.week-sep-range { color: var(--k-muted); margin-right: 0.6rem; }
-.week-sep-sum { font-size: 0.74rem; color: var(--k-muted); }
-.week-sep-sum b { font-weight: 600; color: var(--k-text); }
-.week-sep-sum b.surplus { color: var(--k-surplus); }
-.week-sep-sum b.deficit { color: var(--k-deficit); }
+.days-table tr.week-sep td:first-child { box-shadow: inset 2px 0 0 var(--k-brass); padding-left: 0.75rem; }
+.days-table tr.week-sep:hover td { background: color-mix(in srgb, var(--k-brass) 7%, transparent); }
+.days-table tr.week-sep:active td { background: color-mix(in srgb, var(--k-brass) 13%, transparent); }
+.days-table tr.week-sep .ws-net { font-weight: 600; color: var(--k-text); }
+.days-table tr.week-sep .ws-target { color: var(--k-muted); }
+.week-sep-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; width: auto; min-width: 12.5rem; min-height: 1.75rem; margin: 0;
+  padding: 0.1rem 0.5rem 0.1rem 0; border: none; border-radius: 4px; background: transparent; box-shadow: none;
+  color: var(--k-text); font: inherit; font-size: 0.8rem; font-weight: 400; line-height: 1.2; cursor: pointer; white-space: nowrap;
+}
+.week-sep-btn:hover, .week-sep-btn:active { background: transparent; color: var(--k-text); }
+.week-sep-btn:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; box-shadow: none; }
+.week-sep-btn .chev { display: inline-block; width: 0.8rem; color: var(--k-muted); transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), color var(--k-transition-fast); }
+tr.week-sep.open .week-sep-btn .chev { transform: rotate(90deg); }
+tr.week-sep:hover .week-sep-btn .chev { color: var(--k-brass); }
+.week-sep-btn:active .chev { transform: scale(0.7); }
+tr.week-sep.open .week-sep-btn:active .chev { transform: rotate(90deg) scale(0.7); }
+.week-sep-name { font-weight: 600; color: var(--k-brass); letter-spacing: 0.04em; }
+.week-sep-range { color: var(--k-muted); }
+.ws-days { margin-left: 0.6rem; color: var(--k-muted); font-size: 0.74rem; }
+.days-table tr.week-sep .wk-now { flex: none; }
+/* Phone: line 1 is the arrow, week, range and tag; line 2 the days, Net / Target, Δ and Σ (labelled, there
+   is no header here). The head cell dissolves so its button and day count become items of the row. */
+@media (max-width: 640px) {
+  .days-table tr.week-sep { display: flex; flex-wrap: wrap; align-items: center; column-gap: 0.5rem; padding: 0.2rem 0.5rem 0.4rem 0.75rem; border-top: 1px solid var(--k-border); box-shadow: inset 2px 0 0 var(--k-brass); }
+  .days-table tr.week-sep td { display: block; padding: 0; border: none; box-shadow: none; font-size: 0.8rem; }
+  .days-table tr.week-sep td:first-child { padding: 0; box-shadow: none; }
+  .days-table tr.week-sep td.ws-head { display: contents; }
+  .days-table tr.week-sep td.ws-end { display: none; }
+  .week-sep-btn { flex: 1 1 100%; min-width: 0; min-height: 1.75rem; }
+  .ws-days { margin-left: 1.3rem; }
+  .days-table tr.week-sep .ws-target::before { content: "/ "; color: var(--k-muted); }
+  .days-table tr.week-sep td[data-l]::before { content: attr(data-l) " "; color: var(--k-muted); font-weight: 400; }
+}
 
 @keyframes week-wash {
   0%   { background-color: color-mix(in srgb, var(--k-brass) 26%, transparent); }
@@ -4026,6 +4061,9 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 tbody.week-flash > tr > td { animation: week-wash 2s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) {
   tbody.week-flash > tr > td { animation: none; }
+  .week-sep-btn .chev, .days-table tr.week-sep td { transition: none; }
+  .week-sep-btn:active .chev { transform: none; }
+  tr.week-sep.open .week-sep-btn:active .chev { transform: rotate(90deg); }
   .log-cal-wk { transition: none; }
   .log-cal-wk:not(:disabled):hover, .log-cal-wk:not(:disabled):active { transform: none; }
 }

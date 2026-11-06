@@ -192,7 +192,10 @@ class TestJump:
         sep = page.locator("#eweek-2026-11-02 .week-sep").inner_text()
         assert "W45" in sep and "Nov 2 – 8" in sep and "3 days" in sep
         # three 8 h days; the target half depends on the shared config, so it is not asserted
-        assert "24h /" in sep
+        assert page.locator("#eweek-2026-11-02 .ws-net").inner_text() == "24h"
+        # the jump opens the week it lands on
+        btn = page.locator("#eweek-2026-11-02 .week-sep-btn")
+        assert btn.get_attribute("aria-expanded") == "true"
 
     def test_a_week_straddling_two_years_switches_the_year_filter_to_all(self, page, base_url):
         _seed(base_url, ["2026-12-31", "2027-01-01"])
@@ -236,11 +239,12 @@ class TestWeekSeparators:
         page.goto(f"{base_url}/#days")
         page.wait_for_selector(".days-table", timeout=5000)
         assert page.locator(".days-table .week-sep").count() == 2
+        page.get_by_test_id("wk-expand-all").click()
         assert page.locator(".days-table .month-sep").count() == 1
         # a week separator is not a month separator
         assert page.locator(".days-table .week-sep.month-sep").count() == 0
         # newest first: W46 then W45
-        ids = [t.strip()[:3] for t in page.locator(".days-table .week-sep").all_inner_texts()]
+        ids = page.locator(".days-table .week-sep-name").all_inner_texts()
         assert ids == ["W46", "W45"]
         # the entry rows keep their anchors
         assert page.locator("tbody#day-row-2026-11-03").count() == 1

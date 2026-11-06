@@ -82,6 +82,11 @@ def _open(page, demo_url, tab):
 def test_no_new_accessibility_violations(demo_page, demo_url, tab, width, height):
     page = demo_page(width, height)
     _open(page, demo_url, tab)
+    if tab == "days":
+        # the week lines are always there; open them all so the scan still covers the day rows
+        page.get_by_test_id("wk-expand-all").click()
+        page.wait_for_selector("tr.day-row", timeout=5000)
+        page.wait_for_timeout(300)
     key = f"{tab}@{width}"
     found = _blocking(_scan(page))
     if UPDATE:

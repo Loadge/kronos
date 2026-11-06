@@ -265,6 +265,8 @@ class TestDaysTable:
             _work(f"{year}-02-10", "09:00", "18:00", notes="Dentist at **13:00**"),  # ±0
         )
         page.goto(f"{base_url}/#days")
+        page.wait_for_selector(".days-table .week-sep", timeout=5000)
+        page.get_by_test_id("wk-expand-all").click()
         page.wait_for_selector(".days-table .day-row", timeout=5000)
 
         seps = page.locator(".days-table .month-sep")
@@ -303,7 +305,7 @@ class TestDaysTable:
             _work(f"{year}-04-07", notes="Quiet day"),
         )
         page.goto(f"{base_url}/#days")
-        page.wait_for_selector(".days-table .day-row", timeout=5000)
+        page.wait_for_selector(".days-table .week-sep", timeout=5000)
         page.locator(".notes-search").fill("madrid")
         page.wait_for_function(
             "() => document.querySelectorAll('.days-table .day-row').length === 1", timeout=3000
