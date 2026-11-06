@@ -1229,7 +1229,7 @@ function app() {
     // =====================================================================
     // log form
     // =====================================================================
-    // `keepMonth`: the calendar stays where it was (the ← after editing a day, Escape), so
+    // `keepMonth`: the calendar stays where it was (a click on the day being edited, Escape), so
     // leaving an October day does not jump the calendar back to this month.
     openNewEntry({ keepMonth = false } = {}) {
       this.editingDate = null;
@@ -1282,12 +1282,16 @@ function app() {
     // If no  → do nothing (form stays in new-entry mode).
     async probeDate(dateStr) {
       if (!dateStr) return;
+      const seq = (this._probeSeq = (this._probeSeq || 0) + 1);
       const res = await fetch(`/api/entries/${dateStr}`, {
         headers: { Accept: 'application/json' },
       });
+      if (seq !== this._probeSeq) return;  // the answer of an older click: a newer one took over
       if (res.status === 404) return;
       if (!res.ok) { this.error = `${res.status} ${res.statusText}`; return; }
-      this.editEntry(await res.json());
+      const entry = await res.json();
+      if (seq !== this._probeSeq) return;
+      this.editEntry(entry);
     },
 
     // ── Log calendar ──────────────────────────────────────────────────────────
@@ -1397,9 +1401,14 @@ function app() {
     calSetYear(y) { this.calYear = y; },
 
     async calSelectDay(dateStr) {
+      if (this.editingDate === dateStr) { this.openNewEntry({ keepMonth: true }); return; }
+      // Another day while editing: leave the edit (unsaved changes are discarded) and
+      // start from a fresh form on that day.
+      if (this.editingDate) this.openNewEntry({ keepMonth: true });
       this.form.date = dateStr;
       this.notesOpen = false;
       await this.probeDate(dateStr);
+      if (this.form.date !== dateStr) return;  // a newer click took over while we waited
       // A drafted day with no entry yet: start the form from the draft.
       const draft = this.draftMap()[dateStr];
       if (!this.editingDate && draft) {

@@ -161,8 +161,8 @@ class TestNotesAreOptional:
         _open_day(page, TODAY.isoformat())
         assert _notes(page).is_visible() and _notes(page).input_value() == "keep me"
 
-        # the back arrow starts a new entry: closed again, nothing carried over
-        page.locator("a.back-btn").click()
+        # a click on the day being edited starts a new entry: closed again, nothing carried over
+        page.locator(f".log-cal-day[aria-label='{TODAY.isoformat()}']").click()
         page.wait_for_function(
             "() => !Alpine.$data(document.querySelector('main')).editingDate", timeout=3000
         )

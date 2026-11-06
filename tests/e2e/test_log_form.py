@@ -143,5 +143,9 @@ class TestLogFormSubmission:
         _open_log_tab(page, base_url)
         _select_calendar_date(page, date_str)
 
-        page.wait_for_selector(f"h2:has-text('Edit {date_str}')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=date_str,
+            timeout=5000,
+        )
         assert errors == [], f"JS errors selecting an already-logged date: {errors}"

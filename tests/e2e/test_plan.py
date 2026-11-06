@@ -193,7 +193,7 @@ class TestOpenInLog:
             arg=past,
             timeout=5000,
         )
-        assert page.locator("h2", has_text="New entry").count() == 1
+        assert page.locator(".btn-action", has_text="Create entry").count() == 1
         with httpx.Client(base_url=base_url) as c:
             assert c.get("/api/plans").json() == []  # nothing was drafted
 
@@ -204,7 +204,11 @@ class TestOpenInLog:
         _open_plan(page, base_url, mon)
         page.locator(f"button.log-cal-day[aria-label='{mon}']").click()
         page.wait_for_url("**/#log", timeout=5000)
-        page.wait_for_selector(f"text=Edit {mon}", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=mon,
+            timeout=5000,
+        )
         assert page.locator("select").input_value() == "holiday"
 
     def test_ledger_deletes_logged_days_after_confirm(self, page, base_url):

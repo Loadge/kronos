@@ -131,7 +131,11 @@ class TestLogPanel:
             )
             assert r.status_code == 201
         _open_log_day(page, base_url, iso)
-        page.wait_for_selector("h2:has-text('Edit " + iso + "')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=iso,
+            timeout=5000,
+        )
         panel = page.locator("[data-testid='freelance-panel']")
         assert panel.is_visible()
         assert "add freelance" in page.locator(".fl-jump").inner_text()
@@ -197,7 +201,7 @@ class TestLogPanel:
         _source(base_url)
         saturday = (MONDAY + datetime.timedelta(days=5)).isoformat()
         _open_log_day(page, base_url, saturday)
-        page.wait_for_selector("h2:has-text('New entry')", timeout=5000)
+        page.wait_for_selector(".btn-action:has-text('Create entry')", timeout=5000)
         page.locator(".fl-submit").click()
         page.wait_for_selector(".fl-block", timeout=5000)
         with httpx.Client(base_url=base_url) as c:
@@ -448,11 +452,15 @@ class TestLogStrip:
         )
         # the Employee card is titled; the freelance panel needs a source
         assert "Employee" in page.locator(".log-form-card .card-title").inner_text()
-        # editing a day, then ←: the calendar stays in September
+        # editing a day, then a click on it: the calendar stays in September
         page.locator(f".log-cal-day[aria-label='{sep15}']").click()
-        page.wait_for_selector(f"h2:has-text('Edit {sep15}')", timeout=5000)
-        page.locator(".back-btn").click()
-        page.wait_for_selector("h2:has-text('New entry')", timeout=3000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=sep15,
+            timeout=5000,
+        )
+        page.locator(f".log-cal-day[aria-label='{sep15}']").click()
+        page.wait_for_selector(".btn-action:has-text('Create entry')", timeout=3000)
         assert "active" in (
             page.locator(".log-strip .plan-mini").nth(8).get_attribute("class") or ""
         )

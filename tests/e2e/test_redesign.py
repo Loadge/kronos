@@ -137,7 +137,11 @@ class TestDashboard:
         assert "hm-surplus" in (day.locator(".wd-bar").get_attribute("class") or "")
         day.click()
         page.wait_for_url("**/#log", timeout=3000)
-        page.wait_for_selector(f"h2:has-text('Edit {monday.isoformat()}')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=monday.isoformat(),
+            timeout=5000,
+        )
 
     def test_vacation_notches(self, page, base_url):
         today = datetime.date.today()
@@ -295,7 +299,11 @@ class TestDaysTable:
         # the whole row opens the day in Log
         page.locator(f"#day-row-{year}-03-03 td").nth(3).click()
         page.wait_for_url("**/#log", timeout=3000)
-        page.wait_for_selector(f"h2:has-text('Edit {year}-03-03')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=f"{year}-03-03",
+            timeout=5000,
+        )
 
     def test_search_keeps_notes_visible_and_highlights(self, page, base_url):
         year = datetime.date.today().year

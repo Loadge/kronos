@@ -140,7 +140,11 @@ class TestSaveAndDisplay:
             assert r.status_code == 201, r.text
         _open_log_tab(page, base_url)
         page.locator(f"[aria-label='{date_str}']").click()
-        page.wait_for_selector("text=Edit " + date_str, timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=date_str,
+            timeout=5000,
+        )
         assert page.locator("select").input_value() == "sick"
         assert page.locator("input[type='range']").input_value() == "2"
         assert "2h off" in page.locator(".leave-slider-value").inner_text()

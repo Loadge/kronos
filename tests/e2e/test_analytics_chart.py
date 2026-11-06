@@ -192,7 +192,11 @@ class TestYearAtAGlance:
         )
         cell.click()
         page.wait_for_url("**/#log", timeout=3000)
-        page.wait_for_selector(f"h2:has-text('Edit {date}')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=date,
+            timeout=5000,
+        )
 
     def test_empty_day_offers_to_log_it(self, page, base_url):
         _seed(base_url, [_work(f"{YEAR}-06-10", "19:00")])
@@ -204,7 +208,7 @@ class TestYearAtAGlance:
         assert "no entry" in tip.inner_text() and "log it" in tip.inner_text()
         cell.click()
         page.wait_for_url("**/#log", timeout=3000)
-        page.wait_for_selector("h2:has-text('New entry')", timeout=5000)
+        page.wait_for_selector(".btn-action:has-text('Create entry')", timeout=5000)
         assert (
             page.locator(".log-cal-day[aria-pressed='true']").get_attribute("aria-label")
             == f"{YEAR}-06-11"

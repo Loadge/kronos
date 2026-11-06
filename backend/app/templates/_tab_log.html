@@ -3,10 +3,7 @@
 <section aria-label="Log entry">
   <header class="page-head">
     <div class="page-head-title">
-      <template x-if="editingDate">
-        <a @click.prevent="openNewEntry({ keepMonth: true })" class="back-btn" title="New entry">←</a>
-      </template>
-      <h2>Log <span class="page-sub" x-text="editingDate ? ('· Edit ' + editingDate) : '· New entry'"></span></h2>
+      <h2>Log</h2>
     </div>
     <div class="page-head-controls log-header-controls">
       <template x-if="hasFreelance()">
@@ -42,7 +39,7 @@
 
     <!-- ── Col 1: sticky calendar + bulk trigger ────────────────── -->
     <div class="log-col-left">
-      <div class="log-cal" :class="editingDate ? 'log-cal--editing' : ''" :aria-label="calMonthLabel()">
+      <div class="log-cal" :aria-label="calMonthLabel()">
         <div class="log-cal-grid has-wk">
           <div class="log-cal-dow">Wk</div>
           <template x-for="h in ['Mo','Tu','We','Th','Fr','Sa','Su']" :key="h">
@@ -65,7 +62,7 @@
                         :class="[cell.cls, cell.isToday ? 'cal-today' : '', cell.isSelected ? 'cal-selected' : '', cell.padded ? 'log-cal-pad' : '', cell.fl ? 'has-fl' : '']"
                         :style="cell.style"
                         @click="calSelectDay(cell.date)"
-                        :disabled="cell.padded || !!editingDate"
+                        :disabled="cell.padded"
                         x-text="cell.padded ? '' : cell.day"
                         :aria-label="cell.padded ? null : cell.date"
                         :aria-pressed="cell.isSelected ? 'true' : 'false'">

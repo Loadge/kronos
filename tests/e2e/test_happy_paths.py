@@ -185,7 +185,11 @@ class TestEditEntryJourney:
         row.get_by_role("button", name="Edit").click()
 
         # Log tab now in edit mode for this date.
-        page.wait_for_selector(f"h2:has-text('Edit {EDIT_DATE}')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=EDIT_DATE,
+            timeout=5000,
+        )
         page.get_by_role("button", name="Delete").wait_for(timeout=5000)
 
         time_inputs = page.locator("input[type='time']")
@@ -218,7 +222,11 @@ class TestDeleteEntryJourney:
         page.wait_for_selector(f"#day-row-{DELETE_DATE}", timeout=5000)
 
         page.locator(f"#day-row-{DELETE_DATE}").get_by_role("button", name="Edit").click()
-        page.wait_for_selector(f"h2:has-text('Edit {DELETE_DATE}')", timeout=5000)
+        page.wait_for_function(
+            "d => Alpine.$data(document.querySelector('main')).editingDate === d",
+            arg=DELETE_DATE,
+            timeout=5000,
+        )
 
         # deleteEntry() calls the browser's native confirm() — accept it.
         page.once("dialog", lambda dialog: dialog.accept())

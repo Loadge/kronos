@@ -36,10 +36,25 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39, 40, 41, 42, 43 and 44 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39, 40, 41, 42, 43, 44 and 45 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 45 — Leaving a day in Log (built 2026-11-06, awaiting confirmation)
+
+**Why.** Miguel wanted to get out of editing a day by clicking on the calendar, without the ← button, and no
+longer needed to read "New entry" or "Edit 2026-11-06" next to the title.
+
+**Decisions.**
+- A click on the day being edited leaves it, as Escape does: the form goes back to a new entry for today and the
+  calendar stays on its month.
+- A click on another day leaves the edit and selects that day. A day with an entry opens for editing, an empty
+  day starts a fresh form, and a drafted day starts from its draft. Nothing of the day just left carries over.
+- Unsaved changes are discarded with no prompt. Miguel chose this, and ← and Escape already did it.
+- During an edit the other days are neither dimmed nor disabled.
+- The ← button and the subtitle are gone, so the title reads "Log". Escape keeps working.
+- When two days are clicked quickly, only the answer for the newest click counts.
 
 ### Phase 44 — The bezel (built 2026-11-06, awaiting confirmation)
 
