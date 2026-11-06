@@ -3325,7 +3325,7 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .save-ribbon .ribbon-action:hover { background: color-mix(in srgb, currentColor 15%, transparent); }
 
 /* ── Days · ⚡ Freelance: the source filter bar, the blocks table ── */
-.fbar { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1rem; margin-bottom: 1rem; animation: settings-swap 0.3s ease backwards; }
+.fbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, max-content); gap: 1rem; margin-bottom: 1rem; animation: settings-swap 0.3s ease backwards; }
 .frows { border: 1px solid var(--k-border); border-radius: 6px; background: var(--k-surface); padding: 0.3rem 0.9rem; }
 .frow,
 .frows label.frow:has([type="checkbox"]) {

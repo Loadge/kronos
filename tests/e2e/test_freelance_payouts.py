@@ -710,6 +710,32 @@ class TestWeekLine:
             assert width <= 600 or lines == 1, (text, lines)
         assert page.evaluate("document.documentElement.scrollWidth") <= width
 
+    @pytest.mark.parametrize("width", [1920, 1280, 1024, 768, 375])
+    def test_the_selected_card_holds_its_line(self, page, base_url, width):
+        """10 blocks · 22.5h · €142.55/h, as long as that line usually gets."""
+        usd = _source(base_url, "Northwind", 160, "USD")
+        for _ in range(10):
+            _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=2.25, fx_rate=1.1224)
+        page.set_viewport_size({"width": width, "height": 900})
+        _open_days_freelance(page, base_url)
+        card = page.evaluate(
+            """() => {
+              const box = document.querySelector("[data-testid='days-fl-total']");
+              const line = box.querySelector('.muted');
+              const r = document.createRange(); r.selectNodeContents(line);
+              const rects = [...r.getClientRects()].filter(x => x.width > 0);
+              return {
+                text: line.innerText,
+                spill: Math.max(...rects.map(x => x.right)) - box.getBoundingClientRect().right,
+                lines: new Set(rects.map(x => Math.round(x.top))).size,
+              };
+            }"""
+        )
+        assert card["text"].startswith("10 blocks"), card
+        assert card["spill"] <= -8, card
+        assert card["lines"] == 1, card
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+
     @pytest.mark.parametrize("width,split", [(1280, False), (1536, True)])
     def test_the_current_week_that_splits_stays_on_one_line(self, page, base_url, width, split):
         src = _source(base_url, "Local", 60)
