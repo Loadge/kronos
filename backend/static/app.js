@@ -327,6 +327,14 @@ function app() {
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
 
+      // The brass line under (or, on a phone, over) the active tab: placed at once when the page
+      // opens, on a resize and when the Freelance tab appears; slid when the tab changes. The new
+      // page fades in on a change only, never on load (the watcher is set after the first tab).
+      this.$watch('tab', () => this.$nextTick(() => { this._tabsInk(true); this._pageFx(); }));
+      this.$watch('sources.length', (n, was) => { if (n !== was) this.$nextTick(() => this._tabsInk(false)); });
+      window.addEventListener('resize', () => this._tabsInk(false));
+      this.$nextTick(() => this._tabsInk(false));
+
       window.addEventListener('hashchange', () => {
         const t = location.hash.replace('#', '');
         if (TABS.includes(t) && t !== this.tab) this.go(t);
@@ -453,6 +461,31 @@ function app() {
       else if (t === 'analytics') await this.loadAnalytics();
       else if (t === 'freelance') await this.loadFreelance();
       else if (t === 'settings') { await this.loadSettings(); this.loadHolidayData(); this.loadSettingsGroupData(); }
+    },
+
+    // Put the tabs' brass line under the active tab. `slide` is true only for a change of tab, and
+    // only once the line has been placed; the first placement, a resize and a new tab are instant.
+    _tabsInk(slide) {
+      const ink = document.querySelector('.tabs .tabs-ink');
+      if (!ink) return;
+      const on = document.querySelector('.tabs [role="tab"][aria-selected="true"]');
+      ink.classList.toggle('is-on', !!on); // Settings is open: no tab is active, the line fades out
+      if (!on) return;
+      const move = () => { // fractional: six columns of a phone are 53.3px wide
+        const nav = ink.parentElement.getBoundingClientRect(), r = on.getBoundingClientRect();
+        ink.style.setProperty('--ink-x', (r.left - nav.left + ink.parentElement.scrollLeft) + 'px');
+        ink.style.setProperty('--ink-w', r.width + 'px');
+      };
+      if (slide && ink.dataset.placed === '1') { move(); return; }
+      ink.style.transition = 'none';
+      move();
+      void ink.offsetWidth;
+      ink.style.transition = '';
+      ink.dataset.placed = '1';
+    },
+    // The page that just opened fades in over 160 ms, once.
+    _pageFx() {
+      this._bzFx(document.querySelector('main > section'), 'page-in', 200);
     },
 
     // Roving-tabindex arrow navigation for the tab list (E3)

@@ -22,9 +22,12 @@
        on the calendar below; the lit one is the calendar's title. -->
   <div class="plan-strip log-strip" role="tablist" aria-label="Months">
     <template x-for="m in yearStrip(calYear, calMonth)" :key="m.mo">
-      <button type="button" class="plan-mini" :class="m.active ? 'active' : ''"
+      <button type="button" class="plan-mini"
+              :class="[m.active ? 'active' : '', m.cells.some(c => !c.pad && !c.cls.includes('hm-empty')) ? 'has-data' : '']"
               role="tab" :aria-selected="m.active ? 'true' : 'false'"
               @click="calMonth = m.mo" :aria-label="m.label + ' ' + calYear">
+        <!-- on a phone the strip is one row of twelve letters; the title and the days are for wider screens -->
+        <span class="plan-mini-letter" aria-hidden="true" x-text="m.label.charAt(0)"></span>
         <span class="plan-mini-title" x-text="m.label"></span>
         <span class="plan-mini-grid">
           <template x-for="c in m.cells" :key="c.key">
@@ -71,6 +74,9 @@
             </div>
           </template>
         </div>
+        <details class="log-legend" x-data
+                 x-init="const wide = matchMedia('(min-width: 641px)'); const sync = () => { $el.open = wide.matches }; sync(); wide.addEventListener('change', sync)">
+        <summary>Legend</summary>
         <div class="heatmap-legend log-cal-legend">
           <span class="legend-item"><span class="hm-swatch hm-surplus"></span> Surplus</span>
           <span class="legend-item"><span class="hm-swatch hm-deficit"></span> Deficit</span>
@@ -84,9 +90,10 @@
           <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
           <template x-if="hasFreelance()"><span class="legend-item"><span class="hm-swatch hm-empty has-fl"></span> Freelance</span></template>
         </div>
+        </details>
       </div>
       <div class="bulk-trigger">
-        <button type="button" class="secondary outline" @click="openBulkModal()" @touchend.prevent="openBulkModal()">Log multiple days…</button>
+        <button type="button" class="head-btn" @click="openBulkModal()" @touchend.prevent="openBulkModal()">Log multiple days…</button>
       </div>
     </div>
 
@@ -262,7 +269,12 @@
                     </div>
                   </div>
                 </template>
-                <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
+                <div class="log-adders">
+                  <button type="button" class="secondary outline" @click="addBreak()">+ Add break</button>
+                  <!-- with times on the form the note opener sits beside Add break; without them it is below.
+                       Hidden, not removed: openNotes() looks for the textarea from this button's scope. -->
+                  <button type="button" class="secondary outline" x-show="!notesShown()" @click="openNotes()">+ Add note</button>
+                </div>
               </fieldset>
             </div>
           </template>
@@ -271,8 +283,9 @@
                The textarea is always in the DOM and only shown with x-show; a day that has
                notes is always open. -->
           <div class="log-notes">
-            <button type="button" class="secondary outline"
-                    x-show="!notesShown()" @click="openNotes()">+ Add note</button>
+            <template x-if="!formHasTimes()">
+              <button type="button" class="secondary outline" x-show="!notesShown()" @click="openNotes()">+ Add note</button>
+            </template>
             <div class="log-notes-block" x-show="notesShown()">
               <div class="log-notes-inner">
                 <div class="notes-header">
@@ -303,6 +316,13 @@
                 </button>
               </div>
             </details>
+          </template>
+
+          <!-- Delete belongs to the form: the rail beside it (the dock on a phone) only saves -->
+          <template x-if="editingDate">
+            <div class="log-delete">
+              <button type="button" class="contrast outline" @click="deleteEntry(editingDate)">Delete</button>
+            </div>
           </template>
 
         </div><!-- /log-col-center -->
@@ -337,10 +357,6 @@
           <div class="form-footer">
             <button type="submit" class="btn-action btn-action--block"
                     x-text="editingDate ? 'Save changes' : 'Create entry'"></button>
-            <template x-if="editingDate">
-              <button type="button" class="contrast outline"
-                      @click="deleteEntry(editingDate)">Delete</button>
-            </template>
           </div>
         </div><!-- /log-col-rail -->
 

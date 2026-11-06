@@ -17,7 +17,8 @@ a component.
 - Numbers (hours, money, dates in tables) use the `.metric` class: monospace with tabular figures.
 - Brass is the one accent: the main action, the current thing, a hover. Paid-out freelance money has
   its own teal (`--paid`) and is never brass.
-- Weak information is muted, not smaller than 0.68rem.
+- Weak information is muted, not smaller than 0.68rem. The labels of the phone's tab bar are the one
+  exception, at 0.6rem: six of them have to fit a 320px screen, and each sits under its icon.
 
 ## Patterns to reuse
 
@@ -51,6 +52,6 @@ small second hand of the year dial, which ticks because it is a clock, and only 
 
 ## Version label and updates
 
-The faint "v47" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v48" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

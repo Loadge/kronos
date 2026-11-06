@@ -182,7 +182,7 @@ class TestVersionLabel:
     def test_the_header_shows_a_faint_version_next_to_the_title(self, page, base_url):
         _open(page, base_url, "dashboard")
         label = page.locator(".app-header .brand-ver")
-        assert label.inner_text() == "v47"
+        assert label.inner_text() == "v48"
         title = page.locator(".app-header h1")
         a, b = title.bounding_box(), label.bounding_box()
         assert b["x"] >= a["x"] + a["width"] - 1  # to the right of the title

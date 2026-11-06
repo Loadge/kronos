@@ -222,8 +222,9 @@ class TestNotesCollapse:
 
     def test_collapsing_on_the_way_to_the_button_does_not_lose_the_click(self, page, base_url):
         # narrow layout: the Create button sits below the notes, so a collapse on blur would
-        # move it away from under the pointer
-        _open_log(page, base_url, width=600, height=900)
+        # move it away from under the pointer (700px: up to 640px the button is the phone's dock,
+        # which steps aside while the notes have focus)
+        _open_log(page, base_url, width=700, height=900)
         _add_note_button(page).click()
         _notes(page).wait_for(state="visible", timeout=3000)
         page.locator("button.btn-action--block").click()

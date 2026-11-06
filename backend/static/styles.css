@@ -144,16 +144,18 @@ h1, h2, h3, h4 {
 .brand h1 { margin: 0; line-height: 1; }
 
 /* ================================================================
-   TABS — underline-only, active = 2px brass underline + small-caps
+   TABS — small-caps labels; one brass line (.tabs-ink) marks the active tab and slides
+   between them. Up to 640px the bar is fixed to the bottom of the screen (see "Phone chrome").
    ================================================================ */
 
 .tabs {
   grid-area: tabs;
+  position: relative; /* the ink's anchor */
   display: flex;
   flex-wrap: nowrap;
   gap: 0;
-  border-bottom: 1px solid var(--k-border);
-  padding-bottom: 0.25rem;
+  box-shadow: inset 0 -1px 0 var(--k-border);
+  padding-bottom: 0;
   margin-bottom: 0;
   /* Seven tabs barely fit a 375px phone (Segoe UI is wider than Linux fonts): on a narrower
      screen the bar scrolls by itself instead of making the whole page scroll sideways. */
@@ -164,11 +166,10 @@ h1, h2, h3, h4 {
 .tabs a {
   flex: 1;
   text-align: center;
-  padding: 0.4rem 0.15rem;
+  padding: 0.4rem 0.15rem calc(0.4rem + 2px); /* the room the line takes */
   font-size: 0.8rem;
   border-radius: 0;
   border: none;
-  border-bottom: 2px solid transparent;
   color: var(--k-muted);
   font-variant: small-caps;
   letter-spacing: 0.05em;
@@ -180,23 +181,49 @@ h1, h2, h3, h4 {
      Windows paints as a blinking text caret. Labels are not text to select. */
   user-select: none;
   caret-color: transparent;
-  transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
+  transition: color var(--k-transition-fast), transform 0.12s ease-out;
 }
 
 .tabs a:hover {
   color: var(--k-text);
-  border-bottom-color: var(--k-border-strong);
   background: transparent;
 }
+.tabs a:active { transform: scale(0.96); }
 
 .tabs a[aria-selected="true"] {
   color: var(--k-brass);
-  border-bottom-color: var(--k-brass);
   background: transparent;
 }
 
 /* The first letter of a tab that has a shortcut is its key: P · L · D · A. */
 .tabs a .tab-key { color: var(--k-brass); }
+
+/* The line sits under the active tab (over it on a phone). app.js (_tabsInk) sets --ink-x and --ink-w;
+   with no active tab (Settings) it fades out. */
+.tabs-ink {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--ink-w, 0px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--k-brass);
+  transform: translateX(var(--ink-x, 0px));
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+              width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.2s ease;
+}
+.tabs-ink.is-on { opacity: 1; }
+
+/* The line icons are for the phone's bar only */
+.tab-ic { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tabs-ink { transition: none; }
+  .tabs a, .tab-ic { transition: none !important; }
+  .tabs a:active { transform: none; }
+}
 
 /* Desktop: single flex row — brand left, tabs+toggle right */
 @media (min-width: 720px) {
@@ -212,14 +239,13 @@ h1, h2, h3, h4 {
   .brand { margin-right: auto; }
   .tabs {
     flex-wrap: wrap;
-    border-bottom: none;
-    padding-bottom: 0;
+    box-shadow: none;
     gap: 0.25rem;
   }
   .tabs a {
     flex: none;
     text-align: left;
-    padding: 0.4rem 0.85rem;
+    padding: 0.4rem 0.85rem calc(0.4rem + 2px);
     font-size: inherit;
   }
   .header-controls { grid-area: unset; }
@@ -802,10 +828,15 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 }
 
 .palette {
+  --row-h: 2.6rem;
+  display: flex;
+  flex-direction: column;
   background: var(--k-surface);
   border: 1px solid var(--k-border-strong);
   border-radius: 0.5rem;
   width: min(520px, 90vw);
+  /* never taller than what is left of the visible screen under the backdrop's top padding */
+  max-height: calc(100dvh - 14vh - 1rem);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
@@ -817,23 +848,46 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
   border-bottom: 1px solid var(--k-border) !important;
   border-radius: 0 !important;
   padding: 0.85rem 1rem !important;
+  margin: 0; /* Pico's input margin left a blank band under the field */
+  flex: none;
   font-size: 1rem;
   background: transparent !important;
 }
 
+/* The list scrolls inside the panel. Its rows have one height, so the brass tick on the selected
+   row's left edge can be placed from the row's index alone (--sel) and slide from row to row. */
 .palette ul {
+  position: relative;
   list-style: none;
   margin: 0;
-  padding: 0.35rem 0;
-  max-height: 300px;
+  padding: 0.25rem 0;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.palette ul::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.25rem;
+  width: 3px;
+  height: var(--row-h);
+  border-radius: 0 3px 3px 0;
+  background: var(--k-brass);
+  transform: translateY(calc(var(--sel, 0) * var(--row-h)));
+  opacity: clamp(0, var(--n, 0), 1);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .palette li {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.6rem 1rem;
+  box-sizing: border-box;
+  height: var(--row-h);
+  margin: 0;
+  padding: 0 1rem;
   cursor: pointer;
   font-size: 0.9rem;
   color: var(--k-text);
@@ -864,6 +918,9 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
   cursor: default;
 }
 .palette-empty:hover { background: transparent !important; }
+@media (prefers-reduced-motion: reduce) {
+  .palette ul::before { transition: none; }
+}
 
 /* ================================================================
    CHARTS
@@ -1216,6 +1273,16 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 }
 /* the Add break fieldset already leaves a gap below its button */
 .log-times + .log-notes { margin-top: -1.25rem; }
+/* + Add break and + Add note: one above the other on a phone, side by side from 641px */
+.log-adders { display: flex; flex-direction: column; gap: 0.5rem; }
+.log-adders > button { margin: 0; }
+@media (min-width: 641px) {
+  .log-adders { flex-direction: row; flex-wrap: wrap; }
+  .log-adders > button { width: auto; }
+}
+.log-delete { margin-top: 1rem; }
+.log-delete button { width: auto; margin: 0; }
+.plan-mini-letter { display: none; }
 
 /* the bar under the figures only exists in the rail */
 .impact-bar { display: none; }
@@ -1711,6 +1778,9 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
   margin-top: 0.6rem;
   margin-bottom: 0;
 }
+/* The legend is a <details> only on a phone; from 641px it is open and has no summary */
+.log-legend > summary { display: none; }
+.log-legend { margin: 0; }
 
 /* ── End log calendar ──────────────────────────────────────────────────────── */
 
@@ -4632,4 +4702,180 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   .yd { animation: none; }
   .yd-index.tick { animation: none; }
   .yd-sec, .yd-crown-art, .yd-btn, .brand-btn .brand-logo { transition: none; }
+}
+
+/* ================================================================
+   PAGE CHANGE — the page that just opened fades in once (app.js, _pageFx). Opacity only: a
+   transform here would make the fixed dock and bar below it position against the page.
+   ================================================================ */
+
+.page-in { animation: page-in 160ms ease-out both; }
+@keyframes page-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .page-in { animation: none; } }
+
+/* ================================================================
+   PHONE CHROME — up to 640px Kronos is held in one hand: the tabs are a bar fixed to the bottom
+   of the screen, and in Log the day's result and its main button are a dock just above it.
+   Both go away while a text field has focus (the phone's keyboard is up) and come back on blur.
+   ================================================================ */
+
+@media (max-width: 640px) {
+  :root {
+    --bar-h: calc(57px + env(safe-area-inset-bottom, 0px)); /* 56px of tab and the hairline */
+    --dock-h: 3.75rem;
+  }
+
+  /* the header keeps the logo, the name and its two buttons */
+  .app-header { grid-template-areas: "brand toggle"; row-gap: 0; }
+
+  /* nothing hides under the bar (or the dock) */
+  body > main.container { padding-bottom: calc(var(--bar-h) + 1.5rem); }
+  body > main.container:has(.log-col-rail) { padding-bottom: calc(var(--bar-h) + var(--dock-h) + 1.5rem); }
+
+  .tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 8; /* under the day ribbon's floating tag (9), the toast and every overlay */
+    height: var(--bar-h);
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+    background: var(--k-surface);
+    border-top: 1px solid var(--k-border);
+    box-shadow: none;
+    overflow: visible;
+    transition: transform 0.22s ease, opacity 0.22s ease, visibility 0s;
+  }
+  .tabs a {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 0;
+    padding: 6px 1px 4px;
+    font-size: 0.6rem; /* "Dashboard" is 49px wide here: one of six columns at 320px is 53px */
+    letter-spacing: 0;
+    line-height: 1.1;
+  }
+  .tab-label { white-space: nowrap; }
+  .tabs a .tab-key { color: inherit; } /* the shortcut letters are for a keyboard */
+  .tab-ic {
+    display: block;
+    flex: none;
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .tabs a[aria-selected="true"] .tab-ic { transform: translateY(-1px) scale(1.1); }
+  .tabs a:active .tab-ic { transform: scale(0.85); }
+  .tabs-ink {
+    bottom: auto;
+    top: -1px;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--k-brass) 45%, transparent);
+  }
+
+  /* the toast rides above the bar (and the dock) */
+  .save-ribbon-host { bottom: calc(var(--bar-h) + 0.75rem); }
+  body > main.container:has(.log-col-rail) .save-ribbon-host { bottom: calc(var(--bar-h) + var(--dock-h) + 0.75rem); }
+
+  /* Log: the rail becomes the dock. One button, the form's own submit; Delete stays in the form. */
+  .log-col-rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--bar-h);
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-sizing: border-box;
+    min-height: var(--dock-h);
+    padding: 0.5rem 1rem;
+    background: var(--k-surface);
+    border-top: 1px solid var(--k-border);
+    transition: transform 0.22s ease, opacity 0.22s ease, visibility 0s;
+  }
+  .log-col-rail .impact-card {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 1.25rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .log-col-rail .impact-cell:nth-child(2) { display: none; } /* the target: the delta says it */
+  .log-col-rail .form-footer { flex: none; margin: 0 0 0 auto; padding: 0; }
+  .log-col-rail .form-footer .btn-action {
+    width: auto;
+    min-height: 2.75rem;
+    padding: 0 1.1rem;
+    white-space: nowrap;
+  }
+
+  /* the keyboard is up: the bar and the dock step aside. Not for a time or date field: those open the
+     phone's own picker, and stay focused after it closes, which would keep Create entry out of reach. */
+  body:has(:is(input:is(:not([type]), [type=text], [type=number], [type=search], [type=email], [type=tel], [type=url], [type=password]), textarea):focus) :is(.tabs, .log-col-rail) {
+    transform: translateY(100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 0.22s ease, opacity 0.22s ease, visibility 0s linear 0.22s;
+  }
+
+  /* Log: twelve letters in one row instead of twelve mini months */
+  .plan-strip.log-strip {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 0;
+    padding: 0.25rem 0;
+    border-inline: 0;
+    overflow: visible;
+  }
+  .log-strip .plan-mini {
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0;
+  }
+  .log-strip .plan-mini-grid, .log-strip .plan-mini-title { display: none; }
+  .log-strip .plan-mini-letter {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--k-muted);
+  }
+  .log-strip .plan-mini.has-data .plan-mini-letter { color: var(--k-text); }
+  .log-strip .plan-mini.active .plan-mini-letter { color: var(--k-brass); }
+
+  /* Log: the calendar's legend folds */
+  .log-legend > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2rem;
+    margin-top: 0.4rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.85rem;
+    font-variant: small-caps;
+    letter-spacing: 0.04em;
+  }
+  /* Pico turns an open or focused summary blue */
+  .log-legend > summary, .log-legend > summary:focus:not([role=button]), .log-legend[open] > summary { color: var(--k-brass); }
+  .log-legend > summary::-webkit-details-marker { display: none; }
+  .log-legend > summary::after { content: none; } /* Pico's chevron */
+  .log-legend > summary::before { content: "▸"; }
+  .log-legend[open] > summary::before { content: "▾"; }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .tabs, .log-col-rail { transition: none; }
 }

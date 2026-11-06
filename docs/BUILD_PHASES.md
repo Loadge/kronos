@@ -45,10 +45,31 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 45 confirmed and archived; 46 and 47 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 46, 47 and 48 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 48 — Kronos in the hand (built 2026-11-06, awaiting confirmation)
+
+**Why.** An independent review of every page found the phone's Create entry 1,800px down the page, tabs too
+small to tap, and the palette cut at the bottom. Miguel left the UI pass to the Advisor.
+
+**Decisions.**
+- Up to 640px the tabs are a bar fixed to the bottom of the screen, with a hand-drawn icon over each label.
+- In Log on a phone the rail becomes a dock above that bar: net, delta and the form's own submit button. It is
+  the same button at every width, so Delete moved to the end of the form, also on a desktop.
+- The bar and the dock step aside while the keyboard is up. They stay for a time or date field, because those
+  open the phone's own picker and keep the focus after it closes.
+- In Log on a phone the twelve mini months are twelve letters, and the legend folds. That saves about 400px.
+- One brass line marks the active tab at every width and slides between tabs with a spring.
+- A page fades in over 160ms when the tab changes, never on load.
+- The palette lost its empty key chips and the blank band, scrolls inside the screen, and a brass tick slides
+  between its rows.
+- "+ Add break" and "+ Add note" sit side by side from 641px, and "Log multiple days…" is a small button.
+
+**Known limits.** Not tried on a real iPhone: the safe area and the keyboard are from the rules, not from a
+device. A phone user has to tap away from a text field to reach Create entry.
 
 ### Phase 47 — The year dial (built 2026-11-06, awaiting confirmation)
 

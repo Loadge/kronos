@@ -18,8 +18,9 @@ TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"
 
 # Controls whose text must sit in the middle of the box and on a single line.
 CENTRED = ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, .bz-btn"
+# A tab is an icon over a label on a phone: it is the label that has to stay on one line
 ONE_LINE = (
-    ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, "
+    ".head-btn, .btn-action, .seg-toggle button, .year-all, .tab-label, "
     ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range, "
     ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma, "
     ".bz-count, .dr-tick b, .dr-tag-big"
