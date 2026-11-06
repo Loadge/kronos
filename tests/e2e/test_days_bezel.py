@@ -601,13 +601,25 @@ class TestTheChip:
         # on load: nothing is animating and no delay is set
         assert _state(page, "daysWave") == {}
         assert page.locator("tbody.row-in").count() == 0
-        page.get_by_test_id("wk-expand-all").click()
-        wave = _state(page, "daysWave")
+        # the press and the reading in one turn: all of this is gone in about a second, and a
+        # slow runner can take that long between two calls
+        seen = page.evaluate(
+            """async () => {
+              document.querySelector("[data-testid='wk-expand-all']").click();
+              await new Promise(done => Alpine.nextTick(done));
+              return {
+                wave: { ...Alpine.$data(document.querySelector('main')).daysWave },
+                rows: document.querySelectorAll('tbody.row-in').length,
+                glint: document.querySelectorAll('.bz-chip.bz-glint').length,
+              };
+            }"""
+        )
+        wave = seen["wave"]
         assert len(wave) == 25  # every week that was closed
         assert min(wave.values()) == 0 and max(wave.values()) <= 380
         assert list(wave.values()) == sorted(wave.values())  # left to right
-        assert page.locator("tbody.row-in").count() > 0
-        assert page.locator(".bz-chip.bz-glint").count() == 1
+        assert seen["rows"] > 0
+        assert seen["glint"] == 1
         page.wait_for_timeout(1700)
         assert _state(page, "daysWave") == {}
         assert page.locator("tbody.row-in").count() == 0
