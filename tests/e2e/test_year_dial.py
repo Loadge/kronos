@@ -52,7 +52,16 @@ def _wipe(base_url: str) -> None:
 def _clean(base_url):
     _wipe(base_url)
     with httpx.Client(base_url=base_url) as c:
-        c.put("/api/config", json={"daily_target_hours": 8, "vacation_budget_days": 0})
+        # the balance follows these two: another module of this worker may have left them moved
+        c.put(
+            "/api/config",
+            json={
+                "daily_target_hours": 8,
+                "vacation_budget_days": 0,
+                "cumulative_start_date": "2025-01-01",
+                "reset_annually": False,
+            },
+        )
     yield
     _wipe(base_url)
 
@@ -274,6 +283,27 @@ def _drag(page, a0: float, a1: float, *, steps: int = 30, gap: int = 8, hold: in
     if hold:
         page.wait_for_timeout(hold)
     page.mouse.up()
+
+
+def _flick(page, a0: float, a1: float, *, steps: int = 20) -> None:
+    """The same hand, let go while moving. It runs inside the page: on a slow runner the time
+    between two calls from here is longer than the pause that tells a flick from a held drag."""
+    g = _geometry(page)
+    points = [_at(g, a0 + (a1 - a0) * k / steps) for k in range(steps + 1)]
+    page.evaluate(
+        """async (points) => {
+          const stage = document.querySelector('[data-yd=stage]');
+          const fire = (type, [clientX, clientY]) => stage.dispatchEvent(new PointerEvent(type, {
+            bubbles: true, pointerId: 7, pointerType: 'mouse', button: 0, clientX, clientY }));
+          fire('pointerdown', points[0]);
+          for (const at of points.slice(1)) {
+            await new Promise(done => setTimeout(done, 8));
+            fire('pointermove', at);
+          }
+          fire('pointerup', points[points.length - 1]);
+        }""",
+        points,
+    )
 
 
 def _segments(page, selector: str) -> list[tuple[int, int]]:
@@ -624,7 +654,7 @@ def test_a_flick_goes_on_with_friction_and_a_held_drag_does_not(page, base_url):
     _open_dial(page)
     _wait_day(page, TODAY)
     _settle(page)
-    _drag(page, 0, 40, steps=20, gap=8, hold=0)
+    _flick(page, 0, 40)
     _settle(page)
     assert _back(page) > 46, _day(page)  # 40 degrees are 41 days; the rest is the ring coasting
     assert abs(_steps(page) - round(_steps(page))) < 0.01
