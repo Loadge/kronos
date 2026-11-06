@@ -222,7 +222,7 @@ function app() {
     SETTINGS_GROUPS: [
       { id: 'employee',  label: 'Employee',  mark: '👔' },
       { id: 'freelance', label: 'Freelance', mark: '⚡' },
-      { id: 'general',   label: 'General' },
+      { id: 'general',   label: 'General',   mark: '🧰' },
     ],
     SETTINGS_SECTIONS: [
       { id: 'work',       group: 'employee',  label: 'Work',       fields: ['daily_target_hours', 'default_start_time', 'default_end_time', 'work_week_days', 'cumulative_start_date', 'reset_annually'] },
@@ -264,6 +264,7 @@ function app() {
     taxYear: new Date().getFullYear(),
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
     _taxSaved: null,
+    calcEdit: null, calcDraft: '',   // the calculator field being typed in, and its text as typed
     calc: { mode: 'hourly', hourly: 60, daily: '', net: '', currency: 'EUR', fx_rate: '', fx_source: 'ECB', billable_days: 220, billable_mode: 'default', hours_per_day: 8, salary_annual: 0, gestoria_annual: 0, other_expenses: 0, tarifa_plana: false, inicio_actividad: false, result: null, busy: false, _seq: 0 },
 
     // ---------- public holidays ------------------------------------------
@@ -698,6 +699,58 @@ function app() {
     },
     planYearDrafts() {
       return this.plans.filter(p => p.date.startsWith(String(this.planYear)));
+    },
+
+    // ── the three drawings on the Plan cards: only the figures already on each card ──
+    // Balance: a line from today's balance to the year-end one (a faint one for the other assumption)
+    planSpark() {
+      const p = this.projection;
+      if (!p) return null;
+      const now = p.balance_today, end = this.planYearEndBalance();
+      const alt = this.planMode === 'at_pace' ? p.on_target : p.at_pace;
+      const vals = [now, end, alt, 0];
+      const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
+      const X0 = 3, X1 = 97, Y0 = 3, Y1 = 21;          // padding inside the 100 x 24 box
+      const y = v => +(Y1 - ((v - lo) / span) * (Y1 - Y0)).toFixed(2);
+      const pct = v => +((y(v) / 24) * 100).toFixed(2);
+      return {
+        line: `M${X0} ${y(now)} L${X1} ${y(end)}`,
+        alt: `M${X0} ${y(now)} L${X1} ${y(alt)}`,
+        zero: y(0),
+        nowLeft: X0, nowTop: pct(now),
+        endLeft: X1, endTop: pct(end),
+        label: `Balance from ${this.formatSurplus(now)} today to ${this.formatSurplus(end)} on Dec 31`,
+      };
+    },
+    // Vacation: one pip per budget day (per used or drafted day without a budget), lit when used
+    planVacationPips() {
+      const p = this.projection;
+      if (!p) return [];
+      const used = p.vacation_used_days, drafted = p.vacation_drafted_days;
+      const budget = p.vacation_budget_days > 0 ? p.vacation_budget_days : 0;
+      const total = Math.min(60, Math.max(Math.ceil(budget), Math.ceil(used + drafted)));
+      const out = [];
+      for (let i = 0; i < total; i++) {
+        const usedShare = Math.min(1, Math.max(0, used - i));
+        const draftShare = Math.min(1, Math.max(0, used + drafted - i));
+        let cls = '';
+        if (usedShare >= 1) cls = 'on';
+        else if (usedShare > 0) cls = 'on half';
+        else if (draftShare >= 1) cls = 'draft';
+        else if (draftShare > 0) cls = 'draft half';
+        if (budget && i >= budget) cls += ' over';
+        out.push({ k: i, cls });
+      }
+      return out;
+    },
+    // Drafted: one pip per drafted day after today, in the colour of its type
+    planDraftPips() {
+      const p = this.projection;
+      if (!p) return [];
+      return this.plans
+        .filter(d => !d.exists && d.date > p.today && d.date.startsWith(String(this.planYear)))
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map(d => ({ k: d.date, cls: d.day_type + (d.fraction < 1 ? ' half' : ''), title: `${d.date} · ${d.day_type}` }));
     },
 
     // ── year strip: twelve mini months, click one to work on it (Plan and Log) ──
@@ -3675,6 +3728,24 @@ function app() {
       }, { threshold: 0 });
       this._anPinObserver.observe(glance);
     },
+    // Where a year does not fit (a phone), the heatmap opens on today's month, and its right edge
+    // fades while there is more to see. The cells render a moment after the box, so it tries again.
+    anHeatmapStart(el) {
+      let tries = 0;
+      const place = () => {
+        const today = el.querySelector('.hm-today');
+        if (!today) { if (tries++ < 10) setTimeout(place, 60); return; }
+        if (el.scrollWidth > el.clientWidth + 1) {
+          const left = today.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+          el.scrollLeft = Math.max(0, left - (el.clientWidth - today.offsetWidth) / 2);
+        }
+        this.anHeatmapFade(el);
+      };
+      this.$nextTick(place);
+    },
+    anHeatmapFade(el) {
+      el.classList.toggle('more-r', el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    },
     // The year of the heatmap, one step at a time (any year; an empty one shows empty).
     anStepYear(d) { this.analyticsYear = String(Number(this.analyticsYear) + d); },
     anUnstick() { window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); },
@@ -3962,6 +4033,14 @@ function app() {
         if (section) document.getElementById('settings-' + section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         else window.scrollTo({ top: 0, behavior: 'smooth' });
       });
+    },
+    // The brass tick beside the open group's links: it slides to the current link (like the tab bar's
+    // ink and the bezel's lit tick). The links' own boxes are measured, so it follows any wrap.
+    settingsTick(box) {
+      const link = box.querySelector('a.active');
+      if (!link || box.offsetParent === null) { box.style.setProperty('--tick-h', '0px'); return; }
+      box.style.setProperty('--tick-y', link.offsetTop + 'px');
+      box.style.setProperty('--tick-h', link.offsetHeight + 'px');
     },
     settingsSections(group = this.settingsGroup) { return this.SETTINGS_SECTIONS.filter(s => s.group === group); },
     settingsGroupLabel() { return this.SETTINGS_GROUPS.find(g => g.id === this.settingsGroup)?.label || ''; },
@@ -4848,6 +4927,32 @@ function app() {
       this.calcRun(this.calc.mode, true);
     },
     calcFxTyped() { this.calc.fx_source = 'typed by hand'; this.calcRun(this.calc.mode); },
+    // The money fields show the same grouping as the results ("28.960,03") until one gets focus, and
+    // then the number as typed. They take "28960,03", "28960.03" and "28.960,03" alike, and a dot
+    // before exactly three digits is a thousands mark: "55.000" is fifty-five thousand.
+    calcShow(key) {
+      if (this.calcEdit === key) return this.calcDraft;
+      const v = this.calc[key];
+      if (v === '' || v === null || v === undefined || isNaN(Number(v))) return '';
+      return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: 'always' }).format(Number(v));
+    },
+    calcFocus(key, el) {
+      const v = this.calc[key];
+      this.calcDraft = (v === '' || v === null || v === undefined || isNaN(Number(v))) ? '' : String(Number(v)).replace('.', ',');
+      this.calcEdit = key;
+      // swap the grouped text for the plain number right now (not on Alpine's next paint), and
+      // select it, so typing replaces it as it did in a number field
+      if (el) { el.value = this.calcDraft; el.select(); }
+    },
+    calcBlur() { this.calcEdit = null; },
+    calcTyped(key, text, mode) {
+      this.calcDraft = text;
+      const t = text.trim().replace(/\s/g, '');
+      const n = t.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t;
+      if (n === '') this.calc[key] = '';
+      else if (!isNaN(Number(n))) this.calc[key] = Number(n);
+      this.calcRun(mode || this.calc.mode);
+    },
     // One of the three fields changed: it drives the other two. Debounced; the last answer
     // wins even if an earlier request lands later.
     calcRun(mode, now = false) {

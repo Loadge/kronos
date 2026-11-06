@@ -151,8 +151,10 @@ class TestOnePrimaryButton:
         assert _style(submit, "fontWeight") == "700"
         assert _style(submit, "width") != _style(add_block, "width")  # block vs. auto
         log_bg = _style(submit, "backgroundColor")
-        # Add block keeps the coin gold, the same warm family as the brass
-        assert abs(_hue(_rgb(log_bg)) - _hue(_rgb(_style(add_block, "backgroundColor")))) < 15
+        # Add block is a brass outline (one filled primary per view): same family, no fill
+        assert _style(add_block, "backgroundColor") == "rgba(0, 0, 0, 0)"
+        assert _style(add_block, "borderTopColor") == _style(add_block, "color")
+        assert abs(_hue(_rgb(log_bg)) - _hue(_rgb(_style(add_block, "color")))) < 15
 
         # Days: the PDF modal's submit is the same brass
         page.goto(f"{base_url}/#days")

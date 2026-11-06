@@ -52,6 +52,6 @@ small second hand of the year dial, which ticks because it is a clock, and only 
 
 ## Version label and updates
 
-The faint "v48" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v49" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

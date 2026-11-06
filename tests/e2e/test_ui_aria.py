@@ -51,7 +51,7 @@ HEADS = {
     "log": """
 - /children: equal
 - heading /Log/ [level=2]
-- button /add freelance/
+- button /Add freelance/
 """
     + YEAR.format(name="Log"),
     "days": """

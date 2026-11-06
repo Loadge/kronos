@@ -96,6 +96,9 @@ class TestDrafting:
         _open_plan(page, base_url, mon)
         page.locator(".plan-type.flex").click()
         page.locator(".plan-note").fill("conference")
+        # the brush (type, note) sits beside the calendar now, so filling it no longer scrolls the
+        # days into view: the mouse needs them on screen
+        page.locator(f"button.log-cal-day[aria-label='{wed}']").scroll_into_view_if_needed()
         a = page.locator(f"button.log-cal-day[aria-label='{mon}']").bounding_box()
         c = page.locator(f"button.log-cal-day[aria-label='{wed}']").bounding_box()
         page.mouse.move(a["x"] + 10, a["y"] + 10)

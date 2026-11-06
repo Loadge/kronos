@@ -77,6 +77,51 @@
   --pico-range-thumb-color:             var(--k-brass);
   --pico-range-thumb-active-color:      var(--k-brass);
   --pico-range-thumb-border-color:      var(--k-bg);
+
+  /* Pico's secondary, its link states and its blue accents all map onto the palette once, here,
+     so no blue-grey is left on any page (tests/e2e/test_page_pass.py checks it with computed
+     colours). Secondary is the muted warm grey, its hover is the text colour; links and the
+     primary hover go to brass. */
+  --pico-primary-background:            var(--k-brass);
+  --pico-primary-border:                var(--k-brass);
+  --pico-primary-underline:             color-mix(in srgb, var(--k-brass) 50%, transparent);
+  --pico-primary-hover:                 color-mix(in srgb, var(--k-brass) 70%, #fff);
+  --pico-primary-hover-background:      color-mix(in srgb, var(--k-brass) 85%, #fff);
+  --pico-primary-hover-border:          color-mix(in srgb, var(--k-brass) 85%, #fff);
+  --pico-primary-hover-underline:       color-mix(in srgb, var(--k-brass) 70%, #fff);
+  --pico-secondary:                     var(--k-muted);
+  --pico-secondary-background:          var(--k-border-strong);
+  --pico-secondary-border:              var(--k-border-strong);
+  --pico-secondary-underline:           color-mix(in srgb, var(--k-muted) 50%, transparent);
+  --pico-secondary-hover:               var(--k-text);
+  --pico-secondary-hover-background:    color-mix(in srgb, var(--k-border-strong) 70%, var(--k-text));
+  --pico-secondary-hover-border:        color-mix(in srgb, var(--k-border-strong) 70%, var(--k-text));
+  --pico-secondary-hover-underline:     var(--k-text);
+  --pico-secondary-focus:               color-mix(in srgb, var(--k-muted) 25%, transparent);
+  --pico-secondary-inverse:             var(--k-bg);
+  --pico-contrast:                      var(--k-text);
+  --pico-contrast-underline:            color-mix(in srgb, var(--k-text) 50%, transparent);
+  --pico-contrast-focus:                color-mix(in srgb, var(--k-text) 25%, transparent);
+  --pico-text-selection-color:          color-mix(in srgb, var(--k-brass) 25%, transparent);
+  --pico-h3-color:                      var(--k-text);
+  --pico-h4-color:                      var(--k-text);
+  --pico-h5-color:                      var(--k-muted);
+  --pico-h6-color:                      var(--k-muted);
+  --pico-mark-background-color:         color-mix(in srgb, var(--k-brass) 30%, var(--k-bg));
+  --pico-mark-color:                    var(--k-text);
+  --pico-code-background-color:         color-mix(in srgb, var(--k-border) 40%, var(--k-bg));
+  --pico-code-color:                    var(--k-muted);
+  --pico-form-element-selected-background-color: color-mix(in srgb, var(--k-border) 60%, var(--k-bg));
+  --pico-form-element-active-background-color:   transparent;
+  --pico-form-element-active-border-color:       var(--k-brass);
+  --pico-switch-background-color:       var(--k-border-strong);
+  --pico-switch-checked-background-color: var(--k-brass);
+  --pico-accordion-active-summary-color: var(--k-brass);
+  --pico-dropdown-background-color:     var(--k-surface);
+  --pico-dropdown-border-color:         var(--k-border);
+  --pico-dropdown-hover-background-color: color-mix(in srgb, var(--k-border) 60%, var(--k-surface));
+  --pico-progress-background-color:     var(--k-border);
+  --pico-progress-color:                var(--k-brass);
 }
 
 /* ================================================================
@@ -518,12 +563,14 @@ textarea:focus {
 .day-pill.holiday {
   background: color-mix(in srgb, var(--k-holiday) 18%, transparent);
   border: 1px solid var(--k-holiday);
-  color: var(--k-holiday);
+  /* the holiday blue-grey is too dark to read as text on the page: lift it toward the text colour */
+  color: color-mix(in srgb, var(--k-holiday) 60%, var(--k-text));
 }
 .day-pill.flex {
   background: color-mix(in srgb, var(--k-flex) 18%, transparent);
   border: 1px solid var(--k-flex);
-  color: var(--k-flex);
+  /* the flex violet on its own tint falls just under 4.5:1: a touch toward the text colour */
+  color: color-mix(in srgb, var(--k-flex) 75%, var(--k-text));
 }
 /* A drafted (planned, not logged) day: same colours, dashed and hollow */
 .day-pill.ghost {
@@ -542,10 +589,12 @@ thead tr { border-top: 1px solid var(--k-border-strong); border-bottom: 1px soli
 tbody tr { border-bottom: 1px solid var(--k-border); }
 tbody tr:last-child { border-bottom: 1px solid var(--k-border-strong); }
 th, td { border: none; }
-tr.non-work td { opacity: 0.65; }
-
 th.sortable { cursor: pointer; user-select: none; }
-th.sortable::after { content: " ↕"; opacity: 0.35; }
+/* the arrows are there at rest; the sorted column lights up in brass with its direction */
+th.sortable::after { content: " ↕"; opacity: 0.8; transition: color var(--k-transition-fast); }
+th.sortable:hover::after { color: var(--k-brass); }
+th.sortable[aria-sort="ascending"]::after { content: " ↑"; color: var(--k-brass); opacity: 1; }
+th.sortable[aria-sort="descending"]::after { content: " ↓"; color: var(--k-brass); opacity: 1; }
 
 /* ================================================================
    LOG FORM
@@ -637,6 +686,11 @@ button.btn-action:active:not(:disabled) { transform: scale(0.98); }
 button.btn-action:disabled { opacity: 0.35; cursor: default; }
 /* the full-width variant: the sole action of a form (Create entry, Open timesheet) */
 button.btn-action.btn-action--block { width: 100%; margin: 0; }
+/* the brass outline: an action that is not the view's one filled primary (Add block, Commit,
+   Import holidays). It fills on hover. */
+button.btn-action.btn-action--outline { background: transparent; color: var(--k-brass); border-color: var(--k-brass); }
+button.btn-action.btn-action--outline:hover:not(:disabled) { background: var(--k-brass); color: var(--k-bg); opacity: 1; }
+button.btn-action.btn-action--outline:disabled { border-style: dashed; border-color: var(--k-border-strong); color: var(--k-muted); opacity: 0.6; }
 
 /* ================================================================
    LABEL HELPERS
@@ -1064,9 +1118,58 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 .plan-mini-grid i.pad { visibility: hidden; }
 .plan-mini-grid i.hm-ghost { border-width: 1px; }
 
-.plan-stats { margin-bottom: 1.25rem; }
+.plan-stats { display: grid; gap: 0.75rem; margin-bottom: 1.25rem; }
+@media (min-width: 901px) {
+  /* Balance, Vacation and Drafted: three cards in one row, one height, each with its drawing at the foot */
+  .plan-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: stretch; }
+}
+.plan-stat { display: flex; flex-direction: column; }
 .plan-stat .metric-unit { font-size: 1rem; color: var(--k-muted); font-weight: 500; }
 .plan-stat .sub a { cursor: pointer; }
+.plan-stat .sub { margin-bottom: 0.9rem; }
+.plan-viz { margin-top: auto; }
+
+/* Balance: the projected line, today to Dec 31, brass; the other assumption faint and dashed */
+.plan-spark { position: relative; height: 2.6rem; }
+.plan-spark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.plan-spark .ps-zero { stroke: var(--k-border-strong); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
+.plan-spark .ps-alt { fill: none; stroke: var(--k-muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.6; vector-effect: non-scaling-stroke; }
+.plan-spark .ps-line {
+  fill: none; stroke: var(--k-brass); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke;
+}
+.plan-spark .ps-dot {
+  position: absolute; width: 8px; height: 8px; border-radius: 50%;
+  margin: -4px 0 0 -4px; box-sizing: border-box;
+  background: var(--k-bg); border: 1.5px solid var(--k-brass);
+}
+.plan-spark .ps-dot--end { background: var(--k-brass); }
+.plan-spark .ps-dot { transform-origin: center; animation: ps-pop 0.4s ease-out both; }
+@keyframes ps-pop { from { transform: scale(0); } 60% { transform: scale(1.35); } to { transform: scale(1); } }
+
+/* Vacation and Drafted: one pip per day */
+.plan-pips { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+.plan-pips .pip {
+  display: block; width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box;
+  border: 1px solid var(--k-border-strong); background: transparent;
+  transition: transform var(--k-transition-fast), background var(--k-transition-fast);
+  animation: pip-in 0.3s ease-out both;
+}
+.plan-pips .pip:hover { transform: scale(1.35); }
+.plan-pips .pip--vacation.on { background: var(--k-vacation); border-color: var(--k-vacation); }
+.plan-pips .pip--vacation.on.half { background: linear-gradient(90deg, var(--k-vacation) 50%, transparent 50%); }
+.plan-pips .pip--vacation.draft { border: 1px dashed var(--k-vacation); }
+.plan-pips .pip--vacation.draft.half { background: linear-gradient(90deg, color-mix(in srgb, var(--k-vacation) 45%, transparent) 50%, transparent 50%); }
+.plan-pips .pip.over { border-color: var(--k-deficit); }
+.plan-pips .pip--vacation.on.over { background: var(--k-deficit); }
+.plan-pips .pip.vacation { background: var(--k-vacation); border-color: var(--k-vacation); }
+.plan-pips .pip.holiday { background: var(--k-holiday); border-color: var(--k-holiday); }
+.plan-pips .pip.flex { background: var(--k-flex); border-color: var(--k-flex); }
+.plan-pips .pip.half:not(.pip--vacation) { background-image: linear-gradient(90deg, transparent 50%, var(--k-bg) 50%); }
+@keyframes pip-in { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  .plan-spark .ps-dot, .plan-pips .pip { animation: none; transition: none; }
+  .plan-pips .pip:hover { transform: none; }
+}
 
 /* On target / At my pace */
 .seg-toggle {
@@ -1093,10 +1196,18 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 
 .plan-layout {
   display: grid;
-  grid-template-columns: minmax(300px, 420px) 1fr;
+  /* the calendar card is narrow enough to stay short, and the brush (type, note) sits on top of the
+     ledger, so the column beside the calendar is not left empty */
+  grid-template-columns: minmax(300px, 380px) 1fr;
   gap: 1.5rem;
   align-items: start;
 }
+.plan-tools { margin-bottom: 1.1rem; }
+.plan-tools .plan-type-bar { margin-top: 0; }
+.plan-tools .plan-type-bar .bulk-pill-btn { width: auto; margin: 0; flex: 0 0 auto; }
+.plan-stat > .seg-toggle { align-self: flex-start; }
+.plan-tools .plan-note { margin: 0.8rem 0 0.2rem; font-size: 0.85rem; }
+.plan-tools .bulk-hint { margin: 0.4rem 0 0; text-align: left; }
 .plan-cal { padding: 1rem; background: var(--k-surface); border: 1px solid var(--k-border); border-radius: 4px; }
 .plan-cal .log-cal-day.plan-past:not(.hm-ghost):not([disabled]) { opacity: 0.55; }
 .plan-cal .log-cal-day:disabled { cursor: default; }
@@ -1113,8 +1224,6 @@ button.btn-action.btn-action--block { width: 100%; margin: 0; }
 .bulk-pill-btn.plan-type.on.vacation { box-shadow: 0 0 0 2px var(--k-bg), 0 0 0 3.5px var(--k-vacation); }
 .bulk-pill-btn.plan-type.on.holiday  { box-shadow: 0 0 0 2px var(--k-bg), 0 0 0 3.5px var(--k-holiday); }
 .bulk-pill-btn.plan-type.on.flex     { box-shadow: 0 0 0 2px var(--k-bg), 0 0 0 3.5px var(--k-flex); }
-.plan-cal .plan-note { margin: 0.8rem 0 0.2rem; font-size: 0.85rem; }
-.plan-cal .bulk-hint { margin: 0.4rem 0 0; }
 
 .plan-ledger h3 { margin: 0 0 0.6rem; font-size: 1rem; }
 .plan-ledger-count { font-weight: 400; font-size: 0.8rem; }
@@ -2600,7 +2709,12 @@ tbody.today-row > tr:first-child > td:first-child {
   grid-template-columns: minmax(0, 430px) minmax(0, 1fr);
   gap: 1rem 2.5rem;
   align-items: center;
-  padding: 0.75rem 0 0.25rem;
+  /* the page head's own margin is the gap, like every other page: no padding on top, and the
+     chart's blank top margin (padT in buildTrajectory, about 1.3rem) is pulled up out of the band */
+  padding: 0 0 0.25rem;
+}
+@media (min-width: 901px) {
+  .hero > .traj-wrap { margin-top: -1.3rem; }
 }
 .hero > * { min-width: 0; }
 .hero-label {
@@ -2856,7 +2970,7 @@ tbody.today-row > tr:first-child > td:first-child {
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 200px minmax(0, 720px);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 2.5rem;
   align-items: start;
 }
@@ -2879,7 +2993,8 @@ tbody.today-row > tr:first-child > td:first-child {
   transition: color var(--k-transition-fast), border-color var(--k-transition-fast);
 }
 .settings-index a:hover { color: var(--k-text); }
-.settings-index a.active { color: var(--k-brass); border-left-color: var(--k-brass); }
+/* the current link is lit by the sliding tick of its group (.settings-group-sections::after) */
+.settings-index a.active { color: var(--k-brass); }
 .settings-content { min-width: 0; }
 .settings-card {
   margin: 0 0 1.25rem;
@@ -2919,6 +3034,11 @@ tbody.today-row > tr:first-child > td:first-child {
 .srow-ctl { justify-self: end; display: flex; align-items: center; gap: 0.5rem; }
 .srow-ctl input, .srow-ctl select { margin: 0; font-size: 0.9rem; }
 .srow-ctl .unit { font-size: 0.8rem; color: var(--k-muted); font-family: ui-monospace, monospace; white-space: nowrap; }
+/* a number with a unit: the unit sits inside the field's right end, so every value control of a
+   card ends on the same edge (the card's right) whatever its unit */
+.srow-ctl:has(> input.ctl-num + .unit) { display: grid; grid-template-columns: auto; align-items: center; }
+.srow-ctl:has(> input.ctl-num + .unit) > input.ctl-num { grid-area: 1 / 1; width: 10rem !important; padding-right: 4.6rem !important; }
+.srow-ctl:has(> input.ctl-num + .unit) > .unit { grid-area: 1 / 1; justify-self: end; padding-right: 0.1rem; pointer-events: none; }
 .ctl-num { width: 6rem !important; text-align: right; font-family: ui-monospace, monospace; }
 .ctl-time { width: 7.5rem !important; font-family: ui-monospace, monospace; }
 .ctl-date { width: 10.5rem !important; font-family: ui-monospace, monospace; }
@@ -2939,8 +3059,13 @@ tbody.today-row > tr:first-child > td:first-child {
   .settings-index a { border-left: none; border-bottom: 2px solid transparent; padding: 0.25rem 0.6rem; }
   .settings-index a.active { border-bottom-color: var(--k-brass); }
   .srow { grid-template-columns: 1fr; gap: 0.4rem; }
-  .srow-ctl { justify-self: start; flex-wrap: wrap; }
+  .srow-ctl { justify-self: stretch; flex-wrap: wrap; }
+  .srow-ctl:has(> input.ctl-num + .unit) { justify-self: start; }
   .ctl-text, .ctl-select { width: 100% !important; }
+  .srow-ctl > input.ctl-text { flex: 1 1 100%; }
+  /* the work week: seven equal chips in one row, the whole width of the card */
+  .settings-card .work-week-picker { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; }
+  .settings-card .work-week-day { width: auto; min-width: 0; padding: 0.35rem 0; }
   .settings-card-head { flex-wrap: wrap; }
 }
 
@@ -2984,7 +3109,10 @@ tbody.today-row > tr:first-child > td:first-child {
 .days-table tr.day-row { cursor: pointer; transition: background var(--k-transition-fast); }
 .days-table tr.day-row:hover { background: color-mix(in srgb, var(--k-brass) 7%, transparent); }
 .days-table tr.day-row:hover td:first-child { box-shadow: inset 2px 0 0 var(--k-brass); }
-.days-table tr.non-work td { opacity: 0.65; }
+/* Days off are quieter than work days through the muted text colour, not through opacity: opacity
+   takes every text under 4.5:1. Surplus, deficit and the pills keep their own colours. */
+.days-table tr.non-work td:not(.surplus):not(.deficit):not(.neutral):not(.day-sub) { color: var(--k-muted); }
+.days-table tr.non-work td.metric { font-weight: 400; }
 .days-table th.notes-col { width: 34%; }
 .days-table td.notes-col, .days-table th.notes-col {
   white-space: normal;
@@ -3064,11 +3192,11 @@ tbody.today-row > tr:first-child > td:first-child {
     padding-top: 0.1rem;
   }
   .days-table:not(.days-table--fl) tr.day-row td:nth-child(3) { white-space: normal; }
-  /* the detail line of a day off stays as bright as a work day's: it is the part that says what the day was */
-  .days-table tr.non-work td.day-sub { opacity: 1; }
   .days-table tr.skel-row td:nth-child(n + 4) { display: none; }
-  /* the source name wraps beside its dot rather than being cut: it is what tells two blocks apart */
-  .days-table--fl tr.blk td:nth-child(3) { display: flex; align-items: baseline; gap: 0.25rem; white-space: normal; line-height: 1.2; }
+  /* the source name stays on one line beside its dot; an ellipsis is the last resort, and the full
+     name is in the row's title */
+  .days-table--fl tr.blk td:nth-child(3) { display: flex; align-items: baseline; gap: 0.25rem; white-space: nowrap; line-height: 1.2; }
+  .days-table--fl tr.blk td:nth-child(3) .blk-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .days-table--fl tr.blk td:nth-child(3) .fl-dot { flex: none; margin-right: 0; }
   .days-table--fl tr.blk td.day-sub { padding-left: 1rem; }
   .days-table tr.month-sep td { padding-right: 0.5rem; }
@@ -3460,7 +3588,14 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .fl-editor-btns { display: flex; gap: 0.5rem; align-items: center; margin-left: auto; }
 .fl-editor-btns button { margin: 0; width: auto; }
 .fl-submit { white-space: nowrap; }
-.fl-submit:not(:disabled) { background: var(--k-coin); border-color: var(--k-coin); }
+/* Adding a block is a brass outline, so Create entry stays the one filled primary in Log; saving an
+   edited block is the filled one, because then it is the view's only action. */
+button.btn-action.fl-submit.fl-submit--save:not(:disabled) {
+  background: var(--k-coin);
+  border-color: var(--k-coin);
+  color: var(--k-bg);
+}
+button.btn-action.fl-submit.fl-submit--save:hover:not(:disabled) { opacity: 0.88; }
 /* the coin floating up off the Add button */
 .fl-float {
   position: absolute;
@@ -3719,7 +3854,9 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .pdf-sources legend small a { cursor: pointer; }
 @media (max-width: 760px) {
   .fbar { grid-template-columns: 1fr; }
-  .frow, .frows label.frow:has([type="checkbox"]) { grid-template-columns: auto auto minmax(0, 1fr) 40px 56px 72px; gap: 0.4rem; font-size: 0.8rem; }
+  /* the name takes the room it needs: the blocks column (4th child, in the head and in every row) goes */
+  .frow, .frows label.frow:has([type="checkbox"]) { grid-template-columns: auto auto minmax(0, 1fr) 56px 72px; gap: 0.4rem; font-size: 0.8rem; }
+  .frow > .n:nth-child(4) { display: none; }
   .frow .n { font-size: 0.72rem; }
 }
 
@@ -3808,8 +3945,23 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .settings-group-btn > span { white-space: nowrap; }
 .settings-group-btn:hover { color: var(--k-brass); background: transparent; }
 .settings-group.open .settings-group-btn { border-left-color: var(--k-brass); color: var(--k-brass); }
-.settings-group-sections { display: flex; flex-direction: column; margin-left: 0.6rem; border-left: 1px solid var(--k-border); animation: fl-row-in 0.25s ease backwards; }
-.settings-group-sections a { font-size: 0.88rem; padding: 0.25rem 0.75rem; }
+.settings-group-sections { position: relative; display: flex; flex-direction: column; margin-left: 0.6rem; border-left: 1px solid var(--k-border); animation: fl-row-in 0.25s ease backwards; }
+.settings-group-sections a { font-size: 0.88rem; padding: 0.25rem 0.75rem; color: var(--k-muted); }
+.settings-group-sections::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 0;
+  width: 3px;
+  height: var(--tick-h, 0px);
+  background: var(--k-brass);
+  border-radius: 2px;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--k-brass) 45%, transparent);
+  transform: translateY(var(--tick-y, 0px));
+  transition: transform 0.28s cubic-bezier(0.3, 0.9, 0.3, 1.2), height 0.28s ease;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .settings-group-sections::after { transition: none; } }
 .settings-dropdowns { display: none; }
 .settings-cards { animation: settings-swap 0.3s ease backwards; }
 @keyframes settings-swap { from { opacity: 0; transform: translateY(6px); } }
@@ -3916,10 +4068,9 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 
 /* the year to Dec 31 as a strip under the hero */
 .fl-ystrip { margin-top: 1.25rem; border: 1px solid var(--k-border); border-radius: 8px; background: var(--k-surface); padding: 0.8rem 1.1rem; }
-.fl-ystrip-head { display: flex; align-items: baseline; gap: 0.5rem 1rem; flex-wrap: wrap; }
-.fl-ystrip-head h3 { margin: 0; font-size: 0.95rem; }
+.fl-ystrip-head { display: flex; align-items: flex-end; gap: 0.5rem 1rem; flex-wrap: wrap; }
+.fl-ystrip-head h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
 .fl-ystrip .fl-plan-inputs { margin-left: auto; margin-bottom: 0; }
-.fl-ystrip .fl-plan-basis { margin: 0; font-size: 0.78rem; }
 .fl-ystrip .fl-fall { margin: 0.7rem 0 0.3rem; }
 .fl-tiles { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.6rem; margin-top: 0.6rem; }
 .fl-tile { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.72rem; color: var(--k-muted); border-left: 1px solid var(--k-border); padding-left: 0.6rem; min-width: 0; }
@@ -3968,11 +4119,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .fl-ledger .an-lrow--big b { font-size: 1.15rem; }
 .fl-ledger .an-lrow span:first-child, .calc-grid .an-lrow span:first-child { white-space: normal; }
 .fl-ledger .an-lrow b, .calc-grid .an-lrow b { white-space: nowrap; }
-.fl-plan-inputs { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
-.fl-plan-inputs label { display: flex; align-items: center; gap: 0.35rem; margin: 0; }
-.fl-plan-inputs input { margin: 0; font-size: 0.85rem; width: 5rem !important; }
-.fl-plan-inputs .unit { font-size: 0.74rem; color: var(--k-muted); white-space: nowrap; }
-.fl-plan-basis { font-size: 0.76rem; margin: 0 0 0.5rem; line-height: 1.4; }
+.fl-plan-inputs { display: flex; gap: 0.75rem 1.5rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
 .fl-disclaimer { font-size: 0.74rem; margin: 0.75rem 0 0; line-height: 1.45; }
 .fl-disclaimer a { cursor: pointer; }
 @media (max-width: 900px) {
@@ -3986,19 +4133,36 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .calc { border: 1px solid var(--k-border); border-radius: 8px; background: var(--k-surface); padding: 1.1rem 1.25rem; }
 .calc-fields { display: flex; align-items: flex-end; gap: 0.5rem 0.75rem; flex-wrap: wrap; position: relative; }
 .calc-field { flex: 1 1 9rem; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; transition: transform 0.3s; }
-.calc-field input { margin: 0; font-size: 1.35rem; font-weight: 700; height: 3rem; transition: border-color 0.3s, color 0.3s; }
+.calc-field input { margin: 0; font-size: 1.6rem; font-weight: 700; height: 3.4rem; transition: border-color 0.3s, color 0.3s; }
 .calc-field.drives input { border-bottom-color: var(--k-coin); color: var(--k-coin); }
 .calc-field.follows input { animation: calc-follow 0.7s ease; }
 @keyframes calc-follow { 0% { color: var(--k-text); } 40% { color: var(--k-coin); } 100% { color: var(--k-text); } }
 .calc-lbl { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--k-muted); font-weight: 600; }
-.calc-link { color: var(--k-muted); font-size: 1.2rem; padding-bottom: 0.7rem; }
+.calc-link { color: var(--k-muted); font-size: 1.4rem; padding-bottom: 0.8rem; display: inline-block; }
+/* a value flowing through the arrow turns it once */
+.calc-link.flow { animation: calc-turn 0.6s cubic-bezier(0.3, 0.7, 0.3, 1); color: var(--k-coin); }
+@keyframes calc-turn { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 .calc-busy { position: absolute; right: 0; top: -0.4rem; width: 8px; height: 8px; border-radius: 50%; background: var(--k-coin); opacity: 0; transition: opacity 0.2s; }
 .calc-busy.on { opacity: 1; animation: fl-pulse 0.9s ease-out infinite; }
-.calc-assume { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: flex-end; margin: 1rem 0 0; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
-.calc-a { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; }
-.calc-a input[type=number] { margin: 0; font-size: 0.88rem; height: 2.2rem; padding-top: 0; padding-bottom: 0; }
+/* the secondary fields share one grid: row 1 currency, the rate and the billable days, row 2 the four
+   amounts, row 3 the toggles, so the columns line up from row to row */
+.calc-assume { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem 1.5rem; align-items: start; margin: 1rem 0 0; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
+.calc-a--cur { grid-column: 1; grid-row: 1; }
+.calc-a--fx { grid-column: 2; grid-row: 1; }
+.calc-a--days { grid-column: 3 / span 2; grid-row: 1; }
+.calc-a--r2 { grid-row: 2; }
+.calc-toggles { grid-column: 1 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: 0.5rem 1.75rem; padding-top: 0.2rem; }
+.calc-a { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; min-width: 0; }
+.calc-a input:not([type=checkbox]) { margin: 0; font-size: 0.88rem; height: 2.2rem; padding-top: 0; padding-bottom: 0; }
+.calc-a .ctl-num { width: 100% !important; }
+.calc-a .seg-toggle { align-self: flex-start; }
+.calc-days { flex-wrap: nowrap; }
+.calc-days .seg-toggle { flex: none; }
+.calc-days .seg-toggle button { white-space: nowrap; }
+.calc-days .ctl-num { width: 6rem !important; flex: none; }
+.fl-plan-inputs .calc-a .ctl-num { width: 5.5rem !important; }
 .calc-a .seg-toggle { margin: 0; }
-.calc-a--switch { flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.85rem; padding-bottom: 0.35rem; }
+.calc-a--switch { flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
 .calc-a--switch input { margin: 0; }
 .calc-days { display: flex; gap: 0.5rem; align-items: center; }
 .calc-out { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
@@ -4021,7 +4185,16 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .calc-link { display: none; }
   .calc-field { flex-basis: 100%; }
 }
-@media (prefers-reduced-motion: reduce) { .calc-field.follows input, .calc-busy.on { animation: none; } .calc-seg { transition: none; } }
+@media (max-width: 760px) {
+  /* two columns on a phone: the same grid, the placements reset */
+  .calc-assume { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem 1rem; }
+  .calc-assume > * { grid-column: auto; grid-row: auto; }
+  .calc-a--days { grid-column: 1 / -1; }
+  .calc-a .fl-lbl { flex-wrap: wrap; }
+  .calc-a .fl-lbl small { white-space: nowrap; }
+  .calc-toggles { grid-column: 1 / -1; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) { .calc-field.follows input, .calc-busy.on, .calc-link.flow { animation: none; } .calc-seg { transition: none; } }
 
 /* ── Analytics: freelance stacked, the heatmap switch ─────────── */
 .an-bar.an-bar-fl { fill: var(--k-coin); opacity: 0.9; }
@@ -4144,7 +4317,46 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .page-head-controls { margin-left: 0; width: 100%; }
   /* the controls row spans the head, so the year still sits at the right edge as on a wide screen */
   .page-head-controls .year-step { margin-left: auto; }
+  /* the header buttons are a size smaller, so Analytics' four exports share one row and the pill and
+     the year take the next (28px tall is still a comfortable target) */
+  .page-head-controls .head-btn, .page-head-controls a.head-btn[role="button"] { height: 1.75rem; padding: 0 0.5rem; font-size: 0.72rem; gap: 0.25rem; }
+  .page-head-controls { gap: 0.5rem; }
 }
+
+/* A small "?" chip: the explanation lives in its title (mouse) and opens on a tap (touch) */
+.q-chip {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.5rem; height: 1.5rem; min-width: 1.5rem; margin: 0 0 0 0.5rem; padding: 0;
+  border: 1px solid var(--k-border-strong); border-radius: 50%;
+  background: transparent; color: var(--k-muted);
+  font: inherit; font-size: 0.75rem; font-weight: 600; line-height: 1;
+  cursor: help;
+  transition: border-color var(--k-transition-fast), color var(--k-transition-fast), box-shadow var(--k-transition-fast);
+}
+/* no transform here: it would make the chip the containing block of its own bubble */
+.q-chip:hover, .q-chip:focus-visible, .q-chip.open { border-color: var(--k-brass); color: var(--k-brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 22%, transparent); }
+.q-chip.open::after {
+  content: attr(data-tip);
+  position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 30;
+  width: max-content; max-width: min(18rem, 80vw);
+  padding: 0.5rem 0.7rem;
+  background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--k-text); font-size: 0.78rem; font-weight: 400; text-align: left; white-space: normal; line-height: 1.4;
+  animation: q-pop 0.16s ease-out;
+}
+/* in a host row the bubble hangs from the row's left edge, so it never runs off a phone's screen */
+.q-host { position: relative; }
+.q-host > .q-chip, .q-host .q-chip { position: static; }
+.q-host .q-chip.open::after { left: 0; max-width: min(22rem, 100%); }
+@keyframes q-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .q-chip, .q-chip.open::after { transition: none; animation: none; }
+}
+
+/* the heatmap: where it scrolls, its right edge fades while there is more to see */
+.heatmap-scroll.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent); }
 
 /* Year at a glance, pinned: a compact copy fixed at the top once the full year has scrolled
    away — fixed, so it never changes the page's height under the scroll. */

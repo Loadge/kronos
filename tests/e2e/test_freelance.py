@@ -138,7 +138,7 @@ class TestLogPanel:
         )
         panel = page.locator("[data-testid='freelance-panel']")
         assert panel.is_visible()
-        assert "add freelance" in page.locator(".fl-jump").inner_text()
+        assert "Add freelance" in page.locator(".fl-jump").inner_text()
         # no blocks yet: the panel head carries no "nothing yet" note (the form says it all)
         assert "nothing yet" not in panel.inner_text()
         assert page.locator(".fl-head .fl-total").count() == 0
@@ -265,7 +265,8 @@ class TestFreelanceTab:
         assert "running" in page.locator(".fl-q--current").inner_text().lower()
         assert "Jan 30" in quarters.nth(3).inner_text()  # the fourth 130 falls in January
         proj = page.locator("[data-testid='fl-projection']")
-        assert "Nothing planned" in proj.inner_text()
+        assert "Nothing planned" in proj.get_attribute("title")
+        assert "Nothing planned" not in proj.inner_text()  # the hint moved into the title
         # planning hours a week from the ledger saves the setting and moves the projection
         proj.locator("input[aria-label='Planned hours a week']").fill("5")
         proj.locator("input[aria-label='Planned hours a week']").dispatch_event("change")
@@ -694,7 +695,7 @@ class TestHeadsAndShortcuts:
         # the calculator starts from what was just changed, and is on screen
         page.wait_for_function(
             "() => document.querySelector('[data-testid=fl-calc] input[aria-label=Salary]')"
-            "?.value === '55000'",
+            "?.value === '55.000'",  # grouped like the results, as the field has no focus
             timeout=5000,
         )
         page.wait_for_function(

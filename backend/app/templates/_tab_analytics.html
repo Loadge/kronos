@@ -55,7 +55,8 @@
         <span class="legend-item"><span class="hm-swatch hm-ghost hm-ghost-vacation"></span> Planned</span>
         <span class="legend-item"><span class="hm-swatch hm-empty"></span> No entry</span>
       </div>
-      <div class="heatmap-scroll" tabindex="0" role="region" aria-label="Year at a glance">
+      <div class="heatmap-scroll" tabindex="0" role="region" aria-label="Year at a glance"
+           x-init="anHeatmapStart($el)" @scroll.passive="anHeatmapFade($el)">
         <div class="heatmap"
              :style="`grid-template-columns: ${heatmapCells().colTemplate}`"
              @mousemove="hmHover($event)" @mouseleave="hmTip.show = false" @click="hmClick($event)">
@@ -112,9 +113,12 @@
   </div>
 
   <!-- ── Balance over time: the zoomable chart, with the visible range as a ledger ── -->
-  <div class="section-header an-head">
+  <div class="section-header an-head q-host">
     <h2><span aria-hidden="true">👔</span> Balance over time</h2>
-    <span class="muted an-hint">drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset</span>
+    <button type="button" class="q-chip" data-tip="drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"
+            title="drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"
+            aria-label="Chart controls: drag a rectangle to zoom, wheel to zoom at the cursor, shift+drag to pan, double-click to reset"
+            @click="$el.classList.toggle('open')" @click.outside="$el.classList.remove('open')" @keydown.escape="if ($el.classList.contains('open')) { $event.stopPropagation(); $el.classList.remove('open') }">?</button>
   </div>
   <div class="an-row">
     <div class="an-chart-col">
@@ -131,7 +135,8 @@
         <button type="button" class="secondary outline compact an-reset" @click="anPreset('year')" :disabled="an.preset !== null">Reset zoom</button>
       </div>
       <!-- Built as markup (x-for cannot live inside <svg>); pointer events attached once by anInit. -->
-      <div class="an-chart-wrap" x-init="anInit($el)" x-html="anChart.svg" role="img" :aria-label="anChart.aria"></div>
+      <div class="an-chart-wrap" x-init="anInit($el)" x-html="anChart.svg" role="img" :aria-label="anChart.aria"
+           title="Drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"></div>
       <!-- the whole history under the chart, with the visible window on it: drag it to pan -->
       <div class="an-brush" x-ref="anBrush" title="The whole history — drag the window to pan">
         <div class="an-brush-svg" x-html="anChart.brush"></div>

@@ -38,12 +38,13 @@ class TestSettingsUiConsistency:
     def test_the_group_entries_wear_their_marks(self, page, base_url):
         _open_settings(page, base_url)
         texts = [t.strip() for t in page.locator(".settings-group-btn").all_inner_texts()]
-        assert texts == ["👔 Employee", "⚡ Freelance", "General"]
-        # the emoji are decoration: the accessible name stays Employee / Freelance
+        assert texts == ["👔 Employee", "⚡ Freelance", "🧰 General"]
+        # the emoji are decoration: the accessible name stays Employee / Freelance / General
         marks = page.locator(".settings-group-btn span[aria-hidden='true']").all_inner_texts()
-        assert [m for m in marks if m] == ["👔", "⚡"]
+        assert [m for m in marks if m] == ["👔", "⚡", "🧰"]
         assert page.get_by_role("button", name="Employee", exact=True).count() == 1
         assert page.get_by_role("button", name="Freelance", exact=True).count() == 1
+        assert page.get_by_role("button", name="General", exact=True).count() == 1
 
     def test_the_phone_dropdown_wears_them_too(self, page, base_url):
         page.set_viewport_size({"width": 375, "height": 800})
@@ -53,15 +54,18 @@ class TestSettingsUiConsistency:
         assert [t.strip() for t in options.all_inner_texts()] == [
             "👔 Employee",
             "⚡ Freelance",
-            "General",
+            "🧰 General",
         ]
 
     def test_empty_states_and_openers(self, page, base_url):
         _open_settings(page, base_url)
         page.wait_for_selector("#settings-templates", timeout=5000)
-        assert page.locator("#settings-templates .settings-empty").inner_text().strip() == (
-            "No templates yet."
-        )
+        empty = page.locator("#settings-templates .settings-empty")
+        assert empty.inner_text().strip() == "No templates yet. Save one in Log"
+        empty.locator("a", has_text="Save one in Log").click()
+        page.wait_for_url("**/#log", timeout=3000)
+        page.goto(f"{base_url}/#settings")
+        page.wait_for_selector("#settings-templates", timeout=5000)
         # "+ Add a change" is an outline opener, not the old ghost button
         page.locator(".target-schedule summary").click()
         opener = page.locator(".target-schedule-actions button", has_text="Add a change")

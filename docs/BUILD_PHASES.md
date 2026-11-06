@@ -45,10 +45,33 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 45 confirmed and archived; 46, 47 and 48 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37 to 45 confirmed and archived; 46, 47, 48 and 49 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 49 — Every page at its best (built 2026-11-06, awaiting confirmation)
+
+**Why.** An independent review of all seven pages found the dull spots and the small breaks of the guide, and
+Miguel left the choices to the Advisor, including the ones that were waiting for him.
+
+**Decisions.**
+- Log's two brass buttons: "+ Add block" is an outline now, so "Create entry" is the one primary of the view.
+  "Save block" stays filled while a block is being edited. "Commit" in Plan is an outline too.
+- Days-off rows stay quieter than work days, but their text reaches 4.5:1. That took the accessibility list
+  from 53 entries to 36.
+- Pico's blue-grey is gone from every page: its secondary and link colours map to brass and muted once.
+- Plan's three figures are cards in a row, each with a small drawing of a figure it already has: the balance
+  as a line to Dec 31, one pip per vacation day, one pip per drafted day. The calendar column got narrower.
+- Hints moved to tooltips or to a small "?" chip that also opens on touch.
+- On a phone the heatmap opens on today's month and fades at its right edge while there is more.
+- The Calculator's fields sit on one shared grid. Its money fields are text fields now, so they can show
+  `28.960,03` like the results, and they read `28960,03`, `28960.03`, `28.960,03` and `55.000` the Spanish way.
+- Settings uses the whole width, every value control ends on the card's edge, the links have a brass tick that
+  slides, and "General" got a mark of its own.
+
+**Known limits.** The source name of a block row on a phone can still end in an ellipsis. In the Calculator
+"95.125" reads as ninety-five thousand, because a dot before three digits is a thousands mark.
 
 ### Phase 48 — Kronos in the hand (built 2026-11-06, awaiting confirmation)
 

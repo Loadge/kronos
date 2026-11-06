@@ -170,7 +170,7 @@ class TestSettingsSections:
         assert [t.split("\n")[0] for t in groups.all_inner_texts()] == [
             "👔 Employee",
             "⚡ Freelance",
-            "General",
+            "🧰 General",
         ]
         assert page.locator(
             ".settings-group.open .settings-group-sections a"

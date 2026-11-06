@@ -85,20 +85,17 @@
 
       <!-- ── The year to Dec 31, as a strip: the two inputs, the basis, where each euro goes,
            eight tiles. Nothing tall, so the 130 and the Calculator follow without a hole. ── -->
-      <div class="fl-ystrip" data-testid="fl-projection" :title="flSummary.projection.planned_hours > 0 ? fmtHours(flSummary.projection.planned_hours) + ' still to bill over ' + flSummary.projection.weeks_left + ' weeks' + (flSummary.projection.rate_eur ? ' at ' + fmtMoney(flSummary.projection.rate_eur) + '/h (' + (flSummary.projection.rate_basis === 'realised' ? 'realised so far' : 'the default source') + ')' : '') : null">
+      <div class="fl-ystrip" data-testid="fl-projection" :title="flSummary.projection.planned_hours > 0 ? fmtHours(flSummary.projection.planned_hours) + ' still to bill over ' + flSummary.projection.weeks_left + ' weeks' + (flSummary.projection.rate_eur ? ' at ' + fmtMoney(flSummary.projection.rate_eur) + '/h (' + (flSummary.projection.rate_basis === 'realised' ? 'realised so far' : 'the default source') + ')' : '') : 'Nothing planned beyond what is billed, set hours a week to project'">
         <div class="fl-ystrip-head">
           <h3>The year to Dec 31</h3>
-          <template x-if="!(flSummary.projection.planned_hours > 0)">
-            <span class="hint muted fl-plan-basis">Nothing planned beyond what is billed — set hours a week to project.</span>
-          </template>
           <span class="fl-plan-inputs">
-            <label>
+            <label class="calc-a">
+              <span class="fl-lbl">h / week</span>
               <input type="number" class="ctl-num" x-model.number="settingsForm.freelance_hours_per_week" min="0" max="168" step="0.5" @change="flSaveProjection()" aria-label="Planned hours a week">
-              <span class="unit">h / week</span>
             </label>
-            <label>
+            <label class="calc-a">
+              <span class="fl-lbl">days off</span>
               <input type="number" class="ctl-num" x-model.number="settingsForm.freelance_days_off" min="0" max="366" step="1" @change="flSaveProjection()" aria-label="Days off">
-              <span class="unit">days off</span>
             </label>
           </span>
         </div>
@@ -169,23 +166,23 @@
         <div class="calc-fields">
           <label class="calc-field" :class="calc.linked === 'hourly' ? 'drives' : calc.linked ? 'follows' : ''">
             <span class="calc-lbl">Hourly <span class="muted" x-text="calc.currency === 'USD' ? '$' : '€'"></span></span>
-            <input type="number" x-model="calc.hourly" min="0" step="1" @input="calcRun('hourly')" aria-label="Hourly rate" class="metric">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('hourly')" @focus="calcFocus('hourly', $el)" @input="calcTyped('hourly', $event.target.value, 'hourly')" @blur="calcBlur()" aria-label="Hourly rate" class="metric">
           </label>
-          <span class="calc-link" aria-hidden="true">⇄</span>
+          <span class="calc-link" :class="calc.linked ? 'flow' : ''" aria-hidden="true">⇄</span>
           <label class="calc-field" :class="calc.linked === 'daily' ? 'drives' : calc.linked ? 'follows' : ''">
             <span class="calc-lbl">Daily <span class="muted" x-text="calc.currency === 'USD' ? '$' : '€'"></span></span>
-            <input type="number" x-model="calc.daily" min="0" step="1" @input="calcRun('daily')" aria-label="Daily rate" class="metric">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('daily')" @focus="calcFocus('daily', $el)" @input="calcTyped('daily', $event.target.value, 'daily')" @blur="calcBlur()" aria-label="Daily rate" class="metric">
           </label>
-          <span class="calc-link" aria-hidden="true">⇄</span>
+          <span class="calc-link" :class="calc.linked ? 'flow' : ''" aria-hidden="true">⇄</span>
           <label class="calc-field calc-field--net" :class="calc.linked === 'net' ? 'drives' : calc.linked ? 'follows' : ''">
             <span class="calc-lbl">Net a year <span class="muted">€</span></span>
-            <input type="number" x-model="calc.net" min="0" step="100" @input="calcRun('net')" aria-label="Net yearly" class="metric">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('net')" @focus="calcFocus('net', $el)" @input="calcTyped('net', $event.target.value, 'net')" @blur="calcBlur()" aria-label="Net yearly" class="metric">
           </label>
           <span class="calc-busy" :class="calc.busy ? 'on' : ''" aria-hidden="true"></span>
         </div>
 
         <div class="calc-assume">
-          <div class="calc-a">
+          <div class="calc-a calc-a--cur">
             <span class="fl-lbl">Currency</span>
             <div class="seg-toggle" role="radiogroup" aria-label="Currency">
               <button type="button" role="radio" :aria-checked="calc.currency === 'EUR' ? 'true' : 'false'" :class="calc.currency === 'EUR' ? 'on' : ''" @click="calcSetCurrency('EUR')">EUR</button>
@@ -193,12 +190,12 @@
             </div>
           </div>
           <template x-if="calc.currency === 'USD'">
-            <label class="calc-a">
+            <label class="calc-a calc-a--fx">
               <span class="fl-lbl">$ per € <small class="muted" x-text="calc.fx_source"></small></span>
               <input type="number" x-model="calc.fx_rate" min="0.0001" step="0.0001" @input="calcFxTyped()" class="ctl-num" aria-label="Exchange rate">
             </label>
           </template>
-          <div class="calc-a">
+          <div class="calc-a calc-a--days">
             <span class="fl-lbl">Billable days</span>
             <div class="calc-days">
               <div class="seg-toggle" role="radiogroup" aria-label="Billable days">
@@ -208,28 +205,30 @@
               <input type="number" x-model="calc.billable_days" min="0" max="366" step="1" @input="calc.billable_mode = 'custom'; calcRun(calc.mode)" class="ctl-num" aria-label="Billable days">
             </div>
           </div>
-          <label class="calc-a">
+          <label class="calc-a calc-a--r2">
             <span class="fl-lbl">Hours a day</span>
             <input type="number" x-model="calc.hours_per_day" min="0.25" max="24" step="0.25" @input="calcRun(calc.mode)" class="ctl-num" aria-label="Hours per day">
           </label>
-          <label class="calc-a">
+          <label class="calc-a calc-a--r2">
             <span class="fl-lbl">Salary of the job <small class="muted">€ / year</small></span>
-            <input type="number" x-model="calc.salary_annual" min="0" step="1000" @input="calcRun(calc.mode)" class="ctl-num ctl-money" aria-label="Salary">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('salary_annual')" @focus="calcFocus('salary_annual', $el)" @input="calcTyped('salary_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Salary">
           </label>
-          <label class="calc-a">
+          <label class="calc-a calc-a--r2">
             <span class="fl-lbl">Gestoría <small class="muted">€ / year</small></span>
-            <input type="number" x-model="calc.gestoria_annual" min="0" step="10" @input="calcRun(calc.mode)" class="ctl-num" aria-label="Gestoría">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('gestoria_annual')" @focus="calcFocus('gestoria_annual', $el)" @input="calcTyped('gestoria_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Gestoría">
           </label>
-          <label class="calc-a">
+          <label class="calc-a calc-a--r2">
             <span class="fl-lbl">Other expenses <small class="muted">€ / year</small></span>
-            <input type="number" x-model="calc.other_expenses" min="0" step="10" @input="calcRun(calc.mode)" class="ctl-num" aria-label="Other expenses">
+            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('other_expenses')" @focus="calcFocus('other_expenses', $el)" @input="calcTyped('other_expenses', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Other expenses">
           </label>
-          <label class="calc-a calc-a--switch">
-            <input type="checkbox" role="switch" x-model="calc.tarifa_plana" @change="calcRun(calc.mode, true)"> Tarifa plana
-          </label>
-          <label class="calc-a calc-a--switch">
-            <input type="checkbox" role="switch" x-model="calc.inicio_actividad" @change="calcRun(calc.mode, true)"> Start-up reduction (20 %)
-          </label>
+          <div class="calc-toggles">
+            <label class="calc-a calc-a--switch">
+              <input type="checkbox" role="switch" x-model="calc.tarifa_plana" @change="calcRun(calc.mode, true)"> Tarifa plana
+            </label>
+            <label class="calc-a calc-a--switch">
+              <input type="checkbox" role="switch" x-model="calc.inicio_actividad" @change="calcRun(calc.mode, true)"> Start-up reduction (20 %)
+            </label>
+          </div>
         </div>
 
         <template x-if="calc.result">

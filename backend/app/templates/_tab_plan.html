@@ -58,6 +58,15 @@
             </span>
           </template>
         </div>
+        <div class="plan-viz plan-spark" role="img" :aria-label="planSpark().label" :title="planSpark().label" data-testid="plan-spark">
+          <svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
+            <line class="ps-zero" x1="0" x2="100" :y1="planSpark().zero" :y2="planSpark().zero"></line>
+            <path class="ps-alt" :d="planSpark().alt"></path>
+            <path class="ps-line" :d="planSpark().line"></path>
+          </svg>
+          <i class="ps-dot" :style="'left:' + planSpark().nowLeft + '%; top:' + planSpark().nowTop + '%'"></i>
+          <i class="ps-dot ps-dot--end" :style="'left:' + planSpark().endLeft + '%; top:' + planSpark().endTop + '%'"></i>
+        </div>
       </article>
       <article class="summary-card plan-stat">
         <h3>Vacation after this plan</h3>
@@ -78,6 +87,10 @@
             <div class="sub">vacation drafted · <a @click.prevent="go('settings')">set a budget</a> to track what's left</div>
           </div>
         </template>
+        <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-vacation"
+             :aria-label="fmtDays(projection.vacation_used_days) + ' vacation days used, ' + fmtDays(projection.vacation_drafted_days) + ' drafted'">
+          <template x-for="p in planVacationPips()" :key="p.k"><i class="pip pip--vacation" :class="p.cls"></i></template>
+        </div>
       </article>
       <article class="summary-card plan-stat">
         <h3>Drafted</h3>
@@ -85,6 +98,10 @@
         <div class="sub">
           <span x-text="fmtDays(projection.open_days_left) + ' of ' + fmtDays(projection.scheduled_days_left) + ' scheduled days still open'"></span>
           <template x-if="projection.drafted_flex_hours > 0"><span x-text="' · −' + fmtHours(projection.drafted_flex_hours) + ' pool'"></span></template>
+        </div>
+        <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-drafted"
+             :aria-label="fmtDays(projection.drafted_days) + ' drafted days'">
+          <template x-for="p in planDraftPips()" :key="p.k"><i class="pip" :class="p.cls" :title="p.title"></i></template>
         </div>
       </article>
     </div>
@@ -118,17 +135,19 @@
           </button>
         </template>
       </div>
-      <div class="plan-type-bar">
-        <button type="button" class="bulk-pill-btn plan-type vacation" :class="planType === 'vacation' ? 'on' : ''" @click="planType = 'vacation'" aria-pressed="true">Vacation</button>
-        <button type="button" class="bulk-pill-btn plan-type holiday"  :class="planType === 'holiday' ? 'on' : ''"  @click="planType = 'holiday'">Holiday</button>
-        <button type="button" class="bulk-pill-btn plan-type flex"     :class="planType === 'flex' ? 'on' : ''"     @click="planType = 'flex'">Flex</button>
-      </div>
-      <input type="text" class="plan-note" x-model="planNote" placeholder="Note for new drafts (optional)" aria-label="Note for new drafts" maxlength="120">
-      <p class="muted bulk-hint">Click a day to draft it as <span class="day-pill" :class="planType" x-text="planType"></span> · click again to remove · drag for a range (work days only)<br>Logged days and the past open in the Log tab.</p>
     </div>
 
-    <!-- Ledger -->
+    <!-- Ledger: the brush (type and note for new drafts) sits on top of it, beside the calendar -->
     <div class="plan-ledger">
+      <div class="plan-tools">
+        <div class="plan-type-bar" role="group" aria-label="Draft as">
+          <button type="button" class="bulk-pill-btn plan-type vacation" :class="planType === 'vacation' ? 'on' : ''" @click="planType = 'vacation'" aria-pressed="true">Vacation</button>
+          <button type="button" class="bulk-pill-btn plan-type holiday"  :class="planType === 'holiday' ? 'on' : ''"  @click="planType = 'holiday'">Holiday</button>
+          <button type="button" class="bulk-pill-btn plan-type flex"     :class="planType === 'flex' ? 'on' : ''"     @click="planType = 'flex'">Flex</button>
+        </div>
+        <input type="text" class="plan-note" x-model="planNote" placeholder="Note for new drafts (optional)" aria-label="Note for new drafts" maxlength="120">
+        <p class="muted bulk-hint" title="Click a day to draft it, click it again to remove it, drag for a range (work days only). Logged days and the past open in the Log tab.">Click or drag days to draft them as <span class="day-pill" :class="planType" x-text="planType"></span></p>
+      </div>
       <div class="section-header an-head">
         <h2>Upcoming time off <span class="muted plan-ledger-count" x-text="planYear"></span></h2>
       </div>
@@ -178,7 +197,7 @@
                 </td>
                 <td class="plan-actions">
                   <template x-if="b.kind === 'draft' || b.kind === 'overdue'">
-                    <button type="button" class="btn-action plan-commit" :disabled="planBusy" @click="commitDraft(b)">Commit</button>
+                    <button type="button" class="btn-action btn-action--outline plan-commit" :disabled="planBusy" @click="commitDraft(b)">Commit</button>
                   </template>
                   <template x-if="b.kind !== 'logged'">
                     <button type="button" class="plan-remove" :disabled="planBusy" @click="removeDraft(b.dates)"
@@ -194,7 +213,7 @@
           </tbody>
         </table>
       </template>
-      <p class="muted plan-ledger-note">Drafts don't touch your numbers until committed. Logged days (holidays you imported, days logged ahead) are listed so the plan reads as one timeline.</p>
+      <p class="muted plan-ledger-note" title="Drafts don't touch your numbers until committed. Logged days (holidays you imported, days logged ahead) are listed so the plan reads as one timeline.">Drafts don't touch your numbers until committed.</p>
     </div>
   </div>
 </section>

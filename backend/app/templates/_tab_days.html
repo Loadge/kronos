@@ -293,7 +293,7 @@
                   <tr class="day-row blk" :class="r.last ? 'blk-last' : ''" @click="openBlockInLog(r.b)" :title="'Edit this block in Log'" :style="'--src:' + sourceColor(r.b.source_id)">
                     <td class="metric" x-text="r.b.date"></td>
                     <td class="dow" x-text="r.dow"></td>
-                    <td><span class="fl-dot" aria-hidden="true"></span> <span x-text="r.b.source_name"></span></td>
+                    <td><span class="fl-dot" aria-hidden="true"></span> <span class="blk-src" :title="r.b.source_name" x-text="r.b.source_name"></span></td>
                     <td class="num metric phone-hide" x-text="r.b.start_time || '—'"></td>
                     <td class="num metric phone-hide" x-text="r.b.end_time || '—'"></td>
                     <td class="num metric" x-text="fmtHours(r.b.hours)"></td>
@@ -375,8 +375,8 @@
                 :aria-sort="sortKey==='net_hours' ? (sortDir==='asc' ? 'ascending' : 'descending') : 'none'"
                 @keydown.enter.prevent="sortBy('net_hours')" @keydown.space.prevent="sortBy('net_hours')">Net</th>
             <th class="num">Target</th>
-            <th class="num">Δ</th>
-            <th class="num" title="Running cumulative surplus from the start of the period">Σ</th>
+            <th class="num" title="Difference from target">Δ</th>
+            <th class="num" title="Running balance">Σ</th>
             <th class="notes-col">Notes</th>
             <th class="act-col"><span class="visually-hidden">Edit</span></th>
           </tr>
@@ -409,8 +409,8 @@
                 </td>
                 <td class="num metric ws-net" data-testid="e-week-net" x-text="r.net + 'h'"></td>
                 <td class="num metric ws-target" data-testid="e-week-target" x-text="r.target + 'h'"></td>
-                <td class="num metric ws-delta" data-l="Δ" data-testid="e-week-delta" :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></td>
-                <td class="num metric ws-sigma" data-l="Σ" data-testid="e-week-sigma" :class="surplusClass(r.cumulative)" x-text="formatSurplus(r.cumulative)"></td>
+                <td class="num metric ws-delta" data-l="Δ" title="Difference from target" data-testid="e-week-delta" :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></td>
+                <td class="num metric ws-sigma" data-l="Σ" title="Running balance" data-testid="e-week-sigma" :class="surplusClass(r.cumulative)" x-text="formatSurplus(r.cumulative)"></td>
                 <td colspan="2" class="ws-end"></td>
               </tr>
             </template>

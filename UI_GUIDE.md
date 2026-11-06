@@ -10,7 +10,7 @@ The rules come from the audit of 2026-11-05 (Phase 39) and from well-known usabi
 2. Every page starts with one page head: the title on the left, the controls on the right.
 3. In the head, the controls go in a fixed order: the page's own buttons, then the Employee/Freelance pill, then the year selector.
 4. Exports are small buttons in the head, never a block at the bottom of the page.
-5. One primary button per view, and every primary button looks like "+ Add block".
+5. One primary button per view, and every primary button looks like "Create entry".
 6. Numbers have one format per kind: hours, money, percent, dates.
 7. Page titles outside a card all look like "Calculator"; titles inside a card are card titles.
 8. Hints are the exception: if a label is clear, nothing explains it.
@@ -57,7 +57,7 @@ Rule 3 is Miguel's decision (2026-11-05): a user who learned where the pill is o
 
 # Buttons
 
-- One primary button per view. It uses `button.btn-action` (brass fill, 6px radius, bold). The look of "+ Add block" is the standard for every primary button; the full-width variant is `.btn-action.btn-action--block` (Create entry).
+- One primary button per view. It uses `button.btn-action` (brass fill, 6px radius, bold); the full-width variant is `.btn-action.btn-action--block` (Create entry). Where a view has two cards, the second one's action is a brass outline, as "+ Add block" and "Commit" are.
 - Secondary buttons are `secondary outline`, and in the head `.head-btn`. An opener such as "+ Add break" is secondary too.
 - Labels start with a verb and use sentence case. Use "Add" to put something in a list and "Create" for a new entry of the main ledger; do not mix them for the same action.
 - A destructive action uses `.btn-danger` and asks for confirmation.
@@ -89,7 +89,7 @@ A phone is not a small desktop, and it is held in one hand. The tabs are a bar a
 
 # The two marks
 
-👔 marks the employee side and ⚡ the freelance side. They go on the pill, on titles and buttons that exist for one side only (the Freelance exports, the Settings navigation, "Balance over time") and on the Dashboard blocks that sit next to each other. They are decoration plus a quick signal, so they are `aria-hidden` and the accessible name stays plain ("Employee", "Freelance"). An icon or emoji is never the only label of a button.
+👔 marks the employee side and ⚡ the freelance side, and 🧰 the General group of Settings. They go on the pill, on titles and buttons that exist for one side only (the Freelance exports, the Settings navigation, "Balance over time") and on the Dashboard blocks that sit next to each other. They are decoration plus a quick signal, so they are `aria-hidden` and the accessible name stays plain ("Employee", "Freelance"). An icon or emoji is never the only label of a button.
 
 # Decisions log
 
@@ -98,6 +98,7 @@ A phone is not a small desktop, and it is held in one hand. The tabs are a bar a
 - 2026-11-06: Days > Employee works the same way, and its week numbers sit under the table's own columns, which hold still when a week opens.
 - 2026-11-06: in Days, a strip with one tick per week (the bezel) replaces Expand all and Collapse all. Press a tick to open its week and jump to it, drag to open or close several, and use the chip's + and - for all of them.
 - 2026-11-06: in Log, a day being edited is left on the calendar: click it again, or click another day. The ← button and the "New entry" and "Edit <date>" subtitle are gone, and unsaved changes are discarded without asking.
+- 2026-11-06: a pass over every page: one primary per view, brass in place of Pico's blue, days-off rows readable at 4.5:1, Plan's figures as three cards with small drawings, the Calculator on one grid, Settings using the whole width.
 - 2026-11-06: on a phone the tabs moved to a bar at the bottom of the screen, and Log got a dock with the result and Create entry. One brass line marks the active tab on every width and slides between tabs.
 - 2026-11-06: the logo (or Y) opens the year dial, a full-screen dialog with no page head, because it is an instrument and not a page.
 - 2026-11-06: in Log a day can be dragged on the day ribbon, and the time fields stay as the precise editor. A drag never saves: Create entry and Save changes are still the only writes.

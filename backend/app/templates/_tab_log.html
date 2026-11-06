@@ -8,7 +8,7 @@
     <div class="page-head-controls log-header-controls">
       <template x-if="hasFreelance()">
         <button type="button" class="fl-jump" @click="flJump()" :title="'Freelance blocks of ' + flDayLabel()"
-                x-text="'⚡ ' + (flDayTotal() ? flTotalLabel(flDayTotal()) : 'add freelance')"></button>
+                x-text="'⚡ ' + (flDayTotal() ? flTotalLabel(flDayTotal()) : 'Add freelance')"></button>
       </template>
       <nav class="year-step" aria-label="Log year">
         <button type="button" @click="calSetYear(calYear - 1)" aria-label="Previous year">‹</button>
@@ -479,7 +479,7 @@
               <template x-if="flForm.id">
                 <button type="button" class="secondary outline compact" @click="flCancelEdit()">Cancel</button>
               </template>
-              <button type="submit" class="btn-action fl-submit" :disabled="!flFormValid() || flBusy" x-text="flForm.id ? 'Save block' : '+ Add block'"></button>
+              <button type="submit" class="btn-action fl-submit" :class="flForm.id ? 'fl-submit--save' : 'btn-action--outline'" :disabled="!flFormValid() || flBusy" x-text="flForm.id ? 'Save block' : '+ Add block'"></button>
             </span>
             <template x-if="flFloat">
               <span class="fl-float metric" :key="flFloat.key" x-text="flFloat.text" aria-hidden="true"></span>

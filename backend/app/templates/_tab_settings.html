@@ -20,7 +20,8 @@
                 :aria-expanded="settingsGroup === g.id ? 'true' : 'false'" :aria-current="settingsGroup === g.id ? 'true' : null">
           <span><span aria-hidden="true" x-show="g.mark" x-text="g.mark"></span> <span x-text="g.label"></span></span>
         </button>
-        <div class="settings-group-sections" x-show="settingsGroup === g.id">
+        <div class="settings-group-sections" x-show="settingsGroup === g.id"
+             x-effect="settingsActive; settingsGroup; $nextTick(() => settingsTick($el))">
           <template x-for="s in settingsSections(g.id)" :key="s.id">
             <a :href="'#' + s.id" :class="settingsActive === s.id ? 'active' : ''"
                @click.prevent="settingsJump(s.id)" x-text="s.label"></a>
@@ -157,9 +158,10 @@
           <h3>Holidays</h3>
           <p class="muted">Import <strong x-text="holidayYear"></strong>'s official public holidays as <code>holiday</code> days. Logged dates are skipped, nothing is overwritten.</p>
         </div>
-        <button type="button" class="btn-action" @click="importHolidays()"
+        <button type="button" class="btn-action btn-action--outline" @click="importHolidays()"
                 :aria-busy="holidayImporting"
                 :disabled="holidayImporting || !settingsForm.holiday_country || holidayNothingToImport()"
+                :title="!settingsForm.holiday_country ? 'Pick a country first' : null"
                 x-text="holidayImportLabel()"></button>
       </div>
       <div class="srow">
@@ -225,7 +227,11 @@
           </ul>
         </div>
       </template>
-      <p class="muted holiday-note">National + regional holidays only. Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local/municipal fiestas (e.g. a town's two local holidays) aren't in either — add those manually via the Log tab.</p>
+      <p class="muted holiday-note q-host">National and regional holidays only.
+        <button type="button" class="q-chip" aria-label="About the holiday lists"
+                data-tip="Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab."
+                title="Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab."
+                @click="$el.classList.toggle('open')" @click.outside="$el.classList.remove('open')" @keydown.escape="if ($el.classList.contains('open')) { $event.stopPropagation(); $el.classList.remove('open') }">?</button></p>
     </div>
 
     <!-- ── Profile ───────────────────────────────────────────────────────── -->
@@ -259,7 +265,7 @@
         </div>
       </div>
       <template x-if="templates.length === 0">
-        <p class="muted settings-empty">No templates yet.</p>
+        <p class="muted settings-empty">No templates yet. <a @click.prevent="go('log')" href="#log">Save one in Log</a></p>
       </template>
       <template x-for="t in templates" :key="t.id">
         <div class="template-item">
