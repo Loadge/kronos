@@ -15,17 +15,31 @@ include:
 
 stages: [test, int, prod, mirror]
 
+# pip's downloads and Playwright's browser survive between jobs until the requirements change.
+.deps-cache:
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+    PLAYWRIGHT_BROWSERS_PATH: "$CI_PROJECT_DIR/.cache/ms-playwright"
+  cache:
+    key:
+      files: [requirements.txt, requirements-dev.txt]
+    paths: [.cache/pip, .cache/ms-playwright]
+
 unit:
-  extends: .test-python
+  extends: [.test-python, .deps-cache]
   stage: test
+  cache:
+    policy: pull  # e2e is the one that writes it: this job has no browser to keep
 
 e2e:
-  extends: .test-python
+  extends: [.test-python, .deps-cache]
   stage: test
   script:
     - pip install -q -r requirements-dev.txt
     - playwright install --with-deps chromium
-    - pytest tests/e2e -q -p no:cacheprovider --tracing retain-on-failure --screenshot only-on-failure --output .artifacts/test-results
+    # Each worker starts its own server and database (the fixtures are per session), so tests
+    # in different workers never share data.
+    - pytest tests/e2e -q -n 8 -p no:cacheprovider --tracing retain-on-failure --screenshot only-on-failure --output .artifacts/test-results
   # What a red run leaves behind: a trace and a screenshot per failed test (open a trace with
   # `playwright show-trace <zip>`), and the baseline, the new picture and their diff per screen.
   artifacts:

@@ -18,6 +18,7 @@ env/
 *.sqlite3
 .kctl/
 .artifacts/
+.cache/
 
 # Demo GIF recorder
 node_modules/

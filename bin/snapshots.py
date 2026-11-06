@@ -56,7 +56,7 @@ def main() -> int:
     args = parser.parse_args()
 
     build_image()
-    pytest = f"python -m pytest {TESTS} -q -p no:cacheprovider"
+    pytest = f"python -m pytest {TESTS} -q -n 4 -p no:cacheprovider"
     if args.update:
         pytest += " --update-snapshots"
     # pytest talks on stderr so that stdout carries only the tar coming back

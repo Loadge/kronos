@@ -25,7 +25,7 @@ format:
 
 ## e2e — run the E2E suite (live server + Playwright browser)
 e2e:
-	pytest tests/e2e -q -p no:cacheprovider
+	pytest tests/e2e -q -n 8 -p no:cacheprovider
 
 ## snapshots — compare the key screens with their baselines, in the CI image (needs Docker)
 snapshots:

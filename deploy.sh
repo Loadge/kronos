@@ -65,7 +65,7 @@ else
   # local run is its only gate: red here must stop the deploy, not warn.
   echo "▸ Running E2E (Playwright)…"
   rc=0
-  python -m pytest tests/e2e -q --tb=short -p no:cacheprovider || rc=$?
+  python -m pytest tests/e2e -q -n 8 --tb=short -p no:cacheprovider || rc=$?
   case $rc in
     0) echo "✓ E2E passed" ;;
     5) echo "✗  E2E collected NO tests — that is not a pass. Aborting." >&2; exit 1 ;;
