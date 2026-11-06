@@ -179,8 +179,8 @@
                          @pointerdown="drDown($event)" @pointermove="drMove($event)" @pointerup="drUp($event)"
                          @pointercancel="drCancel($event)" @lostpointercapture="drCancel($event)" @keydown="drKey($event)">
                       <div class="dr-lane dr-lane--emp" data-lane="emp">
-                        <template x-if="r.over"><i class="dr-over" :style="r.over.style" aria-hidden="true"></i></template>
-                        <template x-if="r.miss"><i class="dr-miss" :style="r.miss.style" :title="r.miss.title" aria-hidden="true"></i></template>
+                        <template x-if="r.over"><i class="dr-over" :style="r.over?.style" aria-hidden="true"></i></template>
+                        <template x-if="r.miss"><i class="dr-miss" :style="r.miss?.style" :title="r.miss?.title" aria-hidden="true"></i></template>
                         <template x-for="it in r.items" :key="it.key">
                           <div :class="it.cls" :style="it.style" :data-dr="it.kind" :data-i="it.i"
                                :role="it.slider ? 'slider' : null" :tabindex="it.slider ? 0 : null"
@@ -189,25 +189,25 @@
                                :aria-valuenow="it.now" :aria-valuetext="it.text"></div>
                         </template>
                         <template x-if="r.flag">
-                          <div class="dr-flag" role="img" :style="r.flag.style" :title="r.flag.title" :aria-label="r.flag.title"><i></i></div>
+                          <div class="dr-flag" role="img" :style="r.flag?.style" :title="r.flag?.title" :aria-label="r.flag?.title"><i></i></div>
                         </template>
                       </div>
                       <template x-if="r.hasFl">
                         <div class="dr-lane dr-lane--fl" data-lane="fl">
-                          <template x-if="r.ghost"><i class="dr-ghost" :style="r.ghost.style" aria-hidden="true"></i></template>
+                          <template x-if="r.ghost"><i class="dr-ghost" :style="r.ghost?.style" aria-hidden="true"></i></template>
                           <template x-for="b in r.blocks" :key="b.id">
                             <div class="dr-block" role="button" tabindex="0" :class="b.editing ? 'is-editing' : ''"
                                  :data-block="b.id" :style="b.style" :title="b.title" :aria-label="b.label"></div>
                           </template>
                         </div>
                       </template>
-                      <template x-if="r.now"><i class="dr-now" :style="r.now.style" :title="r.now.title" aria-hidden="true"></i></template>
+                      <template x-if="r.now"><i class="dr-now" :style="r.now?.style" :title="r.now?.title" aria-hidden="true"></i></template>
                       <template x-if="r.tag">
-                        <div class="dr-tag" :style="r.tag.style" aria-hidden="true">
-                          <b class="dr-tag-big metric" x-text="r.tag.big"></b>
-                          <span class="dr-tag-sub metric" x-show="r.tag.net">
-                            <span x-text="r.tag.net"></span>
-                            <span x-show="r.tag.delta" :class="r.tag.cls" x-text="r.tag.delta"></span>
+                        <div class="dr-tag" :style="r.tag?.style" aria-hidden="true">
+                          <b class="dr-tag-big metric" x-text="r.tag?.big"></b>
+                          <span class="dr-tag-sub metric" x-show="r.tag?.net">
+                            <span x-text="r.tag?.net"></span>
+                            <span x-show="r.tag?.delta" :class="r.tag?.cls" x-text="r.tag?.delta"></span>
                           </span>
                         </div>
                       </template>

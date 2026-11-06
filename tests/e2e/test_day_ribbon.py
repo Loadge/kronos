@@ -1115,3 +1115,29 @@ class TestNothingScrollsSideways:
             box = page.locator(sel).first.bounding_box()
             assert box["x"] >= field["x"] - 1, sel
             assert box["x"] + box["width"] <= field["x"] + field["width"] + 1, sel
+
+
+def test_a_drag_leaves_no_error_in_the_console(page, base_url):
+    """Log opened a second time, a drag, then away to another tab: Alpine tears the ribbon down and
+    reads the tag's bindings once more, when the tag is already gone."""
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(f"{base_url}/#log")
+    page.wait_for_selector(".dr-bar", timeout=5000)
+    page.goto(f"{base_url}/#plan")
+    page.wait_for_selector("section[aria-label='Log entry']", state="detached", timeout=5000)
+    page.goto(f"{base_url}/#log")
+    page.wait_for_selector(".dr-bar", timeout=5000)
+    page.wait_for_timeout(300)
+    grip = page.locator("[data-dr=end]").bounding_box()
+    x, y = grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 107, y, steps=12)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    page.goto(f"{base_url}/#dashboard")
+    page.wait_for_selector("section[aria-label='Log entry']", state="detached", timeout=5000)
+    page.wait_for_timeout(500)
+    assert errors == []

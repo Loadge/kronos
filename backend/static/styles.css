@@ -5044,6 +5044,14 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
     transition: transform 0.22s ease, opacity 0.22s ease, visibility 0s linear 0.22s;
   }
 
+  /* the Dashboard with real figures: a paid-out card and hours on the week strip must fit 320px */
+  .fl-dash { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .fl-dash--pay { grid-template-columns: minmax(0, 1fr); }
+  .fl-dash-sub { white-space: normal; }
+  .wk-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .wd { min-width: 0; overflow: hidden; }
+  .wd-fl { margin: 0; font-size: 0.58rem; white-space: nowrap; }
+
   /* Log: twelve letters in one row instead of twelve mini months */
   .plan-strip.log-strip {
     grid-template-columns: repeat(12, minmax(0, 1fr));

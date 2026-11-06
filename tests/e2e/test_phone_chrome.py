@@ -12,6 +12,7 @@ lives for a moment (a slide, a fade) is caught by an event or waited for, never 
 
 from __future__ import annotations
 
+import datetime
 import time
 
 import httpx
@@ -699,3 +700,36 @@ def test_the_palettes_brass_tick_slides_from_row_to_row(phone, base_url):
         }""",
         "the tick did not follow the mouse",
     )
+
+
+@pytest.mark.parametrize("width", [375, 320])
+def test_the_dashboard_fits_with_real_freelance_figures(phone, base_url, width):
+    """A paid-out card and hours on the week strip: the seed has neither, so the Dashboard looked
+    fine in every test while a real one scrolled sideways on a phone."""
+    today = datetime.date.today()
+    monday = today - datetime.timedelta(days=today.weekday())
+    with httpx.Client(base_url=base_url) as c:
+        c.delete("/api/data")
+        for s in c.get("/api/freelance/sources").json():
+            c.delete(f"/api/freelance/sources/{s['id']}")
+        src = c.post(
+            "/api/freelance/sources",
+            json={"name": "Northwind Labs", "hourly_rate": 112.5, "currency": "EUR"},
+        ).json()["id"]
+        for n in range(5):
+            day = (monday + datetime.timedelta(days=n)).isoformat()
+            body = {"date": day, "source_id": src, "hours": 10.25}
+            assert c.post("/api/freelance/blocks", json=body).status_code == 201
+        pay = {"source_id": src, "week_start": monday.isoformat(), "amount": 12345.67}
+        assert c.post("/api/freelance/payouts", json=pay).status_code == 201
+    try:
+        page = phone(width, 800)
+        _open(page, base_url, "dashboard")
+        page.wait_for_selector("[data-testid=freelance-card]", timeout=5000)
+        page.wait_for_timeout(500)
+        assert page.evaluate("document.documentElement.scrollWidth") <= width
+    finally:
+        with httpx.Client(base_url=base_url) as c:
+            c.delete("/api/data")
+            for s in c.get("/api/freelance/sources").json():
+                c.delete(f"/api/freelance/sources/{s['id']}")
