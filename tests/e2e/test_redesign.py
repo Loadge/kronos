@@ -252,8 +252,10 @@ class TestSettingsSections:
                 lambda rows: rows[-1]["hours"] == 6,
             )
         assert sched[-1] == {"effective_from": "2026-06-01", "hours": 6.0}
-        # the current target follows the latest row
-        assert page.locator("#set-target").input_value() == "6"
+        # the current target follows the latest row, a moment after the save
+        page.wait_for_function(
+            "() => document.querySelector('#set-target').value === '6'", timeout=5000
+        )
 
 
 # ── days ──────────────────────────────────────────────────────────────────────
