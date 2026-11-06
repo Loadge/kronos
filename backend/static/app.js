@@ -13,6 +13,10 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// The bezel's own scratch space: what a drag in progress needs, kept out of Alpine's reactive state so that
+// moving the pointer never re-renders anything.
+const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0, rove: '', waveTimer: 0 };
+
 function app() {
   return {
     // ---------- nav + global state ---------------------------------------
@@ -129,6 +133,7 @@ function app() {
     payouts: [],          // every weekly payout, loaded next to the blocks
     daysWeekOpen: {},     // Days > Freelance: week key (its Monday) -> days shown by hand; unset = only the current week shows its days
     daysWeekOpenQ: {},    // the same while the notes search has text (unset = open, so a hit is never hidden); emptied when the search clears
+    daysWave: {},         // week key -> ms of delay, for the wave after the bezel's + or -: its ticks light and its rows fade in; emptied after
     payDraft: {},         // `${source}|${week}` -> the payout text being typed, until it is saved
     fxEditing: null,      // id of the payout whose exchange rate is being edited
     // the Log tab's block editor: `id` set while editing an existing block
@@ -1364,8 +1369,9 @@ function app() {
       // The Days tab scrolls to today once it has rendered; this scroll has to come after it.
       this.$nextTick(() => setTimeout(() => this._scrollToWeek(monday, 0), 350));
     },
-    _scrollToWeek(monday, tries) {
-      const el = document.getElementById('eweek-' + monday);
+    // Scrolls the line of a week into view and flashes it, in either mode (Employee `eweek-`, Freelance `wk-`).
+    _scrollToWeek(monday, tries = 0) {
+      const el = document.getElementById('eweek-' + monday) || document.getElementById('wk-' + monday);
       if (!el) { if (tries < 4) setTimeout(() => this._scrollToWeek(monday, tries + 1), 200); return; }
       const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' });
@@ -2094,19 +2100,204 @@ function app() {
       if (this.notesQuery.trim()) return key in this.daysWeekOpenQ ? this.daysWeekOpenQ[key] : true;
       return key in this.daysWeekOpen ? this.daysWeekOpen[key] : key === this._mondayIso(new Date());
     },
-    daysWeekToggle(key) {
-      const next = !this.daysWeekIsOpen(key);
-      if (this.notesQuery.trim()) this.daysWeekOpenQ = { ...this.daysWeekOpenQ, [key]: next };
-      else this.daysWeekOpen = { ...this.daysWeekOpen, [key]: next };
-    },
-    // The weeks of the mode on screen; the other mode's weeks keep their state.
-    daysWeeksSetAll(open) {
-      const keys = this.daysMode === 'employee' ? this._empWeekKeys() : this.daysWeeks().map(w => w.key);
+    // The one place that writes open weeks: the search's own map while it has text, the main map otherwise.
+    // Only the weeks named change; every other key keeps its state.
+    daysWeekSet(keys, open) {
       const q = !!this.notesQuery.trim();
       const next = { ...(q ? this.daysWeekOpenQ : this.daysWeekOpen) };
       for (const k of keys) next[k] = open;
       if (q) this.daysWeekOpenQ = next;
       else this.daysWeekOpen = next;
+    },
+    daysWeekToggle(key) { this.daysWeekSet([key], !this.daysWeekIsOpen(key)); },
+    // The weeks of the mode on screen; the other mode's weeks keep their state.
+    daysWeeksSetAll(open) {
+      this.daysWeekSet(this.daysMode === 'employee' ? this._empWeekKeys() : this.daysWeeks().map(w => w.key), open);
+    },
+
+    // ---------- the bezel: a tick per week over the Days table ---------------------------------------
+    // The ticks of the mode on screen, oldest first, from the same filtered weeks the table lists (year,
+    // notes, and in Freelance the sources ticked). A year has a slot for every Monday from the week holding
+    // Jan 1 to the week holding Dec 31; "All" from the first week with data to the last; a slot with nothing
+    // is an empty tick. `height` is 0..1 of the largest absolute value in view. [] when there is nothing to
+    // show. The strip runs it once per render, never once per tick.
+    daysBezel() {
+      const freelance = this.daysMode === 'freelance';
+      const data = {};  // Monday -> { value, paid }
+      if (freelance) {
+        for (const w of this.daysWeeks()) data[w.key] = { value: w.eur, paid: w.tag === 'paid out' };
+      } else {
+        if (this.sortKey !== 'date') return [];
+        for (const e of this.sortedEntries()) {
+          const m = this._mondayIso(new Date(e.date + 'T12:00:00'));
+          data[m] = { value: (data[m] ? data[m].value : 0) + e.surplus_hours, paid: false };
+        }
+        for (const m of Object.keys(data)) data[m].value = this._r2(data[m].value);
+      }
+      const keys = Object.keys(data).sort();
+      if (!keys.length) return [];
+      const all = this.daysYear === 'all';
+      let first = keys[0], last = keys[keys.length - 1];
+      if (!all) {
+        const a = this._mondayIso(new Date(this.daysYear + '-01-01T12:00:00'));
+        const b = this._mondayIso(new Date(this.daysYear + '-12-31T12:00:00'));
+        if (a < first) first = a;
+        if (b > last) last = b;
+      }
+      const thisMonday = this._mondayIso(new Date());
+      const max = Math.max(...keys.map(k => Math.abs(data[k].value)));
+      const ticks = [];
+      let prev = '';
+      for (let m = first; m <= last; m = this._addDaysIso(m, 7)) {
+        const d = data[m];
+        const t = {
+          monday: m, id: this.weekId(m), range: this._weekRange(m), empty: !d,
+          value: d ? d.value : 0, height: d && max ? Math.abs(d.value) / max : 0,
+          open: d ? this.daysWeekIsOpen(m) : false, paid: d ? d.paid : false,
+          current: m === thisMonday, future: m > thisMonday, text: '', label: '', labEnd: false,
+        };
+        if (d) t.text = `${t.id} · ${t.range} · ${freelance ? this.fmtMoney(t.value) : this.formatSurplus(t.value)}`;
+        // a label sits at the first tick of its month (a year) or year ("All"), by the week's Thursday
+        const thu = this._addDaysIso(m, 3);
+        if (all) {
+          if (thu.slice(0, 4) !== prev) { prev = thu.slice(0, 4); t.label = prev; }
+        } else if (thu.startsWith(this.daysYear) && thu.slice(5, 7) !== prev) {
+          prev = thu.slice(5, 7);
+          t.label = 'JFMAMJJASOND'[Number(prev) - 1];
+        }
+        ticks.push(t);
+      }
+      // a long label near the right end hangs to the left, so it never pushes the page sideways
+      ticks.slice(-4).forEach(t => { t.labEnd = t.label.length > 1; });
+      return ticks;
+    },
+    // What the strip draws from the ticks: [] to hide it, else one view with the counts.
+    daysBezelView(ticks) {
+      const data = ticks.filter(t => !t.empty);
+      if (!data.length) return [];
+      const rove = data.some(t => t.monday === _bz.rove) ? _bz.rove : data[0].monday;
+      return [{ mode: this.daysMode, ticks, total: data.length, open: data.filter(t => t.open).length, rove }];
+    },
+    _bzTickAt(x, y) {
+      const el = document.elementFromPoint(x, y);
+      return el ? el.closest('.bz-tick') : null;
+    },
+    // A burst of the same class on an element, restarted each time (a sweep of light, a bump).
+    _bzFx(el, cls, ms) {
+      if (!el) return;
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.classList.add(cls);
+      setTimeout(() => el.classList.remove(cls), ms);
+    },
+    // After + or -: the weeks that change get a delay each, left to right and 380ms at most in all.
+    _bzWave(mondays) {
+      if (!mondays.length) return;
+      const step = Math.min(16, 380 / mondays.length);
+      const wave = {};
+      [...mondays].sort().forEach((m, i) => { wave[m] = Math.round(i * step); });
+      this.daysWave = wave;
+      clearTimeout(_bz.waveTimer);
+      _bz.waveTimer = setTimeout(() => { this.daysWave = {}; }, 1200);
+    },
+    _bzTip(tick) {
+      const strip = document.querySelector('.bz-strip');
+      const tip = strip && strip.querySelector('.bz-tip');
+      if (!tip) return;
+      if (!tick || tick.classList.contains('empty')) { tip.classList.remove('show'); return; }
+      tip.textContent = tick.getAttribute('aria-label');
+      tip.classList.add('show');
+      const half = tip.offsetWidth / 2 + 1;
+      const middle = tick.offsetLeft + tick.offsetWidth / 2;
+      tip.style.left = Math.max(half, Math.min(strip.clientWidth - half, middle)) + 'px';
+    },
+    _bzRove(tick) {
+      const strip = tick.closest('.bz-strip');
+      strip.querySelectorAll('.bz-tick[tabindex="0"]').forEach(t => t.setAttribute('tabindex', '-1'));
+      tick.setAttribute('tabindex', '0');
+      _bz.rove = tick.dataset.monday;
+    },
+    _bzOpenJump(monday) { this.$nextTick(() => this._scrollToWeek(monday, 0)); },
+    // Pressing a tick with data toggles it; dragging gives every tick crossed the first one's new state.
+    // A finger waits: until it moves sideways or lifts, it may be a swipe that scrolls the page and touches nothing.
+    bzDown(ev) {
+      if (ev.button > 0) return;
+      const tick = ev.target.closest('.bz-tick');
+      if (!tick || tick.classList.contains('empty')) return;
+      const monday = tick.dataset.monday;
+      Object.assign(_bz, { start: monday, crossed: false, last: ev.clientX, paintTo: !this.daysWeekIsOpen(monday), pending: true });
+      ev.currentTarget.setPointerCapture(ev.pointerId);
+      this._bzRove(tick);
+      if (ev.pointerType !== 'touch') this._bzPaintStart();
+    },
+    _bzPaintStart() {
+      if (!_bz.pending) return;
+      _bz.pending = false;
+      this.daysWeekSet([_bz.start], _bz.paintTo);
+    },
+    bzMove(ev) {
+      this._bzTip(this._bzTickAt(ev.clientX, ev.clientY));
+      if (_bz.paintTo === null) return;
+      if (_bz.pending && Math.abs(ev.clientX - _bz.last) < 6) return;
+      this._bzPaintStart();
+      // a quick drag can skip ticks between two events: look at the points in between too. Only the x counts,
+      // read along the middle of the strip, so a hand that wanders above or below it keeps painting.
+      const x0 = _bz.last, box = ev.currentTarget.getBoundingClientRect(), y = box.top + box.height / 2;
+      const n = Math.max(1, Math.ceil(Math.abs(ev.clientX - x0) / 3));
+      _bz.last = ev.clientX;
+      for (let i = 1; i <= n; i++) {
+        const tick = this._bzTickAt(x0 + (ev.clientX - x0) * i / n, y);
+        if (!tick) continue;
+        const monday = tick.dataset.monday;
+        if (monday !== _bz.start) _bz.crossed = true;
+        if (tick.classList.contains('empty')) continue;
+        if (this.daysWeekIsOpen(monday) !== _bz.paintTo) this.daysWeekSet([monday], _bz.paintTo);
+      }
+    },
+    bzUp() {
+      this._bzPaintStart();
+      if (_bz.paintTo === true && !_bz.crossed) this._bzOpenJump(_bz.start);
+      _bz.paintTo = null;
+    },
+    bzCancel() { _bz.paintTo = null; _bz.pending = false; },
+    bzLeave() {
+      if (_bz.paintTo === null && !document.querySelector('.bz-tick:focus-visible')) this._bzTip(null);
+    },
+    bzFocusIn(ev) {
+      const tick = ev.target.closest('.bz-tick');
+      if (!tick) return;
+      this._bzRove(tick);
+      if (tick.matches(':focus-visible')) this._bzTip(tick);  // a click focuses too: its tooltip goes with the pointer
+    },
+    bzFocusOut() { this._bzTip(null); },
+    // One tab stop: the arrows move between the ticks with data, Enter and Space toggle (and jump on opening).
+    bzKey(ev) {
+      const tick = ev.target.closest('.bz-tick');
+      if (!tick || tick.classList.contains('empty')) return;
+      const list = [...ev.currentTarget.querySelectorAll('.bz-tick:not(.empty)')];
+      const at = list.indexOf(tick);
+      const move = { ArrowRight: list[at + 1], ArrowLeft: list[at - 1], Home: list[0], End: list[list.length - 1] };
+      if (ev.key in move) {
+        ev.preventDefault();
+        if (move[ev.key]) move[ev.key].focus();
+      } else if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        const monday = tick.dataset.monday, wasOpen = this.daysWeekIsOpen(monday);
+        this.daysWeekSet([monday], !wasOpen);
+        if (!wasOpen) this._bzOpenJump(monday);
+      }
+    },
+    // The chip's + and -: every week in view, then the wave, one sweep of light and a bump of the count.
+    bzAll(open, ev) {
+      const btn = ev.currentTarget;
+      if (btn.getAttribute('aria-disabled') === 'true') return;
+      const bz = btn.closest('.bz');
+      const changed = [...bz.querySelectorAll('.bz-tick:not(.empty)')]
+        .filter(t => (t.getAttribute('aria-pressed') === 'true') !== open).map(t => t.dataset.monday);
+      this.daysWeeksSetAll(open);
+      this._bzWave(changed);
+      this._bzFx(bz.querySelector('.bz-chip'), 'bz-glint', 600);
+      this._bzFx(bz.querySelector('.bz-count'), 'bz-bump', 320);
     },
     // One entry per ISO week (newest first) that has a block shown or a payout of a ticked
     // source with no blocks; `lines` has one entry per source with blocks or a payout that week.
@@ -2179,7 +2370,7 @@ function app() {
         }
         rows.push({ ...w, kind: 'week', key: 'w-' + w.key, week: w.key });
         if (w.open && w.blocks.length) rows.push({ kind: 'bhead', key: 'h-' + w.key, week: w.key });
-        if (w.open) w.blocks.forEach((b, i) => rows.push({ kind: 'block', key: 'b-' + b.id, b, last: i === w.blocks.length - 1, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] }));
+        if (w.open) w.blocks.forEach((b, i) => rows.push({ kind: 'block', key: 'b-' + b.id, week: w.key, b, last: i === w.blocks.length - 1, dow: DOW[new Date(b.date + 'T12:00:00').getDay()] }));
       }
       return rows;
     },

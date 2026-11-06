@@ -36,10 +36,35 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39, 40, 41, 42 and 43 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39, 40, 41, 42, 43 and 44 built, waiting for Miguel's check; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
+
+### Phase 44 — The bezel (built 2026-11-06, awaiting confirmation)
+
+**Why.** Miguel asked for a way to expand or collapse every week that followed Kronos's style instead of two
+text links. The options were drawn in `docs/mockups/days-fold.html`, and he chose the bezel.
+
+**Decisions.**
+- A strip with one tick per week replaces Expand all and Collapse all, in Employee and in Freelance. Lit ticks
+  are open weeks, so the strip is also a map of the year.
+- A year has a slot for every Monday from the week holding Jan 1 to the week holding Dec 31. "All" goes from
+  the first week with data to the last. A slot with nothing to show is an empty tick.
+- In Employee the height is the week's surplus around a centre line. In Freelance it is the week's euros from
+  a baseline. An open week is brass, and in Freelance an open week that is paid out is teal.
+- A press toggles a week, and when it opens the week it also jumps to it and flashes it. A drag gives every week
+  it crosses the state of the first one, even when the hand wanders off the strip.
+- A finger waits until it moves sideways or lifts, so a vertical swipe that starts on the strip scrolls the
+  page and touches no week.
+- The chip at the right end reads `- 2 of 45 open +`. Its two buttons keep the old test ids, and when one has
+  nothing to do it is dim and marked `aria-disabled`, not `disabled`.
+- From 901px the strip sticks to the top of the screen, with the table's headers just under it.
+- The strip is one tab stop, and the arrows, Home and End move between the weeks with data.
+
+**Known limits.** In "All", when the data starts in the last weeks of December, the first two year labels can
+sit very close on a phone. Playwright refuses to click an `aria-disabled` button, so a test that presses `+` or
+`-` with nothing to do must force the click.
 
 ### Phase 43 — One line per week in Employee (built 2026-11-06, awaiting confirmation)
 

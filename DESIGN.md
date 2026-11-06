@@ -26,6 +26,8 @@ a component.
 - A chip that states something and can be clicked is a small rounded outline in brass (`.fl-jump`,
   `.update-pill`). The same shape is used for "W45 in Days".
 - A table separator names a period and sums it (`.month-sep`, `.week-sep`).
+- The bezel (`.bz`) is a strip with one tick per week over the Days table: a map of the year and the
+  way to open, close and reach weeks. Lit brass means open, teal means open and paid out.
 - From 1100px a form card may have a rail beside it with the result and the main button. Below that
   it is one column.
 - Less text: a card title does not need a hint line. If a label is clear, nothing explains it. Tabs
@@ -44,6 +46,6 @@ once. Motion that nobody triggered happens at most once. Every animation has a
 
 ## Version label and updates
 
-The faint "v43" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint "v44" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

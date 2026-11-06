@@ -17,11 +17,12 @@ pytestmark = pytest.mark.e2e
 TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"]
 
 # Controls whose text must sit in the middle of the box and on a single line.
-CENTRED = ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a"
+CENTRED = ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, .bz-btn"
 ONE_LINE = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, "
     ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range, "
-    ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma"
+    ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma, "
+    ".bz-count"
 )
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
@@ -170,11 +171,13 @@ def test_days_freelance_fits_with_every_week_open(page, base_url, width, height,
     page.goto(f"{base_url}/#days")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.get_by_role("radio", name="Freelance").click()
+    page.wait_for_selector(".bz-strip", timeout=5000)  # the bezel is part of what is measured
     if state == "open":
-        page.get_by_test_id("wk-expand-all").click()
+        # the week of today may be the only one: then it is open already and `+` is aria-disabled
+        page.get_by_test_id("wk-expand-all").click(force=True)
         page.wait_for_selector(".days-table--fl tr.blk", timeout=5000)
     else:  # the week lines alone: they are the page now
-        page.get_by_test_id("wk-collapse-all").click()
+        page.get_by_test_id("wk-collapse-all").click(force=True)
         page.wait_for_selector(".days-table--fl .wk-main", timeout=5000)
         assert not page.locator(".days-table--fl tr.blk").count()
     page.wait_for_timeout(300)
@@ -191,11 +194,13 @@ def test_days_employee_fits_with_every_week_open_and_collapsed(
     page.goto(f"{base_url}/#days")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.wait_for_selector(".days-table tr.week-sep", timeout=5000)
+    page.wait_for_selector(".bz-strip", timeout=5000)  # the bezel is part of what is measured
+    # forced: the seed walks back from today, so in early January a button may have nothing to do
     if state == "open":
-        page.get_by_test_id("wk-expand-all").click()
+        page.get_by_test_id("wk-expand-all").click(force=True)
         page.wait_for_selector(".days-table tr.day-row", timeout=5000)
     else:
-        page.get_by_test_id("wk-collapse-all").click()
+        page.get_by_test_id("wk-collapse-all").click(force=True)
         page.wait_for_function("() => !document.querySelector('.days-table tr.day-row')")
     page.wait_for_timeout(300)
     assert not (found := _problems(page)), "\n".join(map(str, found))
@@ -238,6 +243,22 @@ def test_the_measurement_can_fail(page, base_url):
     )
     found = _problems(page)
     assert {p[0] for p in found} == {"off-centre", "wraps", "clipped"}, found
+
+
+@pytest.mark.parametrize("freelance", [False, True], ids=["employee", "freelance"])
+def test_a_bezel_count_that_wraps_is_reported(page, base_url, freelance):
+    """A positive control for the bezel's chip: its count on two lines must be reported."""
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(f"{base_url}/#days")
+    page.wait_for_selector("main .page-head", timeout=5000)
+    if freelance:
+        page.get_by_role("radio", name="Freelance").click()
+    page.wait_for_selector(".bz-count", timeout=5000)
+    page.wait_for_timeout(300)
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+    page.add_style_tag(content=".bz-count { white-space: normal; width: 3ch; overflow: hidden; }")
+    page.wait_for_timeout(100)
+    assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
 
 
 def test_the_phone_checks_can_fail(page, base_url):

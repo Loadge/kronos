@@ -2752,6 +2752,8 @@ tbody.today-row > tr:first-child > td:first-child {
   white-space: nowrap;
   box-shadow: inset 0 -1px 0 var(--k-border-strong);
 }
+/* From 901px the bezel is sticky at the top, so the headers that stick sit just under it. */
+@media (min-width: 901px) { .bz ~ .days-wrap .days-table thead th { top: var(--bz-h); } }
 .days-table th.num, .days-table td.num { text-align: right; }
 .days-table td { padding: 0.38rem 0.6rem; white-space: nowrap; vertical-align: middle; }
 .days-table td.dow { color: var(--k-muted); font-size: 0.72rem; font-variant: small-caps; letter-spacing: 0.08em; }
@@ -3367,8 +3369,6 @@ section[aria-label="Analytics"] > .section-header:first-child { margin-top: 0; }
 .days-table .fl-est, .fl-block .fl-est { color: var(--k-muted); }
 
 /* ── payouts: every ISO week is one line that is always there; the arrow shows or hides its day rows ── */
-.wk-tools { font-size: 0.78rem; margin: 0 0 0.4rem 0.2rem; color: var(--k-muted); }
-.wk-tools a { cursor: pointer; }
 .days-table tr.wk-row td, .days-table tr.wk-lines td { padding: 0; white-space: normal; }
 .days-table tr.wk-row td { border-top: 1px solid var(--k-border); }
 .days-table tr.wk-row.cur td { background: color-mix(in srgb, var(--k-brass) 4%, transparent); }
@@ -4058,14 +4058,113 @@ tr.week-sep.open .week-sep-btn:active .chev { transform: rotate(90deg) scale(0.7
   60%  { background-color: color-mix(in srgb, var(--k-brass) 14%, transparent); }
   100% { background-color: transparent; }
 }
-tbody.week-flash > tr > td { animation: week-wash 2s ease-out forwards; }
+tbody.week-flash > tr > td, tr.wk-row.week-flash > td { animation: week-wash 2s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) {
-  tbody.week-flash > tr > td { animation: none; }
+  tbody.week-flash > tr > td, tr.wk-row.week-flash > td { animation: none; }
   .week-sep-btn .chev, .days-table tr.week-sep td { transition: none; }
   .week-sep-btn:active .chev { transform: none; }
   tr.week-sep.open .week-sep-btn:active .chev { transform: rotate(90deg); }
   .log-cal-wk { transition: none; }
   .log-cal-wk:not(:disabled):hover, .log-cal-wk:not(:disabled):active { transform: none; }
+}
+
+/* ── The bezel: a tick per week over the Days table, in both modes ──
+   Lit ticks are open weeks. Employee: a centre line, surplus rises and deficit drops. Freelance: bars rise
+   from a baseline. The strip is one tab stop (roving tabindex) and a drag surface, so its ticks are plain
+   elements and not held to 24px; the chip's two buttons are. */
+:root { --bz-h: 4.7rem; }
+.bz {
+  --bz-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex; align-items: stretch; gap: 0.9rem; box-sizing: border-box;
+  margin: 0 0 0.25rem; padding: 0.5rem 0; background: var(--k-bg);
+}
+.bz-strip {
+  position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch;
+  height: 3.7rem; padding-bottom: 1.2rem; box-sizing: border-box;
+  touch-action: pan-y; -webkit-user-select: none; user-select: none;
+}
+.bz-tick, .bz-tick[role="button"] {
+  position: relative; flex: 1 1 0; width: auto; min-width: 0; margin: 0; padding: 0; border: none; border-radius: 0;
+  background: transparent; box-shadow: none; color: inherit; font: inherit; cursor: pointer; outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Pico paints [role=button] blue on hover, focus and press: a tick draws only its bar */
+.bz-tick[role="button"]:hover, .bz-tick[role="button"]:focus, .bz-tick[role="button"]:active { background: transparent; box-shadow: none; }
+.bz-tick::before { content: ""; position: absolute; left: 12%; right: 12%; height: 1px; background: color-mix(in srgb, var(--k-border-strong) 70%, transparent); }
+.bz--emp .bz-tick::before { top: calc(50% - 0.5px); }
+.bz--fl .bz-tick::before { bottom: 0; }
+.bz-bar {
+  position: absolute; left: 12%; right: 12%; border-radius: 1px; background: var(--k-border-strong);
+  transition: background 0.16s var(--wd, 0ms), box-shadow 0.16s var(--wd, 0ms), transform 0.18s var(--bz-spring);
+}
+.bz--emp .bz-bar { height: max(2px, calc(var(--h, 0) * 50%)); }
+.bz--emp .bz-tick.up .bz-bar { bottom: 50%; transform-origin: bottom; }
+.bz--emp .bz-tick.dn .bz-bar { top: 50%; transform-origin: top; }
+.bz--fl .bz-bar { bottom: 0; height: max(2px, calc(var(--h, 0) * 100%)); transform-origin: bottom; }
+.bz-tick.empty { cursor: default; }
+.bz-tick.empty .bz-bar { display: none; }
+.bz-tick:not(.empty):hover .bz-bar { transform: scaleX(1.5) scaleY(1.15); background: var(--k-coin); }
+.bz-tick.on .bz-bar { background: var(--k-brass); box-shadow: 0 0 6px color-mix(in srgb, var(--k-brass) 45%, transparent); }
+.bz-tick.on.paid .bz-bar { background: var(--paid); box-shadow: 0 0 6px color-mix(in srgb, var(--paid) 45%, transparent); }
+.bz-tick.on:not(.empty):hover .bz-bar { background: var(--k-coin); }
+.bz-tick.on.paid:not(.empty):hover .bz-bar { background: var(--paid); filter: brightness(1.2); }
+.bz-tick.future { opacity: 0.5; }
+.bz-tick:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; border-radius: 2px; }
+/* the current week: a small brass mark under its tick, open or closed */
+.bz-tick.cur::after { content: ""; position: absolute; left: calc(50% - 2px); top: calc(100% + 2px); width: 4px; height: 4px; border-radius: 50%; background: var(--k-brass); }
+.bz-lab { position: absolute; left: 12%; top: calc(100% + 0.45rem); font-size: 0.68rem; line-height: 1; color: var(--k-muted); white-space: nowrap; pointer-events: none; }
+.bz-lab.end { left: auto; right: 12%; }
+.bz-tip {
+  position: absolute; z-index: 5; top: 0; left: 0; transform: translateX(-50%); padding: 0.05rem 0.45rem;
+  border: 1px solid var(--k-border-strong); border-radius: 4px; background: var(--k-surface);
+  font-size: 0.72rem; line-height: 1.4; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.12s;
+}
+.bz-tip.show { opacity: 1; }
+/* the chip: - 2 of 45 open +, in the brass outline of a chip that states something */
+.bz-chip {
+  position: relative; flex: none; align-self: center; display: inline-flex; align-items: center; gap: 0.1rem;
+  padding: 0.1rem 0.2rem; border: 1px solid color-mix(in srgb, var(--k-brass) 60%, var(--k-border)); border-radius: 999px;
+  background: color-mix(in srgb, var(--k-brass) 6%, transparent); color: var(--k-brass);
+  font-family: ui-monospace, monospace; font-size: 0.78rem; white-space: nowrap;
+}
+.bz-count { display: inline-block; padding: 0 0.3rem; font-size: 0.78rem; white-space: nowrap; }
+.bz-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.5rem; min-width: 1.5rem; height: 1.5rem; min-height: 1.5rem;
+  margin: 0; padding: 0; border: none; border-radius: 50%; background: transparent; box-shadow: none; color: inherit;
+  font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+  transition: transform 0.16s var(--bz-spring), background var(--k-transition-fast), opacity var(--k-transition-fast);
+}
+.bz-btn:hover, .bz-btn:active { background: color-mix(in srgb, var(--k-brass) 16%, transparent); color: var(--k-brass); }
+.bz-btn:hover { transform: translateY(-2px); }
+.bz-btn:active { transform: scale(0.86); }
+.bz-btn:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; box-shadow: none; }
+.bz-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
+.bz-btn[aria-disabled="true"]:hover, .bz-btn[aria-disabled="true"]:active { background: transparent; transform: none; }
+/* after + or -: one sweep of light across the chip and one bump of its count */
+.bz-glint::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, color-mix(in srgb, var(--k-coin) 55%, transparent) 50%, transparent 65%);
+  background-size: 250% 100%; animation: bz-glint 0.55s ease-out both;
+}
+@keyframes bz-glint { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+.bz-bump { animation: bz-bump 0.3s var(--bz-spring); }
+@keyframes bz-bump { 40% { transform: scale(1.12); } }
+/* the rows that appear after + fade in, in the same wave as the ticks (a table cannot slide open) */
+@keyframes bz-row-in { from { opacity: 0; } to { opacity: 1; } }
+tbody.row-in > tr { animation: bz-row-in 0.24s ease-out var(--wd, 0ms) both; }
+@media (min-width: 901px) {
+  .bz { position: sticky; top: 0; z-index: 4; height: var(--bz-h); }
+}
+/* phone: the strip keeps every tick and takes the width; the chip goes under it, at the right */
+@media (max-width: 640px) {
+  .bz { flex-wrap: wrap; gap: 0.35rem; }
+  .bz-strip { flex: 1 1 100%; }
+  .bz-chip { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bz-bar, .bz-btn, .bz-tip { transition: none; }
+  .bz-tick:not(.empty):hover .bz-bar, .bz-btn:hover, .bz-btn:active { transform: none; }
+  .bz-glint::after, .bz-bump, tbody.row-in > tr { animation: none; }
 }
 
 /* ── Version label and update pill ── */

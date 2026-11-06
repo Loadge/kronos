@@ -1,0 +1,564 @@
+<title>Kronos Fold Controls</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: an option bar, one live Days screen in a frame, then the notes and the comparison.
+   Tokens copied from backend/static/styles.css. Kronos is dark only, so this page is too. */
+:root {
+  color-scheme: dark;
+  --k-bg:#17140f; --k-surface:#1f1c16; --k-border:#3d3a33; --k-border-strong:#57524a;
+  --k-text:#ece6d7; --k-muted:#a49b87; --k-brass:#e0b341; --k-coin:#f0c659; --k-ink:#8ab0c4;
+  --k-surplus:#7db369; --k-deficit:#e07b63;
+  --k-vacation:#8ab0c4; --k-sick:#d49b4a; --k-holiday:#516b77;
+  --mono: ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --spring: cubic-bezier(.34,1.56,.64,1);
+  --cols: 6.6rem 2.6rem minmax(5.5rem,1fr) 3.4rem 3.4rem 3.6rem 4.2rem 3.4rem 4.6rem 4.8rem minmax(6rem,1.5fr);
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--k-bg); color:var(--k-text); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+button { font:inherit; color:inherit; background:none; border:none; padding:0; cursor:pointer; }
+button:focus-visible { outline:2px solid var(--k-brass); outline-offset:2px; border-radius:4px; }
+h1,h2,h3 { font-variant:small-caps; letter-spacing:.06em; margin:0; text-wrap:balance; }
+.page { max-width:1240px; margin:0 auto; padding-block:1.8rem 3.5rem; padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+.metric { font-family:var(--mono); font-variant-numeric:tabular-nums; }
+.muted { color:var(--k-muted); }
+.surplus { color:var(--k-surplus); } .deficit { color:var(--k-deficit); }
+
+/* ── the page around the mockup ── */
+.intro h1 { font-size:2rem; line-height:1.1; }
+.intro p { max-width:68ch; color:var(--k-muted); margin:.5rem 0 0; }
+.bar { display:flex; flex-wrap:wrap; gap:.45rem; align-items:center; margin:1.3rem 0 .9rem; }
+.opt { padding:.3rem .8rem; border:1px solid var(--k-border-strong); border-radius:999px; color:var(--k-muted); font-size:.86rem; white-space:nowrap; transition:transform .16s var(--spring),background .15s,color .15s,border-color .15s; }
+.opt:hover { transform:translateY(-2px); border-color:var(--k-brass); color:var(--k-text); }
+.opt:active { transform:scale(.94); }
+.opt[aria-selected="true"] { background:var(--k-brass); border-color:var(--k-brass); color:var(--k-bg); font-weight:600; }
+.opt.pick:not([aria-selected="true"]) { border-color:color-mix(in srgb,var(--k-brass) 60%,var(--k-border)); color:var(--k-coin); }
+.width { margin-left:auto; }
+.line { display:flex; gap:.8rem; align-items:baseline; flex-wrap:wrap; margin:0 0 .8rem; }
+.line h2 { font-size:1.25rem; color:var(--k-brass); }
+.line p { margin:0; flex:1 1 30ch; min-width:0; }
+.notes { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1.2rem; margin:1rem 0 0; }
+.notes div { min-width:0; }
+.notes h3 { font-size:.82rem; color:var(--k-muted); font-weight:600; }
+.notes p { margin:.1rem 0 0; font-size:.88rem; }
+.cmp-wrap { overflow-x:auto; margin-top:.6rem; }
+.cmp { width:100%; min-width:760px; border-collapse:collapse; font-size:.86rem; }
+.cmp th { font-variant:small-caps; letter-spacing:.06em; font-weight:600; color:var(--k-muted); text-align:left; padding:.35rem .6rem; border-bottom:1px solid var(--k-border-strong); }
+.cmp td { padding:.45rem .6rem; border-bottom:1px solid var(--k-border); vertical-align:top; }
+.cmp tbody tr { cursor:pointer; transition:background .15s; }
+.cmp tbody tr:hover { background:color-mix(in srgb,var(--k-brass) 7%,transparent); }
+.cmp tr.on td:first-child { color:var(--k-brass); font-weight:600; }
+.sec { margin-top:2.2rem; }
+.sec h2 { font-size:1.25rem; }
+.mypick { margin:.5rem 0 0; max-width:72ch; }
+@media (max-width:760px) { .notes { grid-template-columns:repeat(2,minmax(0,1fr)); } .width { margin-left:0; } }
+@media (max-width:900px) { .frame { padding:1rem .8rem; } }
+@media (max-width:480px) { .frame { padding:.8rem .4rem; } .width { display:none; } .notes { grid-template-columns:1fr; } }
+
+/* ── segment pill, as in the app ── */
+.seg { position:relative; display:inline-flex; border:1px solid var(--k-border-strong); border-radius:999px; overflow:hidden; font-size:.8rem; }
+.seg > button, .seg > span:not(.thumb) { position:relative; z-index:1; padding:.28rem .8rem; color:var(--k-muted); white-space:nowrap; transition:color .18s; }
+.seg > span.on, .seg > button.on { background:var(--k-brass); color:var(--k-bg); font-weight:600; }
+
+/* ── the frame that holds the live screen ── */
+.frame { position:relative; container-type:inline-size; margin:0 auto; max-width:100%; width:100%; border:1px solid var(--k-border); border-radius:10px; padding:1rem 3rem 1rem 1.2rem; background:var(--k-bg); transition:max-width .4s cubic-bezier(.3,.9,.3,1),border-radius .4s,padding .3s; }
+.frame.ph { max-width:375px; border-radius:26px; padding:1rem .75rem; border-color:var(--k-border-strong); }
+.c { display:none !important; }
+[data-c~="links"] .c-links, [data-c~="pill"] .c-pill, [data-c~="bellows"] .c-bellows,
+[data-c~="bezel"] .c-bezel { display:flex !important; }
+[data-c~="arrow"] .c-arrow, [data-c~="chip"] .c-chip, [data-c~="pips"] .c-pips,
+[data-c~="crown"] .c-crown { display:inline-flex !important; }
+
+.ph-head { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem .7rem; margin-bottom:.8rem; }
+.ph-title { display:flex; align-items:center; gap:.7rem; margin-right:auto; }
+.ph-title h2 { font-size:1.75rem; line-height:1.1; font-weight:800; }
+.search { min-width:7.5rem; flex:0 1 11rem; border-bottom:1px solid var(--k-border-strong); color:var(--k-muted); font-size:.9rem; padding:.2rem .1rem; }
+.head-btn { display:inline-flex; align-items:center; justify-content:center; height:2.1rem; min-width:2.1rem; padding:0 .8rem; border:1px solid var(--k-border-strong); border-radius:6px; font-size:.85rem; transition:transform .16s var(--spring),border-color .15s,color .15s; }
+.year-all { padding:.28rem .7rem; border:1px solid var(--k-border-strong); border-radius:999px; color:var(--k-muted); font-size:.8rem; }
+.year { display:inline-flex; align-items:center; gap:.5rem; padding:.28rem .7rem; border:1px solid var(--k-border-strong); border-radius:999px; font-size:.85rem; font-weight:700; }
+.year i { color:var(--k-muted); font-style:normal; font-weight:400; }
+
+/* Today's links */
+.links { margin:0 0 .4rem .2rem; font-size:.78rem; color:var(--k-muted); gap:.3rem; }
+.links button { color:var(--k-brass); text-decoration:underline; text-underline-offset:2px; }
+
+/* The table */
+.tablebox { position:relative; }
+.tw { position:relative; max-height:min(33rem,72vh); overflow:auto; border-top:1px solid var(--k-border-strong); scrollbar-color:var(--k-border-strong) transparent; }
+.row { display:grid; grid-template-columns:var(--cols); align-items:center; column-gap:.5rem; padding-inline:.6rem; }
+.thead { position:sticky; top:0; z-index:3; background:var(--k-bg); border-bottom:1px solid var(--k-border-strong); min-height:2.3rem; font-variant:small-caps; letter-spacing:.07em; font-size:.8rem; font-weight:600; color:var(--k-muted); }
+.n { text-align:right; }
+.th-first { display:flex; align-items:center; gap:.45rem; grid-column:1 / 3; min-width:0; }
+.th-all { display:none; font-variant:normal; letter-spacing:0; font-weight:400; color:var(--k-muted); white-space:nowrap; }
+.th-all b { color:var(--k-text); font-weight:600; }
+.th-end { display:flex; align-items:center; justify-content:flex-end; gap:.5rem; min-width:0; }
+.mb { display:flex; align-items:center; gap:.8rem; padding:.45rem .6rem; background:var(--k-surface); border-top:1px solid var(--k-border); user-select:none; }
+.mb-name { font-variant:small-caps; letter-spacing:.07em; font-weight:700; color:var(--k-brass); white-space:nowrap; }
+.mb-stat { font-size:.8rem; color:var(--k-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.mb-stat b { color:var(--k-text); font-weight:600; }
+[data-c~="pips"] .mb { cursor:pointer; transition:background .15s; }
+[data-c~="pips"] .mb:hover { background:color-mix(in srgb,var(--k-brass) 9%,var(--k-surface)); }
+[data-c~="pips"] .mb:active { background:color-mix(in srgb,var(--k-brass) 15%,var(--k-surface)); }
+.pips { margin-left:auto; align-items:center; flex:none; }
+.pip { width:1.05rem; height:1.5rem; display:inline-flex; align-items:center; justify-content:center; }
+.pip::before { content:""; width:.55rem; height:.55rem; border-radius:50%; border:1px solid color-mix(in srgb,var(--k-brass) 55%,var(--k-border)); transition:background .18s,transform .22s var(--spring),box-shadow .18s; transition-delay:var(--d,0ms); }
+.pip:hover::before { transform:scale(1.45); border-color:var(--k-brass); }
+.pip.on::before { background:var(--k-brass); border-color:var(--k-brass); box-shadow:0 0 7px color-mix(in srgb,var(--k-brass) 55%,transparent); }
+
+.wl { min-height:2.35rem; border-top:1px solid var(--k-border); box-shadow:inset 2px 0 0 var(--k-brass); font-size:.8rem; cursor:pointer; transition:background .15s; }
+.wl:hover { background:color-mix(in srgb,var(--k-brass) 7%,transparent); }
+.wl:active { background:color-mix(in srgb,var(--k-brass) 13%,transparent); }
+.wh { grid-column:1 / 7; display:flex; align-items:center; gap:.5rem; min-width:0; white-space:nowrap; }
+.chev { display:inline-block; width:.8rem; text-align:center; color:var(--k-muted); transition:transform .22s var(--spring) var(--d,0ms),color .15s; }
+.wl:hover .chev { color:var(--k-brass); }
+.wk.open .wl .chev { transform:rotate(90deg); }
+[data-peek="open"] .wk:not(.open) .wl .chev { transform:rotate(26deg); color:var(--k-brass); }
+[data-peek="close"] .wk.open .wl .chev { transform:rotate(64deg); color:var(--k-brass); }
+.wn { font-weight:600; color:var(--k-brass); letter-spacing:.04em; }
+.wr { color:var(--k-muted); }
+.now { padding:0 .35rem; border:1px solid var(--k-brass); border-radius:3px; color:var(--k-brass); font-size:.64rem; letter-spacing:.06em; text-transform:uppercase; }
+.wd { margin-left:.4rem; color:var(--k-muted); font-size:.74rem; }
+.net { font-weight:600; }
+.fold { display:grid; grid-template-rows:0fr; transition:grid-template-rows .28s cubic-bezier(.3,.9,.3,1) var(--d,0ms); }
+.wk.open .fold { grid-template-rows:1fr; }
+.fold-in { min-height:0; overflow:hidden; opacity:0; transition:opacity .22s ease var(--d,0ms); }
+.wk.open .fold-in { opacity:1; }
+.day { min-height:2.1rem; border-top:1px solid color-mix(in srgb,var(--k-border) 60%,transparent); font-size:.8rem; }
+.day .dt { font-weight:600; white-space:nowrap; }
+.day .dow { font-variant:small-caps; color:var(--k-muted); font-size:.76rem; }
+.ty { display:inline-flex; align-items:center; gap:.35rem; color:var(--k-muted); white-space:nowrap; }
+.ty::before { content:""; width:.42rem; height:.42rem; border-radius:50%; background:var(--t,var(--k-brass)); }
+.nt { color:var(--k-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; padding-left:.6rem; }
+
+/* Master arrow */
+.master { width:1.5rem; height:1.5rem; align-items:center; justify-content:center; border-radius:4px; color:var(--k-brass); font-size:1rem; font-variant:normal; transition:background .15s,transform .14s var(--spring); }
+.master:hover { background:color-mix(in srgb,var(--k-brass) 16%,transparent); }
+.master:active { transform:scale(.8); }
+.master span { display:inline-block; transition:transform .28s var(--spring); }
+.master[data-s="some"] span { transform:rotate(45deg); }
+.master[data-s="all"] span { transform:rotate(90deg); }
+
+/* Weeks | Days */
+.pill { font-size:.8rem; }
+.pill .thumb { position:absolute; top:0; bottom:0; left:0; width:50%; border-radius:999px; background:var(--k-brass); transition:left .32s var(--spring),background .2s,box-shadow .2s; }
+.pill[data-s="all"] .thumb { left:50%; }
+.pill[data-s="some"] .thumb { left:25%; background:transparent; box-shadow:inset 0 0 0 1px var(--k-brass); }
+.pill button { flex:1 1 50%; text-align:center; min-width:4.1rem; }
+.pill[data-s="none"] button:first-of-type, .pill[data-s="all"] button:last-of-type { color:var(--k-bg); font-weight:600; }
+.pill[data-s="some"] button { color:var(--k-text); }
+
+/* Bellows */
+.bellows { padding:0; width:2.1rem; color:var(--k-brass); }
+.bellows:hover { transform:translateY(-2px); border-color:var(--k-brass); }
+.bellows:active { transform:scale(.9); }
+.bellows svg { width:1.25rem; height:1.25rem; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.bellows path { transform-box:fill-box; transform-origin:center; transition:transform .32s var(--spring); }
+.bellows[data-next="close"] .u { transform:translateY(3px) rotate(180deg); }
+.bellows[data-next="close"] .d { transform:translateY(-3px) rotate(180deg); }
+.bellows.squeeze svg { animation:squeeze .42s var(--spring); }
+@keyframes squeeze { 0%{transform:scaleY(1)} 35%{transform:scaleY(.55) scaleX(1.2)} 70%{transform:scaleY(1.2) scaleX(.92)} 100%{transform:none} }
+
+/* The stating chip */
+.chip { align-items:center; gap:.3rem; padding:.05rem .55rem; border:1px solid color-mix(in srgb,var(--k-brass) 60%,var(--k-border)); border-radius:999px; color:var(--k-brass); font-size:.72rem; font-variant:normal; letter-spacing:0; font-weight:500; white-space:nowrap; transition:background .15s,color .15s,transform .16s var(--spring); }
+.chip:hover { background:var(--k-brass); color:var(--k-bg); transform:translateY(-1px); }
+.chip:active { transform:scale(.93); }
+
+/* The crown: a stem and a knurled head on the side of the case */
+.crown { align-items:center; height:1.9rem; touch-action:none; }
+.tablebox > .crown { position:absolute; top:.2rem; right:-2.5rem; z-index:4; }
+.stem { width:calc(.3rem + var(--stop,0) * .55rem); height:.5rem; background:linear-gradient(#8a7a4d,#c9b070 45%,#6b5c35); transition:width .3s var(--spring); }
+.knurl { width:1.1rem; height:1.9rem; border-radius:3px; border:1px solid #6b4f12; background-color:var(--k-brass); background-image:repeating-linear-gradient(180deg,#f5d980 0 2px,#8c6a1a 2px 4px); background-position-y:var(--turn,0px); transition:background-position-y .4s cubic-bezier(.3,.9,.3,1),transform .12s var(--spring); box-shadow:0 1px 3px rgba(0,0,0,.6); }
+.crown:hover .knurl { transform:scaleY(1.06); }
+.crown:active .knurl { transform:scaleY(.94); }
+.crown-lab { align-items:center; gap:.25rem; color:var(--k-brass); font-size:.72rem; font-variant:normal; letter-spacing:0; font-weight:500; white-space:nowrap; }
+.crown-lab i { width:.32rem; height:.32rem; border-radius:50%; background:var(--k-border-strong); transition:background .2s; }
+.crown-lab i.on { background:var(--k-brass); }
+.crown-lab b { font-weight:500; margin-left:.25rem; }
+.ph-title .crown { display:none !important; }
+
+/* The bezel */
+.bezel { position:relative; align-items:stretch; gap:1px; height:3.5rem; margin:0 0 .5rem; padding-bottom:.95rem; touch-action:none; user-select:none; }
+.tick { position:relative; flex:1 1 0; min-width:0; cursor:pointer; }
+.tick::before { content:""; position:absolute; left:12%; right:12%; top:calc(50% - .5px); height:1px; background:var(--k-border-strong); }
+.tick .b { position:absolute; left:12%; right:12%; border-radius:1px; background:var(--k-border-strong); transition:background .16s,box-shadow .16s,transform .18s var(--spring); }
+.tick.up .b { bottom:50%; transform-origin:bottom; }
+.tick.dn .b { top:50%; transform-origin:top; }
+.tick:hover .b { transform:scaleX(1.5) scaleY(1.15); background:var(--k-coin); }
+.tick.on .b { background:var(--k-brass); box-shadow:0 0 6px color-mix(in srgb,var(--k-brass) 45%,transparent); }
+.tick.future { cursor:default; opacity:.5; }
+.tick.future .b { display:none; }
+.tick u { position:absolute; left:12%; top:calc(100% + .1rem); font-size:.62rem; color:var(--k-muted); text-decoration:none; white-space:nowrap; }
+.tip { position:absolute; z-index:5; bottom:calc(100% - .2rem); transform:translateX(-50%); padding:.05rem .45rem; border-radius:4px; background:var(--k-surface); border:1px solid var(--k-border-strong); font-size:.72rem; white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .12s; }
+.tip.show { opacity:1; }
+
+/* One sweep of light on the control after it acts */
+.glint { position:relative; }
+.glint::after { content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; background:linear-gradient(105deg,transparent 35%,color-mix(in srgb,var(--k-coin) 55%,transparent) 50%,transparent 65%); background-size:250% 100%; animation:glint .55s ease-out both; }
+@keyframes glint { from{background-position:130% 0} to{background-position:-30% 0} }
+.bump { animation:bump .3s var(--spring); }
+@keyframes bump { 40%{transform:scale(1.12)} }
+
+/* Phone: no table header, a week takes two lines, a day shows what fits */
+@container (max-width: 760px) {
+  .tablebox > .crown { display:none !important; }
+  [data-c~="crown"] .ph-title .crown { display:inline-flex !important; }
+  .row { display:flex; flex-wrap:wrap; align-items:center; gap:0 .35rem; padding-inline:.5rem; }
+  .th { display:none; }
+  .thead { justify-content:space-between; flex-wrap:nowrap; }
+  .th-first { flex:1 1 auto; }
+  .th-first .th-date { display:none; }
+  [data-c~="arrow"] .th-all { display:inline; }
+  .frame:not([data-c~="arrow"]):not([data-c~="chip"]):not([data-c~="crown"]) .thead { display:none; }
+  .th-end { flex:none; }
+  .wl { padding-block:.2rem .35rem; }
+  .wh { flex:1 1 100%; }
+  .wl .cell { font-size:.72rem; }
+  .wl .cell::before { content:attr(data-l) " "; color:var(--k-muted); font-family:system-ui,sans-serif; font-size:.66rem; }
+  .wd { margin:0 .3rem 0 0; order:-1; }
+  .wh .wd { display:none; }
+  .wk-days { display:inline !important; color:var(--k-muted); font-size:.7rem; margin-left:.9rem; }
+  .day { padding-block:.25rem; }
+  .day .x { display:none; }
+  .day .ty { margin-left:auto; }
+  .mb { flex-wrap:wrap; gap:0 .6rem; }
+  .mb-stat { order:3; flex:1 1 100%; font-size:.74rem; }
+  .pips { flex-wrap:wrap; justify-content:flex-end; }
+  .bezel { height:3.1rem; }
+}
+.wk-days { display:none; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition:none !important; animation:none !important; }
+  .tw { scroll-behavior:auto; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <h1>Fold the weeks</h1>
+    <p>Expand all and Collapse all are two plain links today, and they look like nothing else in Kronos. Below there are six replacements plus my pick, and all of them work: click the control, open a week or two by hand and watch what each one does with that in-between state. The data is invented.</p>
+  </header>
+
+  <div class="bar">
+    <div class="bar" id="opts" role="tablist" aria-label="Options" style="margin:0"></div>
+    <div class="seg width" role="radiogroup" aria-label="Screen width" id="width">
+      <button type="button" role="radio" aria-checked="true" class="on" data-w="desk">Desktop</button>
+      <button type="button" role="radio" aria-checked="false" data-w="ph">Phone</button>
+    </div>
+  </div>
+
+  <div class="line"><h2 id="o-name"></h2><p id="o-line"></p></div>
+
+  <div class="frame" id="frame" data-c="links">
+    <header class="ph-head">
+      <div class="ph-title">
+        <h2>Days</h2>
+        <button type="button" class="crown c c-crown" aria-label="Crown: next stop"><span class="stem"></span><span class="knurl"></span></button>
+      </div>
+      <span class="search">Search notes…</span>
+      <span class="head-btn">PDF</span>
+      <button type="button" class="head-btn bellows c c-bellows" id="bellows">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="u" d="M7 8.5l5-5 5 5"/><path d="M4 12h16" opacity=".55"/><path class="d" d="M7 15.5l5 5 5-5"/></svg>
+      </button>
+      <div class="seg pill c c-pill" id="pill" role="radiogroup" aria-label="Show">
+        <span class="thumb"></span>
+        <button type="button" role="radio" data-v="none">Weeks</button>
+        <button type="button" role="radio" data-v="all">Days</button>
+      </div>
+      <span class="seg"><span class="on">👔 Employee</span><span>⚡ Freelance</span></span>
+      <span class="year-all">All</span>
+      <span class="year"><i>‹</i><span class="metric">2026</span><i>›</i></span>
+    </header>
+
+    <p class="links c c-links"><button type="button" data-all="1">Expand all</button> · <button type="button" data-all="0">Collapse all</button></p>
+    <div class="bezel c c-bezel" id="bezel"><span class="tip" id="tip"></span></div>
+
+    <div class="tablebox">
+      <button type="button" class="crown c c-crown" aria-label="Crown: next stop"><span class="stem"></span><span class="knurl"></span></button>
+      <div class="tw" id="tw">
+        <div class="row thead">
+          <span class="th-first">
+            <button type="button" class="master c c-arrow" id="master"><span aria-hidden="true">▸</span></button>
+            <span class="th-date">Date</span>
+            <span class="th-all"><b>All weeks</b> · <span class="count metric"></span></span>
+          </span>
+          <span class="th">Type</span><span class="th n">Start</span><span class="th n">End</span><span class="th n">Breaks</span>
+          <span class="th n">Net</span><span class="th n">Target</span><span class="th n">Δ</span><span class="th n">Σ</span>
+          <span class="th-end">
+            <span class="th">Notes</span>
+            <button type="button" class="chip c c-chip" id="chip"><span class="count metric"></span></button>
+            <span class="crown-lab c c-crown" id="crown-lab"><i></i><i></i><i></i><b></b></span>
+          </span>
+        </div>
+        <div id="tb"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div><h3>Where it lives</h3><p id="o-where"></p></div>
+    <div><h3>Half open</h3><p id="o-half"></p></div>
+    <div><h3>Phone</h3><p id="o-phone"></p></div>
+    <div><h3>The catch</h3><p id="o-catch"></p></div>
+  </div>
+
+  <section class="sec">
+    <h2>Side by side</h2>
+    <div class="cmp-wrap"><table class="cmp">
+      <thead><tr><th>Option</th><th>Frees the line above the table</th><th>Says how many are open</th><th>New power</th><th>Work</th></tr></thead>
+      <tbody id="cmp"></tbody>
+    </table></div>
+  </section>
+
+  <section class="sec">
+    <h2>My pick</h2>
+    <p class="mypick">The arrow plus months. Kronos already says "this opens" with an arrow on every week, so one more arrow on the head and one on each month band make a single idea at three levels: all, month and week. It frees the line over the table, it needs no new word and it follows DESIGN.md without a new pattern. If you would rather have something nobody else has, the crown is the fun one, and Kronos has one user who will always know what it does. One limit of these mockups: the real table is made of table rows, which can fade in a wave but cannot slide open like this.</p>
+  </section>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const OPTS = [
+  { k:'today', c:'links', name:'Today', line:'Two plain links that spend a whole line over the table.',
+    where:'A line of its own over the table.', half:'Says nothing about it.', phone:'The same two links.', catch:'Links are for going somewhere, and these only act on the table.',
+    t:['No','No','None','Done'] },
+  { k:'arrow', c:'arrow', name:'Master arrow', line:'The table gets the same arrow its weeks have, and hovering it nudges every week arrow to announce what will happen.',
+    where:'The head of the Date column, on the same axis as every week arrow.', half:'The arrow rests at 45 degrees, halfway between closed and open. One click opens the rest.', phone:'Phones have no table header, so a slim "All weeks" line carries the arrow and the count.', catch:'It is a small target, and it asks you to know that arrow means all.',
+    t:['Yes','By its angle','None','Small'] },
+  { k:'pill', c:'pill', name:'Weeks | Days', line:'A pill like Employee | Freelance says how much detail you want to see.',
+    where:'The page head, beside the other pills.', half:'The thumb goes hollow and parks between the two words.', phone:'It wraps with the other pills, and it needs no extra line.', catch:'The head is already full at 1280 px, and a third pill reads like another mode.',
+    t:['Yes','Hollow thumb','None','Small'] },
+  { k:'bellows', c:'bellows', name:'Bellows', line:'One square button beside PDF that opens and folds like a bellows.',
+    where:'The page head, right after PDF, in the same place on both modes.', half:'It offers to open, because the rest of the weeks can still open.', phone:'It stays in the head with PDF, and it is the smallest of all on a phone.', catch:'An icon with no word has to be learned, and the state is only implied.',
+    t:['Yes','No','None','Small'] },
+  { k:'pips', c:'pips chip', name:'Month pips', line:'Months fold too. A month band opens its weeks, and each week is a pip that lights up.',
+    where:'The month bands, plus a chip at the end of the table head for the whole year.', half:'The chip counts the open weeks, and the pips show which ones.', phone:'Bands are already there, so it costs no space. Long months wrap their pips.', catch:'Thirteen more small targets, and clicking a band now does something.',
+    t:['Yes','Exact count','Fold by month','Medium'] },
+  { k:'crown', c:'crown', name:'The crown', line:'A chronograph crown on the side of the case. Click it or pull it through three stops: weeks only, this week, every day.',
+    where:'On the edge of the table, in the gutter of the page.', half:'The label says "By hand", and the next click pulls it all the way out.', phone:'No gutter on a phone, so it moves beside the Days title.', catch:'Only you would ever guess it, and it needs its own care in the geometry audit.',
+    t:['Yes','"By hand" label','Back to this week','Medium'] },
+  { k:'bezel', c:'bezel chip', name:'The bezel', line:'A tick per week across the year, as tall as the week\'s surplus. Lit ticks are open weeks. Click one to jump to it, or drag across several to open them.',
+    where:'The line over the table, so it keeps that line and gives it a job.', half:'You can see exactly which weeks are open, across the whole year.', phone:'52 ticks fit in 340 px, but dragging is fiddly with a thumb.', catch:'It is a new chart to build and keep in step with Freelance, where the height would have to mean something else.',
+    t:['No','Which ones','Jump to any week','Large'] },
+  { k:'combo', c:'arrow pips', name:'My pick: arrow + months', pick:1, line:'The master arrow for everything, month bands for a month and the week arrows for a week: one idea at three levels.',
+    where:'The head of the Date column and the month bands.', half:'The arrow rests at 45 degrees, and the pips show which weeks.', phone:'The "All weeks" line carries the arrow, and the bands work as they are.', catch:'It is the most clickable surface of the small options, so it takes more tests.',
+    t:['Yes','Angle and pips','Fold by month','Medium'] },
+];
+
+/* ── invented data: a full 2026, weeks 1 to 45, with a fixed seed ── */
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R = rng(45), MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Mon','Tue','Wed','Thu','Fri'], CURRENT = 45;
+const HOL = new Set(['2026-01-01','2026-01-06','2026-04-03','2026-05-01','2026-08-14','2026-10-12']);
+const SICK = new Set(['2026-02-17','2026-02-18']), VAC = new Set([33,34]);
+const NOTES = ['Release day','Dentist at 9','Sprint review','Team lunch','On call','Workshop'];
+const iso = d => d.toISOString().slice(0,10), at = (w,i) => new Date(Date.UTC(2025,11,29 + 7*(w-1) + i));
+const short = d => MON[d.getUTCMonth()] + ' ' + d.getUTCDate();
+const hhmm = h => String(Math.floor(h)).padStart(2,'0') + ':' + String(Math.round(h%1*60)).padStart(2,'0');
+const hrs = h => (Math.round(h*100)/100) + 'h', sign = h => (h >= 0 ? '+' : '-') + Math.abs(h).toFixed(2) + 'h', cls = h => h >= 0 ? 'surplus' : 'deficit';
+let sigma = 0;
+const WEEKS = [];
+for (let w = 1; w <= CURRENT; w++) {
+  const days = [];
+  for (let i = 0; i < 5; i++) {
+    const d = at(w,i), key = iso(d);
+    if (d.getUTCFullYear() !== 2026) continue;
+    const type = HOL.has(key) ? 'holiday' : SICK.has(key) ? 'sick' : VAC.has(w) ? 'vacation' : 'work';
+    const target = type === 'work' ? (i < 4 ? 8.5 : 6) : 0;
+    const net = type === 'work' ? target + [-.75,-.5,-.25,0,.25,.25,.5,.75][Math.floor(R()*8)] : 0;
+    const start = 8 + Math.floor(R()*4)*.25;
+    sigma += net - target;
+    days.push({ key, dow:DOW[i], type, net, target, delta:net-target, sigma, start, end:start+net+.5, note:type==='work' && R()<.16 ? NOTES[Math.floor(R()*NOTES.length)] : '' });
+  }
+  const net = days.reduce((s,d)=>s+d.net,0), target = days.reduce((s,d)=>s+d.target,0);
+  WEEKS.push({ w, days, net, target, delta:net-target, sigma, range:short(at(w,0)) + ' – ' + short(at(w,6)), month:at(w,3).getUTCMonth() });
+}
+const NEWEST = [...WEEKS].reverse();
+const MONTHS = [...new Set(NEWEST.map(x => x.month))].map(m => ({ m, weeks:NEWEST.filter(x => x.month === m) }));
+
+/* ── the table ── */
+const dayRow = d => `<div class="row day">
+  <span class="dt metric">${d.key}</span><span class="dow x">${d.dow}</span>
+  <span class="ty" style="--t:var(--k-${d.type === 'work' ? 'brass' : d.type})">${d.type}</span>
+  <span class="n metric x muted">${d.net ? hhmm(d.start) : '—'}</span><span class="n metric x muted">${d.net ? hhmm(d.end) : '—'}</span><span class="n metric x muted">${d.net ? '30m' : '—'}</span>
+  <span class="n metric net">${hrs(d.net)}</span><span class="n metric muted x">${hrs(d.target)}</span>
+  <span class="n metric ${cls(d.delta)}">${sign(d.delta)}</span><span class="n metric x ${cls(d.sigma)}">${sign(d.sigma)}</span>
+  <span class="nt x">${d.note}</span></div>`;
+const weekBlock = x => `<section class="wk" data-w="${x.w}" id="wk${x.w}">
+  <div class="row wl">
+    <span class="wh"><button type="button" class="chev" aria-label="Days of W${x.w}">▸</button><span class="wn metric">W${x.w}</span><span class="wr">${x.range}</span>${x.w === CURRENT ? '<span class="now">this week</span>' : ''}<span class="wd metric">${x.days.length} days</span></span>
+    <span class="wk-days metric">${x.days.length} days</span>
+    <span class="n metric net cell" data-l="Net">${hrs(x.net)}</span><span class="n metric muted cell" data-l="/">${hrs(x.target)}</span>
+    <span class="n metric ${cls(x.delta)} cell" data-l="Δ">${sign(x.delta)}</span><span class="n metric ${cls(x.sigma)} cell" data-l="Σ">${sign(x.sigma)}</span>
+    <span></span>
+  </div>
+  <div class="fold"><div class="fold-in">${[...x.days].reverse().map(dayRow).join('')}</div></div></section>`;
+$('#tb').innerHTML = MONTHS.map(g => {
+  const net = g.weeks.reduce((s,x)=>s+x.net,0), tg = g.weeks.reduce((s,x)=>s+x.target,0), days = g.weeks.reduce((s,x)=>s+x.days.length,0);
+  return `<div class="mb" data-m="${g.m}"><span class="mb-name">${FULL[g.m]} 2026</span>
+    <span class="mb-stat metric">${days} days · <b>${hrs(net)}</b> / ${hrs(tg)} · <span class="${cls(net-tg)}">${sign(net-tg)}</span></span>
+    <span class="pips c c-pips">${[...g.weeks].reverse().map(x => `<button type="button" class="pip" data-pip="${x.w}" aria-label="W${x.w}" title="W${x.w}"></button>`).join('')}</span></div>` + g.weeks.map(weekBlock).join('');
+}).join('');
+
+/* ── the bezel: one scale for every tick ── */
+const maxD = Math.max(...WEEKS.map(x => Math.abs(x.delta)), .01);
+let lastM = -1, bz = '';
+for (let w = 1; w <= 53; w++) {
+  const x = WEEKS[w-1];
+  const m = at(w,3).getUTCMonth(), lab = m !== lastM && w <= 52 ? `<u>${MON[m][0]}</u>` : ''; lastM = m;
+  bz += x ? `<span class="tick ${x.delta >= 0 ? 'up' : 'dn'}" data-t="${w}"><span class="b" style="height:${Math.max(2, Math.abs(x.delta)/maxD*44)}%"></span>${lab}</span>`
+          : `<span class="tick future">${lab}</span>`;
+}
+$('#bezel').insertAdjacentHTML('beforeend', bz);
+
+/* ── open weeks: the one state every control reads ── */
+const frame = $('#frame'), tw = $('#tw');
+let open = new Set([CURRENT]), timer, turn = 0;
+const total = WEEKS.length;
+function paint(){
+  for (const x of WEEKS) {
+    const on = open.has(x.w);
+    $('#wk'+x.w).classList.toggle('open', on);
+    $('.chev', $('#wk'+x.w)).setAttribute('aria-expanded', on);
+    const p = $(`[data-pip="${x.w}"]`); if (p) p.classList.toggle('on', on);
+    const t = $(`[data-t="${x.w}"]`); if (t) t.classList.toggle('on', on);
+  }
+  const n = open.size, s = n === 0 ? 'none' : n === total ? 'all' : 'some';
+  const verb = s === 'all' ? 'Collapse all weeks' : 'Expand all weeks';
+  $$('.count').forEach(e => e.textContent = n + ' of ' + total + ' open');
+  const m = $('#master'); m.dataset.s = s; m.title = verb; m.setAttribute('aria-label', verb);
+  m.setAttribute('aria-expanded', s === 'all' ? 'true' : s === 'none' ? 'false' : 'mixed');
+  const pill = $('#pill'); pill.dataset.s = s;
+  $$('button', pill).forEach(b => b.setAttribute('aria-checked', b.dataset.v === s));
+  const b = $('#bellows'); b.dataset.next = s === 'all' ? 'close' : 'open'; b.title = verb; b.setAttribute('aria-label', verb);
+  $('#chip').title = verb;
+  const stop = crownStop();
+  $$('.crown').forEach(c => { c.style.setProperty('--stop', stop === 'hand' ? 1 : stop); c.style.setProperty('--turn', turn + 'px'); });
+  const lab = $('#crown-lab');
+  $$('i', lab).forEach((e,i) => e.classList.toggle('on', i === stop));
+  $('b', lab).textContent = stop === 'hand' ? 'By hand' : ['Weeks only','This week','Every day'][stop];
+}
+function crownStop(){
+  if (open.size === 0) return 0;
+  if (open.size === total) return 2;
+  return open.size === 1 && open.has(CURRENT) ? 1 : 'hand';
+}
+/* Weeks open in a wave that starts at what is on screen. */
+function apply(next, from){
+  const changed = WEEKS.filter(x => next.has(x.w) !== open.has(x.w));
+  const top = tw.scrollTop;
+  changed.sort((a,b) => Math.abs($('#wk'+a.w).offsetTop - top) - Math.abs($('#wk'+b.w).offsetTop - top));
+  changed.forEach((x,i) => {
+    const d = Math.min(i*16, 380) + 'ms';
+    $('#wk'+x.w).style.setProperty('--d', d);
+    const p = $(`[data-pip="${x.w}"]`); if (p) p.style.setProperty('--d', d);
+  });
+  open = next; paint();
+  clearTimeout(timer);
+  timer = setTimeout(() => $$('[style*="--d"]').forEach(e => e.style.removeProperty('--d')), 900);
+  if (from) { from.classList.remove('glint'); void from.offsetWidth; from.classList.add('glint'); setTimeout(() => from.classList.remove('glint'), 600); }
+  $$('.count').forEach(e => { e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); });
+}
+const allOr = () => new Set(open.size === total ? [] : WEEKS.map(x => x.w));
+const flip = (w, on = !open.has(w)) => { const s = new Set(open); on ? s.add(w) : s.delete(w); return s; };
+
+/* ── wiring ── */
+$('#tb').addEventListener('click', e => {
+  const pip = e.target.closest('.pip');
+  if (pip) { e.stopPropagation(); apply(flip(+pip.dataset.pip)); return; }
+  const wl = e.target.closest('.wl');
+  if (wl) { apply(flip(+wl.parentElement.dataset.w)); return; }
+  const mb = e.target.closest('.mb');
+  if (mb && frame.dataset.c.includes('pips')) {
+    const g = MONTHS.find(x => x.m === +mb.dataset.m), allOpen = g.weeks.every(x => open.has(x.w)), s = new Set(open);
+    g.weeks.forEach(x => allOpen ? s.delete(x.w) : s.add(x.w));
+    apply(s, mb);
+  }
+});
+$$('.c-links button').forEach(b => b.onclick = () => apply(new Set(b.dataset.all === '1' ? WEEKS.map(x => x.w) : [])));
+const master = $('#master');
+master.onclick = () => { apply(allOr(), master); frame.dataset.peek = ''; };
+master.onmouseenter = master.onfocus = () => frame.dataset.peek = open.size === total ? 'close' : 'open';
+master.onmouseleave = master.onblur = () => frame.dataset.peek = '';
+$$('#pill button').forEach(b => b.onclick = () => apply(new Set(b.dataset.v === 'all' ? WEEKS.map(x => x.w) : []), $('#pill')));
+$('#bellows').onclick = e => {
+  const b = e.currentTarget; apply(allOr(), b);
+  b.classList.remove('squeeze'); void b.offsetWidth; b.classList.add('squeeze');
+};
+$('#chip').onclick = e => apply(allOr(), e.currentTarget);
+
+/* The crown: a click goes to the next stop, a pull or a push moves one stop. */
+function crownTo(stop, el){
+  turn += stop > (crownStop() === 'hand' ? 1 : crownStop()) ? 24 : -24;
+  apply(new Set(stop === 2 ? WEEKS.map(x => x.w) : stop === 1 ? [CURRENT] : []), $('#crown-lab'));
+}
+$$('.crown').forEach(c => {
+  let x0 = null, moved = false;
+  c.addEventListener('pointerdown', e => { x0 = e.clientX; moved = false; c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointermove', e => {
+    if (x0 === null || moved || Math.abs(e.clientX - x0) < 10) return;
+    moved = true;
+    const s = crownStop() === 'hand' ? 1 : crownStop();
+    crownTo(Math.max(0, Math.min(2, s + (e.clientX > x0 ? 1 : -1))));
+  });
+  c.addEventListener('pointerup', () => { x0 = null; });
+  c.addEventListener('click', () => {
+    if (moved) { moved = false; return; }
+    const s = crownStop();
+    crownTo(s === 'hand' ? 2 : (s + 1) % 3);
+  });
+});
+
+/* The bezel: click jumps, a drag paints every tick it crosses. */
+const bezel = $('#bezel'), tip = $('#tip');
+let paintTo = null, startW = null, crossed = false;
+const tickAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY); return el && el.closest('[data-t]'); };
+function showTip(t){
+  if (!t) { tip.classList.remove('show'); return; }
+  const x = WEEKS[t.dataset.t - 1];
+  tip.textContent = 'W' + x.w + ' · ' + x.range + ' · ' + sign(x.delta);
+  const half = tip.offsetWidth / 2 + 2, left = t.offsetLeft + t.offsetWidth / 2;
+  tip.style.left = Math.max(half, Math.min(bezel.clientWidth - half, left)) + 'px';
+  tip.classList.add('show');
+}
+bezel.addEventListener('pointerdown', e => {
+  const t = tickAt(e); if (!t) return;
+  startW = +t.dataset.t; paintTo = !open.has(startW); crossed = false;
+  bezel.setPointerCapture(e.pointerId);
+  apply(flip(startW, paintTo));
+});
+bezel.addEventListener('pointermove', e => {
+  const t = tickAt(e); showTip(t);
+  if (paintTo === null || !t) return;
+  const w = +t.dataset.t;
+  if (w !== startW) crossed = true;
+  if (open.has(w) !== paintTo) apply(flip(w, paintTo));
+});
+bezel.addEventListener('pointerup', () => {
+  if (paintTo === true && !crossed) tw.scrollTo({ top:$('#wk'+startW).offsetTop - 40 });
+  paintTo = null;
+});
+bezel.addEventListener('pointerleave', () => showTip(null));
+
+/* The option bar and the notes */
+const bar = $('#opts');
+bar.innerHTML = OPTS.map(o => `<button type="button" class="opt${o.pick ? ' pick' : ''}" role="tab" data-k="${o.k}" aria-selected="false">${o.name}</button>`).join('');
+$('#cmp').innerHTML = OPTS.map(o => `<tr data-k="${o.k}"><td>${o.name}</td>${o.t.map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+function pick(k){
+  const o = OPTS.find(x => x.k === k) || OPTS.find(x => x.k === 'arrow');
+  frame.dataset.c = o.c;
+  $$('.opt').forEach(b => b.setAttribute('aria-selected', b.dataset.k === o.k));
+  $$('#cmp tr').forEach(r => r.classList.toggle('on', r.dataset.k === o.k));
+  $('#o-name').textContent = o.name; $('#o-line').textContent = o.line;
+  $('#o-where').textContent = o.where; $('#o-half').textContent = o.half;
+  $('#o-phone').textContent = o.phone; $('#o-catch').textContent = o.catch;
+  try { history.replaceState(null, '', '#' + o.k); } catch (e) {}
+}
+bar.onclick = e => { const b = e.target.closest('.opt'); if (b) pick(b.dataset.k); };
+$('#cmp').onclick = e => { const r = e.target.closest('tr'); if (r) { pick(r.dataset.k); frame.scrollIntoView({ block:'center', behavior:'smooth' }); } };
+$$('#width button').forEach(b => b.onclick = () => {
+  $$('#width button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+  frame.classList.toggle('ph', b.dataset.w === 'ph');
+});
+paint();
+pick(location.hash.slice(1) || 'arrow');
+</script>

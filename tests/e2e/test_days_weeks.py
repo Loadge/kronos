@@ -80,6 +80,12 @@ def _expanded(page, monday: str) -> str:
     return page.locator(f"#eweek-{monday} .week-sep-btn").get_attribute("aria-expanded")
 
 
+def _collapse_all(page) -> None:
+    """Press `−` when no week is open: it is aria-disabled and does nothing, and Playwright only
+    clicks such a control when forced. What is asserted after it holds either way."""
+    page.get_by_test_id("wk-collapse-all").click(force=True)
+
+
 def _centre(page, selector: str) -> float:
     b = page.locator(selector).bounding_box()
     return b["y"] + b["height"] / 2
@@ -199,7 +205,7 @@ class TestToggling:
         _week(base_url, W43)
         _week(base_url, W44)
         _open(page, base_url)
-        page.get_by_test_id("wk-collapse-all").click()
+        _collapse_all(page)
         assert page.locator(".days-table tr.day-row").count() == 0
         month = page.locator(".days-table .month-sep").first.inner_text()
         assert "October 2026" in month and "10 days" in month and "80h / 80h" in month
@@ -208,7 +214,7 @@ class TestToggling:
         _week(base_url, W43)
         _week(base_url, W44)
         _open(page, base_url)
-        page.get_by_test_id("wk-collapse-all").click()
+        _collapse_all(page)
         page.wait_for_timeout(200)
         cells = [f"#eweek-{W43} {c}" for c in (".ws-net", ".ws-target", ".ws-delta", ".ws-sigma")]
         closed = [page.locator(c).bounding_box()["x"] for c in cells]
@@ -290,6 +296,8 @@ class TestNotesSearch:
         page.locator(f"tr.wk-row#wk-{W38} .wk-head").click()  # open the Freelance-only week
         assert _state(page, f"daysWeekOpen['{W38}']") is True
         page.get_by_role("radio", name="Employee").click()
+        # a week open by hand, so that `−` has something to close and writes its False
+        page.locator(f"#eweek-{W44} .week-sep-btn").click()
         page.get_by_test_id("wk-collapse-all").click()
         assert _state(page, f"daysWeekOpen['{W38}']") is True
         assert _state(page, f"daysWeekOpen['{W44}']") is False
@@ -315,6 +323,7 @@ class TestNotesSearch:
         page.locator(f"#eweek-{W44} .week-sep-btn").click()
         assert _state(page, f"daysWeekOpen['{W44}']") is True
         page.get_by_role("radio", name="Freelance").click()
+        page.locator(f"tr.wk-row#wk-{W38} .wk-head").click()  # so that `−` has something to close
         page.get_by_test_id("wk-collapse-all").click()
         assert _state(page, f"daysWeekOpen['{W44}']") is True
         assert _state(page, f"daysWeekOpen['{W38}']") is False
@@ -398,7 +407,9 @@ def test_nothing_scrolls_sideways_and_the_numbers_are_there(page, base_url, widt
     for n in range(11):
         _week(base_url, (start + datetime.timedelta(days=7 * n)).isoformat(), ["20:00"] * 5)
     _open(page, base_url, (width, height))
-    page.get_by_test_id("wk-collapse-all" if state == "collapsed" else "wk-expand-all").click()
+    # a no-op when nothing is open (the control is aria-disabled): forced
+    button = "wk-collapse-all" if state == "collapsed" else "wk-expand-all"
+    page.get_by_test_id(button).click(force=True)
     page.wait_for_timeout(300)
     assert page.evaluate("document.documentElement.scrollWidth") <= width
     line = f"#eweek-{W44} tr.week-sep"

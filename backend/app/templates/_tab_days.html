@@ -1,3 +1,35 @@
+{#- The bezel: a tick per week over the table, in both modes. daysBezel() runs once per render; the strip is
+    one tab stop and the chip's two buttons keep the old expand/collapse test ids. It hides itself when no
+    week has data in view (or, in Employee, while the table is not sorted by date). -#}
+{% macro bezel() %}
+<template x-for="bz in daysBezelView(daysBezel())" :key="'bezel'">
+  <div class="bz" :class="bz.mode === 'freelance' ? 'bz--fl' : 'bz--emp'" data-testid="days-bezel">
+    <div class="bz-strip" role="toolbar" aria-label="Weeks" data-testid="bz-strip"
+         @pointerdown="bzDown($event)" @pointermove="bzMove($event)" @pointerup="bzUp()" @pointercancel="bzCancel()"
+         @pointerleave="bzLeave()" @keydown="bzKey($event)" @focusin="bzFocusIn($event)" @focusout="bzFocusOut()">
+      <template x-for="t in bz.ticks" :key="t.monday">
+        <span class="bz-tick" data-testid="bz-tick" :data-monday="t.monday"
+          :class="{ on: t.open, paid: t.paid, cur: t.current, future: t.future, empty: t.empty, up: t.value >= 0, dn: t.value < 0 }"
+          :role="t.empty ? null : 'button'" :tabindex="t.empty ? null : (t.monday === bz.rove ? 0 : -1)"
+          :aria-pressed="t.empty ? null : (t.open ? 'true' : 'false')" :aria-label="t.empty ? null : t.text"
+          :aria-hidden="t.empty ? 'true' : null"
+          :style="'--h:' + t.height + ';--wd:' + (daysWave[t.monday] || 0) + 'ms'">
+          <span class="bz-bar"></span>
+          <template x-if="t.label"><span class="bz-lab" :class="t.labEnd ? 'end' : ''" aria-hidden="true" x-text="t.label"></span></template>
+        </span>
+      </template>
+      <span class="bz-tip" aria-hidden="true"></span>
+    </div>
+    <div class="bz-chip">
+      <button type="button" class="bz-btn" data-testid="wk-collapse-all" aria-label="Collapse all weeks" title="Collapse all weeks"
+        :aria-disabled="bz.open === 0 ? 'true' : null" @click="bzAll(false, $event)">&minus;</button>
+      <span class="bz-count metric" x-text="bz.open + ' of ' + bz.total + ' open'"></span>
+      <button type="button" class="bz-btn" data-testid="wk-expand-all" aria-label="Expand all weeks" title="Expand all weeks"
+        :aria-disabled="bz.open === bz.total ? 'true' : null" @click="bzAll(true, $event)">+</button>
+    </div>
+  </div>
+</template>
+{% endmacro %}
 <!-- ========================= DAYS ========================= -->
 <template x-if="tab==='days'">
 <section aria-label="All logged days" x-init="$nextTick(() => scrollToToday())">
@@ -171,9 +203,7 @@
         <span class="wk-gap wide quiet" x-text="l.noHours ? 'payout with no hours' : (l.payout ? '' : (r.awaiting ? 'awaiting payout' : ''))"></span>
       </template>
       {% endmacro %}
-      <template x-if="daysFlRows().length">
-        <p class="wk-tools"><a @click.prevent="daysWeeksSetAll(true)" href="#" data-testid="wk-expand-all">Expand all</a> · <a @click.prevent="daysWeeksSetAll(false)" href="#" data-testid="wk-collapse-all">Collapse all</a></p>
-      </template>
+      {{ bezel() }}
       <template x-if="daysFlRows().length">
         <div class="table-wrap days-wrap">
           <table class="days-table days-table--fl">
@@ -187,7 +217,8 @@
               </tr>
             </thead>
             <template x-for="r in daysFlRows()" :key="r.key">
-              <tbody>
+              <tbody :class="r.kind === 'bhead' || r.kind === 'block' ? { 'row-in': r.week in daysWave } : null"
+                     :style="(r.kind === 'bhead' || r.kind === 'block') && r.week in daysWave ? '--wd:' + daysWave[r.week] + 'ms' : ''">
                 <template x-if="r.kind === 'sep'">
                   <tr class="month-sep">
                     <td colspan="11">
@@ -201,7 +232,7 @@
                   </tr>
                 </template>
                 <template x-if="r.kind === 'week'">
-                  <tr class="wk-row" :id="'wk-' + r.week" :class="[r.current ? 'cur' : '', r.open ? 'open' : '']" :data-week="r.id">
+                  <tr class="wk-row" :id="'wk-' + r.week" :class="[r.current ? 'cur' : '', r.open ? 'open' : '', r.week === daysFlashWeek ? 'week-flash' : '']" :data-week="r.id">
                     <td colspan="11">
                       <div class="wk-line wk-main" data-testid="wk-main" @click="daysWeekToggle(r.week)"
                         :class="r.lines.length === 1 && r.lines[0].payout ? 'has-pay' : ''"
@@ -326,9 +357,7 @@
   <!-- Dense table: the whole row opens the day in Log (✎ is the focusable target), notes are
        always visible in the last column, a separator with its subtotal opens every month while
        sorted by date. One <tbody> per row keeps the `day-row-<date>` anchor for scrollToToday. -->
-  <template x-if="entries.length && sortKey === 'date'">
-    <p class="wk-tools"><a @click.prevent="daysWeeksSetAll(true)" href="#" data-testid="wk-expand-all">Expand all</a> · <a @click.prevent="daysWeeksSetAll(false)" href="#" data-testid="wk-collapse-all">Collapse all</a></p>
-  </template>
+  {{ bezel() }}
   <template x-if="entries.length">
     <div class="table-wrap days-wrap">
       <table class="days-table">
@@ -363,7 +392,8 @@
         </thead>
         <template x-for="r in daysRows()" :key="r.key">
           <tbody :id="r.kind === 'entry' ? 'day-row-' + r.e.date : (r.kind === 'wk' ? 'eweek-' + r.week : null)"
-                 :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor, 'week-flash': !!r.week && r.week === daysFlashWeek }">
+                 :class="{ 'today-row': r.kind === 'entry' && r.e._isAnchor, 'week-flash': !!r.week && r.week === daysFlashWeek, 'row-in': r.kind === 'entry' && !!r.week && r.week in daysWave }"
+                 :style="r.kind === 'entry' && r.week && r.week in daysWave ? '--wd:' + daysWave[r.week] + 'ms' : ''">
             <template x-if="r.kind === 'wk'">
               <!-- a week is one line that is always there, numbered under the table's own columns:
                    Date to Breaks hold the title, then Net, Target, Δ and Σ, then Notes and the pencil -->

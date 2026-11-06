@@ -143,7 +143,8 @@ def test_a_freelance_block_is_two_lines_on_a_phone(page, base_url, days):
     page.set_viewport_size(PHONE)
     page.goto(f"{base_url}/#days")
     page.get_by_role("radio", name="Freelance").click()
-    page.get_by_test_id("wk-expand-all").click()
+    # the week of the block may be the only one, and open already: `+` is then aria-disabled
+    page.get_by_test_id("wk-expand-all").click(force=True)
     row = page.locator("tr.blk").first
     row.wait_for(timeout=5000)
     line1 = _squash(" ".join(row.locator("td:visible:not(.day-sub)").all_inner_texts()))
