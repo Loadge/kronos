@@ -30,128 +30,21 @@ it for the history of a decision, not by default). This file keeps only open and
 | 31 | Visual redesign: 5 tabs + gear, dashboard hero with trajectory and week strip, Settings cards, dense Days | `35ad663` |
 | 33 | Interactive Analytics: zoomable SVG chart whose range drives the page, heatmap tooltip + click | `35ad663` |
 | 34–35 | Freelance hours: income sources, blocks with a rate snapshot, ECB rate, Freelance tab, 130, calculator, Days / Analytics / PDF | `3baed75`, `9314942` |
+| 41 | Kronos on a phone: two-line rows in Days, tap sizes of 24px, Analytics in phone order | `3808b78`, `8be17e5` |
+| 42 | One line per week in Days > Freelance: the numbers always on screen, the arrow only hides the days | `f5faa45`, `2e5e539` |
+| 43 | One line per week in Days > Employee, with Σ on the week line | `50ec193`, `c26a1b5` |
+| 44 | The bezel: one tick per week over the Days table, in place of Expand all and Collapse all | `319455e`, `97aa5eb`, `f5fc1ac`, `b059006` |
+| 45 | Leaving a day in Log by clicking the calendar; the ← button and the subtitle are gone | `9ea495f` |
 
 ---
 
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37, 38, 39, 40, 41, 42, 43, 44 and 45 built, waiting for Miguel's check; 28 after them (Anselmo logs
+37, 38, 39 and 40 built, waiting for Miguel's check; 41 to 45 confirmed and archived; 28 after them (Anselmo logs
 through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
 the LAN turns out to be common.
-
-### Phase 45 — Leaving a day in Log (built 2026-11-06, awaiting confirmation)
-
-**Why.** Miguel wanted to get out of editing a day by clicking on the calendar, without the ← button, and no
-longer needed to read "New entry" or "Edit 2026-11-06" next to the title.
-
-**Decisions.**
-- A click on the day being edited leaves it, as Escape does: the form goes back to a new entry for today and the
-  calendar stays on its month.
-- A click on another day leaves the edit and selects that day. A day with an entry opens for editing, an empty
-  day starts a fresh form, and a drafted day starts from its draft. Nothing of the day just left carries over.
-- Unsaved changes are discarded with no prompt. Miguel chose this, and ← and Escape already did it.
-- During an edit the other days are neither dimmed nor disabled.
-- The ← button and the subtitle are gone, so the title reads "Log". Escape keeps working.
-- When two days are clicked quickly, only the answer for the newest click counts.
-
-### Phase 44 — The bezel (built 2026-11-06, awaiting confirmation)
-
-**Why.** Miguel asked for a way to expand or collapse every week that followed Kronos's style instead of two
-text links. The options were drawn in `docs/mockups/days-fold.html`, and he chose the bezel.
-
-**Decisions.**
-- A strip with one tick per week replaces Expand all and Collapse all, in Employee and in Freelance. Lit ticks
-  are open weeks, so the strip is also a map of the year.
-- A year has a slot for every Monday from the week holding Jan 1 to the week holding Dec 31. "All" goes from
-  the first week with data to the last. A slot with nothing to show is an empty tick.
-- In Employee the height is the week's surplus around a centre line. In Freelance it is the week's euros from
-  a baseline. An open week is brass, and in Freelance an open week that is paid out is teal.
-- A press toggles a week, and when it opens the week it also jumps to it and flashes it. A drag gives every week
-  it crosses the state of the first one, even when the hand wanders off the strip.
-- A finger waits until it moves sideways or lifts, so a vertical swipe that starts on the strip scrolls the
-  page and touches no week.
-- The chip at the right end reads `- 2 of 45 open +`. Its two buttons keep the old test ids, and when one has
-  nothing to do it is dim and marked `aria-disabled`, not `disabled`.
-- From 901px the strip sticks to the top of the screen, with the table's headers just under it.
-- The strip is one tab stop, and the arrows, Home and End move between the weeks with data.
-
-**Known limits.** In "All", when the data starts in the last weeks of December, the first two year labels can
-sit very close on a phone. Playwright refuses to click an `aria-disabled` button, so a test that presses `+` or
-`-` with nothing to do must force the click.
-
-### Phase 43 — One line per week in Employee (built 2026-11-06, awaiting confirmation)
-
-**Why.** After Phase 42 Miguel asked for the same behaviour in Days > Employee: the week's numbers always
-visible, and the arrow only collapsing the days.
-
-**Decisions.**
-- A week is a line with Net, Target, Δ and Σ under the table's own columns, plus the number of days. Σ on the
-  week line is new: it is the running total at the last day of that week, because collapsing would hide it.
-- Clicking the arrow or anywhere on the line toggles the week. On load only the current week shows its days,
-  and Expand all and Collapse all appear above the table.
-- Open and closed weeks are shared with Freelance, so a week stays open when the pill changes. Expand all only
-  touches the weeks of the side on screen.
-- The notes search works as in Freelance: every week opens, the arrows still work, and clearing it puts each
-  week back.
-- Sorted by Net the table stays a flat list of days, with no weeks and no arrows.
-- From 1280px a hidden row in the table's head holds each column at its widest usual value, so opening a week
-  does not move the numbers of the others. Below that it would push the table past the page, so the columns
-  can still shift.
-- The Log calendar's week button opens the week it jumps to. The scroll to today lands on the week line when
-  that day is hidden.
-- On a phone a week is two lines: arrow, week, range and tag, then days, net / target, Δ and Σ.
-
-**Known limits.** Between 641px and 900px an open table still scrolls inside its own box, as it always did, so
-Σ can sit off screen there. A value wider than the hidden row can still widen its column.
-
-### Phase 42 — One line per week (built 2026-11-05, awaiting confirmation)
-
-**Why.** In Days > Freelance the arrow hid the numbers of a week and the days were always there, so seeing the
-next week meant scrolling past every block. Miguel asked for the reverse: the hours, the payout and the rest are
-always visible, and the arrow only collapses the days, so a collapsed week is one line with the next week
-right under it.
-
-**Decisions.**
-- From 1280px a one-source week is one line: arrow, week, range, tags, Hours, Estimate, Payout, Gap, € / h and
-  the status tag. The source name moves to a tooltip and the week's euro amount to a tooltip on Estimate.
-- A week with two or more sources shows its totals on the week line, and one line per source stays under it,
-  always visible. The arrow only hides the days.
-- The payout field lives on the line, so a payout can be typed in a collapsed week. Clicking anywhere on the
-  line toggles the week, except inside the payout cell.
-- On load only the current week shows its days. While the notes search has text every week opens, so a hit is
-  never hidden; the arrows still work and clearing the search puts each week back as it was.
-- The week columns have one header at the top of the table, and each open week has a small header for its
-  block columns, so with everything collapsed there is only one header.
-- Under 1280px the week is two stacked lines, and on a phone it keeps the labelled blocks with no header rows.
-  The plan said 1100px, but a paid USD week with four-figure amounts does not fit on one line below 1280px:
-  Pico's root font grows with the screen, and at 1200px the page scrolled sideways.
-- From 1280px to 1535px the current week drops its "splits" tag when it has one, because "this week" and
-  "splits Oct/Nov" do not fit next to each other. The month row still says what comes from that week.
-- The geometry audit now measures the week tags, with every week open and with every week collapsed.
-
-**Known limits.** On a phone a long source name wraps to two lines in a day row, as it did before this phase.
-Between 601px and 1279px the source name of a one-source week is only in the tooltip, which a touch screen does
-not show. The picture baselines do not cover this table, because they show Days in Employee mode.
-
-### Phase 41 — Kronos on a phone (built 2026-11-05, checked by Miguel on his phone on INT, waiting for PROD)
-
-**Why.** The first `/ui-review` showed that desktop tables were being squeezed onto the phone: Days was 755px
-wide inside a 343px space, so Net and the delta needed sideways scrolling, and Notes were hidden altogether.
-
-**Decisions.**
-- Up to 640px, each row of Days (Employee and Freelance) is two lines: what the day is and its numbers, then
-  times, breaks, the running total and the note. Nothing is dropped and nothing scrolls sideways. The column
-  headers go, so sorting by header is a desktop thing, and the pencil goes because the whole row opens the day.
-- In Analytics the Range card comes right after the chart on a phone, before Weekday pattern, and the Years
-  table fits without scrolling.
-- Controls are at least 24px each way on a phone; text links inside a sentence are exempt.
-- A label of the Calculator's bar hides when its segment is too narrow for it.
-- The geometry audit gained the tap size and the scroll inside Days, and its data now has real rows.
-
-**Known limits.** The Days loading skeleton on a phone was not looked at. The thresholds that hide the
-Calculator's labels are estimates from character counts. Desktop did not move: no 1280px baseline changed.
 
 ### Phase 40 — Eyes on the UI (built 2026-11-05, awaiting confirmation)
 
@@ -474,11 +367,6 @@ range goes through `/batch` and so cannot carry times.
   in code, no mixed line endings; `tests/integration/test_backup_fidelity.py` proves backup → wipe →
   restore → backup is identical, which found that break time ranges were dropped by the backup
   (fixed, old files still load); `bin/smoke.py` checks the planner and the timesheet too.
-- **Demo GIF** (`docs/demo/`) predates the planner, partial days, the timesheet and the Phase
-  31 / 33 redesign — the README's first image shows the old dashboard and analytics. Re-record it
-  when convenient (`docs/demo/README.md`; the recorder's scenes already point at the new
-  headings).
-
 - **PROD data from the Phase 27 check (2026-10-16):** 1-may is stored as `vacation`, and 12-jun /
   19-jun as holidays without a note. Left for Miguel to decide.
 - **`IMPROVEMENTS.md`** (git-ignored, local only) is a superseded backlog (see its banner); delete

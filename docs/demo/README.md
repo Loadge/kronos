@@ -58,7 +58,7 @@ no matter how slow the capture machine is. Edit the scene list in
 
 The tour, in order (about 21 s):
 
-1. **Dashboard**, the faint `v38` next to the title, then a scroll down to the
+1. **Dashboard**, the faint `v45` next to the title, then a scroll down to the
    end of the page.
 2. **Log**: the calendar with its Wk column; the October mini month, then the
    week number `41`.
