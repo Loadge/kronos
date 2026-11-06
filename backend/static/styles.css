@@ -4127,18 +4127,22 @@ tbody.week-flash > tr > td, tr.wk-row.week-flash > td { animation: week-wash 2s 
 @keyframes bz-row-in { from { opacity: 0; } to { opacity: 1; } }
 tbody.row-in > tr { animation: bz-row-in 0.24s ease-out var(--wd, 0ms) both; }
 @media (min-width: 901px) {
-  .bz { position: sticky; top: 0; z-index: 4; height: var(--bz-h); }
+  /* the shadow closes the pixel the collapsed borders leave between the strip and the sticky headers */
+  .bz { position: sticky; top: 0; z-index: 4; height: var(--bz-h); box-shadow: 0 2px 0 var(--k-bg); }
 }
 /* phone: the strip keeps every tick and takes the width; the chip goes under it, at the right */
 @media (max-width: 640px) {
   .bz { flex-wrap: wrap; gap: 0.35rem; }
   .bz-strip { flex: 1 1 100%; }
   .bz-chip { margin-left: auto; }
+  /* a row is a grid of small cells here: the flash washes the row, not each cell on its own */
+  tbody.week-flash > tr { animation: week-wash 2s ease-out forwards; }
+  tbody.week-flash > tr > td { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bz-bar, .bz-btn, .bz-tip { transition: none; }
   .bz-tick:not(.empty):hover .bz-bar, .bz-btn:hover, .bz-btn:active { transform: none; }
-  .bz-glint::after, .bz-bump, tbody.row-in > tr { animation: none; }
+  .bz-glint::after, .bz-bump, tbody.row-in > tr, tbody.week-flash > tr { animation: none; }
 }
 
 /* ── Version label and update pill ── */

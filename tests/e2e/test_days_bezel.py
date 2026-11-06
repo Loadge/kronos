@@ -475,6 +475,18 @@ class TestAHandOnTheStrip:
         for m in (W32, W33, W34, "2026-08-24"):
             assert _tick(page, m).get_attribute("aria-pressed") == "true", m
 
+    def test_on_a_phone_the_flash_washes_the_row_and_not_each_cell(self, page, base_url):
+        self._weeks(base_url)
+        _open_days(page, base_url, (375, 800))
+        _tick(page, W32).click()
+        _wait_flash(page, W32)
+        names = page.locator(f"#eweek-{W32} tr").first.evaluate(
+            """tr => [getComputedStyle(tr).animationName,
+              ...[...tr.children].map(td => getComputedStyle(td).animationName)]"""
+        )
+        assert names[0] == "week-wash"
+        assert set(names[1:]) == {"none"}
+
     def test_the_tooltip_leaves_with_the_pointer_after_a_click(self, page, base_url):
         _week(base_url, W32)
         _open_days(page, base_url)
@@ -781,6 +793,9 @@ class TestSticky:
         # a solid background, so nothing shows through
         bg = page.locator(".bz").evaluate("e => getComputedStyle(e).backgroundColor")
         assert bg == _colour(page, "var(--k-bg)")
+        # nor through the pixel between the strip and the headers
+        shadow = page.locator(".bz").evaluate("e => getComputedStyle(e).boxShadow")
+        assert shadow.startswith(bg) and " 2px " in shadow, shadow
 
     @pytest.mark.parametrize("freelance", [False, True], ids=["employee", "freelance"])
     def test_at_900_it_does_not_stick_and_the_headers_are_as_before(
