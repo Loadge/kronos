@@ -12,34 +12,86 @@
     </div>
   </header>
 
-  <!-- Year strip: twelve mini months; click one to make it the working month -->
-  <div class="plan-strip" role="tablist" aria-label="Months">
-    <template x-for="m in planYearStrip()" :key="m.mo">
-      <button type="button" class="plan-mini" :class="m.active ? 'active' : ''"
-              role="tab" :aria-selected="m.active ? 'true' : 'false'"
-              @click="planMonth = m.mo" :aria-label="m.label + ' ' + planYear">
-        <span class="plan-mini-title" x-text="m.label"></span>
-        <span class="plan-mini-grid">
-          <template x-for="c in m.cells" :key="c.key">
-            <i :class="c.pad ? 'pad' : 'hm-cell ' + c.cls" :style="c.style"></i>
+  <!-- Year strip: twelve mini months, click one to make it the working month; under them the year's balance line -->
+  <div class="plan-year-card">
+    <div class="plan-strip" role="tablist" aria-label="Months">
+      <template x-for="m in planYearStrip()" :key="m.mo">
+        <button type="button" class="plan-mini" :class="m.active ? 'active' : ''"
+                role="tab" :aria-selected="m.active ? 'true' : 'false'"
+                @click="planMonth = m.mo" :aria-label="m.label + ' ' + planYear">
+          <span class="plan-mini-title" x-text="m.label"></span>
+          <span class="plan-mini-grid">
+            <template x-for="c in m.cells" :key="c.key">
+              <i :class="c.pad ? 'pad' : 'hm-cell ' + c.cls" :style="c.style"></i>
+            </template>
+          </span>
+        </button>
+      </template>
+    </div>
+
+    <!-- The balance across the year, each month in the column of its mini. Real up to today (solid brass),
+         then the projection the cards use: dashed for the chosen assumption, faint for the other. -->
+    <div class="plan-line" data-testid="plan-line"
+         :role="planLine && (planLine.real || planLine.tails) ? 'img' : null" :aria-label="planLine?.label"
+         :style="'height:' + planGeom.h + 'px'"
+         x-init="planLineWatch($el)" x-effect="planLine = buildPlanLine()"
+         @pointermove="planLineMove($event)" @pointerdown="planLineMove($event)" @pointerleave="$event.pointerType === 'touch' || planLineLeave()">
+      <template x-if="planLine && (planLine.real || planLine.tails)">
+        <div class="pl-draw">
+          <svg class="pl-svg" aria-hidden="true" :width="planLine.w" :height="planLine.h" :viewBox="'0 0 ' + planLine.w + ' ' + planLine.h">
+            <line class="pl-zero" x1="0" :x2="planLine.w" :y1="planLine.zero" :y2="planLine.zero"></line>
+            <g class="pl-tails" x-show="planLine.tails">
+              <path class="pl-tail" :class="planMode === 'on_target' ? 'is-chosen' : ''" data-mode="on_target" :d="planLine.tails?.on_target"></path>
+              <path class="pl-tail" :class="planMode === 'at_pace' ? 'is-chosen' : ''" data-mode="at_pace" :d="planLine.tails?.at_pace"></path>
+            </g>
+            <path class="pl-real" pathLength="1" :d="planLine.real"></path>
+          </svg>
+          <template x-for="m in planLine.marks" :key="m.k">
+            <i class="pl-mark" :class="m.cls" :style="'left:' + m.x + 'px; top:' + m.y + 'px'" :title="m.title" data-testid="plan-line-mark"></i>
           </template>
-        </span>
-      </button>
-    </template>
+          <template x-if="planLine.today">
+            <i class="pl-pip pl-pip--today" data-testid="plan-line-today" :data-value="planLine.today.text"
+               :style="'left:' + planLine.today.x + 'px; top:' + planLine.today.y + 'px'"></i>
+          </template>
+          <template x-if="planLine.end">
+            <div>
+              <i class="pl-pip pl-pip--end" data-testid="plan-line-end"
+                 :style="'left:' + planLine.end.x + 'px; top:' + planLine.end.y + 'px'"></i>
+              <span class="pl-end" :class="[planLine.end.cls, planLine.end.below ? 'pl-end--below' : '']" data-testid="plan-line-end-label" x-text="planLine.end.text"
+                    :style="'left:' + planLine.end.x + 'px; top:' + planLine.end.y + 'px'"></span>
+            </div>
+          </template>
+          <template x-if="planHover">
+            <div>
+              <i class="pl-cursor" :style="'left:' + planHover.x + 'px'"></i>
+              <i class="pl-pip pl-pip--hover" :style="'left:' + planHover.x + 'px; top:' + planHover.y + 'px'"></i>
+            </div>
+          </template>
+        </div>
+      </template>
+      <p class="pl-caption muted" x-show="planLine && planLine.caption" x-text="planLine?.caption"></p>
+    </div>
+    <div class="pl-initials" aria-hidden="true" x-show="!planGeom.aligned">
+      <template x-for="(l, n) in ['J','F','M','A','M','J','J','A','S','O','N','D']" :key="n"><span x-text="l"></span></template>
+    </div>
   </div>
 
   <!-- Projection strip -->
   <template x-if="projection">
     <div class="hero-grid plan-stats">
-      <article class="summary-card plan-stat">
-        <h3 x-text="'Balance at Dec 31, ' + planYear"></h3>
-        <div class="subdial-label" :class="surplusClass(planYearEndBalance())" x-text="subdialLabel(planYearEndBalance())"></div>
-        <div class="metric" :class="surplusClass(planYearEndBalance())" x-text="formatSurplus(planYearEndBalance())"></div>
-        <div class="seg-toggle" role="radiogroup" aria-label="Projection assumption">
-          <button type="button" role="radio" :aria-checked="planMode === 'on_target' ? 'true' : 'false'" :class="planMode === 'on_target' ? 'on' : ''" @click="setPlanMode('on_target')">On target</button>
-          <button type="button" role="radio" :aria-checked="planMode === 'at_pace' ? 'true' : 'false'" :class="planMode === 'at_pace' ? 'on' : ''" @click="setPlanMode('at_pace')">At my pace</button>
+      <article class="summary-card plan-stat plan-stat--balance">
+        <div class="plan-stat-top">
+          <h3 x-text="'Balance at Dec 31, ' + planYear"></h3>
+          <div class="subdial-label" :class="surplusClass(planYearEndBalance())" x-text="subdialLabel(planYearEndBalance())"></div>
         </div>
-        <div class="sub">
+        <div class="plan-stat-main">
+          <div class="metric" :class="surplusClass(planYearEndBalance())" x-text="formatSurplus(planYearEndBalance())"></div>
+          <div class="seg-toggle" role="radiogroup" aria-label="Projection assumption">
+            <button type="button" role="radio" :aria-checked="planMode === 'on_target' ? 'true' : 'false'" :class="planMode === 'on_target' ? 'on' : ''" @click="setPlanMode('on_target')">On target</button>
+            <button type="button" role="radio" :aria-checked="planMode === 'at_pace' ? 'true' : 'false'" :class="planMode === 'at_pace' ? 'on' : ''" @click="setPlanMode('at_pace')">At my pace</button>
+          </div>
+        </div>
+        <div class="sub plan-stat-cap">
           <template x-if="planMode === 'on_target'">
             <span>
               <span x-text="formatSurplus(projection.balance_today)"></span> today
@@ -58,50 +110,45 @@
             </span>
           </template>
         </div>
-        <div class="plan-viz plan-spark" role="img" :aria-label="planSpark().label" :title="planSpark().label" data-testid="plan-spark">
-          <svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">
-            <line class="ps-zero" x1="0" x2="100" :y1="planSpark().zero" :y2="planSpark().zero"></line>
-            <path class="ps-alt" :d="planSpark().alt"></path>
-            <path class="ps-line" :d="planSpark().line"></path>
-          </svg>
-          <i class="ps-dot" :style="'left:' + planSpark().nowLeft + '%; top:' + planSpark().nowTop + '%'"></i>
-          <i class="ps-dot ps-dot--end" :style="'left:' + planSpark().endLeft + '%; top:' + planSpark().endTop + '%'"></i>
-        </div>
       </article>
       <article class="summary-card plan-stat">
         <h3>Vacation after this plan</h3>
-        <template x-if="projection.vacation_budget_days > 0">
-          <div>
+        <div class="plan-stat-body">
+          <template x-if="projection.vacation_budget_days > 0">
             <div class="metric" :class="projection.vacation_remaining_after_plan < 0 ? 'deficit' : ''">
               <span x-text="fmtDays(projection.vacation_remaining_after_plan)"></span><span class="metric-unit" x-text="' / ' + fmtDays(projection.vacation_budget_days)"></span>
             </div>
-            <div class="sub">
-              <span x-text="fmtDays(projection.vacation_used_days)"></span> logged ·
-              <span x-text="fmtDays(projection.vacation_drafted_days)"></span> drafted
-            </div>
+          </template>
+          <template x-if="!(projection.vacation_budget_days > 0)">
+            <div class="metric"><span x-text="fmtDays(projection.vacation_drafted_days)"></span><span class="metric-unit"> days</span></div>
+          </template>
+          <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-vacation"
+               :aria-label="fmtDays(projection.vacation_used_days) + ' vacation days used, ' + fmtDays(projection.vacation_drafted_days) + ' drafted'">
+            <template x-for="p in planVacationPips()" :key="p.k"><i class="pip pip--vacation" :class="p.cls"></i></template>
+          </div>
+        </div>
+        <template x-if="projection.vacation_budget_days > 0">
+          <div class="sub">
+            <span x-text="fmtDays(projection.vacation_used_days)"></span> logged ·
+            <span x-text="fmtDays(projection.vacation_drafted_days)"></span> drafted
           </div>
         </template>
         <template x-if="!(projection.vacation_budget_days > 0)">
-          <div>
-            <div class="metric"><span x-text="fmtDays(projection.vacation_drafted_days)"></span><span class="metric-unit"> days</span></div>
-            <div class="sub">vacation drafted · <a @click.prevent="go('settings')">set a budget</a> to track what's left</div>
-          </div>
+          <div class="sub">vacation drafted · <a @click.prevent="go('settings')">set a budget</a> to track what's left</div>
         </template>
-        <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-vacation"
-             :aria-label="fmtDays(projection.vacation_used_days) + ' vacation days used, ' + fmtDays(projection.vacation_drafted_days) + ' drafted'">
-          <template x-for="p in planVacationPips()" :key="p.k"><i class="pip pip--vacation" :class="p.cls"></i></template>
-        </div>
       </article>
       <article class="summary-card plan-stat">
         <h3>Drafted</h3>
-        <div class="metric"><span x-text="fmtDays(projection.drafted_days)"></span><span class="metric-unit" x-text="projection.drafted_days === 1 ? ' day' : ' days'"></span></div>
+        <div class="plan-stat-body">
+          <div class="metric"><span x-text="fmtDays(projection.drafted_days)"></span><span class="metric-unit" x-text="projection.drafted_days === 1 ? ' day' : ' days'"></span></div>
+          <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-drafted"
+               :aria-label="fmtDays(projection.drafted_days) + ' drafted days'">
+            <template x-for="p in planDraftPips()" :key="p.k"><i class="pip" :class="p.cls" :title="p.title"></i></template>
+          </div>
+        </div>
         <div class="sub">
           <span x-text="fmtDays(projection.open_days_left) + ' of ' + fmtDays(projection.scheduled_days_left) + ' scheduled days still open'"></span>
           <template x-if="projection.drafted_flex_hours > 0"><span x-text="' · −' + fmtHours(projection.drafted_flex_hours) + ' pool'"></span></template>
-        </div>
-        <div class="plan-viz plan-pips" role="img" data-testid="plan-pips-drafted"
-             :aria-label="fmtDays(projection.drafted_days) + ' drafted days'">
-          <template x-for="p in planDraftPips()" :key="p.k"><i class="pip" :class="p.cls" :title="p.title"></i></template>
         </div>
       </article>
     </div>
@@ -215,6 +262,13 @@
       </template>
       <p class="muted plan-ledger-note" title="Drafts don't touch your numbers until committed. Logged days (holidays you imported, days logged ahead) are listed so the plan reads as one timeline.">Drafts don't touch your numbers until committed.</p>
     </div>
+  </div>
+
+  <!-- the year line's tooltip: the date and the balance under the pointer -->
+  <div class="hm-tip pl-tip" role="tooltip" x-show="planTip.show" x-cloak :style="`left:${planTip.x}px;top:${planTip.y}px`">
+    <b x-text="planTip.title"></b><br>
+    <span class="metric" :class="planTip.valueCls" x-text="planTip.value"></span>
+    <template x-if="planTip.note"><i class="hm-tip-note" x-text="planTip.note"></i></template>
   </div>
 </section>
 </template>

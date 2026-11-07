@@ -247,7 +247,7 @@ def test_the_head_chip_reads_add_freelance_in_sentence_case(make_page):
     )
 
 
-# ── 4 and 5. Plan: three cards, one row, a drawing each; Commit; no hole ─────────────────────
+# ── 4 and 5. Plan: three cards, one row; the balance drawing is the year line under the strip; Commit; no hole ──
 # These run on the live server, which they may write to: the demo has no drafts.
 
 CARDS = """
@@ -287,7 +287,9 @@ def test_plan_cards_are_one_row_of_equal_height_at_1280(planned):
     assert len(cards) == 3
     assert max(c["top"] for c in cards) - min(c["top"] for c in cards) <= 1, cards
     assert max(c["height"] for c in cards) - min(c["height"] for c in cards) <= 1, cards
-    assert all(c["viz"] for c in cards)
+    # the pips are on the vacation and drafted cards; the balance card's drawing is the year line
+    assert [c["viz"] for c in cards] == [False, True, True]
+    assert planned.locator("[data-testid=plan-line] .pl-real").count() == 1
     lefts = [c["left"] for c in cards]
     assert lefts == sorted(lefts) and len(set(lefts)) == 3, lefts
 
@@ -296,7 +298,8 @@ def test_plan_cards_stack_on_a_phone_and_keep_their_drawing(planned):
     planned.set_viewport_size({"width": 375, "height": 800})
     planned.wait_for_timeout(300)
     cards = planned.evaluate(CARDS)
-    assert len(cards) == 3 and all(c["viz"] for c in cards)
+    assert len(cards) == 3 and [c["viz"] for c in cards] == [False, True, True]
+    assert planned.locator("[data-testid=plan-line] .pl-real").count() == 1
     tops = [c["top"] for c in cards]
     assert tops == sorted(tops) and len(set(tops)) == 3, tops
     assert len({c["left"] for c in cards}) == 1
@@ -309,7 +312,7 @@ def test_plan_drawings_draw_the_figures_on_their_cards(planned):
           const p = d.projection;
           const weight = sel => [...document.querySelectorAll(sel)]
             .reduce((s, i) => s + (i.classList.contains('half') ? 0.5 : 1), 0);
-          const line = document.querySelector('.ps-line');
+          const line = document.querySelector('.pl-real');
           return {
             drafted: p.drafted_days,
             draftedPips: weight('[data-testid=plan-pips-drafted] .pip'),
@@ -319,15 +322,16 @@ def test_plan_drawings_draw_the_figures_on_their_cards(planned):
             vacDraftPips: weight('[data-testid=plan-pips-vacation] .pip.draft'),
             path: line.getAttribute('d'),
             stroke: getComputedStyle(line).stroke,
-            dots: document.querySelectorAll('.ps-dot').length,
+            pips: document.querySelectorAll('.pl-pip--today, .pl-pip--end').length,
           };
         }"""
     )
     assert got["drafted"] == 4.5 and got["draftedPips"] == got["drafted"], got
     assert got["vacBudget"] == 20 and got["vacPips"] == 20, got  # one pip per budget day
     assert got["vacDraftPips"] == got["vacDrafted"] == 3, got  # lit as drafted, not as used
-    assert re.fullmatch(r"M[\d.]+ [\d.]+ L[\d.]+ [\d.]+", got["path"]), got
-    assert got["stroke"] == BRASS and got["dots"] == 2, got
+    # the year line: one move, then one segment per day up to today, in brass, with a pip on today and on Dec 31
+    assert re.fullmatch(r"M[\d.]+ [\d.]+(L[\d.]+ [\d.]+)+", got["path"]), got
+    assert got["stroke"] == BRASS and got["pips"] == 2, got
 
 
 def test_drafted_pips_wear_the_colour_of_their_type(planned):

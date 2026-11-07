@@ -1118,33 +1118,93 @@ button.btn-action.btn-action--outline:disabled { border-style: dashed; border-co
 .plan-mini-grid i.pad { visibility: hidden; }
 .plan-mini-grid i.hm-ghost { border-width: 1px; }
 
-.plan-stats { display: grid; gap: 0.75rem; margin-bottom: 1.25rem; }
-@media (min-width: 901px) {
-  /* Balance, Vacation and Drafted: three cards in one row, one height, each with its drawing at the foot */
-  .plan-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: stretch; }
+/* The year strip is a card: the twelve minis, and under them the balance line */
+.plan-year-card {
+  margin-bottom: 0.6rem;
+  padding: 0.3rem 0.6rem 0.25rem;
+  background: var(--k-surface);
+  border: 1px solid var(--k-border);
+  border-radius: 4px;
 }
-.plan-stat { display: flex; flex-direction: column; }
+.plan-year-card > .plan-strip { margin: 0; padding: 0; background: none; border: 0; border-radius: 0; }
+.plan-year-card .plan-mini { gap: 0.15rem; padding: 0.2rem 0.25rem 0.25rem; }
+
+/* The year line: drawn in pixels over the measured columns of the minis, so a month sits under its mini */
+.plan-line { position: relative; margin-top: 0.15rem; touch-action: pan-y; cursor: crosshair; }
+.plan-line .pl-draw { position: absolute; inset: 0; pointer-events: none; }
+.plan-line .pl-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.pl-zero { stroke: var(--k-border-strong); stroke-width: 1; stroke-dasharray: 2 3; }
+.pl-real {
+  fill: none; stroke: var(--k-brass); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; animation: pl-draw 0.6s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+@keyframes pl-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.pl-tails { animation: pl-fade 0.4s ease-out 0.5s both; }
+@keyframes pl-fade { from { opacity: 0; } to { opacity: 1; } }
+.pl-tail {
+  fill: none; stroke: var(--k-muted); stroke-width: 1.25; stroke-dasharray: 4 4; stroke-linecap: round; opacity: 0.55;
+  transition: stroke 0.35s ease, opacity 0.35s ease, stroke-width 0.35s ease;
+}
+.pl-tail.is-chosen { stroke: var(--k-brass); stroke-width: 2; opacity: 1; }
+.pl-pip {
+  position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; box-sizing: border-box; border-radius: 50%;
+}
+.pl-pip--today { background: var(--k-brass); box-shadow: 0 0 0 2px var(--k-surface); animation: pl-pop 0.4s ease-out 0.5s both; }
+.pl-pip--end {
+  background: var(--k-surface); border: 2px solid var(--k-brass); animation: pl-pop 0.4s ease-out 0.7s both;
+  transition: top 0.35s ease;
+}
+.pl-pip--hover { background: var(--k-bg); border: 1.5px solid var(--k-brass); width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; }
+@keyframes pl-pop { from { transform: scale(0); } 60% { transform: scale(1.35); } to { transform: scale(1); } }
+.pl-cursor { position: absolute; top: 0; bottom: 0; width: 1px; margin-left: -0.5px; background: var(--k-border-strong); }
+.pl-end {
+  position: absolute; transform: translate(-100%, -100%); margin-top: -7px; white-space: nowrap;
+  font: 600 0.72rem ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 3px var(--k-surface), 0 0 3px var(--k-surface); transition: top 0.35s ease;
+}
+.pl-end--below { transform: translate(-100%, 0); margin-top: 7px; }
+.pl-end.surplus { color: var(--k-surplus); }
+.pl-end.deficit { color: var(--k-deficit); }
+.pl-end.neutral { color: var(--k-muted); }
+.pl-mark {
+  position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 1px; transform: rotate(45deg);
+  box-shadow: 0 0 0 1px var(--k-surface); background: var(--k-brass);
+}
+.pl-mark.vacation { background: var(--k-vacation); }
+.pl-mark.holiday { background: var(--k-holiday); }
+.pl-mark.flex { background: var(--k-flex); }
+.pl-caption { position: absolute; left: 0; right: 0; bottom: 0.2rem; margin: 0; text-align: center; font-size: 0.72rem; }
+.pl-initials {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); text-align: center;
+  font-size: 0.68rem; line-height: 1.2; color: var(--k-muted);
+}
+
+/* Balance, Vacation and Drafted: a compact row, nothing in it left empty */
+.plan-stats { display: grid; gap: 0.75rem; margin-bottom: 0.6rem; }
+.plan-stat { display: flex; flex-direction: column; justify-content: center; padding: 0.5rem 1rem; }
 .plan-stat .metric-unit { font-size: 1rem; color: var(--k-muted); font-weight: 500; }
 .plan-stat .sub a { cursor: pointer; }
-.plan-stat .sub { margin-bottom: 0.9rem; }
-.plan-viz { margin-top: auto; }
-
-/* Balance: the projected line, today to Dec 31, brass; the other assumption faint and dashed */
-.plan-spark { position: relative; height: 2.6rem; }
-.plan-spark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.plan-spark .ps-zero { stroke: var(--k-border-strong); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; }
-.plan-spark .ps-alt { fill: none; stroke: var(--k-muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.6; vector-effect: non-scaling-stroke; }
-.plan-spark .ps-line {
-  fill: none; stroke: var(--k-brass); stroke-width: 2; stroke-linecap: round; vector-effect: non-scaling-stroke;
+.plan-stat .sub { margin: 0.25rem 0 0; font-size: 0.8rem; line-height: 1.35; }
+.plan-stat h3 { margin: 0; }
+.plan-stat-body { display: flex; align-items: center; gap: 0.9rem; }
+.plan-stat-body .metric { flex: 0 0 auto; }
+.plan-stat-body .plan-pips { flex: 1 1 0; min-width: 0; }
+.summary-card.plan-stat .metric { font-size: 2rem; line-height: 1.05; }
+.plan-stat--balance { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.3rem 1.25rem; align-items: center; }
+.plan-stat--balance .sub { margin: 0; }
+.plan-stat-top { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 0.6rem; }
+.plan-stat-top .subdial-label { margin: 0; }
+.plan-stat--balance .seg-toggle { margin: 0.25rem 0 0; }
+@media (min-width: 1024px) {
+  .plan-stats { grid-template-columns: 1.8fr 1fr 1fr; gap: 1rem; align-items: stretch; }
 }
-.plan-spark .ps-dot {
-  position: absolute; width: 8px; height: 8px; border-radius: 50%;
-  margin: -4px 0 0 -4px; box-sizing: border-box;
-  background: var(--k-bg); border: 1.5px solid var(--k-brass);
+@media (min-width: 641px) and (max-width: 1023px) {
+  .plan-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plan-stat--balance { grid-column: 1 / -1; }
 }
-.plan-spark .ps-dot--end { background: var(--k-brass); }
-.plan-spark .ps-dot { transform-origin: center; animation: ps-pop 0.4s ease-out both; }
-@keyframes ps-pop { from { transform: scale(0); } 60% { transform: scale(1.35); } to { transform: scale(1); } }
+@media (max-width: 640px) {
+  .plan-stat--balance { grid-template-columns: minmax(0, 1fr); gap: 0.4rem; }
+}
 
 /* Vacation and Drafted: one pip per day */
 .plan-pips { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
@@ -1167,7 +1227,9 @@ button.btn-action.btn-action--outline:disabled { border-style: dashed; border-co
 .plan-pips .pip.half:not(.pip--vacation) { background-image: linear-gradient(90deg, transparent 50%, var(--k-bg) 50%); }
 @keyframes pip-in { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) {
-  .plan-spark .ps-dot, .plan-pips .pip { animation: none; transition: none; }
+  .pl-real, .pl-tails, .pl-pip { animation: none; }
+  .pl-tail, .pl-pip--end, .pl-end { transition: none; }
+  .plan-pips .pip { animation: none; transition: none; }
   .plan-pips .pip:hover { transform: none; }
 }
 
@@ -1205,7 +1267,6 @@ button.btn-action.btn-action--outline:disabled { border-style: dashed; border-co
 .plan-tools { margin-bottom: 1.1rem; }
 .plan-tools .plan-type-bar { margin-top: 0; }
 .plan-tools .plan-type-bar .bulk-pill-btn { width: auto; margin: 0; flex: 0 0 auto; }
-.plan-stat > .seg-toggle { align-self: flex-start; }
 .plan-tools .plan-note { margin: 0.8rem 0 0.2rem; font-size: 0.85rem; }
 .plan-tools .bulk-hint { margin: 0.4rem 0 0; text-align: left; }
 .plan-cal { padding: 1rem; background: var(--k-surface); border: 1px solid var(--k-border); border-radius: 4px; }

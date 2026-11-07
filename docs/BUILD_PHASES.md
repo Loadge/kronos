@@ -50,10 +50,33 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 50 confirmed and archived. 51, 52 and 53 built and waiting for Miguel's check; 54 and 55 next
+37 to 50 confirmed and archived. 51 to 54 built and waiting for Miguel's check; 55 next
 (Miguel, 2026-11-07: money first, because PROD reads a euro payout as dollars); 28 after them (Anselmo
 logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phase 54 — The Plan page fills the screen (built 2026-11-07, awaiting confirmation)
+
+**Why.** Miguel marked the empty space on Plan at 1280: three figure cards about 360px tall for 150px of
+content, with the calendar pushed below the fold.
+
+**What changed.**
+- The year strip gets a line under the twelve mini months: the real balance day by day up to today, solid
+  brass, and from today to Dec 31 the projection of the mode he picked (On target or At my pace), dashed,
+  with the other one faint. Each month of the line sits under its mini. It has a pip on today, a dot and a
+  label on Dec 31, a small diamond for each drafted day, and the date and balance on hover or tap. The
+  balance comes from the same function the dial uses, so today's pip reads what the Dashboard reads.
+- A past year shows only its real line, and a future year only its projection.
+- The three cards are now one compact row, about 130px tall instead of 358px. Balance has its caption to
+  the right of the figure; Vacation and Drafted have their pips beside the figure. The little line drawing
+  of the Balance card is gone, because the year line replaces it.
+- At 1280 x 900 the calendar starts 205px higher than before.
+- The line draws itself once, left to right, and the tail fades in after it. Switching the mode crossfades
+  the two tails. With reduced motion everything is instant.
+- On a phone the line runs the full width under the 4 x 3 minis, with J F M ... under it.
+
+**Known limits.** The projection tail is a straight run from today to Dec 31, not day by day. The touch
+tooltip (tap, then it hides after 2.5 seconds) is only tested with a mouse.
 
 ### Phase 53 — Country and number format (built 2026-11-07, awaiting confirmation)
 

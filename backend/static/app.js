@@ -63,6 +63,9 @@ function parseNum(text, tag = DEFAULT_NUMBER_FORMAT) {
 // What the year dial reads for the day under its index (see dialData): kept out of Alpine's state.
 const _dial = { entries: new Map(), keys: [], sums: [], reset: false };
 
+// What the Plan tab's year line needs between a build and a hover, kept out of Alpine's state.
+const _planLine = { days: null, valueAt: null, y: null, todayIdx: -1, mode: '', hideTimer: 0 };
+
 // The bezel's own scratch space: what a drag in progress needs, kept out of Alpine's reactive state so that
 // moving the pointer never re-renders anything.
 const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0, rove: '', waveTimer: 0 };
@@ -256,6 +259,11 @@ function app() {
       { id: 'all',   label: 'All' },
     ],
     hmTip: { show: false, x: 0, y: 0, title: '', body: '', note: '', hint: '' },
+    // the Plan tab's year line: the measured columns of the minis, the built line, and the hover
+    planGeom: { w: 0, h: 70, cols: [], aligned: true },
+    planLine: null,
+    planHover: null,
+    planTip: { show: false, x: 0, y: 0, title: '', value: '', valueCls: '', note: '' },
     anStuck: false,   // Year at a glance is pinned and has shrunk to its toolbar
     _anPinObserver: null,
 
@@ -768,27 +776,147 @@ function app() {
       return this.plans.filter(p => p.date.startsWith(String(this.planYear)));
     },
 
-    // ── the three drawings on the Plan cards: only the figures already on each card ──
-    // Balance: a line from today's balance to the year-end one (a faint one for the other assumption)
-    planSpark() {
-      const p = this.projection;
-      if (!p) return null;
-      const now = p.balance_today, end = this.planYearEndBalance();
-      const alt = this.planMode === 'at_pace' ? p.on_target : p.at_pace;
-      const vals = [now, end, alt, 0];
-      const lo = Math.min(...vals), hi = Math.max(...vals), span = (hi - lo) || 1;
-      const X0 = 3, X1 = 97, Y0 = 3, Y1 = 21;          // padding inside the 100 x 24 box
-      const y = v => +(Y1 - ((v - lo) / span) * (Y1 - Y0)).toFixed(2);
-      const pct = v => +((y(v) / 24) * 100).toFixed(2);
+    // ── the year line under the twelve minis: the balance across the year, month by month in the mini's column ──
+    planLineWatch(el) {
+      const measure = () => this.measurePlanLine(el);
+      this.$nextTick(measure);
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+      } else window.addEventListener('resize', measure);
+    },
+    // Where each month sits on the line: the box of its mini when the strip is one row of twelve, and
+    // twelve equal slots over the whole width when the minis wrap (a phone, a tablet).
+    measurePlanLine(el) {
+      const base = el.getBoundingClientRect();
+      const minis = [...el.parentElement.querySelectorAll('.plan-mini')];
+      if (minis.length !== 12 || !base.width) return;
+      const rects = minis.map(m => m.getBoundingClientRect());
+      const aligned = Math.abs(rects[0].top - rects[11].top) < 2;
+      const w = Math.round(base.width * 10) / 10;
+      const r1 = n => Math.round(n * 10) / 10;
+      const cols = aligned
+        ? rects.map(r => ({ x: r1(r.left - base.left), w: r1(r.width) }))
+        : Array.from({ length: 12 }, (_, i) => ({ x: r1(i * w / 12), w: r1(w / 12) }));
+      const g = this.planGeom;
+      if (g.w === w && g.aligned === aligned && JSON.stringify(g.cols) === JSON.stringify(cols)) return;
+      this.planGeom = { w, h: g.h, cols, aligned };
+    },
+    // The balance day by day: the dial's running balance up to today (solid), then the projection the
+    // cards use, a straight run to Dec 31 for each assumption (the chosen one dashed in brass, the other faint).
+    buildPlanLine() {
+      const g = this.planGeom;
+      if (!g.w || g.cols.length !== 12) return null;
+      const year = this.planYear;
+      const p = this.projection && this.projection.year === year ? this.projection : null;
+      const today = p?.today || this.dashboard?.today || this.todayIso();
+      const nowYear = Number(today.slice(0, 4));
+      const kind = year < nowYear ? 'past' : year > nowYear ? 'future' : 'now';
+      this.dialData();   // the dial's running balance, counted as the Dashboard counts it
+      const pad = n => String(n).padStart(2, '0');
+      const days = [];
+      const index = new Map();
+      for (let m = 0; m < 12; m++) {
+        const dim = new Date(year, m + 1, 0).getDate(), c = g.cols[m];
+        for (let d = 1; d <= dim; d++) {
+          const iso = `${year}-${pad(m + 1)}-${pad(d)}`;
+          index.set(iso, days.length);
+          days.push({ iso, x: c.x + (d - 1) / (dim - 1) * c.w });
+        }
+      }
+      const last = days.length - 1;
+      const todayIdx = kind === 'now' ? index.get(today) : kind === 'past' ? last : -1;
+      const real = [];
+      for (let i = 0; i <= todayIdx; i++) real.push(this.dialBalanceAt(days[i].iso));
+
+      // one projection per assumption: [first index, its value] to Dec 31
+      const run = mode => {
+        if (!p || kind === 'past') return null;
+        const end = mode === 'at_pace' ? p.at_pace : p.on_target;
+        if (kind === 'now') return { i0: todayIdx, v0: real[todayIdx], end };
+        // a future year: nothing is known before Jan 1; an annual reset starts it at zero, otherwise
+        // the straight run from today is cut at Jan 1
+        const day = iso => new Date(iso + 'T12:00:00').getTime() / 86400000;
+        const v0 = this.settingsForm.reset_annually
+          ? 0
+          : p.balance_today + (end - p.balance_today) * (day(`${year}-01-01`) - day(today)) / (day(`${year}-12-31`) - day(today));
+        return { i0: 0, v0, end };
+      };
+      const runs = { on_target: run('on_target'), at_pace: run('at_pace') };
+      const chosen = runs[this.planMode === 'at_pace' ? 'at_pace' : 'on_target'];
+      if (!real.length && !chosen) return { w: g.w, h: g.h, real: null, caption: 'No projection for this year yet' };
+
+      const vals = [0, ...real];
+      for (const r of Object.values(runs)) if (r) vals.push(r.v0, r.end);
+      const lo = Math.min(...vals), hi = Math.max(...vals), span = Math.max(hi - lo, 1);
+      const padT = 18, padB = 6;
+      const y = v => padT + (g.h - padT - padB) * (1 - (v - lo) / span);
+      const f = n => n.toFixed(1);
+      const tailAt = (r, i) => r.v0 + (r.end - r.v0) * (i - r.i0) / (last - r.i0);
+      const valueAt = i => (i <= todayIdx ? real[i] : chosen && i >= chosen.i0 ? tailAt(chosen, i) : null);
+
+      const S = v => this.formatSurplus(Math.round(v * 100) / 100);
+      const mode = this.planMode === 'at_pace' ? 'at my pace' : 'on target';
+      const start = real.length ? real[0] : chosen.v0;
+      const endVal = kind === 'past' ? real[last] : chosen ? this.planYearEndBalance() : null;
+      let label = `Balance ${year}: starts at ${S(start)}`;
+      if (kind === 'now') label += `, ${S(real[todayIdx])} today`;
+      label += endVal === null ? '' : kind === 'past' ? `, ends at ${S(endVal)} on Dec 31` : `, ${S(endVal)} on Dec 31 ${mode}`;
+
+      const tails = {};
+      for (const k of ['on_target', 'at_pace']) {
+        const r = runs[k];
+        tails[k] = r ? `M${f(days[r.i0].x)} ${f(y(r.v0))}L${f(days[last].x)} ${f(y(r.end))}` : '';
+      }
+      const marks = [];
+      for (const d of this.plans) {
+        if (d.exists || !d.date.startsWith(`${year}-`)) continue;
+        const i = index.get(d.date), v = i === undefined ? null : valueAt(i);
+        if (v === null) continue;
+        marks.push({ k: d.date, x: f(days[i].x), y: f(y(v)), cls: d.day_type, title: `${d.date} · ${d.day_type}` });
+      }
+      _planLine.days = days;
+      _planLine.valueAt = valueAt;
+      _planLine.y = y;
+      _planLine.todayIdx = todayIdx;
+      _planLine.mode = mode;
       return {
-        line: `M${X0} ${y(now)} L${X1} ${y(end)}`,
-        alt: `M${X0} ${y(now)} L${X1} ${y(alt)}`,
-        zero: y(0),
-        nowLeft: X0, nowTop: pct(now),
-        endLeft: X1, endTop: pct(end),
-        label: `Balance from ${this.formatSurplus(now)} today to ${this.formatSurplus(end)} on Dec 31`,
+        w: g.w, h: g.h, kind, label, caption: '',
+        real: real.length ? real.map((v, i) => `${i ? 'L' : 'M'}${f(days[i].x)} ${f(y(v))}`).join('') : null,
+        tails: chosen ? tails : null,
+        zero: f(y(0)),
+        today: kind === 'now' ? { x: f(days[todayIdx].x), y: f(y(real[todayIdx])), text: S(real[todayIdx]) } : null,
+        // The Dec 31 label sits on the side the tail does not come from: under the dot when the year ends
+        // lower than today (and there is room), above it otherwise, so it never covers today's pip.
+        end: endVal === null ? null : { x: f(days[last].x), y: f(y(endVal)), text: this.formatSurplus(endVal), cls: this.surplusClass(endVal),
+          below: kind === 'now' && y(endVal) > y(real[todayIdx]) && y(endVal) + 18 <= g.h },
+        marks,
       };
     },
+    // Hover (or a touch) on the line: the nearest day, its date and its balance.
+    planLineMove(ev) {
+      const c = _planLine;
+      if (!c.days || !this.planLine?.real && !this.planLine?.tails) return;
+      const px = ev.clientX - ev.currentTarget.getBoundingClientRect().left;
+      let lo = 0, hi = c.days.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (c.days[mid].x <= px) lo = mid; else hi = mid; }
+      const i = Math.abs(c.days[lo].x - px) <= Math.abs(c.days[hi].x - px) ? lo : hi;
+      const v = c.valueAt(i);
+      if (v === null) { this.planLineLeave(); return; }
+      const day = c.days[i], draft = this.draftMap()[day.iso];
+      const title = new Date(day.iso + 'T12:00:00').toLocaleDateString(this.dateLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      const note = [i > c.todayIdx ? `projected · ${c.mode}` : '', draft ? `${draft.day_type} drafted` : ''].filter(Boolean).join(' · ');
+      this.planHover = { x: day.x.toFixed(1), y: c.y(v).toFixed(1) };
+      this.planTip = { show: true, x: Math.min(window.innerWidth - 280, ev.clientX + 14), y: ev.clientY + 14, title, value: this.formatSurplus(Math.round(v * 100) / 100), valueCls: this.surplusClass(v), note };
+      clearTimeout(c.hideTimer);
+      if (ev.pointerType === 'touch') c.hideTimer = setTimeout(() => this.planLineLeave(), 2500);
+    },
+    planLineLeave() {
+      this.planHover = null;
+      this.planTip.show = false;
+    },
+
+    // ── the two drawings on the Plan cards: only the figures already on each card ──
     // Vacation: one pip per budget day (per used or drafted day without a budget), lit when used
     planVacationPips() {
       const p = this.projection;
