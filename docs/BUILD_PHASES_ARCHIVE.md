@@ -777,6 +777,122 @@ longer needed to read "New entry" or "Edit 2026-11-06" next to the title.
 
 **Commits.** `9ea495f` Phase 45.
 
+## Phase 46 — The day ribbon
+
+**Why.** This is slice 1 of Phase 36, the one that replaces typing for the common case. Miguel left a free
+evening to the Advisor with "implement something fun", and this was first in the plan he had already written.
+
+**Decisions.**
+- The day is a strip from 06:00 to midnight above the time fields, and it opens earlier when the day does. The
+  fields stay as the precise editor, and a drag only writes into them.
+- The grips at the ends change the times and dragging the bar moves the whole day with its breaks. Breaks are
+  notches that can be moved and resized, a double press on the bar adds one, and pulling one off the lane
+  removes it. A break that is only minutes has no place in the day, so it is drawn dashed until it is dragged.
+- Everything snaps to 15 minutes. A floating tag shows the time, the net and the delta while dragging.
+- A flag marks the moment the day reaches its target, and the bar is lit after it. A day under target shows
+  the missing stretch as a dashed outline.
+- Timed freelance blocks have their own lane. A click opens a block in the editor and a drag on the empty
+  lane fills the editor. Blocks are not moved on the ribbon, because that would write money.
+- A drag never saves. A finger on the bar waits until it moves sideways, so a vertical swipe scrolls the page.
+- Every handle is a slider for the keyboard and for screen readers.
+
+**Known limits.** An end cannot go past 23:45, because a time field has no 24:00. A grip stops at a break
+instead of pushing it along. On a phone a 30-minute notch is about 7px wide, so it takes care to hit.
+
+**Commits.** `86101eb` Phase 46; `ff74b17` no error in the console after a drag, when Log is left.
+
+## Phase 47 — The year dial
+
+**Why.** Miguel asked for something fun and said the bezel was the coolest of the options, so this is its big
+brother. A working prototype came first (`docs/mockups/year-dial.html`), then the real thing.
+
+**Decisions.**
+- Pressing the logo, the key Y or the palette opens a full-screen dialog: the year as a chronograph. The outer
+  ring turns under a fixed index, one day per detent, and the day under the index is read out in the middle.
+- Each day is a tick: outward for surplus, inward for deficit, a fixed bar for leave, dashed for a draft. An
+  inner ring marks freelance days, teal when they are paid out. A brass pip marks today.
+- The ring can be dragged and flicked, turned by the wheel or the keys, and a press on the ring turns to that
+  day. The crown goes back to today by the short way. Enter or "Open in Log" opens the day.
+- The balance sub-dial counts as the Dashboard does, with "Cumulative since" and "Reset on January 1st"
+  respected, so on today it says the same figure.
+- Sound is a click made on the spot with Web Audio. It is off by default and kept in the browser.
+- The little second hand is the one thing in Kronos that moves with nobody touching it, because it is a clock.
+  Everything stops when the dial closes.
+- `dial.js` is its own file, so the physics stay out of `app.js`.
+
+**Known limits.** On a phone the figures of the sub-dials move to the panel under the dial, because they would
+be 5px text on the face. The opening turn is 150 days whatever the date.
+
+**Commits.** `402d0d6` Phase 47; `673854d` two dial tests no longer depend on the runner.
+
+## Phase 48 — Kronos in the hand
+
+**Why.** An independent review of every page found the phone's Create entry 1,800px down the page, tabs too
+small to tap, and the palette cut at the bottom. Miguel left the UI pass to the Advisor.
+
+**Decisions.**
+- Up to 640px the tabs are a bar fixed to the bottom of the screen, with a hand-drawn icon over each label.
+- In Log on a phone the rail becomes a dock above that bar: net, delta and the form's own submit button. It is
+  the same button at every width, so Delete moved to the end of the form, also on a desktop.
+- The bar and the dock step aside while the keyboard is up. They stay for a time or date field, because those
+  open the phone's own picker and keep the focus after it closes.
+- In Log on a phone the twelve mini months are twelve letters, and the legend folds. That saves about 400px.
+- One brass line marks the active tab at every width and slides between tabs with a spring.
+- A page fades in over 160ms when the tab changes, never on load.
+- The palette lost its empty key chips and the blank band, scrolls inside the screen, and a brass tick slides
+  between its rows.
+- "+ Add break" and "+ Add note" sit side by side from 641px, and "Log multiple days…" is a small button.
+
+**Known limits.** Not tried on a real iPhone: the safe area and the keyboard are from the rules, not from a
+device. A phone user has to tap away from a text field to reach Create entry.
+
+**Commits.** `31922d2` Phase 48; `ff74b17` the Dashboard fits a phone with real figures.
+
+## Phase 49 — Every page at its best
+
+**Why.** An independent review of all seven pages found the dull spots and the small breaks of the guide, and
+Miguel left the choices to the Advisor, including the ones that were waiting for him.
+
+**Decisions.**
+- Log's two brass buttons: "+ Add block" is an outline now, so "Create entry" is the one primary of the view.
+  "Save block" stays filled while a block is being edited. "Commit" in Plan is an outline too.
+- Days-off rows stay quieter than work days, but their text reaches 4.5:1. That took the accessibility list
+  from 53 entries to 36.
+- Pico's blue-grey is gone from every page: its secondary and link colours map to brass and muted once.
+- Plan's three figures are cards in a row, each with a small drawing of a figure it already has: the balance
+  as a line to Dec 31, one pip per vacation day, one pip per drafted day. The calendar column got narrower.
+- Hints moved to tooltips or to a small "?" chip that also opens on touch.
+- On a phone the heatmap opens on today's month and fades at its right edge while there is more.
+- The Calculator's fields sit on one shared grid. Its money fields are text fields now, so they can show
+  `28.960,03` like the results, and they read `28960,03`, `28960.03`, `28.960,03` and `55.000` the Spanish way.
+- Settings uses the whole width, every value control ends on the card's edge, the links have a brass tick that
+  slides, and "General" got a mark of its own.
+
+**Known limits.** The source name of a block row on a phone can still end in an ellipsis. In the Calculator
+"95.125" reads as ninety-five thousand, because a dot before three digits is a thousands mark.
+
+**Commits.** `e29ca8c` Phase 49.
+
+## Phase 50 — Small brass surprises
+
+**Why.** Miguel asked for something fun with room for whimsy, and the moments that matter in a day of logging
+had no reaction of their own.
+
+**Decisions.**
+- The big balance and the Freelance hero roll digit by digit like an odometer, on first view and on a change.
+  The real text stays in the element for screen readers and tests.
+- A day saved in Log takes a brass stamp on its calendar cell.
+- The save that completes a week puts a brass seal in the toast ("W45 sealed +4.75h"). It only counts the work
+  days of the current or the previous week, and each week seals once per browser.
+- A payout saved in Days > Freelance sends coins to the Selected card: five above the estimate, one otherwise.
+- A bead on the header's hairline shows the hour of the day, from 06:00 to 24:00. It needs that hairline, so it
+  is hidden below 720px.
+- Typing "kronos" also winds the logo one full turn.
+
+**Known limits.** The vibrations are written but were not tried on a real phone.
+
+**Commits.** `54e88e2` Phase 50.
+
 ---
 
 ## Archiving a phase
