@@ -645,7 +645,13 @@ def test_the_palette_has_no_empty_key_no_blank_band_and_fits_the_screen(phone, b
     assert s["top"] >= 0 and s["bottom"] <= s["h"], s  # the panel is inside the visible screen
     if size[1] < 600:
         assert s["scrolls"], s  # the control: on this screen the list is longer than its room
-    # the last row can be reached: ArrowUp from the first row wraps to it and brings it into view
+    # the last row can be reached: ArrowUp from the first row wraps to it and brings it into view.
+    # The arrows are read by the palette's field, which takes the focus a tick after it opens: on a
+    # loaded runner the key could land before it (pipeline 329).
+    page.wait_for_function(
+        "() => document.activeElement && document.activeElement.closest('.palette') !== null",
+        timeout=5000,
+    )
     page.keyboard.press("ArrowUp")
     _until(
         page,
