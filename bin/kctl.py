@@ -496,6 +496,8 @@ def cmd_shot(args) -> int:
                 color_scheme="dark",
                 viewport={"width": width, "height": height},
             )
+            # the one-time "press the logo" callout would land in every shot
+            context.add_init_script("try { localStorage.setItem('k-dial-hint', '1') } catch {}")
             page = context.new_page()
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             page.goto(f"{url}{app_path(args.path)}", wait_until="networkidle")

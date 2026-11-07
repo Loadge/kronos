@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kronos — hours tracker</title>
+  <title>Kronos</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/static/icon.png">
   <link rel="apple-touch-icon" href="/static/icon.png">
@@ -21,7 +21,7 @@
   <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
 <body>
-<main class="container" x-data="app()" x-init="init()" x-cloak>
+<main class="container" x-data="app()" x-cloak>
 
   <header class="app-header">
     <!-- W6: egg emoji rides across the header when "kronos" is typed -->
@@ -30,7 +30,14 @@
     </div>
     <div class="brand">
       <!-- the logo opens the year dial -->
-      <button type="button" class="brand-btn" aria-label="Open the year dial" @click="openDial()"><img src="/static/icon.png" alt="" class="brand-logo"></button>
+      <button type="button" class="brand-btn" aria-label="Open the year dial" title="Your year as a dial (Y)" @click="openDial()"><img src="/static/icon.png" alt="" class="brand-logo"></button>
+      <!-- Once per browser: a brass callout that says what the logo does (app.js, _dialHintInit) -->
+      <template x-if="dialHint">
+        <div class="dial-hint" role="status">
+          <span class="dial-hint-text">New: press the logo to spin through your year</span>
+          <button type="button" class="dial-hint-x" aria-label="Dismiss" @click="closeDialHint()">✕</button>
+        </div>
+      </template>
       <div>
         <div class="brand-line">
           <h1>Kronos</h1>
@@ -84,8 +91,12 @@
         </svg>
       </button>
     </div>
-    <!-- The hour of the day on the hairline under the header: 06:00 at the left edge, 24:00 at the right -->
-    <span class="day-bead" aria-hidden="true" :style="'--bead:' + dayBeadFrac()" :title="'Now ' + nowDisplay"></span>
+    <!-- The hour of the day on the hairline under the header: 06:00 at the left edge, 24:00 at the right.
+         With a start today the line is lit from it to the bead, and a tick marks the target (app.js, dayBead) -->
+    <span class="day-lit" aria-hidden="true" :style="dayBead().litStyle"></span>
+    <span class="day-lit day-lit--over" aria-hidden="true" :style="dayBead().overStyle"></span>
+    <span class="day-goal" aria-hidden="true" :style="dayBead().goalStyle"></span>
+    <span class="day-bead" aria-hidden="true" :style="'--bead:' + dayBead().frac" :title="dayBead().title"></span>
   </header>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>

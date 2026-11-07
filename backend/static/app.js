@@ -27,6 +27,9 @@ const DR_LO = 360;        // the ribbon opens at 06:00 (earlier if the day does)
 const DR_HI = 1440;       // ... and ends at midnight
 const DR_END_MAX = 1425;  // the latest an end can be, 23:45: a time field has no 24:00
 const DR_STEP = 15;
+// the logo's callout: the timer that shows it and the one that closes it by itself
+const _hint = { armed: false, show: 0, hide: 0 };
+
 const _dr = {
   cur: null, active: false, field: null, pending: false, moved: false, kind: '', i: -1, id: null, pid: -1,
   x0: 0, y0: 0, left: 0, width: 1, laneTop: 0, laneBottom: 0, lo: DR_LO, pm0: 0, off: 0,
@@ -312,6 +315,7 @@ function app() {
 
     // ---------- year dial (the logo, or Y) ------------------------------
     dialOpen: false,
+    dialHint: false,
     _dialBack: null,       // what had the focus before it opened
 
     // =====================================================================
@@ -359,6 +363,7 @@ function app() {
         // Escape — dismiss in priority order: an overlay, then the field you are in, then
         // an edit in progress, then the tab itself: Escape from any tab goes home.
         if (e.key === 'Escape') {
+          if (this.dialHint)                          { e.stopImmediatePropagation(); this.closeDialHint(); return; }
           if (this.palette.open)                      { this.closePalette(); return; }
           if (this.bulkModal.open)                    { this.closeBulkModal(); return; }
           if (this.pdfModal.open)                     { this.pdfModal.open = false; return; }
@@ -397,6 +402,7 @@ function app() {
       const tickNow = () => { this.nowDisplay = this._nowHHMM(); };
       tickNow();
       setTimeout(() => { tickNow(); setInterval(tickNow, 60000); }, (60 - new Date().getSeconds()) * 1000);
+      this._dialHintInit();
 
       // Is there a newer build on the server? Asked when the tab becomes visible again, when
       // the connection returns and every 10 minutes while visible. It only shows a pill:
@@ -414,6 +420,8 @@ function app() {
       this.loadSources();  // the freelance tab and the dashboard card exist once a source does
       this.openNewEntry();
       await this.go(this.tab);
+      // the bead in the header reads today's entry: tabs that do not load the days load them quietly
+      if (!['dashboard', 'log', 'days'].includes(this.tab) && !this.entries.length && !this.loading.days) this.loadDays();
     },
 
     // =====================================================================
@@ -1033,6 +1041,7 @@ function app() {
     // =====================================================================
     async openDial() {
       if (this.dialOpen) return;
+      this.closeDialHint();
       const a = document.activeElement;
       this._dialBack = a && a !== document.body && !a.closest('.palette-backdrop') ? a : null;
       this.dialOpen = true;
@@ -1053,6 +1062,33 @@ function app() {
         getSound: () => this.dialSound(),
         setSound: on => this.dialSetSound(on),
       });
+    },
+
+    // The logo's callout, once per browser: it shows ~1.2s after the first load of this version where the
+    // dial was never opened, turns the logo a quarter, and goes by itself after 10s. Closing it or opening the
+    // dial writes k-dial-hint = 1, and it never comes back. Without storage it is never shown.
+    _dialHintInit() {
+      if (_hint.armed) return;  // one callout, one timer, however often this is called
+      let seen = true;
+      try { seen = localStorage.getItem('k-dial-hint') === '1'; } catch { seen = true; }
+      if (seen) return;
+      _hint.armed = true;
+      _hint.show = setTimeout(() => {
+        _hint.show = 0;
+        let seenSince = true;
+        try { seenSince = localStorage.getItem('k-dial-hint') === '1'; } catch { seenSince = true; }
+        if (this.dialOpen || seenSince) return;
+        this.dialHint = true;
+        if (!this._reduced()) this._bzFx(document.querySelector('.brand-logo'), 'logo-quarter', 1200);
+        _hint.hide = setTimeout(() => this.closeDialHint(), 10000);
+      }, 1200);
+    },
+    closeDialHint() {
+      clearTimeout(_hint.show);
+      clearTimeout(_hint.hide);
+      _hint.show = _hint.hide = 0;
+      this.dialHint = false;
+      try { localStorage.setItem('k-dial-hint', '1'); } catch { /* storage blocked */ }
     },
 
     closeDial() {
@@ -2589,10 +2625,12 @@ function app() {
       return { id: this.weekId(monday), delta: this._r2(week.reduce((t, x) => t + (x.surplus_hours || 0), 0)) };
     },
 
-    // A payout saved in Days > Freelance: coins arc from its field to the Selected card, five when
-    // the payout is above the estimate and one when it is not; the card's amount bumps once when
-    // the last one lands. They are fixed elements clamped to the viewport, gone when they land.
-    payCoins(input, above) {
+    // A payout saved in Days > Freelance: coins arc from its field to the Selected card, one per 100 of
+    // the payout (rounded, at least 1, at most 40). The last one lands by 1.6s whatever their number, the arcs
+    // vary a little so a big payout reads as a shower, and the card's amount bumps once when the last one
+    // lands (with a brass glint when the payout is above the estimate). They are fixed elements clamped to the
+    // viewport, gone when they land.
+    payCoins(input, amount, above) {
       if (this._reduced() || !input) return;
       const target = document.querySelector('[data-testid="days-fl-total"] b');
       if (!target) return;
@@ -2601,19 +2639,30 @@ function app() {
       const a = input.getBoundingClientRect(), b = target.getBoundingClientRect();
       const x0 = clamp(a.left + a.width / 2, vw), y0 = clamp(a.top + a.height / 2, vh);
       const x1 = clamp(b.left + b.width / 2, vw), y1 = clamp(b.top + b.height / 2, vh);
-      const n = above ? 5 : 1, dur = 700, gap = 120;
+      const n = Math.max(1, Math.min(40, Math.round((Number(amount) || 0) / 100)));
+      const dur = 700, gap = n > 1 ? Math.min(120, 900 / (n - 1)) : 0;  // the last one leaves by 0.9s, lands by 1.6s
+      const spread = (a, b) => (n > 1 ? a + Math.random() * (b - a) : 0);
+      let end = 0;
       for (let i = 0; i < n; i++) {
         const coin = document.createElement('span');
+        const t = n > 1 ? Math.round(560 + Math.random() * (dur - 560)) : dur;
+        const sx = clamp(x0 + spread(-14, 14), vw), ex = clamp(x1 + spread(-10, 10), vw);
+        const up = -Math.min(n > 1 ? 34 + Math.random() * 70 : 40, Math.max(0, Math.min(y0, y1) - 14));
         coin.className = 'coin-fly';
         coin.setAttribute('aria-hidden', 'true');
-        coin.style.cssText = `left:${x0}px;top:${y0}px;--dx:${x1 - x0}px;--dy:${y1 - y0}px;--up:${-Math.min(40 + (i % 3) * 18, Math.max(0, Math.min(y0, y1) - 14))}px;animation-delay:${i * gap}ms`;
+        coin.style.cssText = `left:${sx}px;top:${y0}px;--dx:${ex - sx}px;--dy:${y1 - y0}px;--up:${up}px;--t:${t}ms;animation-delay:${Math.round(i * gap)}ms`;
         coin.appendChild(document.createElement('i'));
         document.body.appendChild(coin);
         const gone = () => coin.remove();
         coin.addEventListener('animationend', (ev) => { if (ev.target === coin) gone(); });
-        setTimeout(gone, i * gap + dur + 400);
+        setTimeout(gone, i * gap + t + 400);
+        end = Math.max(end, i * gap + t);
       }
-      setTimeout(() => this._bzFx(document.querySelector('[data-testid="days-fl-total"] b'), 'coin-bump', 320), (n - 1) * gap + dur);
+      setTimeout(() => {
+        const card = document.querySelector('[data-testid="days-fl-total"] b');
+        this._bzFx(card, 'coin-bump', 820);
+        if (above) this._bzFx(card, 'coin-glint', 820);
+      }, end);
     },
 
     // Where the bead sits on the hairline under the header: 06:00 at the left edge, 24:00 at the right.
@@ -2621,6 +2670,30 @@ function app() {
       const [h, m] = (this.nowDisplay || '00:00').split(':').map(Number);
       const mins = (h || 0) * 60 + (m || 0);
       return Math.max(0, Math.min(1, (mins - 360) / 1080));
+    },
+
+    // Everything the hairline draws: the bead and its title and, when today has a start, the lit stretch from the
+    // start to the bead and the tick where today reaches its target. The target time is the ribbon's flag
+    // (drFlag) on today's entry, the day left open when it has no end yet. Minutes-only breaks have no place in
+    // the day, so they count as taken before the target. It follows nowDisplay and today's entry: no timers.
+    dayBead() {
+      // a part that is not drawn carries display:none in its style (x-show would lose to the :style binding)
+      const off = 'display:none';
+      const out = { frac: this.dayBeadFrac(), title: `Now ${this.nowDisplay || ''}`.trim(), litStyle: off, overStyle: off, goalStyle: off };
+      const e = this.todayEntry();
+      const start = e ? drMin(e.start_time) : null;
+      if (start === null) return out;
+      const at = m => Math.max(0, Math.min(1, (m - 360) / 1080));
+      const d = drDay({ start_time: e.start_time, end_time: e.end_time || '23:59', breaks: e.breaks });
+      const loose = d.dashes.reduce((t, k) => t + k.min, 0);
+      const reached = drFlag(d, [], (Number(e.target_hours) || 0) + loose / 60);
+      const a = at(start), b = out.frac, g = reached === null ? null : at(reached);
+      out.title += ` \u00b7 in since ${drHHMM(start)}` + (reached === null ? '' : ` \u00b7 target at ${drHHMM(reached)}`);
+      if (g !== null) out.goalStyle = `--g:${g.toFixed(4)}`;
+      const cut = g !== null && g > a && g < b ? g : b;
+      if (cut > a + 1e-6) out.litStyle = `--a:${a.toFixed(4)};--b:${cut.toFixed(4)}`;
+      if (g !== null && b > g + 1e-6) out.overStyle = `--a:${Math.max(a, g).toFixed(4)};--b:${b.toFixed(4)}`;
+      return out;
     },
 
     // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
@@ -3321,7 +3394,7 @@ function app() {
         await this.reloadFlData();
         this._setStatus(st, 'saved');
         const mine = this.payoutOf(sourceId, weekStart);
-        if (mine) this.payCoins(input, mine.amount > mine.estimate_amount);
+        if (mine) this.payCoins(input, mine.amount, mine.amount > mine.estimate_amount);
       } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
     },
     payStatus(weekStart) { return this.settingsStatusText('wk-' + weekStart); },

@@ -443,15 +443,26 @@ def _open_days_freelance(page, base_url: str) -> None:
 
 
 WATCH_COINS = """() => {
-  const w = window.__coins = { added: 0, bumps: 0, out: 0, wide: 0, left: 0, boxes: 0 };
+  const w = window.__coins = { added: 0, bumps: 0, glints: 0, out: 0, wide: 0, left: 0, boxes: 0,
+                               end: 0, lastLeave: 0, ups: [] };
   const vw = document.documentElement.clientWidth, vh = window.innerHeight;
   new MutationObserver((ms) => ms.forEach((m) => {
     m.addedNodes.forEach((n) => {
-      if (n.classList && n.classList.contains('coin-fly')) w.added++;
+      if (n.classList && n.classList.contains('coin-fly')) {
+        w.added++;
+        // when each coin leaves and lands, read from what the page set on it
+        const delay = parseFloat(n.style.animationDelay);
+        const t = parseFloat(n.style.getPropertyValue('--t'));
+        w.lastLeave = Math.max(w.lastLeave, delay);
+        w.end = Math.max(w.end, delay + t);
+        w.ups.push(n.style.getPropertyValue('--up'));
+      }
     });
   })).observe(document.body, { childList: true });
   document.addEventListener('animationstart', (e) => {
-    if (e.animationName === 'bz-bump' && e.target.closest('[data-testid=days-fl-total]')) w.bumps++;
+    if (!e.target.closest('[data-testid=days-fl-total]')) return;
+    if (e.animationName === 'bz-bump') w.bumps++;
+    if (e.animationName === 'coin-glint') w.glints++;
   });
   const look = () => {
     document.querySelectorAll('.coin-fly i').forEach((i) => {
@@ -467,12 +478,21 @@ WATCH_COINS = """() => {
 
 
 class TestCoins:
+    # one coin per 100 of the payout, rounded, at least 1, at most 40; the estimate is 120
     @pytest.mark.parametrize(
-        "typed, coins",
-        [("150", 5), ("100", 1), ("120", 1)],
-        ids=["above the estimate", "below it", "at it"],
+        "typed, coins, above",
+        [
+            ("250", 3, True),
+            ("4500", 40, True),
+            ("40", 1, False),
+            ("150", 2, True),
+            ("120", 1, False),
+        ],
+        ids=["250 is 3", "4500 is capped at 40", "40 is at least 1", "150 is 2", "at the estimate"],
     )
-    def test_coins_follow_the_payout_and_leave_nothing_behind(self, page, base_url, typed, coins):
+    def test_coins_follow_the_payout_and_leave_nothing_behind(
+        self, page, base_url, typed, coins, above
+    ):
         _payout_setup(base_url)
         _open_days_freelance(page, base_url)
         page.evaluate(WATCH_COINS)
@@ -488,10 +508,31 @@ class TestCoins:
         got = page.evaluate("window.__coins")
         assert got["added"] == coins, got
         assert got["bumps"] == 1, got
+        assert got["glints"] == (1 if above else 0), got  # a brass glint only above the estimate
+        assert got["lastLeave"] <= 900.5 and got["end"] <= 1600.5, got  # a shower is not slower
         assert got["boxes"] > 0, got  # they were seen flying
         assert got["out"] == 0, got  # inside the viewport all the way
         assert got["wide"] == 0, got  # and the page never scrolled sideways
         assert page.locator(".coin-fly").count() == 0
+
+    def test_a_shower_has_arcs_that_vary_and_a_single_coin_does_not(self, page, base_url):
+        _payout_setup(base_url)
+        _open_days_freelance(page, base_url)
+        page.evaluate(WATCH_COINS)
+        field = page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']")
+        field.fill("4500")
+        page.wait_for_function(
+            "() => window.__coins.added >= 40 && !document.querySelector('.coin-fly')",
+            timeout=10000,
+        )
+        assert len(set(page.evaluate("window.__coins.ups"))) > 10, page.evaluate(
+            "window.__coins.ups"
+        )
+        field.fill("40")
+        page.wait_for_function(
+            "() => window.__coins.added >= 41 && !document.querySelector('.coin-fly')",
+            timeout=10000,
+        )
 
     def test_the_selected_card_shows_the_payout_after_the_coins(self, page, base_url):
         _payout_setup(base_url)
@@ -572,12 +613,162 @@ class TestDayBead:
         )
         assert got == {"hidden": "true", "events": "none"}
 
+    def test_only_the_bead_answers_the_pointer_for_its_title_in_a_16px_area(self, page, base_url):
+        _at(page, base_url, "2026-11-04T12:00:00")
+        page.wait_for_function("() => document.querySelector('.day-bead').title === 'Now 12:00'")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').getAnimations().length === 0", timeout=8000
+        )
+        got = page.evaluate(
+            """() => {
+              const b = document.querySelector('.day-bead'), r = b.getBoundingClientRect();
+              const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+              const hit = (dx, dy) => document.elementFromPoint(cx + dx, cy + dy) === b;
+              return { centre: hit(0, 0), inside: hit(7, 0), edge: hit(0, 7), far: hit(12, 0),
+                       lit: ['.day-lit', '.day-goal'].map(s => {
+                         const e = document.querySelector(s);
+                         return getComputedStyle(e).pointerEvents;
+                       }) };
+            }"""
+        )
+        assert got["centre"] and got["inside"] and got["edge"], got  # a 16px circle: 8px each way
+        assert not got["far"], got
+        assert got["lit"] == ["none", "none"], got
+
     def test_a_phone_has_no_hairline_so_no_bead(self, page, base_url):
         page.set_viewport_size({"width": 375, "height": 800})
         _at(page, base_url, "2026-11-04T12:00:00")
         assert (
             page.evaluate("getComputedStyle(document.querySelector('.day-bead')).display") == "none"
         )
+
+
+LIT = """() => {
+  const q = (s) => document.querySelector(s);
+  const vis = (e) => getComputedStyle(e).display !== 'none';
+  const h = q('.app-header').getBoundingClientRect();
+  const lit = q('.day-lit:not(.day-lit--over)'), over = q('.day-lit--over'), goal = q('.day-goal');
+  const bead = q('.day-bead').getBoundingClientRect();
+  const span = h.width - 7;   // the hairline, from the first bead position to the last
+  const at = (x) => (x - h.left - 3.5) / span;
+  const rect = (e) => (vis(e) ? e.getBoundingClientRect() : null);
+  const l = rect(lit), o = rect(over), g = rect(goal);
+  return {
+    title: q('.day-bead').title,
+    lit: l && { from: at(l.left), to: at(l.right), colour: getComputedStyle(lit).backgroundColor },
+    over: o && { from: at(o.left), to: at(o.right),
+                 colour: getComputedStyle(over).backgroundColor },
+    goal: g && { at: at(g.left + g.width / 2), tall: g.height, wide: g.width },
+    bead: at(bead.left + 3.5),
+    busy: q('.day-lit').getAnimations().length + q('.day-bead').getAnimations().length,
+  };
+}"""
+
+
+def _clock_in(base_url: str, date: str, at: str) -> None:
+    with httpx.Client(base_url=base_url) as c:
+        r = c.post("/api/clock/in", json={"date": date, "at": at})
+        assert r.status_code == 201, r.text
+
+
+def _lit_settled(page) -> dict:
+    page.wait_for_function(
+        "() => { const r = (__READ__)(); return !r.busy; }".replace("__READ__", LIT), timeout=8000
+    )
+    return page.evaluate(LIT)
+
+
+class TestLitHairline:
+    def test_with_no_start_today_the_title_is_just_the_time_and_nothing_is_lit(
+        self, page, base_url
+    ):
+        _entry(base_url, "2026-11-03")  # yesterday has a start; today has none
+        _at(page, base_url, "2026-11-04T10:00:00")
+        page.wait_for_function("() => document.querySelector('.day-bead').title === 'Now 10:00'")
+        got = _lit_settled(page)
+        assert got["title"] == "Now 10:00"
+        assert got["lit"] is None and got["over"] is None and got["goal"] is None, got
+
+    def test_a_logged_start_lights_the_hairline_from_it_to_the_bead_and_ticks_the_target(
+        self, page, base_url
+    ):
+        # 08:30 to 17:00 with 30 minutes off: 8h net, so the 8h target is reached at 17:00
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        _at(page, base_url, "2026-11-04T13:00:00")
+        want = "Now 13:00 · in since 08:30 · target at 17:00"
+        page.wait_for_function("(w) => document.querySelector('.day-bead').title === w", arg=want)
+        got = _lit_settled(page)
+        assert got["title"] == want
+        start, now, target = (510 - 360) / 1080, (780 - 360) / 1080, (1020 - 360) / 1080
+        assert got["lit"]["from"] == pytest.approx(start, abs=0.003), got  # the left edge is 08:30
+        assert got["lit"]["to"] == pytest.approx(now, abs=0.003), got  # and it ends at the bead
+        assert got["bead"] == pytest.approx(now, abs=0.003), got
+        assert got["goal"]["at"] == pytest.approx(target, abs=0.003), got
+        assert got["goal"]["tall"] > got["goal"]["wide"] * 3, got  # an upright tick
+        assert got["over"] is None, got  # the target is still ahead
+
+    def test_after_the_target_the_lit_part_past_the_tick_is_a_brighter_brass(self, page, base_url):
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        _at(page, base_url, "2026-11-04T19:00:00")
+        page.wait_for_function("() => document.querySelector('.day-bead').title.includes('19:00')")
+        got = _lit_settled(page)
+        target = (1020 - 360) / 1080
+        assert got["lit"]["to"] == pytest.approx(target, abs=0.003), (
+            got
+        )  # normal brass up to the tick
+        assert got["over"]["from"] == pytest.approx(target, abs=0.003), got
+        assert got["over"]["to"] == pytest.approx((1140 - 360) / 1080, abs=0.003), got
+        assert got["over"]["colour"] != got["lit"]["colour"], got
+
+    def test_a_running_clock_in_counts_the_same_with_the_day_left_open(self, page, base_url):
+        _clock_in(base_url, "2026-11-04", "08:30")  # no end yet: 8h from 08:30 is 16:30
+        _at(page, base_url, "2026-11-04T10:00:00")
+        want = "Now 10:00 · in since 08:30 · target at 16:30"
+        page.wait_for_function("(w) => document.querySelector('.day-bead').title === w", arg=want)
+        got = _lit_settled(page)
+        assert got["lit"]["from"] == pytest.approx((510 - 360) / 1080, abs=0.003), got
+        assert got["goal"]["at"] == pytest.approx((990 - 360) / 1080, abs=0.003), got
+
+    def test_it_follows_the_clock_and_starts_nowhere_else(self, page, base_url):
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        _at(page, base_url, "2026-11-04T13:00:00")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').title.includes('in since')"
+        )
+        page.evaluate(f"{MAIN}.nowDisplay = '15:00'")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').title.startsWith('Now 15:00 · in since')"
+        )
+        got = _lit_settled(page)
+        assert got["lit"]["from"] == pytest.approx((510 - 360) / 1080, abs=0.003), got  # not 06:00
+        assert got["lit"]["to"] == pytest.approx((900 - 360) / 1080, abs=0.003), got
+
+    def test_it_is_hidden_on_a_phone_like_the_hairline(self, page, base_url):
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        page.set_viewport_size({"width": 375, "height": 800})
+        _at(page, base_url, "2026-11-04T13:00:00")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').title.includes('in since')"
+        )
+        shown = page.evaluate(
+            "['.day-lit', '.day-goal', '.day-bead']"
+            ".map(s => getComputedStyle(document.querySelector(s)).display)"
+        )
+        assert shown == ["none", "none", "none"]
+
+    def test_the_lit_line_and_the_tick_are_decoration_too(self, page, base_url):
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        _at(page, base_url, "2026-11-04T13:00:00")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').title.includes('in since')"
+        )
+        got = page.evaluate(
+            """() => ['.day-lit', '.day-goal'].map(s => {
+              const e = document.querySelector(s);
+              return [e.getAttribute('aria-hidden'), getComputedStyle(e).pointerEvents];
+            })"""
+        )
+        assert got == [["true", "none"], ["true", "none"]]
 
 
 # ── 6. the egg ────────────────────────────────────────────────────────────────
@@ -682,6 +873,21 @@ class TestReducedMotion:
         page.wait_for_timeout(400)
         got = page.evaluate("window.__coins")
         assert got["added"] == 0 and got["bumps"] == 0, got
+
+    def test_the_lit_line_is_there_without_moving(self, calm, base_url):
+        page = calm
+        _entry(base_url, "2026-11-04", start="08:30", end="17:00", breaks=(30,))
+        _at(page, base_url, "2026-11-04T13:00:00")
+        page.wait_for_function(
+            "() => document.querySelector('.day-bead').title.includes('in since')"
+        )
+        got = page.evaluate(LIT)
+        assert got["lit"]["from"] == pytest.approx((510 - 360) / 1080, abs=0.003), got
+        assert got["goal"] is not None and got["busy"] == 0, got
+        assert (
+            page.evaluate("getComputedStyle(document.querySelector('.day-lit')).transitionDuration")
+            == "0s"
+        )
 
     def test_the_bead_jumps_and_the_logo_stays(self, calm, base_url):
         page = calm

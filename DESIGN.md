@@ -52,7 +52,13 @@ small second hand of the year dial, which ticks because it is a clock, and only 
 
 Moments that deserve a reaction get a small one of brass: the big numbers roll like a mechanical counter
 (`.odo`), a saved day is stamped on the calendar, the save that completes a week seals it in the toast, a
-payout drops coins toward the Selected card, and a bead on the header's hairline shows the hour of the day.
+payout drops coins toward the Selected card (one per €100, up to 40), and a bead on the header's hairline
+shows the hour of the day. Once the day has a start, the hairline is lit from the start to the bead, with a
+tick where the day reaches its target.
+
+A new feature that has no place to explain itself gets one callout, once per browser, then never again (the
+logo's "press the logo to spin through your year"). A control whose use isn't obvious gets a "?" chip with
+its explanation in plain words, as the day ribbon has next to "Employee".
 
 ## Version label and updates
 

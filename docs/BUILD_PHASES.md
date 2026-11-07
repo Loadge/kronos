@@ -50,10 +50,36 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 50 confirmed and archived; 28 next (Anselmo logs
-through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
-in slices, each one a weekend, the day ribbon first; 30 only if logging from the phone outside
-the LAN turns out to be common.
+37 to 50 confirmed and archived. 51 built and waiting for Miguel's check; 52 to 55 in that order
+(Miguel, 2026-11-07: money first, because PROD reads a euro payout as dollars); 28 after them (Anselmo
+logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
+in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phase 51 — Miguel's notes on v50 (built 2026-11-07, awaiting confirmation)
+
+**Why.** Miguel tried v50 and loved the dial, the ribbon and the coins, but could not find the dial's crown,
+said people would miss the dial itself, asked for an explanation of the ribbon in his own words, asked what
+the golden dot was for, and wanted the coins to follow the amount.
+
+**Decisions.**
+- The tab title is just "Kronos".
+- The dial's crown is bigger, and while the ring is away from today an engraved "Today" label sits next to
+  it and the crown glows once. Both bring the ring back.
+- The logo says "Your year as a dial (Y)" and winds a little under the pointer. Once per browser a brass
+  callout under it says "New: press the logo to spin through your year", and it never comes back after it
+  is closed or the dial is opened.
+- A "?" chip next to "Employee" in Log explains the day bar in plain words.
+- One coin per €100 of the payout, between 1 and 40, all landed within 1.6s, with a glint when the payout
+  beats the estimate.
+- The bead on the header's hairline still shows the hour, and once today has a start the line is lit from
+  the start to the bead, with a tick at the time the day reaches its target. Its title says it all: "Now
+  13:00 · in since 08:30 · target at 17:00".
+- Found in the review: the app started twice on every load (Alpine calls `init()` by itself, and the page
+  called it again), so every request of the first load went out twice. It now starts once: 14 requests
+  instead of 27.
+
+**Known limits.** On a phone the dial keeps its width, so "Today" runs vertically beside the crown. The
+tabs that don't show days now load them quietly, so the bead knows today's start on every page.
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 

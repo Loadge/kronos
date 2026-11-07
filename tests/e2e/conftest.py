@@ -30,6 +30,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from playwright.sync_api import Browser
 from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -89,6 +90,32 @@ def cleanup_snapshot_failures(pytestconfig):
         pytestconfig.getini("playwright_visual_snapshot_failures_path")
     )
     SnapshotPaths.failures_path.mkdir(parents=True, exist_ok=True)
+
+
+# ── the logo's callout ────────────────────────────────────────────────────────
+
+# "New: press the logo to spin through your year" shows once per browser, 1.2 s after a first load.
+# Every context of the suite has seen it already, so no test, picture or aria snapshot meets it
+# unless it asks: the callout tests remove the key themselves (tests/e2e/test_v51_notes.py).
+DIAL_HINT_SEEN = "try { localStorage.setItem('k-dial-hint', '1'); } catch (e) {}"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _dial_hint_seen():
+    """An init script on every context the suite makes, whoever makes it (the `context` fixture or a
+    `browser.new_context(...)` in a test): the key is in place before the page's own script runs."""
+    new_context = Browser.new_context
+
+    def with_the_key(self, *args, **kwargs):
+        context = new_context(self, *args, **kwargs)
+        context.add_init_script(DIAL_HINT_SEEN)
+        return context
+
+    Browser.new_context = with_the_key
+    try:
+        yield
+    finally:
+        Browser.new_context = new_context
 
 
 # ── server fixture ────────────────────────────────────────────────────────────

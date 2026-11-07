@@ -33,8 +33,8 @@
 
         <!-- the crown, at three o'clock: the button over it brings the ring back to today -->
         <g class="yd-crown-art">
-          <rect x="492" y="-34" width="26" height="68" rx="6" fill="url(#yd-brass)"/>
-          <path d="M497 -30v60M503 -30v60M509 -30v60" stroke="var(--k-metal-groove)" stroke-width="2"/>
+          <rect x="492" y="-54" width="42" height="108" rx="9" fill="url(#yd-brass)"/>
+          <path d="M503 -47v94M511 -47v94M519 -47v94M527 -47v94" stroke="var(--k-metal-groove)" stroke-width="2"/>
         </g>
 
         <circle r="500" fill="var(--k-metal-void)"/>
@@ -87,7 +87,9 @@
       <div class="yd-sheen"></div>
       <div class="yd-ring" data-yd="ring" tabindex="0" role="slider" aria-label="Day of the year"
            aria-valuemin="1" aria-valuemax="365" aria-valuenow="1" aria-valuetext=""></div>
-      <button type="button" class="yd-crown" data-yd="crown" aria-label="Back to today"></button>
+      <button type="button" class="yd-crown" data-yd="crown" aria-label="Back to today" title="Back to today"></button>
+      <!-- engraved next to the crown while the ring is away from today; the crown has the accessible name -->
+      <button type="button" class="yd-crown-label" data-yd="crownlabel" aria-hidden="true" tabindex="-1" title="Back to today" hidden>Today</button>
     </div>
 
     <!-- on a phone the note and the freelance line leave the face and sit here -->

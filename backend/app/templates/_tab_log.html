@@ -99,8 +99,12 @@
 
     <!-- ── Card surface: form (col 2) + the day's result rail (col 3, wide screens) ── -->
     <div class="log-form-card">
-      <div class="card-title">
+      <div class="card-title q-host">
         <h3><span aria-hidden="true">👔</span> Employee</h3>
+        <button type="button" class="q-chip" aria-label="How the day bar works"
+                data-tip="The bar above the times is your day. Drag its ends to change when you started and finished, or drag the middle to move the whole day. Double-click the bar (double-tap on a phone) to add a break, drag a break to move it, and pull it off the bar to remove it. The flag marks when you reach your target. Freelance blocks have their own row: click one to edit it, or drag along the empty row to add one. Nothing is saved until you press Create entry."
+                title="The bar above the times is your day. Drag its ends to change when you started and finished, or drag the middle to move the whole day. Double-click the bar (double-tap on a phone) to add a break, drag a break to move it, and pull it off the bar to remove it. The flag marks when you reach your target. Freelance blocks have their own row: click one to edit it, or drag along the empty row to add one. Nothing is saved until you press Create entry."
+                @click="$el.classList.toggle('open')" @click.outside="$el.classList.remove('open')" @keydown.escape="if ($el.classList.contains('open')) { $event.stopPropagation(); $el.classList.remove('open') }">?</button>
       </div>
       <form class="log-form-grid" @submit.prevent="saveEntry()">
 

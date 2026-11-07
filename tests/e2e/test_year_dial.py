@@ -1016,3 +1016,153 @@ def test_a_real_finger_turns_the_ring(page, base_url):
     assert _back(page) in (91, 92), _day(page)
     assert page.evaluate("window.scrollY") == 0
     assert abs(_steps(page) - round(_steps(page))) < 0.01
+
+
+# ── the crown can be found: a label while the ring is away from today ──────────────
+
+LABEL = "[data-yd=crownlabel]"
+
+
+def test_the_crown_label_is_hidden_on_today_shown_when_away_and_gone_after_pressing_it(
+    page, base_url
+):
+    _seed(base_url)
+    _open_app(page, base_url)
+    _open_dial(page)
+    _wait_day(page, TODAY)
+    label = page.locator(LABEL)
+    assert label.count() == 1  # kept in the page
+    assert label.is_hidden()
+    assert label.get_attribute("aria-hidden") == "true"
+    page.locator(RING).focus()
+    for _ in range(10):
+        page.keyboard.press("ArrowLeft")
+    _wait_day(page, "2026-10-25")  # 10 days turned
+    assert label.is_visible()
+    assert label.inner_text() == "Today"
+    label.click()
+    _wait_day(page, TODAY)
+    page.wait_for_selector(LABEL, state="hidden")
+    assert _day(page) == TODAY  # the ring is back on today
+    assert label.get_attribute("hidden") is not None
+
+
+def test_the_crown_does_the_same_and_keeps_its_name_and_its_tooltip(page, base_url):
+    _seed(base_url)
+    _open_app(page, base_url)
+    _open_dial(page)
+    crown = page.get_by_role("button", name="Back to today")
+    assert crown.get_attribute("title") == "Back to today"
+    _goto(page, "2026-10-25")
+    assert page.locator(LABEL).is_visible()
+    crown.click()
+    _wait_day(page, TODAY)
+    page.wait_for_selector(LABEL, state="hidden")
+
+
+def test_the_label_follows_the_year_too(page, base_url):
+    """Another year never has today under the index, so the label stays until the ring is back."""
+    _seed(base_url)
+    _open_app(page, base_url)
+    _open_dial(page)
+    page.locator("[data-yd=prev]").click()
+    page.wait_for_function("() => document.querySelector('[data-yd=stage]').dataset.day < '2026'")
+    assert page.locator(LABEL).is_visible()
+    page.locator(LABEL).click()
+    _wait_day(page, TODAY)
+    page.wait_for_selector(LABEL, state="hidden")
+
+
+def test_the_crown_glows_once_each_time_the_ring_leaves_today_and_not_while_it_winds_in(
+    page, base_url
+):
+    _seed(base_url)
+    _open_app(page, base_url, calm=False)
+    page.evaluate(
+        """() => {
+          window.__label = { shown: 0 };
+          new MutationObserver(() => {
+            const l = document.querySelector('[data-yd=crownlabel]');
+            if (l && !l.hidden) window.__label.shown++;
+          }).observe(document.body, {
+            subtree: true, attributes: true, attributeFilter: ['hidden'],
+          });
+        }"""
+    )
+    _open_dial(page)
+    _wait_day(page, TODAY)
+    _settle(page)  # the opening wind has ended
+    assert page.evaluate("window.__label.shown") == 0  # the wind round to today is not leaving it
+    crown = "[data-yd=crown]"
+    names = f"document.querySelector('{crown}').getAnimations().map(a => a.animationName)"
+    assert page.evaluate(names) == []
+    page.locator(RING).focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_function(f"() => {names}.includes('yd-crown-glow')")
+    once = page.evaluate(
+        f"""() => document.querySelector('{crown}').getAnimations()[0].effect.getComputedTiming()
+              .iterations"""
+    )
+    assert once == 1
+    page.wait_for_function(f"() => {names}.length === 0", timeout=4000)  # one pulse, not a loop
+    page.keyboard.press("ArrowLeft")  # still away: no second pulse
+    page.wait_for_timeout(300)
+    assert page.evaluate(names) == []
+    assert page.locator(LABEL).is_visible()
+    page.locator(LABEL).click()
+    _settle(page)
+    _wait_day(page, TODAY)
+    page.wait_for_selector(LABEL, state="hidden")
+    page.keyboard.press("ArrowRight")  # leaving again glows again
+    page.wait_for_function(f"() => {names}.includes('yd-crown-glow')")
+
+
+def test_with_reduced_motion_the_label_still_shows_and_the_crown_does_not_glow(page, base_url):
+    _seed(base_url)
+    _open_app(page, base_url)  # reduced motion
+    _open_dial(page)
+    page.locator(RING).focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_selector(LABEL, state="visible")
+    assert page.evaluate("document.querySelector('[data-yd=crown]').getAnimations().length") == 0
+    assert page.evaluate(f"document.querySelector('{LABEL}').getAnimations().length") == 0
+
+
+CROWN_LABEL = """
+() => {
+  const q = s => document.querySelector(s);
+  const st = q('[data-yd=stage]').getBoundingClientRect();
+  const l = q('[data-yd=crownlabel]').getBoundingClientRect();
+  const c = q('[data-yd=crown]').getBoundingClientRect();
+  const art = q('.yd-crown-art rect').getBoundingClientRect();
+  const cx = st.left + st.width / 2, cy = st.top + st.height / 2;
+  const corners = [[l.left, l.top], [l.right, l.top], [l.left, l.bottom], [l.right, l.bottom]];
+  return {
+    label: [l.left, l.top, l.right, l.bottom], crown: [c.left, c.top, c.right, c.bottom],
+    ring: st.width * 500 / 1040,                       // the circle of the dial, in px
+    nearest: Math.min(...corners.map(([x, y]) => Math.hypot(x - cx, y - cy))),
+    art: art.height * 1040 / st.width,                  // the brass, in the 1040 box
+    sw: document.documentElement.scrollWidth, w: innerWidth, h: innerHeight,
+  };
+}
+"""
+
+
+@pytest.mark.parametrize("size", SIZES, ids=[f"{w}x{h}" for w, h in SIZES])
+def test_the_crown_label_fits_outside_the_ring_at_every_width(page, base_url, size):
+    _seed(base_url)
+    _open_app(page, base_url, size)
+    _open_dial(page)
+    page.locator(RING).focus()
+    page.keyboard.press("ArrowLeft")
+    page.wait_for_selector(LABEL, state="visible")
+    m = page.evaluate(CROWN_LABEL)
+    left, top, right, bottom = m["label"]
+    assert left >= 0 and right <= m["w"] and top >= 0 and bottom <= m["h"], m  # never clipped
+    assert m["sw"] <= m["w"], m  # and no sideways scroll
+    assert m["nearest"] >= m["ring"] - 1, m  # outside the circle: never over a tick
+    cl, ct, cr, cb = m["crown"]
+    assert right <= cl + 1 or left >= cr - 1 or bottom <= ct + 1 or top >= cb - 1, (
+        m
+    )  # not on the crown
+    assert 105 <= m["art"] <= 112, m  # the brass grew from 68 to about 109 units

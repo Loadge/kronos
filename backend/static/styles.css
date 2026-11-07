@@ -3643,6 +3643,7 @@ button.btn-action.fl-submit.fl-submit--save:hover:not(:disabled) { opacity: 0.88
   border-bottom: 1px solid var(--k-border);
 }
 .card-title h3 { margin: 0; font-size: 0.95rem; }
+.card-title .q-chip { margin: -0.4rem 0; align-self: center; } /* the chip is taller than the title line: it must not push the card down */
 .card-title .hint { font-size: 0.76rem; }
 .card-title .fl-total { margin-left: auto; }
 .fl-card .fl-head { margin-bottom: 0.5rem; justify-content: flex-start; }
@@ -4724,7 +4725,70 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 }
 .brand-btn:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 3px; }
 .brand-btn .brand-logo { display: block; transition: transform 0.5s cubic-bezier(0.34, 1.9, 0.64, 1); }
-.brand-btn:hover .brand-logo, .brand-btn:focus-visible .brand-logo { transform: rotate(-14deg); }
+/* a quarter turn back, a little past, and to rest: the app's spring (it tells people the logo is a control) */
+.brand-btn:hover .brand-logo, .brand-btn:focus-visible .brand-logo { transform: rotate(-14deg); animation: logo-tease 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes logo-tease { 0% { transform: rotate(0); } 38% { transform: rotate(-90deg); } 72% { transform: rotate(10deg); } 100% { transform: rotate(-14deg); } }
+/* the same quarter turn, once, when the callout appears */
+.brand-btn .brand-logo.logo-quarter { animation: logo-quarter 1.1s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes logo-quarter { 0% { transform: rotate(0); } 40% { transform: rotate(-90deg); } 75% { transform: rotate(8deg); } 100% { transform: rotate(0); } }
+
+/* The callout under the logo, once per browser (app.js, _dialHintInit) */
+.brand { position: relative; }
+/* .brand > div (the title block) is position: relative: the callout needs the same weight to stay absolute */
+.brand > .dial-hint {
+  position: absolute;
+  z-index: 60;
+  left: 0;
+  top: calc(100% + 0.65rem);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: min(17rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.35rem 0.55rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--k-brass) 70%, var(--k-border));
+  border-radius: 8px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--k-brass) 22%, var(--k-surface)), color-mix(in srgb, var(--k-brass) 9%, var(--k-surface)));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--k-metal-void) 70%, transparent), inset 0 1px 0 color-mix(in srgb, var(--k-coin) 28%, transparent);
+  color: var(--k-text);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  animation: hint-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.dial-hint::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 19px;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  border-left: 1px solid color-mix(in srgb, var(--k-brass) 70%, var(--k-border));
+  border-top: 1px solid color-mix(in srgb, var(--k-brass) 70%, var(--k-border));
+  background: color-mix(in srgb, var(--k-brass) 22%, var(--k-surface));
+}
+.dial-hint-text { padding-top: 0.15rem; }
+.dial-hint-x, .dial-hint-x:hover, .dial-hint-x:focus {
+  flex: none;
+  width: 1.5rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: var(--k-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--k-transition-fast), background var(--k-transition-fast), transform 0.12s ease-out;
+}
+.dial-hint-x:hover, .dial-hint-x:focus-visible { color: var(--k-brass); background: color-mix(in srgb, var(--k-brass) 16%, transparent); }
+.dial-hint-x:active { transform: scale(0.88); }
+@keyframes hint-in { from { opacity: 0; transform: translateY(-8px) scale(0.94); } }
 .brand-btn:active .brand-logo { transform: rotate(-24deg) scale(0.94); }
 
 .yd {
@@ -4775,26 +4839,83 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   mask: radial-gradient(closest-side, transparent 84.5%, #000 85.5% 100%);
 }
 
-/* the crown at three o'clock: the button is bigger than the brass under it, so a thumb can find it */
+/* the crown at three o'clock, drawn 1.6 times its old size: the button lies over the brass, so a thumb finds it */
 .yd-crown, .yd-crown:hover, .yd-crown:active, .yd-crown:focus {
   position: absolute;
   top: 50%;
-  left: 97.3%;
-  width: max(2.8%, 24px);
-  height: max(7.4%, 28px);
+  left: 98.4%;
+  width: max(4%, 26px);
+  height: max(10.8%, 36px);
   transform: translate(-50%, -50%);
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 9px;
   background: transparent;
   box-shadow: none;
   cursor: pointer;
 }
 .yd-crown:focus-visible { outline: 2px solid var(--k-text); outline-offset: 2px; }
 .yd-crown-art { transition: transform 120ms ease-out; }
-.yd-stage:has(.yd-crown:hover) .yd-crown-art rect { fill: url(#yd-brass-hi); }
-.yd-stage:has(.yd-crown:active) .yd-crown-art { transform: translateX(-5px); }
+.yd-stage:has(.yd-crown:hover) .yd-crown-art rect, .yd-stage:has(.yd-crown-label:hover) .yd-crown-art rect { fill: url(#yd-brass-hi); }
+.yd-stage:has(.yd-crown:active) .yd-crown-art, .yd-stage:has(.yd-crown-label:active) .yd-crown-art { transform: translateX(-5px); }
+/* the crown glows softly once, each time the ring leaves today (dial.js, setAway) */
+.yd-crown.glow { animation: yd-crown-glow 1.1s ease-out; }
+@keyframes yd-crown-glow {
+  0%   { box-shadow: 0 0 0 0 transparent; }
+  35%  { box-shadow: 0 0 22px 8px color-mix(in srgb, var(--k-coin) 55%, transparent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* "Today", engraved beside the crown while the ring is away from today. Under the crown and upright on a
+   phone, where the dial takes the width and the only room outside the ring is the strip at the edge; beside
+   it on a wide screen. It sits outside the ring's circle, so it is never over a tick. */
+.yd-crown-label, .yd-crown-label:hover, .yd-crown-label:active, .yd-crown-label:focus {
+  position: absolute;
+  z-index: 2;
+  right: -8px;
+  top: calc(50% + 5.4% + 6px);
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--k-brass);
+  font: 700 0.6rem/1 system-ui, sans-serif;
+  font-variant: small-caps;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--k-coin) 30%, transparent), 0 -1px 0 color-mix(in srgb, var(--k-metal-void) 80%, transparent);
+  cursor: pointer;
+  transition: color var(--k-transition-fast), background var(--k-transition-fast), transform 0.12s ease-out;
+  animation: yd-label-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.yd-crown-label[hidden] { display: none !important; }
+.yd-crown-label:hover, .yd-crown-label:focus-visible { color: var(--k-coin); }
+.yd-crown-label:active { transform: scale(0.92); }
+@keyframes yd-label-in { from { opacity: 0; transform: translateX(-6px); } }
+@media (min-width: 641px) and (min-aspect-ratio: 5/4) {
+  .yd-crown, .yd-crown:hover, .yd-crown:active, .yd-crown:focus { left: 99.3%; }
+  .yd-crown-label, .yd-crown-label:hover, .yd-crown-label:active, .yd-crown-label:focus {
+    right: auto;
+    left: calc(101.35% + 12px);
+    top: 50%;
+    padding: 0.32rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--k-brass) 50%, var(--k-border));
+    border-radius: 999px;
+    font-size: 0.8rem;
+    writing-mode: horizontal-tb;
+    transform: translateY(-50%);
+    animation-name: yd-label-in-wide;
+  }
+  .yd-crown-label:hover, .yd-crown-label:focus-visible { background: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+  .yd-crown-label:active { transform: translateY(-50%) scale(0.94); }
+}
+@keyframes yd-label-in-wide { from { opacity: 0; transform: translate(-8px, -50%); } }
 
 .yd-month { fill: var(--k-coin); font: 600 25px system-ui, sans-serif; font-variant: small-caps; letter-spacing: 3px; text-anchor: middle; }
 .yd-edge { stroke: var(--k-metal-edge); stroke-width: 2; }
@@ -4914,6 +5035,11 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   .yd { animation: none; }
   .yd-index.tick { animation: none; }
   .yd-sec, .yd-crown-art, .yd-btn, .brand-btn .brand-logo { transition: none; }
+  .yd-crown.glow, .yd-crown-label { animation: none !important; }
+  .yd-crown-label { transition: none; }
+  .brand-btn:hover .brand-logo, .brand-btn:focus-visible .brand-logo, .brand-btn .brand-logo.logo-quarter { animation: none; }
+  .brand > .dial-hint { animation: none; }
+  .dial-hint-x { transition: none; }
 }
 
 /* ================================================================
@@ -5219,7 +5345,7 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   width: 0;
   height: 0;
   pointer-events: none;
-  animation: coin-x 0.7s linear both;
+  animation: coin-x var(--t, 0.7s) linear both;
 }
 .coin-fly i {
   position: absolute;
@@ -5230,7 +5356,7 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--k-coin) 60%, var(--k-text)), var(--k-coin) 55%, var(--k-metal-edge));
   box-shadow: 0 0 6px color-mix(in srgb, var(--k-coin) 60%, transparent), inset 0 0 0 1.5px color-mix(in srgb, var(--k-metal-void) 35%, transparent);
-  animation: coin-y 0.7s cubic-bezier(0.4, 0, 0.7, 1) both;
+  animation: coin-y var(--t, 0.7s) cubic-bezier(0.4, 0, 0.7, 1) both;
   animation-delay: inherit;
 }
 @keyframes coin-x { from { transform: translateX(0); } to { transform: translateX(var(--dx, 0)); } }
@@ -5244,10 +5370,17 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 /* The Selected card's amount, when the last coin of a payout lands (bz-bump is the bezel's keyframes;
    its own easing variable only exists inside the bezel, so this one carries the curve itself) */
 .coin-bump { transform-origin: left center; animation: bz-bump 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+/* above the estimate the amount also takes a short brass glint */
+.coin-bump.coin-glint { animation: bz-bump 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), coin-glint 0.8s ease-out; }
+@keyframes coin-glint {
+  0%   { text-shadow: 0 0 0 transparent; }
+  30%  { text-shadow: 0 0 12px var(--k-coin), 0 0 3px var(--k-coin); }
+  100% { text-shadow: 0 0 0 transparent; }
+}
 
 /* The day bead: where the hour of the day sits on the hairline under the header, 06:00 to 24:00.
    The hairline is a desktop thing (from 720px), so the bead is too. */
-.day-bead { display: none; }
+.day-bead, .day-lit, .day-goal { display: none; }
 @media (min-width: 720px) {
   .day-bead {
     position: absolute;
@@ -5262,6 +5395,36 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
     pointer-events: none;
     transition: left 2.4s cubic-bezier(0.25, 0.8, 0.25, 1);
   }
+  /* the bead alone answers the pointer, for its title: a 16px circle around the 7px dot */
+  .day-bead::after { content: ""; position: absolute; inset: -4.5px; border-radius: 50%; pointer-events: auto; }
+  /* with a start today: the hairline is lit from it to the bead (--a, --b are fractions of the hairline) */
+  .day-lit {
+    position: absolute;
+    bottom: -1.5px;
+    left: calc(var(--a, 0) * (100% - 7px) + 3.5px);
+    display: block;
+    width: calc((var(--b, 0) - var(--a, 0)) * (100% - 7px));
+    height: 2px;
+    border-radius: 1px;
+    background: var(--k-brass);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--k-brass) 45%, transparent);
+    pointer-events: none;
+    transition: width 2.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+  /* past the target it is a brighter brass */
+  .day-lit--over { background: var(--k-coin); box-shadow: 0 0 8px color-mix(in srgb, var(--k-coin) 70%, transparent); }
+  /* the small upright tick where today reaches its target */
+  .day-goal {
+    position: absolute;
+    bottom: -5px;
+    left: calc(var(--g, 0) * (100% - 7px) + 2.5px);
+    display: block;
+    width: 2px;
+    height: 9px;
+    border-radius: 1px;
+    background: var(--k-coin);
+    pointer-events: none;
+  }
 }
 
 /* "kronos" also winds the logo one full turn */
@@ -5272,5 +5435,5 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   .odo-reel i { transition: none; }
   .odo.pulse, .coin-bump, .log-cal-day.cal-stamp, .log-cal-day.cal-stamp::before, .ribbon-show .ribbon-seal,
   .brand-btn .brand-logo.logo-wind { animation: none; }
-  .day-bead { transition: none; }
+  .day-bead, .day-lit { transition: none; }
 }

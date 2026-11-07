@@ -192,11 +192,32 @@
     o.stop(n + 0.02);
   }
 
+  // The crown's label: "Today" is engraved beside the crown while the ring is away from today, and the crown
+  // glows once each time the ring leaves it. On opening the ring winds round to today by itself: that is not
+  // leaving it, so the label waits until the wind has ended (`opening`).
+  function setAway(s, away) {
+    if (away === s.away) return;
+    s.away = away;
+    el(s, 'crownlabel').hidden = !away;
+    if (away && !s.calm) {
+      const crown = el(s, 'crown');
+      crown.classList.remove('glow');
+      void crown.offsetWidth;
+      crown.classList.add('glow');
+    }
+  }
+
+  function settle(s) {
+    s.opening = false;
+    if (s.shown >= 0) setAway(s, s.days[s.shown] !== s.today);
+  }
+
   function detent(s, i) {
     const first = s.shown === -1;
     s.shown = i;
     const iso = s.days[i];
     paint(s, s.cb.read(iso), iso, i);
+    if (!s.opening) setAway(s, iso !== s.today);
     if (first) return;
     if (!s.calm) {
       const x = el(s, 'index');
@@ -230,7 +251,7 @@
       if (s.target !== null) {                       // a target: ease toward it
         const d = s.target - s.pos;
         s.pos += d * Math.min(1, 0.14 * dt);
-        if (Math.abs(d) < 0.01) { s.pos = s.target; s.target = null; s.vel = 0; }
+        if (Math.abs(d) < 0.01) { s.pos = s.target; s.target = null; s.vel = 0; if (s.opening) { sync(s); settle(s); } }
       } else if (Math.abs(s.vel) > 0.02) {           // a flick: friction
         s.pos += s.vel * dt;
         s.vel *= Math.pow(0.955, dt);
@@ -321,12 +342,13 @@
 
   function onDown(ev) {
     const s = S;
-    if (!s || ev.target.closest('.yd-crown')) return;
+    if (!s || ev.target.closest('.yd-crown, .yd-crown-label')) return;
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     const c = centre(s);
     s.dragging = true;
     s.moved = false;
     s.target = null;
+    if (s.opening) settle(s);
     s.vel = 0;
     s.pid = ev.pointerId;
     s.downX = ev.clientX;
@@ -435,7 +457,7 @@
       today: data.today, year: Number(data.today.slice(0, 4)),
       calm: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
       days: [], N: 365, STEP: 360 / 365, pos: 0, vel: 0, target: null, dragging: false,
-      moved: false, shown: -1, rot: null, needle: 0, needleNow: 0, last: 0, raf: 0,
+      moved: false, shown: -1, away: false, opening: false, rot: null, needle: 0, needleNow: 0, last: 0, raf: 0,
       sound: !!cb.getSound(), audio: null, wheelAcc: 0, wheelT: 0, sec: -1, turns: 0, secTimer: 0,
     };
     S = s;
@@ -447,6 +469,7 @@
     const today = s.days.indexOf(s.today);
     s.pos = today - (s.calm ? 0 : 150);
     s.target = s.calm ? null : today;
+    s.opening = !s.calm;
     sync(s);
 
     const soundBtn = el(s, 'sound');
@@ -463,6 +486,8 @@
     el(s, 'go').addEventListener('click', () => cb.go(s.days[mod(Math.round(s.pos), s.N)]));
     el(s, 'close').addEventListener('click', () => cb.close());
     el(s, 'crown').addEventListener('click', () => goToday(s));
+    el(s, 'crownlabel').addEventListener('click', () => goToday(s));
+    el(s, 'crown').addEventListener('animationend', ev => ev.currentTarget.classList.remove('glow'));
 
     stage.addEventListener('pointerdown', onDown);
     stage.addEventListener('pointermove', onMove);
@@ -473,7 +498,7 @@
     root.addEventListener('keydown', onRootKey);
     // after a click on the crown or the bar the arrows go on turning the ring; the keyboard keeps its place
     root.addEventListener('click', ev => {
-      if (S === s && ev.detail > 0 && ev.target.closest('.yd-bar button, .yd-crown')) s.ring.focus({ preventScroll: true });
+      if (S === s && ev.detail > 0 && ev.target.closest('.yd-bar button, .yd-crown, .yd-crown-label')) s.ring.focus({ preventScroll: true });
     });
 
     secondHand(s);
