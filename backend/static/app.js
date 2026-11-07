@@ -264,6 +264,14 @@ function app() {
     flYear: new Date().getFullYear(),
     fxInfo: null,         // /api/fx, asked for when a view needs a rate (never on a timer)
     srcForm: { id: null, name: '', hourly_rate: '', currency: 'EUR' },   // Settings → Sources editor
+    accounts: [],         // where payouts land (archived included; pickers filter)
+    currencyList: [],     // GET /api/currencies, once
+    acctForm: { id: null, name: '', currency: 'EUR', kind: 'bank' },   // Settings → Accounts editor
+    curQuery: '', curOpen: false, curIdx: 0,   // the currency picker of that editor
+    payAcct: {},          // `${source}|${week}` -> the account chosen for a payout before it is saved (null = as billed)
+    worthOpen: null,      // id of the payout whose "worth €" field is open by hand
+    fxRates: {},          // `${currency}|${date}` -> the ECB rate the FX chip quotes, asked for when a chip opens
+    fxTip: { open: false, pinned: false, id: null, text: '', style: '' },   // the FX chip's tooltip
     taxYear: new Date().getFullYear(),
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
     _taxSaved: null,
@@ -3283,8 +3291,13 @@ function app() {
           if (!mine.length && !p) continue;
           const minutes = p ? p.minutes : mine.reduce((t, b) => t + b.minutes, 0);
           const estimate = p ? p.estimate_amount : this._r2(mine.reduce((t, b) => t + b.amount, 0));
-          const gap = p && p.minutes > 0 ? this._r2(p.amount - p.estimate_amount) : null;
+          // A payout in another currency than the one billed has its gap in euros: received minus billed.
+          const swapped = !!p && p.billed_currency !== undefined && p.currency !== p.billed_currency;
+          const gapUnknown = swapped && (p.amount_eur === null || p.billed_eur === null);
+          let gap = null;
+          if (p && p.minutes > 0) gap = gapUnknown ? 0 : swapped ? this._r2(p.amount_eur - p.billed_eur) : this._r2(p.amount - p.estimate_amount);
           lines.push({ key: s.id, source: s, currency: s.currency, hours: this._r2(minutes / 60), estimate, payout: p,
+            gapCur: swapped ? 'EUR' : s.currency, gapUnknown, gapTitle: swapped ? 'Received minus billed, in euros' : null,
             noHours: !!p && p.blocks === 0, gap, eph: p && p.minutes > 0 && p.amount_eur !== null ? this._r2(p.amount_eur / (p.minutes / 60)) : null });
         }
         const paid = lines.filter(l => l.payout).length;
@@ -3360,7 +3373,9 @@ function app() {
       const text = String(this.payDraft[k]).trim();
       const existing = this.payoutOf(sourceId, weekStart);
       const src = this.sourceById(sourceId);
-      const drop = () => { const d = { ...this.payDraft }; delete d[k]; this.payDraft = d; };
+      const drop = () => { const d = { ...this.payDraft }; delete d[k]; this.payDraft = d; const a = { ...this.payAcct }; delete a[k]; this.payAcct = a; };
+      const acct = this.payAccountId(sourceId, weekStart, existing);
+      const acctChanged = !!existing && (existing.account_id ?? null) !== acct;
       if (text === '') {
         if (!existing) { drop(); this._setStatus(st, ''); return; }
         this._setStatus(st, 'busy');
@@ -3373,7 +3388,12 @@ function app() {
             label: 'Undo',
             run: async () => {
               const body = { source_id: existing.source_id, week_start: existing.week_start, amount: existing.amount, note: existing.note };
-              if (existing.fx_rate) body.fx_rate = existing.fx_rate;
+              if (existing.account_id != null) {
+                // the account's currency and the value it had: typed by hand, or the rate of the day it was paid
+                body.account_id = existing.account_id;
+                if (existing.rate_source === 'manual' && existing.amount_eur !== null) body.eur_amount = existing.amount_eur;
+                else if (existing.rate_date) body.paid_on = existing.rate_date;
+              } else if (existing.fx_rate) body.fx_rate = existing.fx_rate;
               try { await this.api('POST', '/api/freelance/payouts', body); await this.reloadFlData(); this.showToast('Payout restored', 'neutral'); }
               catch (e) { this.error = e.message; }
             },
@@ -3383,18 +3403,25 @@ function app() {
       }
       const amount = Number(text.replace(/[,\s]/g, ''));
       if (!(amount > 0)) { this._setStatus(st, 'invalid'); return; }
-      if (existing && existing.amount === amount) { drop(); this._setStatus(st, ''); return; }
+      if (existing && existing.amount === amount && !acctChanged) { drop(); this._setStatus(st, ''); return; }
       this._setStatus(st, 'busy');
       try {
-        if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { source_id: sourceId, week_start: weekStart, amount, note: existing.note });
-        else await this.api('POST', '/api/freelance/payouts', { source_id: sourceId, week_start: weekStart, amount });
+        const body = { source_id: sourceId, week_start: weekStart, amount };
+        if (acct !== null) body.account_id = acct;
+        if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { ...body, account_id: acct, note: existing.note });
+        else await this.api('POST', '/api/freelance/payouts', body);
         const field = document.activeElement?.classList.contains('payin') ? document.activeElement : null;
         const input = field || [...document.querySelectorAll('.payin')].find(x => x.getAttribute('aria-label') === `Payout ${src?.name} ${this.weekId(weekStart)}`);
         drop();
         await this.reloadFlData();
         this._setStatus(st, 'saved');
         const mine = this.payoutOf(sourceId, weekStart);
-        if (mine) this.payCoins(input, mine.amount, mine.amount > mine.estimate_amount);
+        // one coin per 100 euros that landed; the glint says the payout beat the week's estimate
+        if (mine) {
+          const swapped = mine.currency !== mine.billed_currency;
+          const euros = mine.amount_eur ?? mine.amount;
+          this.payCoins(input, euros, swapped ? (mine.amount_eur ?? 0) > (mine.billed_eur ?? Infinity) : mine.amount > mine.estimate_amount);
+        }
       } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
     },
     payStatus(weekStart) { return this.settingsStatusText('wk-' + weekStart); },
@@ -3414,6 +3441,102 @@ function app() {
         this._setStatus(st, 'saved');
       } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
     },
+    // ---------- accounts in the payout row --------------------------------------------
+    activeAccounts() { return this.accounts.filter(a => !a.archived); },
+    accountById(id) { return this.accounts.find(a => a.id === id) || null; },
+    // The account a payout goes to: the one picked, else the payout's own (none for a payout from before
+    // accounts), else for a week with no payout the source's default account, else the default account.
+    payAccountId(sourceId, weekStart, p) {
+      const k = this.payKey(sourceId, weekStart);
+      if (k in this.payAcct) return this.payAcct[k];
+      if (p) return p.account_id ?? null;
+      const live = this.activeAccounts();
+      const src = this.sourceById(sourceId);
+      const mine = src && live.find(a => a.id === src.default_account_id);
+      return (mine || live.find(a => a.is_default) || { id: null }).id;
+    },
+    payCurrency(sourceId, weekStart, p, billed) {
+      const id = this.payAccountId(sourceId, weekStart, p);
+      const a = id === null ? null : this.accountById(id);
+      return a ? a.currency : (p ? p.currency : billed);
+    },
+    payAccountOptions(sourceId, weekStart, p, billed) {
+      const chosen = this.payAccountId(sourceId, weekStart, p);
+      const rows = this.accounts.filter(a => !a.archived || a.id === chosen).map(a => ({ id: a.id, label: a.name, selected: a.id === chosen }));
+      rows.push({ id: null, label: `As billed (${billed})`, selected: chosen === null });
+      return rows;
+    },
+    async paySetAccount(sourceId, weekStart, value, p) {
+      const k = this.payKey(sourceId, weekStart);
+      this.payAcct = { ...this.payAcct, [k]: value === '' ? null : Number(value) };
+      if (!p) return;  // nothing to save until an amount is typed
+      if (!(k in this.payDraft)) this.payDraft = { ...this.payDraft, [k]: String(p.amount) };
+      clearTimeout(this._autosave['pay-' + k]);
+      await this._queued('payout', () => this._paySave(sourceId, weekStart));
+    },
+    // "worth €": what a payout in another currency was worth in euros, typed when no rate can be had
+    // (or when the user wants their own). It is sent as `eur_amount`.
+    async worthSave(p, value) {
+      this.worthOpen = null;
+      const v = Number(String(value).replace(/[,\s]/g, ''));
+      if (!(v > 0) || v === p.amount_eur) return;
+      const st = 'wk-' + p.week_start;
+      this._setStatus(st, 'busy');
+      try {
+        await this.api('PUT', `/api/freelance/payouts/${p.id}`, { source_id: p.source_id, week_start: p.week_start, amount: p.amount, note: p.note, account_id: p.account_id, eur_amount: v });
+        await this.reloadFlData();
+        this._setStatus(st, 'saved');
+      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+    },
+    // The FX chip: what the exchange and the fees cost, in plain words.
+    fxHasCost(p) { return p.fx_cost_eur !== null && p.fx_cost_eur !== undefined; },
+    _fxRateText(r) { return r >= 0.01 ? r.toFixed(4) : Number(r.toPrecision(4)).toString(); },
+    fxStory(p) {
+      const bc = p.billed_currency;
+      let billed = `Billed ${this.fmtMoney(p.billed_amount, bc)}`;
+      if (bc !== 'EUR' && p.billed_eur) {
+        const exact = this.fxRates[`${bc}|${p.rate_date}`];
+        const rate = this._fxRateText(exact || p.billed_amount / p.billed_eur);
+        billed += ` · ${this.isCoin(bc) ? 'CoinGecko' : 'ECB'} rate ${rate} on ${this._shortDay(p.rate_date)} → ${this.fmtMoney(p.billed_eur)}`;
+      }
+      const parts = [billed];
+      parts.push(`You received ${this.fmtMoney(p.amount, p.currency)}` + (p.currency !== 'EUR' && p.amount_eur !== null ? ` (${this.fmtMoney(p.amount_eur)})` : ''));
+      const cost = p.fx_cost_eur, share = p.billed_eur ? ` (${(Math.abs(cost) / p.billed_eur * 100).toFixed(1)}%)` : '';
+      parts.push(cost < 0 ? `Exchange and fees left you ${this.fmtMoney(-cost)} ahead${share}` : `Exchange and fees cost you ${this.fmtMoney(cost)}${share}`);
+      if (p.effective_rate) parts.push(`Your rate was ${this._fxRateText(p.effective_rate)}`);
+      return parts.join(' · ');
+    },
+    // hover and focus show it, a tap (or a click) pins it, Escape or a click elsewhere closes it
+    _fxTipStyle(el) {
+      const r = el.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight;
+      const left = Math.max(8, Math.min(r.left, vw - 8 - Math.min(22 * 16, vw - 16)));
+      const place = r.bottom + 150 > vh ? `bottom:${Math.round(vh - r.top + 6)}px` : `top:${Math.round(r.bottom + 6)}px`;
+      return `left:${Math.round(left)}px;${place}`;
+    },
+    // a scroll or a resize moves the chip: the tip follows it, and goes when the chip is gone
+    fxTipFollow() {
+      if (!this.fxTip.open) return;
+      if (!this._fxEl || !this._fxEl.isConnected) { this.fxTipClose(true); return; }
+      this.fxTip.style = this._fxTipStyle(this._fxEl);
+    },
+    async fxTipOpen(p, el, pin = false) {
+      this._fxEl = el;
+      this.fxTip = { open: true, pinned: pin || (this.fxTip.open && this.fxTip.id === p.id && this.fxTip.pinned), id: p.id, text: this.fxStory(p), style: this._fxTipStyle(el) };
+      const bc = p.billed_currency, key = `${bc}|${p.rate_date}`;
+      if (bc !== 'EUR' && !this.isCoin(bc) && p.rate_date && !(key in this.fxRates)) {
+        try {
+          const a = await this.api('GET', `/api/fx?date=${p.rate_date}&currency=${bc}`);
+          const v = a.available ? (a.per_eur ?? a.usd_per_eur) : null;
+          this.fxRates = { ...this.fxRates, [key]: v || 0 };
+          if (this.fxTip.open && this.fxTip.id === p.id) this.fxTip.text = this.fxStory(p);
+        } catch { this.fxRates = { ...this.fxRates, [key]: 0 }; }
+      }
+    },
+    fxTipClick(p, el) {
+      if (this.fxTip.open && this.fxTip.id === p.id && this.fxTip.pinned) { this.fxTipClose(true); return; }
+      this.fxTipOpen(p, el, true);
+    },
+    fxTipClose(force = false) { if (force || !this.fxTip.pinned) this.fxTip = { ...this.fxTip, open: false, pinned: false }; },
     // "+$300" / "-€50": the payout against the estimate, in the source's currency.
     payGapLabel(gap, currency) {
       return (gap < 0 ? '-' : '+') + this.fmtMoney(Math.abs(gap), currency, Number.isInteger(gap) ? 0 : 2);
@@ -4618,15 +4741,27 @@ function app() {
       return this.SRC_COLORS[(i < 0 ? 0 : i) % this.SRC_COLORS.length];
     },
     async loadSources() {
-      try { this.sources = await this.api('GET', '/api/freelance/sources'); } catch { /* keep what we had */ }
+      await Promise.all([
+        (async () => { try { this.sources = await this.api('GET', '/api/freelance/sources'); } catch { /* keep what we had */ } })(),
+        this.loadAccounts(),
+      ]);
       if (this.flForm.source_id == null || !this.sourceById(this.flForm.source_id)) this.flForm.source_id = this.defaultSource()?.id ?? null;
     },
 
     // ---------- money --------------------------------------------------------
     fmtMoney(n, currency = 'EUR', digits = 2) {
       if (n === null || n === undefined || isNaN(n)) return '—';
+      // a coin keeps up to eight decimals with the trailing zeros trimmed: "0.0105 BTC"
+      if (this.isCoin(currency)) {
+        const body = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 }).format(Math.abs(n));
+        return `${n < 0 ? '-' : ''}${body} ${currency}`;
+      }
       return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
     },
+    COIN_CODES: ['BTC', 'ETH', 'USDC', 'USDT', 'SOL'],
+    isCoin(code) { return this.COIN_CODES.includes(code) || this.currencyList.some(c => c.code === code && c.kind === 'crypto'); },
+    // The mark before an amount field: €, $, ₿ or the code.
+    curMark(code) { return code === 'EUR' ? '€' : code === 'USD' ? '$' : code === 'BTC' ? '₿' : code; },
     // "€1,234": only inside charts, where a label has no room for the cents. Everywhere else money
     // reads "€1,289.71" (fmtMoney).
     fmtMoney0(n, currency = 'EUR') { return this.fmtMoney(n, currency, 0); },
@@ -4861,6 +4996,66 @@ function app() {
         this.showToast(first ? '⚡ First income source — the Freelance tab is yours' : 'Source saved', 'neutral');
         if (body.currency === 'USD') this.loadFx();
       } catch (e) { this.error = e.message; }
+    },
+    async srcSetAccount(s, value) {
+      try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { default_account_id: value === '' ? null : Number(value) }); await this.loadSources(); }
+      catch (e) { this.error = e.message; await this.loadSources(); }
+    },
+
+    // ---------- Settings → Accounts ----------------------------------------------
+    async loadAccounts() {
+      try { this.accounts = await this.api('GET', '/api/freelance/accounts'); } catch { /* keep what we had */ }
+      if (!this.currencyList.length) {
+        try { this.currencyList = await this.api('GET', '/api/currencies'); } catch { /* the picker falls back to EUR and USD */ }
+      }
+    },
+    acctKinds: ['bank', 'wallet', 'cash', 'other'],
+    acctUsedBy(a) { return a && a.payouts ? `Used by ${a.payouts} payout${a.payouts !== 1 ? 's' : ''}` : ''; },
+    acctLocked() { return !!this.acctForm.id && !!(this.accountById(this.acctForm.id) || {}).payouts; },
+    acctEdit(a) { this.acctForm = { id: a.id, name: a.name, currency: a.currency, kind: a.kind }; this.curQuery = ''; this.curOpen = false; },
+    acctReset() { this.acctForm = { id: null, name: '', currency: 'EUR', kind: 'bank' }; this.curQuery = ''; this.curOpen = false; },
+    acctFormValid() { return this.acctForm.name.trim().length > 0 && !!this.acctForm.currency; },
+    async acctSave() {
+      if (!this.acctFormValid()) return;
+      const body = { name: this.acctForm.name.trim(), currency: this.acctForm.currency, kind: this.acctForm.kind };
+      try {
+        if (this.acctForm.id) {
+          if (this.acctLocked()) delete body.currency;
+          await this.api('PUT', `/api/freelance/accounts/${this.acctForm.id}`, body);
+        } else await this.api('POST', '/api/freelance/accounts', body);
+        const first = this.accounts.length === 0;
+        await this.loadAccounts();
+        await this.reloadFlData();
+        this.acctReset();
+        this.showToast(first ? 'First account saved' : 'Account saved', 'neutral');
+      } catch (e) { this.error = e.message; }
+    },
+    async acctSetDefault(a) {
+      try { await this.api('PUT', `/api/freelance/accounts/${a.id}`, { is_default: !a.is_default }); await this.loadAccounts(); }
+      catch (e) { this.error = e.message; }
+    },
+    async acctArchive(a, archived) {
+      try { await this.api('PUT', `/api/freelance/accounts/${a.id}`, { archived }); await this.loadAccounts(); await this.loadSources(); }
+      catch (e) { this.error = e.message; }
+    },
+    // Active accounts first (the default leading, as the API sends them), then the archived ones, dimmed.
+    acctRows() { return [...this.accounts.filter(a => !a.archived), ...this.accounts.filter(a => a.archived)]; },
+    // The currency picker: fiat first by code with its name, then the coins; typing filters.
+    curOptions() {
+      const q = this.curQuery.trim().toLowerCase();
+      const all = this.currencyList.length ? this.currencyList : [{ code: 'EUR', name: 'Euro', kind: 'fiat' }, { code: 'USD', name: 'US dollar', kind: 'fiat' }];
+      const byCode = (a, b) => (a.code < b.code ? -1 : 1);
+      const sorted = [...all.filter(c => c.kind === 'fiat').sort(byCode), ...all.filter(c => c.kind !== 'fiat').sort(byCode)];
+      return q ? sorted.filter(c => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) : sorted;
+    },
+    curLabel(code) { const c = this.currencyList.find(x => x.code === code); return c ? `${c.code} · ${c.name}` : code; },
+    curPick(c) { this.acctForm.currency = c.code; this.curQuery = ''; this.curOpen = false; },
+    curKey(ev) {
+      const n = this.curOptions().length;
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); this.curOpen = true; this.curIdx = Math.min(n - 1, this.curIdx + 1); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); this.curIdx = Math.max(0, this.curIdx - 1); }
+      else if (ev.key === 'Enter' && this.curOpen) { ev.preventDefault(); const c = this.curOptions()[this.curIdx]; if (c) this.curPick(c); }
+      else if (ev.key === 'Escape' && this.curOpen) { ev.stopPropagation(); this.curOpen = false; this.curQuery = ''; }
     },
     async srcSetDefault(s) {
       try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { is_default: true }); await this.loadSources(); }

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from app.models import DayType, WorkEntry
+from app.services import currencies
 from app.services.computations import (
     DailyTargetSchedule,
     daily_net_hours,
@@ -276,7 +277,12 @@ def _count(t: Totals, e: WorkEntry | None, kind: str, schedule: DailyTargetSched
 
 
 def fmt_money(amount: float, currency: str = "EUR") -> str:
-    """170.068 → "€170.07", USD → "$190.00"; thousands separated, a half cent up."""
+    """170.068 → "€170.07", USD → "$190.00"; thousands separated, a half cent up. Any other
+    currency prints its code and its own decimals: "BTC 0.01000000"."""
+    if currency not in ("EUR", "USD"):
+        dec = currencies.decimals(currency)
+        sign = "−" if amount < 0 and currencies.quantize(amount, currency) != 0 else ""
+        return f"{sign}{currency} {abs(currencies.quantize(amount, currency)):,.{dec}f}"
     symbol = "$" if currency == "USD" else "€"
     cents = int(abs(amount) * 100 + 0.5)
     whole, frac = divmod(cents, 100)
@@ -394,7 +400,12 @@ def _payout_row(p, group: list, blocks_by_id: dict) -> tuple[date, PayoutRow]:
     (a payout with no block that week) the line's own day, the Sunday."""
     printed = [blocks_by_id[ln.block_id] for ln in group if ln.block_id in blocks_by_id]
     week = f"W{p.week_start.isocalendar().week:02d} payout {fmt_money(p.amount, p.currency)}"
-    if printed:
+    if printed and printed[0].currency != p.currency:
+        # the money landed in another currency: set what was billed beside it, not against it
+        billed = sum(b.amount for b in printed)
+        versus = f"billed {fmt_money(billed, printed[0].currency)}"
+        day = max(b.date for b in printed)
+    elif printed:
         diff = round(p.amount * 100) - round(sum(b.amount for b in printed) * 100)
         if diff == 0:
             versus = "matches the estimate"

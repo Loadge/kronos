@@ -3,8 +3,8 @@ and the calculator.
 
 Blocks live apart from ``work_entries``: nothing here touches the employee's target, balance,
 streaks or the timesheet. A block snapshots its source's rate and currency when it is saved
-(and, for USD, the ECB rate of its date, fetched on demand exactly then), so a later change of
-a rate never rewrites the past.
+(and, for any currency but EUR, the rate of its date, fetched on demand exactly then), so a
+later change of a rate never rewrites the past.
 """
 
 from __future__ import annotations
@@ -19,8 +19,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.models import FreelanceBlock, FreelancePayout, FreelanceTaxYear, IncomeSource
+from app.models import Account, FreelanceBlock, FreelancePayout, FreelanceTaxYear, IncomeSource
 from app.schemas import (
+    AccountIn,
+    AccountOut,
+    AccountUpdate,
     FreelanceBlockIn,
     FreelanceBlockOut,
     FreelanceBlockUpdate,
@@ -34,7 +37,7 @@ from app.schemas import (
     IncomeSourceUpdate,
     week_end_of,
 )
-from app.services import freelance, fx, tax
+from app.services import currencies, freelance, fx, tax
 from app.services.clock import local_today
 from app.services.settings import (
     get_freelance_days_off,
@@ -63,8 +66,16 @@ def _source_out(s: IncomeSource, blocks: int) -> IncomeSourceOut:
         currency=s.currency,
         is_default=bool(s.is_default),
         archived=bool(s.archived),
+        default_account_id=s.default_account_id,
         blocks=blocks,
     )
+
+
+def _account_or_422(session: Session, account_id: int) -> Account:
+    account = session.get(Account, account_id)
+    if account is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unknown account")
+    return account
 
 
 def _clear_default(session: Session, keep: IncomeSource | None) -> None:
@@ -85,6 +96,8 @@ def list_sources(session: Session = Depends(get_session)) -> list[IncomeSourceOu
 
 @router.post("/sources", response_model=IncomeSourceOut, status_code=status.HTTP_201_CREATED)
 def create_source(body: IncomeSourceIn, session: Session = Depends(get_session)) -> IncomeSourceOut:
+    if body.default_account_id is not None:
+        _account_or_422(session, body.default_account_id)
     # The first source is the default whatever the body says: a single source must be pickable.
     first = session.scalar(select(func.count()).select_from(IncomeSource)) == 0
     src = IncomeSource(
@@ -93,6 +106,7 @@ def create_source(body: IncomeSourceIn, session: Session = Depends(get_session))
         currency=body.currency,
         is_default=body.is_default or first,
         archived=body.archived,
+        default_account_id=body.default_account_id,
     )
     if src.is_default:
         _clear_default(session, None)
@@ -115,6 +129,10 @@ def update_source(
         src.hourly_rate = body.hourly_rate
     if body.currency is not None:
         src.currency = body.currency
+    if "default_account_id" in body.model_fields_set:
+        if body.default_account_id is not None:
+            _account_or_422(session, body.default_account_id)
+        src.default_account_id = body.default_account_id
     if body.archived is not None:
         src.archived = body.archived
         if body.archived:
@@ -144,6 +162,124 @@ def delete_source(source_id: int, session: Session = Depends(get_session)) -> Re
             "this source has blocks or payouts billed to it; archive it instead of deleting it",
         )
     session.delete(src)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- accounts --------------------------------------------------------------
+
+
+def _payout_counts(session: Session) -> dict[int, int]:
+    rows = session.execute(
+        select(FreelancePayout.account_id, func.count())
+        .where(FreelancePayout.account_id.is_not(None))
+        .group_by(FreelancePayout.account_id)
+    )
+    return {aid: n for aid, n in rows}
+
+
+def _account_out(a: Account, payouts: int) -> AccountOut:
+    return AccountOut(
+        id=a.id,
+        name=a.name,
+        currency=a.currency,
+        kind=a.kind,
+        is_default=bool(a.is_default),
+        archived=bool(a.archived),
+        created_at=a.created_at,
+        payouts=payouts,
+    )
+
+
+def _refuse_duplicate_account(session: Session, name: str, own_id: int | None = None) -> None:
+    wanted = name.casefold()
+    for other in session.scalars(select(Account)):
+        if other.id != own_id and other.name.casefold() == wanted:
+            raise HTTPException(status.HTTP_409_CONFLICT, "an account with that name exists")
+
+
+def _clear_default_account(session: Session, keep: Account | None) -> None:
+    for other in session.scalars(select(Account).where(Account.is_default.is_(True))):
+        if other is not keep:
+            other.is_default = False
+
+
+@router.get("/accounts", response_model=list[AccountOut])
+def list_accounts(session: Session = Depends(get_session)) -> list[AccountOut]:
+    """Every account, archived ones included (flagged); default first."""
+    counts = _payout_counts(session)
+    rows = session.scalars(select(Account).order_by(Account.is_default.desc(), Account.id))
+    return [_account_out(a, counts.get(a.id, 0)) for a in rows]
+
+
+@router.post("/accounts", response_model=AccountOut, status_code=status.HTTP_201_CREATED)
+def create_account(body: AccountIn, session: Session = Depends(get_session)) -> AccountOut:
+    _refuse_duplicate_account(session, body.name)
+    account = Account(
+        name=body.name,
+        currency=body.currency,
+        kind=body.kind,
+        is_default=body.is_default and not body.archived,
+        archived=body.archived,
+    )
+    if account.is_default:
+        _clear_default_account(session, None)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return _account_out(account, 0)
+
+
+@router.put("/accounts/{account_id}", response_model=AccountOut)
+def update_account(
+    account_id: int, body: AccountUpdate, session: Session = Depends(get_session)
+) -> AccountOut:
+    account = session.get(Account, account_id)
+    if not account:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+    used = _payout_counts(session).get(account.id, 0)
+    if body.currency is not None and body.currency != account.currency and used:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "payouts went into this account in its currency; open another account instead",
+        )
+    if body.name is not None:
+        _refuse_duplicate_account(session, body.name, own_id=account.id)
+        account.name = body.name
+    if body.currency is not None:
+        account.currency = body.currency
+    if body.kind is not None:
+        account.kind = body.kind
+    if body.archived is not None:
+        account.archived = body.archived
+        if body.archived:
+            account.is_default = False
+    if body.is_default is not None:
+        if body.is_default:
+            _clear_default_account(session, account)
+            account.archived = False
+        account.is_default = body.is_default
+    session.commit()
+    session.refresh(account)
+    return _account_out(account, used)
+
+
+@router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(account_id: int, session: Session = Depends(get_session)) -> Response:
+    """Delete an account no payout went into. One with payouts is a 409: archive it."""
+    account = session.get(Account, account_id)
+    if not account:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
+    if _payout_counts(session).get(account.id, 0):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "payouts went into this account; archive it instead of deleting it",
+        )
+    for src in session.scalars(
+        select(IncomeSource).where(IncomeSource.default_account_id == account.id)
+    ):
+        src.default_account_id = None
+    session.delete(account)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -186,10 +322,11 @@ def _block_out_now(session: Session, b: FreelanceBlock) -> FreelanceBlockOut:
     return block_out(b, _lines_of_blocks(session, [b]).get(b.id))
 
 
-def _fx_for(on: date) -> float | None:
-    """The ECB rate of a date, asked for exactly once, when a USD block is saved."""
-    answer = fx.for_date(on)
-    return answer["usd_per_eur"] if answer["available"] else None
+def _fx_for(currency: str, on: date) -> float | None:
+    """The rate of a date (units per EUR), asked for exactly once, when a block in a currency
+    other than EUR is saved."""
+    answer = currencies.rate_for(currency, on)
+    return answer["per_eur"] if answer["available"] else None
 
 
 def _source_or_422(session: Session, source_id: int) -> IncomeSource:
@@ -236,8 +373,10 @@ def create_block(
         currency=src.currency,
         fx_rate=None,
     )
-    if src.currency == "USD":
-        block.fx_rate = body.fx_rate if body.fx_rate is not None else _fx_for(body.date)
+    if src.currency != "EUR":
+        block.fx_rate = (
+            body.fx_rate if body.fx_rate is not None else _fx_for(src.currency, body.date)
+        )
     session.add(block)
     session.commit()
     session.refresh(block)
@@ -274,11 +413,11 @@ def update_block(
         block.rate = src.hourly_rate
     if source_changed:
         block.currency = src.currency
-    if block.currency == "USD":
+    if block.currency != "EUR":
         if body.fx_rate is not None:
             block.fx_rate = body.fx_rate
         elif source_changed or date_changed or block.fx_rate is None:
-            block.fx_rate = _fx_for(body.date)
+            block.fx_rate = _fx_for(block.currency, body.date)
     else:
         block.fx_rate = None
     session.commit()
@@ -312,12 +451,12 @@ def _payout_outs(session: Session, payouts: list[FreelancePayout]) -> list[Freel
 
 def _payout_out(p: FreelancePayout, blocks: list[FreelanceBlock]) -> FreelancePayoutOut:
     eur = p.amount_eur
-    ests = [b.amount_eur for b in blocks]
+    billed = freelance.billed_for(p, blocks)
     return FreelancePayoutOut(
-        blocks=len(blocks),
-        minutes=sum(b.minutes for b in blocks),
-        estimate_eur=None if any(e is None for e in ests) else money(sum(money(e) for e in ests)),
-        estimate_amount=money(sum(b.amount for b in blocks)),
+        blocks=billed.blocks,
+        minutes=billed.minutes,
+        estimate_eur=billed.estimate_eur,
+        estimate_amount=billed.amount,
         id=p.id,
         source_id=p.source_id,
         week_start=p.week_start,
@@ -327,6 +466,15 @@ def _payout_out(p: FreelancePayout, blocks: list[FreelanceBlock]) -> FreelancePa
         fx_rate=p.fx_rate,
         note=p.note,
         amount_eur=None if eur is None else money(eur),
+        account_id=p.account_id,
+        account_name=None if p.account is None else p.account.name,
+        rate_source=p.rate_source,
+        rate_date=p.rate_date,
+        billed_amount=billed.amount,
+        billed_currency=billed.currency,
+        billed_eur=billed.eur,
+        fx_cost_eur=billed.fx_cost_eur,
+        effective_rate=billed.effective_rate,
     )
 
 
@@ -368,6 +516,61 @@ def list_payouts(
     return _payout_outs(session, list(session.scalars(stmt)))
 
 
+def _settle_payout(
+    session: Session, payout: FreelancePayout, src: IncomeSource, body: FreelancePayoutIn
+) -> None:
+    """Fill a payout's currency, rate and their provenance from the body.
+
+    The currency is the account's when there is one, else the source's. In a currency other
+    than EUR the euro value comes from, in order: `eur_amount` (typed by hand), `fx_rate`
+    (typed by hand), the ECB's or CoinGecko's rate of `paid_on` (default: the week's Sunday).
+    A stored rate is kept on an update that changes nothing it depends on; with no rate
+    available the payout is saved with `fx_rate` None and counts as missing.
+    """
+    new = payout.id is None
+    old_account, old_currency = payout.account_id, payout.currency
+    account = None if body.account_id is None else _account_or_422(session, body.account_id)
+    if account is not None:
+        currency = account.currency
+    elif not new and old_account is None and payout.source_id == src.id:
+        currency = old_currency  # a payout from before accounts keeps its own
+    else:
+        currency = src.currency
+    paid_on = body.paid_on or week_end_of(body.week_start)
+    unchanged = (
+        not new
+        and body.paid_on is None
+        and body.week_start == payout.week_start
+        and payout.source_id == src.id
+        and (None if account is None else account.id) == old_account
+        and currency == old_currency
+    )
+    payout.account_id = None if account is None else account.id
+    payout.currency = currency
+    if currency == "EUR":
+        payout.fx_rate = None
+        payout.rate_source = None
+        if account is None:
+            payout.rate_date = None
+        elif not unchanged or payout.rate_date is None:
+            payout.rate_date = paid_on
+        return
+    if body.eur_amount is not None:
+        payout.fx_rate = body.amount / body.eur_amount
+        payout.rate_source, payout.rate_date = "manual", paid_on
+    elif body.fx_rate is not None:
+        payout.fx_rate = body.fx_rate
+        payout.rate_source, payout.rate_date = "manual", paid_on
+    elif new or not unchanged or payout.fx_rate is None:
+        found = currencies.rate_for(currency, paid_on)
+        if found["available"]:
+            payout.fx_rate = found["per_eur"]
+            payout.rate_source = found["source"]
+            payout.rate_date = date.fromisoformat(found["date"])
+        else:
+            payout.fx_rate, payout.rate_source, payout.rate_date = None, None, paid_on
+
+
 @router.post("/payouts", response_model=FreelancePayoutOut, status_code=status.HTTP_201_CREATED)
 def create_payout(
     body: FreelancePayoutIn, session: Session = Depends(get_session)
@@ -382,14 +585,16 @@ def create_payout(
         fx_rate=None,
         note=(body.note or "").strip() or None,
     )
-    if src.currency == "USD":
-        payout.fx_rate = (
-            body.fx_rate if body.fx_rate is not None else _fx_for(week_end_of(body.week_start))
-        )
+    _settle_payout(session, payout, src, body)
     session.add(payout)
     session.commit()
     session.refresh(payout)
     return _payout_outs(session, [payout])[0]
+
+
+def _amount_text(amount: float, currency: str) -> str:
+    """An amount with its currency's decimals: cents for euros, eight places for a coin."""
+    return f"{currencies.quantize(amount, currency):.{currencies.decimals(currency)}f}"
 
 
 PAYOUT_CSV_COLUMNS = [
@@ -405,6 +610,12 @@ PAYOUT_CSV_COLUMNS = [
     "blocks",
     "hours",
     "note",
+    "account",
+    "rate_source",
+    "rate_date",
+    "billed_amount",
+    "billed_eur",
+    "fx_cost_eur",
 ]
 
 
@@ -428,14 +639,20 @@ def payouts_csv(session: Session = Depends(get_session)) -> Response:
                 o.week_end.isoformat(),
                 names[o.id],
                 o.currency,
-                f"{money(o.amount):.2f}",
+                _amount_text(o.amount, o.currency),
                 "" if o.fx_rate is None else repr(float(o.fx_rate)),
                 "" if o.amount_eur is None else f"{o.amount_eur:.2f}",
-                f"{o.estimate_amount:.2f}",
+                _amount_text(o.estimate_amount, o.billed_currency),
                 "" if o.estimate_eur is None else f"{o.estimate_eur:.2f}",
                 o.blocks,
                 f"{o.minutes / 60:.2f}",
                 (o.note or "").replace("\n", " "),
+                o.account_name or "",
+                o.rate_source or "",
+                "" if o.rate_date is None else o.rate_date.isoformat(),
+                _amount_text(o.billed_amount, o.billed_currency),
+                "" if o.billed_eur is None else f"{o.billed_eur:.2f}",
+                "" if o.fx_cost_eur is None else f"{o.fx_cost_eur:.2f}",
             ]
         )
     return Response(
@@ -462,21 +679,11 @@ def update_payout(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "payout not found")
     src = _source_or_404(session, body.source_id)
     _refuse_duplicate_week(session, src.id, body.week_start, own_id=payout.id)
-    source_changed = src.id != payout.source_id
-    week_changed = body.week_start != payout.week_start
+    _settle_payout(session, payout, src, body)
     payout.source_id = src.id
     payout.week_start = body.week_start
     payout.amount = body.amount
     payout.note = (body.note or "").strip() or None
-    if source_changed:
-        payout.currency = src.currency
-    if payout.currency == "USD":
-        if body.fx_rate is not None:
-            payout.fx_rate = body.fx_rate
-        elif source_changed or week_changed or payout.fx_rate is None:
-            payout.fx_rate = _fx_for(week_end_of(body.week_start))
-    else:
-        payout.fx_rate = None
     session.commit()
     session.refresh(payout)
     return _payout_outs(session, [payout])[0]
@@ -569,14 +776,15 @@ def summary(
     """The year's freelance picture: totals, this week and month, per month, per source,
     the four 130s, the projection to Dec 31 and its tax figures.
 
-    The ECB is asked only when the projection needs a rate it has nowhere else (a USD default
-    source before the first block of the year) — on this request, never on a timer.
+    The ECB (or CoinGecko) is asked only when the projection needs a rate it has nowhere else
+    (a default source not in euros, before the first block of the year) — on this request,
+    never on a timer.
     """
     today = today or local_today()
     year = year or today.year
     latest: float | None = None
     src = freelance.default_source(session)
-    if src is not None and src.currency == "USD":
+    if src is not None and src.currency != "EUR":
         has_blocks = session.scalar(
             select(func.count())
             .select_from(FreelanceBlock)
@@ -585,8 +793,12 @@ def summary(
             )
         )
         if not has_blocks:
-            answer = fx.latest()
-            latest = answer["usd_per_eur"] if answer["available"] else None
+            if src.currency == "USD":
+                answer = fx.latest()
+                latest = answer["usd_per_eur"] if answer["available"] else None
+            else:
+                answer = currencies.rate_for(src.currency, today)
+                latest = answer["per_eur"] if answer["available"] else None
     return freelance.year_summary(
         session,
         year,
@@ -637,6 +849,7 @@ CSV_COLUMNS = [
     "amount",
     "amount_eur",
     "notes",
+    "account",
 ]
 
 
@@ -646,6 +859,7 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(CSV_COLUMNS)
+    account_names = {a.id: a.name for a in session.scalars(select(Account))}
     for b in session.scalars(
         select(FreelanceBlock).order_by(FreelanceBlock.date, FreelanceBlock.id)
     ):
@@ -663,6 +877,7 @@ def export_csv(session: Session = Depends(get_session)) -> Response:
                 f"{money(b.amount):.2f}",
                 "" if eur is None else f"{money(eur):.2f}",
                 (b.notes or "").replace("\n", " "),
+                account_names.get(b.source.default_account_id, ""),
             ]
         )
     return Response(

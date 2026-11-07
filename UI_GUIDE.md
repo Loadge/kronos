@@ -68,7 +68,8 @@ Rule 3 is Miguel's decision (2026-11-05): a user who learned where the pill is o
 Kronos has one helper per kind of number in `app.js`. Never format by hand in a template.
 
 - Hours: `fmtHours` for totals (trailing zeros trimmed: 34.5h) and `formatSurplus` for signed deltas (always two decimals: +24.50h). This is Miguel's decision.
-- Money: `fmtMoney`, always with cents and a thousands comma: €1,289.71. Inside a chart a label may round (`fmtMoney0`: €1,290) because it has no room for cents.
+- Money: `fmtMoney`, always with cents and a thousands comma: €1,289.71. Inside a chart a label may round (`fmtMoney0`: €1,290) because it has no room for cents. A coin keeps up to 8 decimals with the trailing zeros trimmed and its code after the number: 0.0105 BTC.
+- A payout in another currency than its source shows "= €877.94" after the amount and a small "FX" chip whose tooltip tells the exchange in one line. A row in a single currency gets neither.
 - Calculator: the Freelance calculator is the one place with Spanish decimals, typed and shown (`calcMoney`: €28.687,41), because its inputs follow the browser's locale. This is Miguel's decision.
 - Compact exceptions, on purpose: the weekday averages under the Weekday pattern bars keep one decimal (+0.7h) because the cell is narrow.
 - Numbers use the `.metric` class, so the digits are tabular and the columns line up, and numeric columns are right-aligned.

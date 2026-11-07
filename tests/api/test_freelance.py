@@ -80,7 +80,7 @@ class TestSources:
             == 422
         )
         r = client.post(
-            "/api/freelance/sources", json={"name": "A", "hourly_rate": 1, "currency": "GBP"}
+            "/api/freelance/sources", json={"name": "A", "hourly_rate": 1, "currency": "XXX"}
         )
         assert r.status_code == 422
         assert client.put("/api/freelance/sources/999", json={"name": "x"}).status_code == 404
@@ -547,9 +547,12 @@ class TestExport:
         assert (
             lines[0]
             == "date,source,hours,start_time,end_time,rate,currency,fx_rate,amount,amount_eur,notes"
+            ",account"
         )
         # 2h x 95 = 190 USD / 1.1172 = 170.07
-        assert lines[1] == "2026-03-06,Northwind,2.00,18:00,20:00,95.0,USD,1.1172,190.00,170.07,a b"
+        assert (
+            lines[1] == "2026-03-06,Northwind,2.00,18:00,20:00,95.0,USD,1.1172,190.00,170.07,a b,"
+        )
 
 
 # ── config ────────────────────────────────────────────────────────────────────

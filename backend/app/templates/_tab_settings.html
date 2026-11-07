@@ -308,6 +308,16 @@
             <template x-if="s.archived"><span class="src-tag">archived</span></template>
             <small class="muted" x-text="s.blocks + ' block' + (s.blocks !== 1 ? 's' : '')"></small>
           </div>
+          <template x-if="accounts.length">
+            <label class="src-paid"><span class="fl-lbl">Paid into</span>
+              <select :aria-label="'Paid into, ' + s.name" @change="srcSetAccount(s, $event.target.value)">
+                <option value="" :selected="s.default_account_id == null" x-text="'As billed (' + s.currency + ')'"></option>
+                <template x-for="a in accounts.filter(x => !x.archived || x.id === s.default_account_id)" :key="a.id">
+                  <option :value="a.id" :selected="a.id === s.default_account_id" x-text="a.name"></option>
+                </template>
+              </select>
+            </label>
+          </template>
           <div class="src-actions">
             <template x-if="!s.is_default && !s.archived">
               <button type="button" class="secondary outline compact" @click="srcSetDefault(s)">Make default</button>
@@ -334,6 +344,84 @@
           <button type="submit" class="btn-action" :disabled="!srcFormValid()" x-text="srcForm.id ? 'Save' : 'Add'"></button>
           <template x-if="srcForm.id">
             <button type="button" class="secondary outline compact" @click="srcReset()">Cancel</button>
+          </template>
+        </div>
+      </form>
+    </div>
+
+    <!-- ── Accounts: where the payouts land ──────────────────────────────── -->
+    <div class="settings-card" data-testid="accounts-card">
+      <svg class="acct-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+        <defs>
+          <symbol id="ac-bank" viewBox="0 0 24 24"><path d="M3.5 9.5 12 4l8.5 5.5M5.5 10v7.5M10 10v7.5M14 10v7.5M18.5 10v7.5M3.5 20h17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+          <symbol id="ac-wallet" viewBox="0 0 24 24"><path d="M4 7.5c0-1.2 1-2 2.2-2H17M4 7.5v10c0 1.2 1 2 2.2 2h12.3c.8 0 1.5-.7 1.5-1.5V9.5c0-.8-.7-1.5-1.5-1.5H6.2C5 8 4 7.5 4 7.5Z M16.2 13.6h.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+          <symbol id="ac-cash" viewBox="0 0 24 24"><path d="M3.5 7.5h17v9h-17Z M12 14.6a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z M6.5 10v.1M17.5 14v.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+          <symbol id="ac-other" viewBox="0 0 24 24"><path d="M12 4.5 19.5 12 12 19.5 4.5 12Z M12 10.8v.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+          <symbol id="ac-lock" viewBox="0 0 24 24"><path d="M7 11V8.5a5 5 0 0 1 10 0V11M5.5 11h13v8.5h-13Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+          <symbol id="ac-star" viewBox="0 0 24 24"><path d="m12 4.2 2.5 5.1 5.6.8-4.1 4 1 5.6L12 17l-5 2.7 1-5.6-4.1-4 5.6-.8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+        </defs>
+      </svg>
+      <div class="settings-card-head">
+        <div>
+          <h3>Accounts</h3>
+        </div>
+      </div>
+      <template x-if="accounts.length === 0">
+        <p class="muted settings-empty">Add the bank accounts or wallets your clients pay into. Without one, a payout is read in the currency you bill.</p>
+      </template>
+      <template x-for="a in acctRows()" :key="a.id">
+        <div class="src-item acct-item" :class="a.archived ? 'is-archived' : ''" :data-account="a.name">
+          <svg class="acct-kind" width="20" height="20" role="img" :aria-label="a.kind"><use :href="'#ac-' + a.kind"></use></svg>
+          <div class="src-main">
+            <strong x-text="a.name"></strong>
+            <span class="metric acct-cur" :title="a.payouts ? acctUsedBy(a) : null">
+              <span x-text="a.currency"></span>
+              <svg x-show="a.payouts > 0" class="acct-lock" width="12" height="12" aria-hidden="true"><use href="#ac-lock"></use></svg>
+            </span>
+            <template x-if="a.archived"><span class="src-tag">archived</span></template>
+          </div>
+          <div class="src-actions">
+            <template x-if="!a.archived">
+              <button type="button" class="acct-star" :class="a.is_default ? 'on' : ''" @click="acctSetDefault(a)"
+                :aria-pressed="a.is_default ? 'true' : 'false'" :aria-label="a.is_default ? 'Default account: ' + a.name : 'Make ' + a.name + ' the default account'"
+                :title="a.is_default ? 'Default account' : 'Make default'">
+                <svg width="16" height="16" aria-hidden="true"><use href="#ac-star"></use></svg>
+              </button>
+            </template>
+            <button type="button" class="secondary outline compact" @click="acctEdit(a)" :aria-label="'Edit ' + a.name">Edit</button>
+            <button type="button" class="secondary outline compact" @click="acctArchive(a, !a.archived)" :aria-label="(a.archived ? 'Restore ' : 'Archive ') + a.name" x-text="a.archived ? 'Restore' : 'Archive'"></button>
+          </div>
+        </div>
+      </template>
+      <form class="src-form" @submit.prevent="acctSave()">
+        <span class="fl-lbl" x-text="acctForm.id ? 'Edit account' : 'Add an account'"></span>
+        <div class="src-form-row">
+          <input type="text" x-model="acctForm.name" placeholder="Bank or wallet" maxlength="60" aria-label="Account name" required>
+          <span class="acct-picker" @click.outside="curOpen = false; curQuery = ''" :title="acctLocked() ? acctUsedBy(accountById(acctForm.id)) : null">
+            <input type="text" role="combobox" class="acct-curin" autocomplete="off" aria-label="Account currency" aria-autocomplete="list"
+              aria-controls="acct-curlist" :aria-expanded="curOpen ? 'true' : 'false'" :disabled="acctLocked()"
+              :value="curOpen ? curQuery : curLabel(acctForm.currency)"
+              @focus="curOpen = true; curQuery = ''; curIdx = 0; $el.select()"
+              @input="curQuery = $event.target.value; curOpen = true; curIdx = 0" @keydown="curKey($event)">
+            <ul id="acct-curlist" class="acct-curlist" role="listbox" aria-label="Currencies" x-show="curOpen">
+              <template x-for="(c, i) in curOptions()" :key="c.code">
+                <li role="option" :aria-selected="c.code === acctForm.currency ? 'true' : 'false'" :class="i === curIdx ? 'hot' : ''"
+                  @mousedown.prevent="curPick(c)" @mouseenter="curIdx = i">
+                  <b class="metric" x-text="c.code"></b> <span x-text="c.name"></span>
+                </li>
+              </template>
+              <li class="muted none" x-show="curOptions().length === 0">No currency matches.</li>
+            </ul>
+          </span>
+          <select x-model="acctForm.kind" aria-label="Account kind" class="src-cur">
+            <option value="bank">Bank</option>
+            <option value="wallet">Wallet</option>
+            <option value="cash">Cash</option>
+            <option value="other">Other</option>
+          </select>
+          <button type="submit" class="btn-action" :disabled="!acctFormValid()" x-text="acctForm.id ? 'Save' : 'Add'"></button>
+          <template x-if="acctForm.id">
+            <button type="button" class="secondary outline compact" @click="acctReset()">Cancel</button>
           </template>
         </div>
       </form>

@@ -127,6 +127,8 @@ def _wipe_everything(client):
     client.delete("/api/data")
     for s in client.get("/api/freelance/sources").json():
         client.delete(f"/api/freelance/sources/{s['id']}")
+    for a in client.get("/api/freelance/accounts").json():
+        client.delete(f"/api/freelance/accounts/{a['id']}")
     for t in client.get("/api/freelance/tax-years").json():
         client.delete(f"/api/freelance/tax-years/{t['year']}")
     client.put("/api/config", json={"freelance_hours_per_week": 0, "freelance_days_off": 0})
@@ -245,6 +247,7 @@ class TestBackupRoundTripIsIdentity:
             "settings",
             "entries",
             "plans",
+            "accounts",
             "income_sources",
             "freelance_blocks",
             "freelance_tax_years",
@@ -278,6 +281,7 @@ class TestBackupRoundTripIsIdentity:
             "currency",
             "is_default",
             "archived",
+            "default_account_id",
         }
         assert set(backup["freelance_blocks"][0]) == {
             "date",
@@ -297,6 +301,9 @@ class TestBackupRoundTripIsIdentity:
             "currency",
             "fx_rate",
             "note",
+            "account_id",
+            "rate_source",
+            "rate_date",
         }
         assert set(backup["freelance_tax_years"][0]) == {
             "year",
@@ -324,3 +331,100 @@ class TestBackupRoundTripIsIdentity:
         assert len(client.get("/api/freelance/sources").json()) == 2
         assert len(client.get("/api/freelance/tax-years").json()) == 2
         assert client.get("/api/freelance/blocks").json() == []  # blocks are data: wiped
+
+
+def _populate_accounts(client, monkeypatch):
+    """Two accounts and three payouts into them with every new field set, no network."""
+    monkeypatch.setenv("KRONOS_FX_URL", "")
+    monkeypatch.setenv("KRONOS_CRYPTO_URL", "")
+    bank = client.post(
+        "/api/freelance/accounts",
+        json={"name": "Deutsche Bank", "currency": "EUR", "kind": "bank", "is_default": True},
+    ).json()["id"]
+    wallet = client.post(
+        "/api/freelance/accounts",
+        json={"name": "Cold wallet", "currency": "BTC", "kind": "wallet"},
+    ).json()["id"]
+    usd = client.post(
+        "/api/freelance/sources",
+        json={
+            "name": "Northwind",
+            "hourly_rate": 95,
+            "currency": "USD",
+            "is_default": True,
+            "default_account_id": bank,
+        },
+    ).json()["id"]
+    client.post(
+        "/api/freelance/blocks",
+        json={"date": "2026-10-27", "source_id": usd, "hours": 4, "fx_rate": 1.1172},
+    )
+    for week, body in (
+        ("2026-10-26", {"account_id": bank, "amount": 877.94, "paid_on": "2026-11-02"}),
+        ("2026-11-02", {"account_id": wallet, "amount": 0.01234567, "eur_amount": 700.5}),
+        ("2026-11-09", {"account_id": bank, "amount": 100.0, "note": "late"}),
+    ):
+        r = client.post(
+            "/api/freelance/payouts", json={"source_id": usd, "week_start": week, **body}
+        )
+        assert r.status_code == 201, r.text
+    return bank, wallet
+
+
+class TestAccountsSurviveTheRoundTrip:
+    def test_backup_restore_backup_is_identical_with_accounts(self, client, monkeypatch):
+        bank, wallet = _populate_accounts(client, monkeypatch)
+        first = client.get("/api/backup").json()
+        assert [a["name"] for a in first["accounts"]] == ["Deutsche Bank", "Cold wallet"]
+        assert set(first["accounts"][0]) == {
+            "id",
+            "name",
+            "currency",
+            "kind",
+            "is_default",
+            "archived",
+            "created_at",
+        }
+        assert first["income_sources"][0]["default_account_id"] == bank
+        p0, p1, p2 = first["freelance_payouts"]
+        assert (p0["account_id"], p0["currency"], p0["rate_date"]) == (bank, "EUR", "2026-11-02")
+        assert (p1["account_id"], p1["currency"], p1["rate_source"]) == (wallet, "BTC", "manual")
+        assert p1["rate_date"] == "2026-11-08"  # the week's Sunday: no paid_on was given
+        assert p1["amount"] == 0.01234567 and p1["fx_rate"] == 0.01234567 / 700.5
+        assert p2["note"] == "late"
+
+        _wipe_everything(client)
+        assert client.get("/api/freelance/accounts").json() == []
+        assert client.post("/api/restore", json=first).status_code == 200
+        second = client.get("/api/backup").json()
+        assert _strip(second) == _strip(first)
+        payouts = client.get("/api/freelance/payouts").json()
+        assert [(p["account_name"], p["currency"], p["amount_eur"]) for p in payouts] == [
+            ("Deutsche Bank", "EUR", 877.94),
+            ("Cold wallet", "BTC", 700.5),
+            ("Deutsche Bank", "EUR", 100.0),
+        ]
+
+    def test_a_file_from_before_accounts_restores_every_payout_as_it_was(self, client, monkeypatch):
+        """No accounts key, none of the new fields: the payouts come back in the source's
+        currency, none lost, and the accounts that exist are left alone."""
+        monkeypatch.setenv("KRONOS_FX_URL", "")
+        _populate(client)
+        before = client.get("/api/freelance/payouts").json()
+        old = client.get("/api/backup").json()
+        del old["accounts"]
+        for s in old["income_sources"]:
+            del s["default_account_id"]
+        for p in old["freelance_payouts"]:
+            for k in ("account_id", "rate_source", "rate_date"):
+                del p[k]
+        client.post("/api/freelance/accounts", json={"name": "Kept", "currency": "EUR"})
+        assert client.delete("/api/data").status_code == 200  # payouts gone; accounts stay
+        assert client.post("/api/restore", json=old).status_code == 200
+        after = client.get("/api/freelance/payouts").json()
+        assert len(after) == len(before) == 2
+        assert [(p["amount"], p["currency"], p["fx_rate"], p["amount_eur"]) for p in after] == [
+            (p["amount"], p["currency"], p["fx_rate"], p["amount_eur"]) for p in before
+        ]
+        assert all(p["account_id"] is None for p in after)
+        assert [a["name"] for a in client.get("/api/freelance/accounts").json()] == ["Kept"]

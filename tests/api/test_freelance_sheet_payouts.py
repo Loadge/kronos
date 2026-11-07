@@ -146,6 +146,12 @@ class TestPayoutsCsv:
             "blocks",
             "hours",
             "note",
+            "account",
+            "rate_source",
+            "rate_date",
+            "billed_amount",
+            "billed_eur",
+            "fx_cost_eur",
         ]
         # $300.00 / 1.1172 = 268.53; its week held 2.5 h x $95 = $237.50 = 212.59 EUR
         assert rows[1] == [
@@ -161,6 +167,12 @@ class TestPayoutsCsv:
             "1",
             "2.50",
             "a, b",
+            "",
+            "manual",
+            "2026-11-01",
+            "237.50",
+            "212.59",
+            "",
         ]
         assert len(rows) == 2
 

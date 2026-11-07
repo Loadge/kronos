@@ -198,6 +198,8 @@ class TestAWeekWithoutPayoutsIsUnchanged:
             part.pop("paid_out_eur")
             part.pop("estimated_eur")
         got.pop("awaiting_payout")
+        got.pop("fx_cost_eur")  # added by accounts: nothing paid, nothing lost
+        got.pop("accounts")
         assert got == PINNED_SUMMARY
 
 

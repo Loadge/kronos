@@ -16,6 +16,7 @@ from app.routers import (
     analytics,
     backup,
     clock,
+    currencies,
     entries,
     export,
     freelance,
@@ -108,6 +109,7 @@ app.include_router(plans.router)
 app.include_router(timesheet.router)
 app.include_router(clock.router)
 app.include_router(fx.router)
+app.include_router(currencies.router)
 app.include_router(freelance.router)
 
 

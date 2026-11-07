@@ -173,13 +173,22 @@
       <span class="wk-h metric" data-l="Hours" x-text="l.hours > 0 ? fmtHours(l.hours) : '0h'"></span>
       <span class="wk-est metric" data-l="Estimate"{% if one %} :title="fmtMoney(r.eur)"{% endif %} x-text="l.hours > 0 ? fmtMoney(l.estimate, l.currency, Number.isInteger(l.estimate) ? 0 : 2) : '—'"></span>
       <span class="wk-pay" data-l="Payout" @click.stop>
-        <span class="cur metric" x-text="l.currency === 'USD' ? '$' : '€'"></span>
+        <span class="cur metric" x-text="curMark(payCurrency(l.source.id, r.week, l.payout, l.currency))"></span>
         <input type="text" inputmode="decimal" class="payin metric" autocomplete="off"
           :value="payText(l.source.id, r.week, l.payout)"
           @input="payTyped(l.source.id, r.week, $event.target.value)"
           :placeholder="l.payout ? '' : 'payout'"
           :aria-label="'Payout ' + l.source.name + ' ' + r.id">
-        <template x-if="l.payout && l.currency === 'USD'">
+        {#- where the money lands: only once an account exists -#}
+        <template x-if="accounts.length">
+          <select class="payacct" :aria-label="'Paid into, ' + l.source.name + ' ' + r.id"
+            @change="paySetAccount(l.source.id, r.week, $event.target.value, l.payout)">
+            <template x-for="o in payAccountOptions(l.source.id, r.week, l.payout, l.currency)" :key="o.id === null ? 'billed' : o.id">
+              <option :value="o.id === null ? '' : o.id" :selected="o.selected" x-text="o.label"></option>
+            </template>
+          </select>
+        </template>
+        <template x-if="l.payout && l.currency === 'USD' && l.payout.account_id == null">
           <span class="wk-fx metric">
             <template x-if="fxEditing !== l.payout.id">
               <span><span x-text="l.payout.fx_rate ? '@ ' + fmtFx(l.payout.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
@@ -192,9 +201,33 @@
             <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney(l.payout.amount_eur)"></span>
           </span>
         </template>
+        {#- a payout that went into an account: what it is worth in euros, the € value, and the FX chip -#}
+        <template x-if="l.payout && l.payout.account_id != null">
+          <span class="wk-fx metric">
+            <span class="wk-conv" x-text="l.payout.amount_eur === null ? '' : '= ' + fmtMoney(l.payout.amount_eur)"></span>
+            <template x-if="l.payout.currency !== 'EUR' && (l.payout.amount_eur === null || worthOpen === l.payout.id)">
+              <label class="worth"><span>worth €</span>
+                <input type="text" inputmode="decimal" class="worthin metric" autocomplete="off"
+                  :value="l.payout.amount_eur === null ? '' : l.payout.amount_eur"
+                  x-init="if (worthOpen === l.payout.id) $nextTick(() => $el.focus())"
+                  @change="worthSave(l.payout, $event.target.value)" @keydown.escape="worthOpen = null"
+                  :aria-label="'Worth in euros, ' + l.source.name + ' ' + r.id"></label>
+            </template>
+            <template x-if="l.payout.currency !== 'EUR' && l.payout.amount_eur !== null && worthOpen !== l.payout.id">
+              <button type="button" class="pen-link" @click="worthOpen = l.payout.id" :aria-label="'Set the € value of ' + l.source.name + ' ' + r.id">set the € value</button>
+            </template>
+            <template x-if="fxHasCost(l.payout)">
+              <button type="button" class="fx-chip" data-testid="fx-chip" :aria-label="'Exchange and fees, ' + l.source.name + ' ' + r.id"
+                :aria-describedby="fxTip.open && fxTip.id === l.payout.id ? 'fx-tip' : null"
+                @mouseenter="fxTipOpen(l.payout, $el)" @mouseleave="fxTipClose()"
+                @focus="fxTipOpen(l.payout, $el)" @blur="fxTipClose()"
+                @click="fxTipClick(l.payout, $el)">FX</button>
+            </template>
+          </span>
+        </template>
       </span>
       <template x-if="l.gap !== null">
-        <span class="wk-gap metric" data-l="Gap" :class="l.gap >= 0 ? 'surplus' : 'deficit'"><b x-text="payGapLabel(l.gap, l.currency)"></b></span>
+        <span class="wk-gap metric" data-l="Gap" :class="l.gapUnknown ? '' : (l.gap >= 0 ? 'surplus' : 'deficit')" :title="l.gapTitle"><b x-text="l.gapUnknown ? '—' : payGapLabel(l.gap, l.gapCur)"></b></span>
       </template>
       <template x-if="l.gap !== null">
         <span class="wk-eph metric" data-l="€ / h" x-text="l.eph === null ? 'no rate' : fmtMoney(l.eph)"></span>
@@ -206,7 +239,7 @@
       {{ bezel() }}
       <template x-if="daysFlRows().length">
         <div class="table-wrap days-wrap">
-          <table class="days-table days-table--fl">
+          <table class="days-table days-table--fl" :class="accounts.length ? 'has-accts' : null">
             <thead>
               <tr>
                 <th colspan="11" class="wk-colhead">

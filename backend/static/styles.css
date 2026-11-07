@@ -5437,3 +5437,75 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   .brand-btn .brand-logo.logo-wind { animation: none; }
   .day-bead, .day-lit { transition: none; }
 }
+
+/* ── Accounts (Settings), the account of a payout and the FX chip (Days), the year's exchange cost ── */
+.acct-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.acct-item .acct-kind { color: var(--k-brass); flex: none; transition: transform var(--k-transition-fast); }
+.acct-item:hover .acct-kind { transform: translateY(-1px) rotate(-4deg); }
+.acct-cur { color: var(--k-muted); display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; }
+.acct-lock { color: var(--k-muted); flex: none; }
+.src-actions .acct-star {
+  width: 1.75rem; height: 1.75rem; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--k-border-strong); border-radius: 50%; background: transparent; color: var(--k-muted);
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast), transform var(--k-transition-fast), box-shadow var(--k-transition-fast);
+}
+.acct-star svg { fill: none; transition: fill var(--k-transition-fast), transform 0.25s cubic-bezier(.3, 1.6, .5, 1); }
+.acct-star:hover { color: var(--k-brass); border-color: var(--k-brass); transform: translateY(-1px); }
+.acct-star:active { transform: scale(0.94); }
+.acct-star.on { color: var(--k-brass); border-color: var(--k-brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 18%, transparent); }
+.acct-star.on svg { fill: currentColor; transform: rotate(72deg); }
+.src-paid { display: flex; align-items: center; gap: 0.4rem; margin: 0; }
+.src-paid select { margin: 0; width: auto; min-width: 9rem; height: auto; min-height: 1.75rem; padding-block: 0.15rem; font-size: 0.8rem; }
+.acct-picker { position: relative; flex: 0 1 15rem; min-width: 11rem; }
+.acct-picker input { width: 100%; }
+.src-form-row .acct-picker input[type=text] { flex: none; }
+.acct-curlist {
+  position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 2px); max-height: 14rem; overflow-y: auto;
+  margin: 0; padding: 0.25rem; list-style: none; background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); animation: q-pop 0.16s ease-out;
+}
+.acct-curlist li { margin: 0; padding: 0.3rem 0.5rem; border-radius: 4px; cursor: pointer; display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.85rem; }
+.acct-curlist li b { min-width: 3.2rem; color: var(--k-brass); }
+.acct-curlist li.hot { background: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+.acct-curlist li.none { cursor: default; }
+.acct-curlist li[aria-selected="true"] b::after { content: " •"; }
+
+/* the payout: where it lands, what it is worth, what the exchange cost */
+.wk-pay .payacct {
+  margin: 0; width: auto; max-width: 8rem; height: auto; min-height: 1.5rem; padding: 0.1rem 1.3rem 0.1rem 0.35rem;
+  font-size: 0.74rem; background-position: center right 0.35rem; background-size: 0.75rem auto; border-radius: 4px;
+}
+.wk-fx .worth { display: inline-flex; align-items: baseline; gap: 0.25rem; margin: 0; font-size: 0.74rem; color: var(--k-muted); }
+.wk-fx .worthin { width: 4.8rem; margin: 0; padding: 0.1rem 0.3rem; height: auto; min-height: 1.5rem; font-size: 0.76rem; text-align: right; }
+.wk-fx .pen-link {
+  display: inline-flex; align-items: center; min-height: 1.5rem; margin: 0; padding: 0 0.15rem; width: auto; border: none; background: transparent;
+  color: var(--k-brass); font-size: 0.72rem; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 0.2em;
+}
+.wk-fx .pen-link:hover { text-decoration-style: solid; }
+.fx-chip {
+  display: inline-flex; align-items: center; justify-content: center; margin: 0; width: auto; min-width: 1.75rem; height: 1.5rem; padding: 0 0.45rem;
+  border: 1px solid var(--k-brass); border-radius: 999px; background: transparent; color: var(--k-brass);
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; line-height: 1; cursor: help;
+  transition: background var(--k-transition-fast), box-shadow var(--k-transition-fast), transform var(--k-transition-fast);
+}
+.fx-chip:hover, .fx-chip:focus-visible { background: color-mix(in srgb, var(--k-brass) 16%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 22%, transparent); transform: translateY(-1px); }
+.fx-chip:active { transform: scale(0.95); }
+.fx-tip {
+  position: fixed; z-index: 60; width: max-content; max-width: min(22rem, calc(100vw - 16px)); padding: 0.5rem 0.7rem;
+  background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--k-text); font-size: 0.78rem; line-height: 1.45; text-align: left; pointer-events: none; animation: q-pop 0.16s ease-out;
+}
+@media (min-width: 1280px) {
+  .days-table--fl.has-accts .wk-cols, .days-table--fl.has-accts .wk-line { grid-template-columns: minmax(12rem, 1fr) 3.2rem 5.2rem minmax(19.5rem, 1fr) 5.2rem 3.8rem 6.6rem; }
+}
+
+/* the Freelance tab: what the year lost to the exchange, and where the money landed */
+.fl-fxlost { margin: 0.45rem 0 0; padding-left: 0.5rem; border-left: 2px solid var(--k-coin); font-size: 0.82rem; color: var(--k-muted); animation: acct-in 0.35s ease-out; }
+.fl-landed { margin-top: 0.5rem; animation: acct-in 0.35s ease-out; }
+.fl-landed ul { list-style: none; margin: 0.2rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; }
+.fl-landed li { margin: 0; padding: 0; display: flex; gap: 0.4rem; align-items: baseline; font-size: 0.82rem; }
+.fl-landed-name { color: var(--k-muted); }
+@keyframes acct-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .acct-item .acct-kind, .acct-star, .acct-star svg, .fx-chip, .acct-curlist, .fx-tip, .fl-fxlost, .fl-landed { transition: none; animation: none; transform: none; }
+}

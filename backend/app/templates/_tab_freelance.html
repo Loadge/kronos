@@ -56,6 +56,24 @@
           <template x-if="payouts.length > 0 && flSummary.awaiting_payout > 0">
             <p class="fl-awaiting"><a href="#days" @click.prevent="openAwaitingInDays()" data-testid="fl-awaiting" x-text="flAwaitingLabel()"></a></p>
           </template>
+          <!-- what the exchange and the fees took this year, and where the money landed -->
+          <template x-if="flSummary.fx_cost_eur > 0">
+            <p class="fl-fxlost metric" data-testid="fl-fxlost" x-text="'Lost to exchange and fees: ' + fmtMoney(flSummary.fx_cost_eur)"></p>
+          </template>
+          <template x-if="flSummary.accounts && flSummary.accounts.length">
+            <div class="fl-landed" data-testid="fl-landed">
+              <span class="fl-lbl">Where it landed</span>
+              <ul>
+                <template x-for="a in flSummary.accounts" :key="a.id">
+                  <li class="metric">
+                    <span class="fl-landed-name" x-text="a.name"></span>
+                    <b x-text="fmtMoney(a.amount, a.currency)"></b>
+                    <span class="muted" x-show="a.currency !== 'EUR'" x-text="'= ' + fmtMoney(a.amount_eur)"></span>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
           <div class="hero-cap">
             <b x-text="fmtHours(flSummary.total.hours)"></b> ·
             <b x-text="fmtMoney(flSummary.total.eur_per_hour) + '/h'"></b> gross ·

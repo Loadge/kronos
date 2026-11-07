@@ -118,6 +118,10 @@
     </div>
   </div>
 
+  <!-- the FX chip's tooltip (Days > Freelance) -->
+  <div id="fx-tip" class="fx-tip" role="tooltip" x-show="fxTip.open" x-cloak :style="fxTip.style" x-text="fxTip.text"
+       @keydown.escape.window.capture="if (fxTip.open) { $event.stopImmediatePropagation(); fxTipClose(true) }" @click.window="if (fxTip.open && !$event.target.closest('.fx-chip')) fxTipClose(true)" @scroll.window.passive="fxTipFollow()" @resize.window="fxTipFollow()"></div>
+
   {% include "_tab_dashboard.html" %}
   {% include "_tab_plan.html" %}
   {% include "_tab_log.html" %}

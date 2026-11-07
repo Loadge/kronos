@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date as date_
+from datetime import datetime as datetime_
 from datetime import timedelta
 from typing import Annotated
 
@@ -17,6 +18,7 @@ from pydantic import (
 
 from app.models import DayType
 from app.services.computations import minutes_between
+from app.services.currencies import CODES as CURRENCY_CODES
 
 HHMM = Annotated[
     str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", min_length=5, max_length=5)
@@ -387,8 +389,10 @@ class RestoreIn(BaseModel):
     settings: ConfigOut | None = None
     entries: list[EntryIn] = Field(default_factory=list)
     plans: list[PlanIn] = Field(default_factory=list)
-    # Version 3 (payouts: 4). Older files simply have none; sources keep their ids so
-    # blocks and payouts find them.
+    # Version 3 (payouts: 4; accounts are optional keys of a version 4 file). Older files
+    # simply have none; sources and accounts
+    # keep their ids so blocks and payouts find them.
+    accounts: list[AccountBackup] = Field(default_factory=list)
     income_sources: list[IncomeSourceBackup] = Field(default_factory=list)
     freelance_blocks: list[FreelanceBlockBackup] = Field(default_factory=list)
     freelance_tax_years: list[FreelanceTaxYearIn] = Field(default_factory=list)
@@ -569,7 +573,59 @@ class TemplateOut(BaseModel):
 
 # ---------- freelance -------------------------------------------------------
 
-Currency = Annotated[str, StringConstraints(pattern=r"^(EUR|USD)$")]
+Currency = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(CURRENCY_CODES) + r")$")]
+ACCOUNT_KINDS = ("bank", "wallet", "cash", "other")
+AccountKind = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(ACCOUNT_KINDS) + r")$")]
+
+
+def _clean_account_name(value: str) -> str:
+    value = value.strip()
+    if not 1 <= len(value) <= 60:
+        raise ValueError("name must be 1 to 60 characters")
+    return value
+
+
+class AccountIn(BaseModel):
+    """Where the money lands: a name, a currency and a kind."""
+
+    name: str
+    currency: Currency
+    kind: AccountKind = "bank"
+    is_default: bool = False
+    archived: bool = False
+
+    _name = field_validator("name")(_clean_account_name)
+
+
+class AccountUpdate(BaseModel):
+    name: str | None = None
+    currency: Currency | None = None
+    kind: AccountKind | None = None
+    is_default: bool | None = None
+    archived: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, value: str | None) -> str | None:
+        return None if value is None else _clean_account_name(value)
+
+
+class AccountOut(BaseModel):
+    id: int
+    name: str
+    currency: str
+    kind: str
+    is_default: bool
+    archived: bool
+    created_at: datetime_
+    payouts: int  # how many payouts went into it (one with payouts is archived, not deleted)
+
+
+class AccountBackup(AccountIn):
+    """An account as the backup carries it: with its id, which the payouts reference."""
+
+    id: int
+    created_at: datetime_ | None = None
 
 
 class IncomeSourceIn(BaseModel):
@@ -580,6 +636,7 @@ class IncomeSourceIn(BaseModel):
     currency: Currency = "EUR"
     is_default: bool = False
     archived: bool = False
+    default_account_id: int | None = None
 
 
 class IncomeSourceUpdate(BaseModel):
@@ -588,6 +645,7 @@ class IncomeSourceUpdate(BaseModel):
     currency: Currency | None = None
     is_default: bool | None = None
     archived: bool | None = None
+    default_account_id: int | None = None  # null clears it; leave it out to keep it
 
 
 class IncomeSourceOut(BaseModel):
@@ -597,6 +655,7 @@ class IncomeSourceOut(BaseModel):
     currency: str
     is_default: bool
     archived: bool
+    default_account_id: int | None
     blocks: int  # how many blocks bill to it (a source with blocks is archived, not deleted)
 
 
@@ -609,6 +668,7 @@ class IncomeSourceBackup(BaseModel):
     currency: Currency = "EUR"
     is_default: bool = False
     archived: bool = False
+    default_account_id: int | None = None
 
 
 class _BlockDuration(BaseModel):
@@ -709,8 +769,11 @@ def _must_be_monday(value: date_) -> date_:
 class FreelancePayoutIn(BaseModel):
     """Body for POST / PUT /api/freelance/payouts: what a source paid for one week.
 
-    ``amount`` is in the source's currency. A USD payout takes the ECB rate of the week's
-    Sunday unless ``fx_rate`` is given; ``fx_rate`` on a EUR payout is ignored.
+    ``amount`` is in the account's currency when ``account_id`` is given, else in the source's.
+    ``paid_on`` is the day the money landed (default: the week's Sunday); its rate is the ECB's
+    or CoinGecko's of that day. ``eur_amount`` is what it was worth in euros, typed by hand:
+    it beats any rate. ``fx_rate`` (units per EUR) is the older way to give a rate by hand;
+    on a EUR payout it is ignored.
     """
 
     source_id: int
@@ -718,6 +781,9 @@ class FreelancePayoutIn(BaseModel):
     amount: float = Field(..., gt=0)
     fx_rate: float | None = Field(default=None, gt=0)
     note: str | None = None
+    account_id: int | None = None
+    paid_on: date_ | None = None
+    eur_amount: float | None = Field(default=None, gt=0)
 
     _monday = field_validator("week_start")(_must_be_monday)
 
@@ -729,13 +795,22 @@ class FreelancePayoutOut(BaseModel):
     week_end: date_  # the Sunday
     amount: float
     currency: str
-    fx_rate: float | None  # USD per EUR on the week's Sunday; None for EUR or when unknown
+    fx_rate: float | None  # units of `currency` per EUR; None for EUR or when unknown
     note: str | None
-    amount_eur: float | None  # to the cent; None for a USD payout without a rate
+    amount_eur: float | None  # to the cent; None for a payout without a rate
     blocks: int  # the source's blocks in that week
     minutes: int
     estimate_eur: float | None  # their estimates added up; None when one has no rate
     estimate_amount: float  # the same in the source's currency
+    account_id: int | None
+    account_name: str | None
+    rate_source: str | None  # ECB, CoinGecko or manual; None for EUR
+    rate_date: date_ | None
+    billed_amount: float  # the week's estimate in the source's currency
+    billed_currency: str
+    billed_eur: float | None  # that estimate at the ECB rate of rate_date
+    fx_cost_eur: float | None  # billed_eur - amount_eur: lost to the exchange and fees
+    effective_rate: float | None  # source units per EUR actually obtained
 
 
 class FreelancePayoutBackup(BaseModel):
@@ -745,6 +820,9 @@ class FreelancePayoutBackup(BaseModel):
     currency: Currency = "EUR"
     fx_rate: float | None = Field(default=None, gt=0)
     note: str | None = None
+    account_id: int | None = None
+    rate_source: str | None = None
+    rate_date: date_ | None = None
 
     _monday = field_validator("week_start")(_must_be_monday)
 
@@ -793,7 +871,7 @@ class FreelanceCalcIn(BaseModel):
     inicio_actividad: bool = False
 
     @model_validator(mode="after")
-    def _usd_needs_a_rate(self):
-        if self.currency == "USD" and not self.fx_rate:
-            raise ValueError("a USD rate needs fx_rate (USD per EUR)")
+    def _foreign_needs_a_rate(self):
+        if self.currency != "EUR" and not self.fx_rate:
+            raise ValueError(f"a {self.currency} rate needs fx_rate ({self.currency} per EUR)")
         return self

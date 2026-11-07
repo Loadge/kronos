@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from datetime import date as date_
 from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
     Date,
+    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -145,6 +147,33 @@ class Template(Base):
 # ---------- freelance ------------------------------------------------------
 
 
+class Account(Base):
+    """Where the money lands: a bank account, a wallet, cash. Each has one currency.
+
+    A payout paid into an account is in the account's currency, whatever its source bills in.
+    At most one account is the default; one with payouts cannot be deleted (it is archived) nor
+    change currency.
+    """
+
+    __tablename__ = "accounts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
+    kind: Mapped[str] = mapped_column(String(10), nullable=False, default="bank")
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    archived: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC).replace(tzinfo=None)
+    )
+
+    payouts: Mapped[list[FreelancePayout]] = relationship(back_populates="account")
+
+
 class IncomeSource(Base):
     """A client or activity freelance hours are billed to: a name, an hourly rate and a currency.
 
@@ -159,12 +188,16 @@ class IncomeSource(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     hourly_rate: Mapped[float] = mapped_column(Float, nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EUR")
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="EUR")
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )
     archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
+    )
+    # The account the Payout form preselects for this source (None: none).
+    default_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
     )
 
     blocks: Mapped[list[FreelanceBlock]] = relationship(back_populates="source")
@@ -194,7 +227,7 @@ class FreelanceBlock(Base):
     end_time: Mapped[str | None] = mapped_column(String(5), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     rate: Mapped[float] = mapped_column(Float, nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
     fx_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     source: Mapped[IncomeSource] = relationship(back_populates="blocks", lazy="joined")
@@ -220,11 +253,14 @@ class FreelanceBlock(Base):
 
 
 class FreelancePayout(Base):
-    """What one source actually paid for one ISO week, in the source's currency.
+    """What one source actually paid for one ISO week.
 
-    ``week_start`` is the Monday. ``currency`` is copied from the source when the row is saved;
-    ``fx_rate`` is the ECB's USD per EUR on the week's Sunday (None for EUR, or when no rate
-    was available), taken once and never fetched again. At most one payout per source and week.
+    ``week_start`` is the Monday. ``currency`` is the account's when the payout went into one,
+    else the source's (``account_id`` None: a row from before accounts, in the source's
+    currency). ``fx_rate`` is units of that currency per EUR on the day the money landed (None
+    for EUR, or when no rate was available), taken once and never fetched again; ``rate_source``
+    says whose (ECB, CoinGecko, manual) and ``rate_date`` which day it is of. At most one payout
+    per source and week.
     """
 
     __tablename__ = "freelance_payouts"
@@ -238,16 +274,22 @@ class FreelancePayout(Base):
     )
     week_start: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False)
     fx_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    rate_source: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    rate_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
 
     source: Mapped[IncomeSource] = relationship(back_populates="payouts", lazy="joined")
+    account: Mapped[Account | None] = relationship(back_populates="payouts", lazy="joined")
 
     @property
     def amount_eur(self) -> float | None:
-        """The payout in euros: as is for EUR, divided by the week's USD-per-EUR rate for USD;
-        None for a USD payout without a rate."""
+        """The payout in euros: as is for EUR, divided by its units-per-EUR rate otherwise;
+        None for a payout in another currency without a rate."""
         if self.currency == "EUR":
             return self.amount
         if self.fx_rate:

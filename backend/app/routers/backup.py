@@ -18,12 +18,17 @@ The backup format is intentionally simple (version 4):
     { "date": "2025-12-24", "day_type": "vacation", "fraction": 1.0, "notes": "Christmas" },
     ...
   ],
+  "accounts": [ { "id": 1, "name": "Deutsche Bank", "currency": "EUR", "kind": "bank", ... } ],
   "income_sources": [ { "id": 1, "name": "ACME", "hourly_rate": 90.0, "currency": "USD", ... } ],
   "freelance_blocks": [ { "date": "2026-03-02", "source_id": 1, "minutes": 120, ... } ],
   "freelance_tax_years": [ { "year": 2026, "salary_annual": 55000.0, ... } ],
   "freelance_payouts": [ { "source_id": 1, "week_start": "2026-03-02", "amount": 900.0, ... } ]
 }
 
+Accounts (where a payout landed, each with a currency, with their ids), the source's default
+account and, on a payout, its account, where its rate came from and the day it is of ride in the
+same version 4 as optional keys: a file without them restores no accounts and leaves the current
+ones alone.
 Version 4 adds the freelance payouts: what a source paid for an ISO week, in the source's
 currency, with the exchange rate it was saved with; they reference the sources' ids like the
 blocks do, and a file of an older version restores none (they are data, so they are wiped).
@@ -48,6 +53,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import (  # Break imported for explicit pre-delete
+    Account,
     Break,
     FreelanceBlock,
     FreelancePayout,
@@ -134,6 +140,18 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
         for p in session.scalars(select(Plan).order_by(Plan.date))
     ]
 
+    accounts = [
+        {
+            "id": a.id,
+            "name": a.name,
+            "currency": a.currency,
+            "kind": a.kind,
+            "is_default": bool(a.is_default),
+            "archived": bool(a.archived),
+            "created_at": a.created_at.isoformat(),
+        }
+        for a in session.scalars(select(Account).order_by(Account.id))
+    ]
     income_sources = [
         {
             "id": s.id,
@@ -142,6 +160,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "currency": s.currency,
             "is_default": bool(s.is_default),
             "archived": bool(s.archived),
+            "default_account_id": s.default_account_id,
         }
         for s in session.scalars(select(IncomeSource).order_by(IncomeSource.id))
     ]
@@ -169,6 +188,9 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "currency": p.currency,
             "fx_rate": p.fx_rate,
             "note": p.note,
+            "account_id": p.account_id,
+            "rate_source": p.rate_source,
+            "rate_date": None if p.rate_date is None else p.rate_date.isoformat(),
         }
         for p in session.scalars(
             select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
@@ -193,6 +215,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
         "settings": settings.model_dump(mode="json"),
         "entries": entries,
         "plans": plans,
+        "accounts": accounts,
         "income_sources": income_sources,
         "freelance_blocks": freelance_blocks,
         "freelance_tax_years": freelance_tax_years,
@@ -236,7 +259,8 @@ def restore_backup(
     # Sources and tax years are settings-like, but a file with freelance data replaces
     # them (its blocks reference its sources' ids); a file without leaves them alone.
     has_freelance = bool(
-        payload.income_sources
+        payload.accounts
+        or payload.income_sources
         or payload.freelance_blocks
         or payload.freelance_tax_years
         or payload.freelance_payouts
@@ -244,9 +268,25 @@ def restore_backup(
     if has_freelance:
         session.execute(delete(FreelanceTaxYear))
         session.execute(delete(IncomeSource))
+    if payload.accounts:
+        session.execute(delete(Account))
     session.flush()
 
     known_sources = {s.id for s in payload.income_sources}
+    known_accounts = {a.id for a in payload.accounts}
+    if not payload.accounts:  # an older file: the accounts stay, and so may be referenced
+        known_accounts = set(session.scalars(select(Account.id)))
+    names = [a.name.casefold() for a in payload.accounts]
+    if len(set(names)) != len(names):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "two accounts in the file share a name"
+        )
+    for s in payload.income_sources:
+        if s.default_account_id is not None and s.default_account_id not in known_accounts:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"source {s.name!r} references unknown account {s.default_account_id}",
+            )
     for b in payload.freelance_blocks:
         if b.source_id not in known_sources:
             raise HTTPException(
@@ -260,6 +300,25 @@ def restore_backup(
                 f"freelance payout for week {p.week_start.isoformat()} "
                 f"references unknown source {p.source_id}",
             )
+        if p.account_id is not None and p.account_id not in known_accounts:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"freelance payout for week {p.week_start.isoformat()} "
+                f"references unknown account {p.account_id}",
+            )
+    for a in payload.accounts:
+        session.add(
+            Account(
+                id=a.id,
+                name=a.name,
+                currency=a.currency,
+                kind=a.kind,
+                is_default=a.is_default,
+                archived=a.archived,
+                **({} if a.created_at is None else {"created_at": a.created_at}),
+            )
+        )
+    session.flush()
     for s in payload.income_sources:
         session.add(
             IncomeSource(
@@ -269,6 +328,7 @@ def restore_backup(
                 currency=s.currency,
                 is_default=s.is_default,
                 archived=s.archived,
+                default_account_id=s.default_account_id,
             )
         )
     session.flush()
@@ -295,6 +355,9 @@ def restore_backup(
                 currency=p.currency,
                 fx_rate=p.fx_rate,
                 note=p.note,
+                account_id=p.account_id,
+                rate_source=p.rate_source,
+                rate_date=p.rate_date,
             )
         )
     for t in payload.freelance_tax_years:

@@ -55,6 +55,36 @@ Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed an
 logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
 
+### Phase 52 — Money in any currency (built 2026-11-07, awaiting confirmation)
+
+**Why.** Miguel bills a client in dollars, $95/h, but the money lands in his Spanish bank in euros. He typed
+the €877.94 that arrived for W44, Kronos read it as dollars and showed €785.84. He also expects accounts in
+other currencies, such as a dollar account or a crypto wallet, and wants Kronos to stop being Spain-only.
+
+**Decisions (Miguel, 2026-11-07).**
+- Accounts are "where the money lands": a name, a currency and a kind (bank, wallet, cash, other). A payout
+  says which account received it, in that account's currency. A source can say which account it is paid into
+  ("Paid into"), and the payout row picks that account by default.
+- Any currency the ECB publishes (about 30) plus five coins: BTC, ETH, USDC, USDT and SOL. Coin prices come
+  from CoinGecko's free API, which has no key and only goes back 365 days; for an older payout, or when a rate
+  can't be had, the row asks what it was worth in euros.
+- Euros stay the pivot: every stored rate is "units per 1 EUR", so every old USD row keeps its meaning and
+  nothing was rewritten. A base currency other than EUR is a later phase.
+- A payout in another currency than its source tells the story behind a small "FX" chip: what was billed, the
+  ECB rate of the day, what arrived, what the exchange and the fees cost, and the rate he really got. The
+  Freelance tab adds "Lost to exchange and fees" for the year and "Where it landed", per account.
+- A payout from before accounts reads exactly as before, in its source's currency. Pointing it at an account
+  in the row's select re-reads the same number in that account's currency.
+- The backup stays version 4, with accounts as optional keys: an old file restores as before.
+
+**How Miguel fixes W44 on PROD.** Settings > Freelance > Accounts: add "Deutsche Bank" in EUR. Then Days >
+Freelance, W44: switch the payout's select from "As billed (USD)" to "Deutsche Bank". The row then reads
+€877.94, and the FX chip says the exchange cost €70.19.
+
+**Known limits.** CoinGecko's free API answers only the last 365 days. An account's currency is locked once
+a payout uses it. The Accounts card sits inside the Sources section of Settings, with no index entry of its
+own.
+
 ### Phase 51 — Miguel's notes on v50 (built 2026-11-07, awaiting confirmation)
 
 **Why.** Miguel tried v50 and loved the dial, the ribbon and the coins, but could not find the dial's crown,
