@@ -12,28 +12,28 @@
 <form class="toolbar" method="get" action="/timesheet/freelance" aria-label="Freelance timesheet options" id="ts-form">
   <span class="tb-title">⚡ Freelance timesheet · {{ sheet.period_label }}</span>
   <label class="tb-range">
-    <input type="date" name="from" id="ts-from" value="{{ sheet.start.isoformat() }}" max="{{ sheet.end.isoformat() }}" aria-label="From" onchange="this.form.requestSubmit()">
+    <input type="date" name="from" id="ts-from" value="{{ sheet.start.isoformat() }}" max="{{ sheet.end.isoformat() }}" aria-label="From">
     <span>–</span>
-    <input type="date" name="to" id="ts-to" value="{{ sheet.end.isoformat() }}" min="{{ sheet.start.isoformat() }}" aria-label="To" onchange="this.form.requestSubmit()">
+    <input type="date" name="to" id="ts-to" value="{{ sheet.end.isoformat() }}" min="{{ sheet.start.isoformat() }}" aria-label="To">
   </label>
   <span class="tb-sources" role="group" aria-label="Sources">
     {% for s in all_sources %}
-    <label class="tb-check"><input type="checkbox" class="tb-src" value="{{ s.id }}" {{ 'checked' if s.id in wanted else '' }} onchange="syncSources(this.form)"> {{ s.name }}</label>
+    <label class="tb-check"><input type="checkbox" class="tb-src" value="{{ s.id }}" {{ 'checked' if s.id in wanted else '' }}> {{ s.name }}</label>
     {% endfor %}
     <input type="hidden" name="sources" id="ts-sources" value="{{ wanted|sort|join(',') }}">
   </span>
   <span class="sp"></span>
   <span class="seg" role="radiogroup" aria-label="Hours format">
-    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }} onchange="this.form.requestSubmit()">{{ 7.5|fmtdec }}</label>
-    <label class="{{ 'on' if hours == 'hm' else '' }}"><input type="radio" name="hours" value="hm" {{ 'checked' if hours == 'hm' else '' }} onchange="this.form.requestSubmit()">7:30</label>
+    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }}>{{ 7.5|fmtdec }}</label>
+    <label class="{{ 'on' if hours == 'hm' else '' }}"><input type="radio" name="hours" value="hm" {{ 'checked' if hours == 'hm' else '' }}>7:30</label>
   </span>
-  <label class="tb-check"><input type="checkbox" name="notes" value="1" {{ 'checked' if show_notes else '' }} onchange="this.form.requestSubmit()"> notes</label>
-  <label class="tb-check"><input type="checkbox" name="sign" value="1" {{ 'checked' if show_sign else '' }} onchange="this.form.requestSubmit()"> signatures</label>
+  <label class="tb-check"><input type="checkbox" name="notes" value="1" {{ 'checked' if show_notes else '' }}> notes</label>
+  <label class="tb-check"><input type="checkbox" name="sign" value="1" {{ 'checked' if show_sign else '' }}> signatures</label>
   <span class="seg" role="radiogroup" aria-label="Theme">
-    <label class="{{ 'on' if theme == 'light' else '' }}"><input type="radio" name="theme" value="light" {{ 'checked' if theme == 'light' else '' }} onchange="this.form.requestSubmit()">☀</label>
-    <label class="{{ 'on' if theme == 'dark' else '' }}"><input type="radio" name="theme" value="dark" {{ 'checked' if theme == 'dark' else '' }} onchange="this.form.requestSubmit()">☾</label>
+    <label class="{{ 'on' if theme == 'light' else '' }}"><input type="radio" name="theme" value="light" {{ 'checked' if theme == 'light' else '' }}>☀</label>
+    <label class="{{ 'on' if theme == 'dark' else '' }}"><input type="radio" name="theme" value="dark" {{ 'checked' if theme == 'dark' else '' }}>☾</label>
   </span>
-  <button type="button" class="tb-print" onclick="window.print()">Print / Save as PDF</button>
+  <button type="button" class="tb-print" data-print>Print / Save as PDF</button>
 </form>
 
 <main class="page">
@@ -131,24 +131,6 @@
   <footer class="doc"><span>Kronos · freelance timesheet</span><span>{{ sheet.start.isoformat() }} – {{ sheet.end.isoformat() }}</span></footer>
 </main>
 
-<script>
-  // Every switch reloads the page (the toolbar is a GET form). Keep the reader where
-  // they were; the source checkboxes fold into one `sources` parameter.
-  function syncSources(form) {
-    var ids = [].slice.call(form.querySelectorAll('.tb-src:checked')).map(function (c) { return c.value; });
-    document.getElementById('ts-sources').value = ids.join(',');
-    form.requestSubmit();
-  }
-  (function () {
-    var form = document.getElementById('ts-form');
-    var key = 'kronos-timesheet-scroll';
-    form.addEventListener('submit', function () { sessionStorage.setItem(key, String(window.scrollY)); });
-    var y = sessionStorage.getItem(key);
-    if (y !== null) { sessionStorage.removeItem(key); window.scrollTo(0, Number(y)); }
-    var from = document.getElementById('ts-from'), to = document.getElementById('ts-to');
-    from.addEventListener('input', function () { to.min = from.value; });
-    to.addEventListener('input', function () { from.max = to.value; });
-  })();
-</script>
+<script src="/static/timesheet.js"></script>
 </body>
 </html>

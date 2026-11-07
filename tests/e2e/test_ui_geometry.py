@@ -17,13 +17,16 @@ pytestmark = pytest.mark.e2e
 TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"]
 
 # Controls whose text must sit in the middle of the box and on a single line.
-CENTRED = ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, .bz-btn, .q-chip"
+CENTRED = (
+    ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, .bz-btn, .q-chip, "
+    ".net-banner-retry, .nf-back"
+)
 # A tab is an icon over a label on a phone: it is the label that has to stay on one line
 ONE_LINE = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tab-label, "
     ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range, "
     ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma, "
-    ".bz-count, .dr-tick b, .dr-tag-big"
+    ".bz-count, .dr-tick b, .dr-tag-big, .net-banner-retry, .nf-back"
 )
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
@@ -162,6 +165,34 @@ def test_text_is_centred_and_on_one_line(page, base_url, tab, width, height):
             nav.click()
     page.wait_for_timeout(300)  # let the entry animations settle
     assert not (found := _problems(page)), "\n".join(map(str, found))
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_the_offline_banner_fits(page, base_url, width, height):
+    """The banner for a server out of reach: its text on its own lines, the button centred and
+    tappable, nothing past the edge of the page."""
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{base_url}/#dashboard")
+    page.wait_for_selector("main .page-head", timeout=5000)
+    page.context.set_offline(True)
+    try:
+        page.wait_for_selector(".net-banner", state="visible", timeout=3000)
+        page.wait_for_timeout(500)  # it slides in
+        assert page.locator(".net-banner-retry").is_visible()
+        assert not (found := _problems(page)), "\n".join(map(str, found))
+    finally:
+        page.context.set_offline(False)
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_the_page_for_a_wrong_address_fits(page, base_url, width, height):
+    page.set_viewport_size({"width": width, "height": height})
+    assert page.goto(f"{base_url}/nope").status == 404
+    page.wait_for_selector(".nf-back", timeout=5000)
+    page.wait_for_timeout(1800)  # the logo's swing is over
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+    # nothing scrolls: the page is one screen
+    assert page.evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1")
 
 
 @pytest.mark.parametrize("state", ["open", "collapsed"])

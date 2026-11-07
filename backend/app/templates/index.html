@@ -4,10 +4,25 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Kronos</title>
+  <meta name="description" content="Your hours, your balance and your year, at a glance.">
+  <!-- Private by design: not for search engines (the link preview below still works) -->
+  <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#17140f">
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/static/icon.png">
-  <link rel="apple-touch-icon" href="/static/icon.png">
-  <meta name="theme-color" content="#1a1d22">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <!-- Link preview (WhatsApp, Telegram, ...): the URLs are absolute, built from the request -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Kronos">
+  <meta property="og:title" content="Kronos">
+  <meta property="og:description" content="Your hours, your balance and your year, at a glance.">
+  <meta property="og:url" content="{{ origin }}/">
+  <meta property="og:image" content="{{ origin }}/static/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Kronos: the logo and a slice of the year dial, brass on dark">
+  <meta name="twitter:card" content="summary_large_image">
   <!-- The build this page loaded; the update check compares it with GET /api/version -->
   <meta name="kronos-build" content="{{ build }}">
   <!-- iOS PWA -->
@@ -21,6 +36,7 @@
   <script src="/static/vendor/alpine.min.js?v={{ vendor_v }}" defer></script>
 </head>
 <body>
+<noscript><p class="noscript">Kronos needs JavaScript to run.</p></noscript>
 <main class="container" x-data="app()" x-cloak>
 
   <header class="app-header">
@@ -30,7 +46,7 @@
     </div>
     <div class="brand">
       <!-- the logo opens the year dial -->
-      <button type="button" class="brand-btn" aria-label="Open the year dial" title="Your year as a dial (Y)" @click="openDial()"><img src="/static/icon.png" alt="" class="brand-logo"></button>
+      <button type="button" class="brand-btn" aria-label="Open the year dial" title="Your year as a dial (Y)" @click="openDial()"><img src="/static/icon-96.png" alt="" class="brand-logo" width="48" height="48"></button>
       <!-- Once per browser: a brass callout that says what the logo does (app.js, _dialHintInit) -->
       <template x-if="dialHint">
         <div class="dial-hint" role="status">
@@ -98,6 +114,12 @@
     <span class="day-goal" aria-hidden="true" :style="dayBead().goalStyle"></span>
     <span class="day-bead" aria-hidden="true" :style="'--bead:' + dayBead().frac" :title="dayBead().title"></span>
   </header>
+
+  <!-- The server is out of reach (the browser is offline, or a request never arrived) -->
+  <div class="net-banner" role="status" x-show="offline" x-cloak>
+    <span class="net-banner-text">Kronos can't reach the server. Changes won't be saved until it's back.</span>
+    <button type="button" class="net-banner-retry" @click="retryConnection()">Try again</button>
+  </div>
 
   <div class="error-banner" role="alert" x-show="error" x-text="error" @click="error=null"></div>
 

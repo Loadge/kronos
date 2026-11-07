@@ -50,10 +50,46 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 50 confirmed and archived. 51 to 54 built and waiting for Miguel's check; 55 next
+37 to 50 confirmed and archived. 51 to 55 built and waiting for Miguel's check
 (Miguel, 2026-11-07: money first, because PROD reads a euro payout as dollars); 28 after them (Anselmo
 logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phase 55 — The edges of a web app (built 2026-11-07, awaiting confirmation)
+
+**Why.** Miguel asked what a pasted Kronos link should look like in WhatsApp or Telegram (a link preview,
+built from "Open Graph" tags), and what else a web app has that Kronos never had.
+
+**What changed.**
+- Link previews: the page carries Open Graph tags with the title "Kronos", the line "Your hours, your
+  balance and your year, at a glance." and a 1200 x 630 picture (`og.png`, the logo, the name and a slice of
+  the dial's ring). The picture's address is built from the address the browser used, so no host name is
+  written in the repo. WhatsApp builds the preview on the phone that sends the link, so it works on the
+  home network. Telegram fetches it through its own servers, which cannot reach Kronos, so it shows no
+  preview.
+- Icons: the 814 KB `icon.png`, used for everything, is replaced by real sizes (32, 96, 180, 192, 512 and a
+  maskable 512), made by `bin/icons.py`. The header logo is now the disc without its square tile.
+- Install dialog: the manifest has the real icons, the colours, shortcuts to Log, Plan, Days and the year
+  dial, and two screenshots of the Dashboard (wide and narrow), made by `bin/og_image.py`. The address
+  `/#dial` opens the year dial.
+- Not for search engines: `robots.txt` says no, and the pages say `noindex`. The preview crawlers of
+  Facebook, Telegram, WhatsApp and Twitter are allowed by name.
+- A wrong address gets a Kronos page ("This page isn't on the dial") with a button back home. A wrong
+  `/api/` address still answers JSON.
+- When the browser goes offline, or the server does not answer, a banner under the header says Kronos
+  can't reach the server, with "Try again". It goes away by itself when the server answers again.
+- Security headers on every answer, including a Content Security Policy. To make it work, the printed
+  timesheets moved their small scripts into `timesheet.js`.
+- Browser details: dark form controls and scrollbars, brass text selection, no grey flash on tap, and a
+  line for browsers without JavaScript.
+
+**Lighthouse (before, after).** Phone: performance 62, 86; accessibility 96, 96; best practices 100, 100;
+SEO 91, 66. Desktop: performance 94, 97; accessibility 96, 96; best practices 100, 100; SEO 91, 66. SEO drops
+on purpose, because of `noindex`. Performance rose mostly because the 814 KB icon is gone.
+
+**Known limits.** Lighthouse still flags three muted colours under 4.5:1 contrast (the version label, the
+weekday initials of the Log calendar and the holiday dots), and the Log calendar's day buttons, whose
+spoken name differs from their visible text.
 
 ### Phase 54 — The Plan page fills the screen (built 2026-11-07, awaiting confirmation)
 

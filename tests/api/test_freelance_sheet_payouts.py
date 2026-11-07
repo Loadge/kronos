@@ -77,11 +77,13 @@ def _data(client):
 
 class TestSheetWithoutPayouts:
     def test_the_sheet_is_what_it_was_before_payouts(self, client):
-        """Pinned from the sheet rendered before payouts touched the builder."""
+        """Pinned from the sheet rendered before payouts touched the builder (re-pinned when
+        its inline handlers and script moved to /static/timesheet.js for the content security
+        policy: that is the only markup that changed)."""
         _data(client)
         html = client.get(SHEET).text
         assert hashlib.sha256(html.encode()).hexdigest() == (
-            "3b20c2e01c7fb8d8704b7adbb1e08958fd832a845fc4c3e34fd1d288329337d3"
+            "c4b2951a856c6ee1cb19ca8234f5fcb717e76da57bf4b896858dfa9ecca4e1b3"
         )
 
 

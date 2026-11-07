@@ -19,7 +19,9 @@ const PRECACHE_URLS = [
   '/static/styles.css?v=__BUILD__',
   '/static/app.js?v=__BUILD__',
   '/static/dial.js?v=__BUILD__',
-  '/static/icon.png',
+  '/static/favicon-32.png',
+  '/static/icon-96.png',
+  '/static/icon-192.png',
   '/static/vendor/pico.min.css',
   '/static/vendor/alpine.min.js',
 ];

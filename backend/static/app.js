@@ -377,6 +377,9 @@ function app() {
     // ---------- bulk log modal ------------------------------------------
     bulkModal: { open: false, year: new Date().getFullYear(), month: new Date().getMonth(), selected: [], _dragging: false, _dragAnchor: null, _dragCurrent: null, submitting: false },
 
+    // ---------- the server is out of reach (the banner under the header) -----
+    offline: false,
+
     // ---------- command palette -----------------------------------------
     palette: { open: false, query: '', selected: 0 },
 
@@ -398,6 +401,8 @@ function app() {
       const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'freelance', 'settings'];
       const hash = location.hash.replace('#', '');
       if (TABS.includes(hash)) this.tab = hash;
+      // /#dial (the install shortcut "The year dial") opens the dial once the page has loaded
+      const dialOnLoad = hash === 'dial';
 
       // The brass line under (or, on a phone, over) the active tab: placed at once when the page
       // opens, on a resize and when the Freelance tab appears; slid when the tab changes. The new
@@ -409,8 +414,14 @@ function app() {
 
       window.addEventListener('hashchange', () => {
         const t = location.hash.replace('#', '');
+        if (t === 'dial') { this._cleanHash(); this.openDial(); return; }
         if (TABS.includes(t) && t !== this.tab) this.go(t);
       });
+
+      // The banner: the browser says it is offline, or comes back. A request that never arrives
+      // (api() below) shows it too, and the next one that does hides it.
+      window.addEventListener('offline', () => { this.offline = true; });
+      window.addEventListener('online', () => { this.offline = false; });
 
       // Keyboard shortcuts
       let _keyBuf = '';
@@ -487,6 +498,7 @@ function app() {
       this.loadSources();  // the freelance tab and the dashboard card exist once a source does
       this.openNewEntry();
       await this.go(this.tab);
+      if (dialOnLoad) this.openDial();
       // the bead in the header reads today's entry: tabs that do not load the days load them quietly
       if (!['dashboard', 'log', 'days'].includes(this.tab) && !this.entries.length && !this.loading.days) this.loadDays();
     },
@@ -1289,6 +1301,13 @@ function app() {
       this.dialOpen = false;
     },
 
+    // The address says what is open (#log, #days), never "#dial": the dial is an overlay, not a tab.
+    _cleanHash() {
+      if (location.hash.replace('#', '') === 'dial') {
+        history.replaceState(null, '', location.pathname + location.search + '#' + this.tab);
+      }
+    },
+
     // Enter and "Open in Log": that day in Log, and the dial closes.
     dialGo(iso) {
       this.openDayInLog(iso).catch(e => { this.error = e.message; });
@@ -1416,7 +1435,16 @@ function app() {
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
       }
-      const res = await fetch(path, opts);
+      let res;
+      try {
+        res = await fetch(path, opts);
+      } catch (e) {
+        this.offline = true;  // fetch only throws when nothing came back: the server is out of reach
+        throw e;
+      }
+      // any answer, even an HTTP error, means the server is there; but one that was already on
+      // its way when the browser went offline must not hide the banner again
+      if (navigator.onLine) this.offline = false;
       if (!res.ok) {
         let msg = `${res.status} ${res.statusText}`;
         try {
@@ -1431,6 +1459,21 @@ function app() {
       }
       if (res.status === 204) return null;
       return res.json();
+    },
+
+    // "Try again" on the banner: ask the server for something small; an answer hides the banner,
+    // and the tabs that only read reload what they show (Log and Settings keep what is typed).
+    async retryConnection() {
+      try {
+        await fetch('/api/version', { cache: 'no-store' });
+      } catch {
+        this.offline = true;
+        return;
+      }
+      this.offline = false;
+      if (['dashboard', 'plan', 'days', 'analytics', 'freelance'].includes(this.tab)) {
+        this.go(this.tab).catch(e => { this.error = e.message; });
+      }
     },
 
     // =====================================================================

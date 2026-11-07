@@ -16,7 +16,7 @@ import hashlib
 from collections.abc import Iterable
 from pathlib import Path
 
-APP_VERSION = "54"
+APP_VERSION = "55"
 
 
 def compute_build_id(root_dirs: Iterable[Path]) -> str:

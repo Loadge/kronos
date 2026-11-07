@@ -5584,3 +5584,118 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 @media (max-width: 900px) { .fl-tiles--simple { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .fl-tiles--simple { grid-template-columns: 1fr 1fr; } }
 @media (prefers-reduced-motion: reduce) { .locale-hint { animation: none; } }
+
+/* ================================================================
+   THE EDGES: browser details, the offline banner, the page for a wrong address
+   ================================================================ */
+
+:root {
+  color-scheme: dark;                                       /* form controls, scrollbars and the canvas start dark */
+  scrollbar-color: var(--k-border-strong) var(--k-bg);      /* inherited: the page and every inner scroller */
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;                                   /* a phone turned sideways keeps the type size */
+  -webkit-tap-highlight-color: transparent;                 /* the grey flash; :active below answers instead */
+}
+::selection { background: var(--k-brass); color: var(--k-bg); }
+
+/* a press shows on every control, the buttons that already move included */
+button:active:not(:disabled), [role="button"]:active, [role="tab"]:active, summary:active { filter: brightness(1.2); }
+
+/* without JavaScript the app stays hidden (x-cloak), so the page says why */
+.noscript {
+  max-width: 26rem;
+  margin: 4rem auto;
+  padding: 0.9rem 1.2rem;
+  border: 1px solid var(--k-border);
+  border-left: 3px solid var(--k-brass);
+  border-radius: 8px;
+  background: var(--k-surface);
+  text-align: center;
+}
+
+/* the server is out of reach: in the flow under the header, so it never covers the phone's tab bar or
+   the Log dock, which are fixed to the bottom */
+.net-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--k-border);
+  border-left: 3px solid var(--k-brass);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--k-brass) 9%, var(--k-surface));
+  font-size: 0.9rem;
+  animation: net-banner-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.net-banner-text { flex: 1 1 14rem; }
+.net-banner-retry {
+  width: auto;
+  margin: 0;
+  padding: 0.2rem 0.85rem;
+  border: 1px solid var(--k-brass);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--k-brass);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.12s ease-out;
+}
+.net-banner-retry:hover { background: var(--k-brass); color: var(--k-bg); transform: translateY(-1px); }
+.net-banner-retry:active { transform: scale(0.97); }
+@keyframes net-banner-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* the page for a wrong address (404.html) */
+.nf {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-block: 2rem;
+  text-align: center;
+}
+.nf-logo {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 0.75rem;
+  transform-origin: 50% 0;                                   /* it hangs from its top, like a pendulum */
+  animation: nf-swing 1.5s ease-out 1 both;
+}
+.nf-code { margin: 0; color: var(--k-brass); font-size: 0.95rem; letter-spacing: 0.3em; }
+.nf h1 { margin: 0.25rem 0 0.6rem; font-size: clamp(1.6rem, 6vw, 2.4rem); line-height: 1.15; }
+.nf h1, .nf-line { text-wrap: balance; }
+.nf-line { max-width: 28rem; margin: 0 0 1.6rem; color: var(--k-muted); }
+.nf-back {
+  display: inline-block;
+  width: auto;
+  padding: 0.5rem 1.1rem;
+  border: 1px solid var(--k-brass);
+  border-radius: 6px;
+  background: var(--k-brass);
+  color: var(--k-bg);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: opacity 0.15s, transform 0.12s ease-out;
+}
+.nf-back:hover { background: var(--k-brass); color: var(--k-bg); opacity: 0.88; transform: translateY(-1px); }
+.nf-back:active { transform: scale(0.98); }
+@keyframes nf-swing {
+  0% { transform: rotate(-26deg); }
+  30% { transform: rotate(17deg); }
+  55% { transform: rotate(-9deg); }
+  78% { transform: rotate(4deg); }
+  100% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .net-banner, .nf-logo { animation: none; }
+  .net-banner-retry, .nf-back { transition: none; }
+}
