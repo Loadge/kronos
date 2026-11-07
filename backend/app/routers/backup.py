@@ -69,22 +69,27 @@ from app.schemas import (
     DailyTargetRow,
     RestoreIn,
 )
+from app.services import countries, numbers
 from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
     PROFILE_EMPLOYER,
     PROFILE_EXTRA,
     PROFILE_NAME,
+    get_country,
     get_cumulative_start_date,
     get_daily_target_hours,
     get_daily_target_schedule,
     get_freelance_days_off,
     get_freelance_hours_per_week,
+    get_number_format,
     get_profile,
+    set_country,
     set_cumulative_start_date,
     set_daily_target_hours,
     set_daily_target_schedule,
     set_freelance_days_off,
     set_freelance_hours_per_week,
+    set_number_format,
     set_profile_field,
 )
 from app.services.views import entry_from_body
@@ -102,6 +107,8 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             for eff, hours in get_daily_target_schedule(session).rows
         ],
         cumulative_start_date=get_cumulative_start_date(session),
+        country=get_country(session),
+        number_format=get_number_format(session),
         freelance_hours_per_week=get_freelance_hours_per_week(session),
         freelance_days_off=get_freelance_days_off(session),
         **get_profile(session),
@@ -212,7 +219,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
     payload = {
         "version": BACKUP_VERSION,
         "exported_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        "settings": settings.model_dump(mode="json"),
+        "settings": settings.model_dump(mode="json", exclude={"new_database"}),
         "entries": entries,
         "plans": plans,
         "accounts": accounts,
@@ -405,6 +412,12 @@ def restore_backup(
         set_profile_field(session, PROFILE_EXTRA, payload.settings.profile_extra)
         set_freelance_hours_per_week(session, payload.settings.freelance_hours_per_week)
         set_freelance_days_off(session, payload.settings.freelance_days_off)
+        # Region and format: a file from before them keeps the ones the database has.
+        given = payload.settings.model_fields_set
+        if "country" in given and countries.valid(payload.settings.country):
+            set_country(session, payload.settings.country)
+        if "number_format" in given and numbers.valid(payload.settings.number_format):
+            set_number_format(session, payload.settings.number_format)
 
     session.commit()
     return {"restored_entries": len(payload.entries)}

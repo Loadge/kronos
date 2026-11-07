@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_session
@@ -13,11 +13,13 @@ from app.schemas import (
     DailyTargetScheduleIn,
     DailyTargetScheduleOut,
 )
+from app.services import countries, numbers
 from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
     PROFILE_EMPLOYER,
     PROFILE_EXTRA,
     PROFILE_NAME,
+    get_country,
     get_cumulative_start_date,
     get_daily_target_hours,
     get_daily_target_schedule,
@@ -27,10 +29,13 @@ from app.services.settings import (
     get_freelance_hours_per_week,
     get_holiday_country,
     get_holiday_region,
+    get_number_format,
     get_profile,
     get_reset_annually,
     get_vacation_budget_days,
     get_work_week_days,
+    is_new_database,
+    set_country,
     set_cumulative_start_date,
     set_daily_target_hours,
     set_daily_target_schedule,
@@ -40,6 +45,7 @@ from app.services.settings import (
     set_freelance_hours_per_week,
     set_holiday_country,
     set_holiday_region,
+    set_number_format,
     set_profile_field,
     set_reset_annually,
     set_vacation_budget_days,
@@ -68,6 +74,9 @@ def _config_out(session: Session) -> ConfigOut:
         default_end_time=get_default_end_time(session),
         holiday_country=get_holiday_country(session),
         holiday_region=get_holiday_region(session),
+        country=get_country(session),
+        number_format=get_number_format(session),
+        new_database=is_new_database(session),
         freelance_hours_per_week=get_freelance_hours_per_week(session),
         freelance_days_off=get_freelance_days_off(session),
         **get_profile(session),
@@ -81,6 +90,17 @@ def read_config(session: Session = Depends(get_session)) -> ConfigOut:
 
 @router.put("", response_model=ConfigOut)
 def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> ConfigOut:
+    if body.country is not None and not countries.valid(body.country):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unknown country code")
+    if body.number_format is not None and not numbers.valid(body.number_format):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "number_format must be one of " + ", ".join(numbers.FORMATS),
+        )
+    if body.country is not None:
+        set_country(session, body.country)
+    if body.number_format is not None:
+        set_number_format(session, body.number_format)
     if body.daily_target_hours is not None:
         set_daily_target_hours(session, body.daily_target_hours)
     if body.cumulative_start_date is not None:
@@ -111,6 +131,12 @@ def update_config(body: ConfigIn, session: Session = Depends(get_session)) -> Co
         set_freelance_days_off(session, body.freelance_days_off)
     session.commit()
     return _config_out(session)
+
+
+@router.get("/countries")
+def read_countries() -> list[dict[str, str]]:
+    """The countries the picker can show with no network: the ones Nager.Date covers."""
+    return countries.listing()
 
 
 @router.get("/daily-target-schedule", response_model=DailyTargetScheduleOut)

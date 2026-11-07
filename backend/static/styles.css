@@ -5509,3 +5509,17 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .acct-item .acct-kind, .acct-star, .acct-star svg, .fx-chip, .acct-curlist, .fx-tip, .fl-fxlost, .fl-landed { transition: none; animation: none; transform: none; }
 }
+
+/* Country and format (Settings > General), and the Simple tax module of the Freelance tab */
+.locale-hint { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin: 0.25rem 0 0.75rem; padding: 0.7rem 0.9rem; border: 1px solid var(--k-brass); border-radius: 8px; background: color-mix(in srgb, var(--k-brass) 9%, transparent); animation: locale-hint-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.locale-hint p { margin: 0; font-size: 0.9rem; }
+.locale-hint-actions { display: flex; gap: 0.5rem; align-items: center; }
+@keyframes locale-hint-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.fl-aside-line { margin: 0.4rem 0 0; font-size: 1.05rem; }
+.fl-tiles--simple { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.calc-seg--aside { background: color-mix(in srgb, var(--k-sick) 70%, transparent); }
+.calc-seg--aside .calc-seg-lbl { color: var(--k-text); }
+@container (min-width: 5.5rem) { .calc-seg--aside .calc-seg-lbl { display: initial; } }
+@media (max-width: 900px) { .fl-tiles--simple { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .fl-tiles--simple { grid-template-columns: 1fr 1fr; } }
+@media (prefers-reduced-motion: reduce) { .locale-hint { animation: none; } }

@@ -50,10 +50,41 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 50 confirmed and archived. 51 built and waiting for Miguel's check; 52 to 55 in that order
+37 to 50 confirmed and archived. 51, 52 and 53 built and waiting for Miguel's check; 54 and 55 next
 (Miguel, 2026-11-07: money first, because PROD reads a euro payout as dollars); 28 after them (Anselmo
 logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phase 53 — Country and number format (built 2026-11-07, awaiting confirmation)
+
+**Why.** Miguel wants Kronos to stop assuming its user lives in Spain, now that it is becoming a
+production-grade app. The app stays in English; what changes is where the user lives and how they write
+numbers.
+
+**Decisions (Miguel, 2026-11-07: "Country + locale").**
+- Settings > General has a new "Country and format" card with two settings. Country picks the holidays'
+  default and the tax module. Number format is one of `1,234.56` (the default, what Kronos always printed),
+  `1.234,56`, `1 234,56` and `1'234.56`. The few long dates follow it ("Nov 7" in the default, "7 Nov" in
+  the others), still in English.
+- An existing database is Spain with the default format, so PROD looks and adds up exactly as before.
+- Every number the app prints goes through one set of formatters, and every number typed into a text field
+  (the Calculator, a payout, an exchange rate, "worth €") goes through one parser that reads the chosen
+  format. The server has the same rules for the printed timesheets, and both copies are tested against one
+  table of cases, so they cannot drift apart.
+- Spain keeps its own tax module (the "autónomo" quota, IRPF, the modelo 130 and the "gestoría" fee), shown
+  only when the country is ES. Any other country gets the Simple module: a share of every payment set aside
+  for the tax office (30% unless he writes another), and the Freelance tab reads "Set aside: €X of €Y
+  received this year" instead of the 130 rail.
+- A new, empty database whose browser speaks another country's language (German, French) gets a one-time
+  suggestion in Settings to use that country's holidays and format. Nothing changes by itself.
+
+**What Miguel will notice.** With the default format, the Calculator now reads "55.000" as 55, the English
+way. Before, it read it the Spanish way, as 55000. If he types numbers the Spanish way, he picks `1.234,56` in
+Settings > General, and then the whole app prints them that way too.
+
+**Known limits.** The plain number boxes (rates, tax inputs, hours) are the browser's own number fields, so
+they keep the browser's decimal mark instead of the chosen one. The Simple module knows no brackets and no
+social security: it is a share, and the screen says to check with an adviser.
 
 ### Phase 52 — Money in any currency (built 2026-11-07, awaiting confirmation)
 

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from app.models import DayType, WorkEntry
-from app.services import currencies
+from app.services import currencies, numbers
 from app.services.computations import (
     DailyTargetSchedule,
     daily_net_hours,
@@ -33,7 +33,7 @@ def fmt_hours(hours: float, style: str) -> str:
     if style == "hm":
         minutes = round(h * 60)
         return f"{sign}{minutes // 60}:{minutes % 60:02d}"
-    return f"{sign}{h:.2f}"
+    return numbers.localize(f"{sign}{h:.2f}")
 
 
 def fmt_signed(hours: float, style: str) -> str:
@@ -47,7 +47,7 @@ def fmt_signed(hours: float, style: str) -> str:
 
 def fmt_days(n: float) -> str:
     """19.5 → "19.5", 20.0 → "20"."""
-    return f"{round(n, 2):g}"
+    return numbers.localize(f"{round(n, 2):g}")
 
 
 # ---------- rows --------------------------------------------------------------
@@ -282,12 +282,13 @@ def fmt_money(amount: float, currency: str = "EUR") -> str:
     if currency not in ("EUR", "USD"):
         dec = currencies.decimals(currency)
         sign = "−" if amount < 0 and currencies.quantize(amount, currency) != 0 else ""
-        return f"{sign}{currency} {abs(currencies.quantize(amount, currency)):,.{dec}f}"
+        body = f"{sign}{currency} {abs(currencies.quantize(amount, currency)):,.{dec}f}"
+        return numbers.localize(body)
     symbol = "$" if currency == "USD" else "€"
     cents = int(abs(amount) * 100 + 0.5)
     whole, frac = divmod(cents, 100)
     sign = "−" if amount < -0.005 else ""
-    return f"{sign}{symbol}{whole:,}.{frac:02d}"
+    return numbers.localize(f"{sign}{symbol}{whole:,}.{frac:02d}")
 
 
 @dataclass(frozen=True)

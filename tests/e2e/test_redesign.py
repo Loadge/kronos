@@ -193,7 +193,7 @@ class TestSettingsSections:
         assert page.locator("#settings-work").count() == 0
         assert page.locator(
             ".settings-group.open .settings-group-sections a"
-        ).all_inner_texts() == ["Data"]
+        ).all_inner_texts() == ["Country", "Data"]
         # the choice survives a reload
         page.reload()
         page.wait_for_selector("#settings-data", timeout=5000)

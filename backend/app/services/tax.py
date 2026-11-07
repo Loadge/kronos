@@ -198,6 +198,7 @@ class Figures:
     renta: float  # irpf - pago_fraccionado: what is left to pay in the Renta (negative: returned)
     reintegro: float  # pluriactividad refund of RETA contributions, paid the year after
     net: float
+    set_aside: float = 0.0  # the Simple module's share of the gross; always 0 for Spain
 
     @property
     def expenses(self) -> float:
@@ -365,7 +366,7 @@ def month_figures(rate: float, billable: int, annual: Figures) -> tuple[float, f
     m_gross = rate * billable
     share = m_gross / annual.gross if annual.gross > 0 else 0.0
     m_fixed = (annual.expenses + annual.reta_annual) / 12
-    return m_gross, m_gross - m_fixed - annual.irpf * share
+    return m_gross, m_gross - m_fixed - (annual.irpf + annual.set_aside) * share
 
 
 def hourly_to_daily(h: float, p: TaxParams) -> float:

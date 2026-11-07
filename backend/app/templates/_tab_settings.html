@@ -169,7 +169,7 @@
         <div class="srow-ctl">
           <select id="set-country" class="ctl-select" x-model="settingsForm.holiday_country" @change="onHolidayCountryChange()">
             <option value="">Select a country…</option>
-            <template x-for="c in holidayCountries" :key="c.code">
+            <template x-for="c in countryChoices()" :key="c.code">
               <option :value="c.code" x-text="c.name"></option>
             </template>
           </select>
@@ -229,8 +229,8 @@
       </template>
       <p class="muted holiday-note q-host">National and regional holidays only.
         <button type="button" class="q-chip" aria-label="About the holiday lists"
-                data-tip="Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab."
-                title="Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab."
+                :data-tip="holidayNote()"
+                :title="holidayNote()"
                 @click="$el.classList.toggle('open')" @click.outside="$el.classList.remove('open')" @keydown.escape="if ($el.classList.contains('open')) { $event.stopPropagation(); $el.classList.remove('open') }">?</button></p>
     </div>
 
@@ -432,7 +432,7 @@
       <div class="settings-card-head">
         <div>
           <h3>Taxes</h3>
-          <p class="muted">What the year's estimate needs. A year without values of its own uses the latest earlier year's. Region: Andalucía. <a class="calc-link-inline" @click.prevent="openCalculator()" href="#freelance">See them in the calculator →</a></p>
+          <p class="muted">What the year's estimate needs. A year without values of its own uses the latest earlier year's. <template x-if="isSpain()"><span>Region: Andalucía.</span></template> <a class="calc-link-inline" @click.prevent="openCalculator()" href="#freelance">See them in the calculator →</a></p>
         </div>
         <span class="settings-saved" :class="settingsStatusCls('taxes')" x-text="settingsStatusText('taxes')" aria-live="polite"></span>
       </div>
@@ -449,6 +449,7 @@
       </div>
       <template x-if="taxForm">
         <div>
+          <template x-if="isSpain()">
           <div class="srow">
             <label class="srow-key" for="tax-salary">Gross salary of the job
               <small>Held at the same time (pluriactividad): the freelance income is taxed at the marginal rate on top of it. 0 if none.</small></label>
@@ -457,16 +458,21 @@
               <span class="unit">€ / year</span>
             </div>
           </div>
+          </template>
+          <template x-if="isSpain()">
           <div class="srow">
             <label class="srow-key" for="tax-plana">Tarifa plana
               <small>The flat RETA cuota of the first twelve months instead of the one by income tramo.</small></label>
             <div class="srow-ctl"><input id="tax-plana" type="checkbox" role="switch" x-model="taxForm.tarifa_plana"></div>
           </div>
+          </template>
+          <template x-if="isSpain()">
           <div class="srow">
             <label class="srow-key" for="tax-startup">Start-up reduction
               <small>20 % off the net yield in the first two years with a positive yield. Lowers the Renta, not the quarterly 130.</small></label>
             <div class="srow-ctl"><input id="tax-startup" type="checkbox" role="switch" x-model="taxForm.inicio_actividad"></div>
           </div>
+          </template>
           <div class="srow">
             <label class="srow-key" for="tax-aside">Set aside
               <small>The share of every payment put by for the tax office. The dashboard card shows the month's.</small></label>
@@ -475,6 +481,7 @@
               <span class="unit">%</span>
             </div>
           </div>
+          <template x-if="isSpain()">
           <div class="srow">
             <label class="srow-key" for="tax-gestoria">Gestoría
               <small>Deductible, per year.</small></label>
@@ -483,6 +490,8 @@
               <span class="unit">€ / year</span>
             </div>
           </div>
+          </template>
+          <template x-if="isSpain()">
           <div class="srow">
             <label class="srow-key" for="tax-other">Other deductible expenses
               <small>Software, hardware, a share of the connection… per year.</small></label>
@@ -491,8 +500,11 @@
               <span class="unit">€ / year</span>
             </div>
           </div>
+          </template>
           <p class="muted tax-note">
+            <template x-if="isSpain()"><span>
             Rules: <span x-text="taxForm.fiscal_year + ' figures, ' + taxForm.region + (taxForm.fiscal_year !== taxYear ? ' (no ' + taxYear + ' block in the fiscal file yet)' : '') + '.'"></span>
+            </span></template>
             Estimates for planning — check with an adviser.
             <template x-if="!taxForm.is_default && !taxForm.inherited_from && taxYear > 2000">
               <a @click.prevent="dropTaxYear()" class="tax-drop">Drop <span x-text="taxYear"></span>'s own values</a>
@@ -559,6 +571,45 @@
   <div class="settings-cards">
 
     <!-- ── Fun zone: everything that moves data in bulk ──────────────────── -->
+    <!-- ── Country and format ─────────────────────────────────────────────── -->
+    <form class="settings-card" id="settings-locale" @submit.prevent="saveSettings('locale')" @input="settingsTouched('locale', $event)" @change="settingsTouched('locale', $event, true)">
+      <div class="settings-card-head">
+        <div>
+          <h3>Country and format</h3>
+        </div>
+        <span class="settings-saved" :class="settingsStatusCls('locale')" x-text="settingsStatusText('locale')" aria-live="polite"></span>
+      </div>
+      <template x-if="localeHint">
+        <div class="locale-hint" role="status" data-testid="locale-hint">
+          <p x-text="'Looks like you\'re in ' + countryName(localeHint.country) + '. Use ' + countryName(localeHint.country) + '\'s holidays and formats?'"></p>
+          <div class="locale-hint-actions">
+            <button type="button" class="btn-action btn-action--outline" @click="acceptLocaleHint()">Use them</button>
+            <button type="button" class="secondary outline compact" @click="localeHintDone()">Not now</button>
+          </div>
+        </div>
+      </template>
+      <div class="srow">
+        <label class="srow-key" for="set-home-country">Country</label>
+        <div class="srow-ctl">
+          <select id="set-home-country" class="ctl-select" x-model="settingsForm.country">
+            <template x-for="c in countryChoices()" :key="c.code">
+              <option :value="c.code" x-text="c.name" :selected="c.code === settingsForm.country"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div class="srow">
+        <label class="srow-key" for="set-number-format">Number format</label>
+        <div class="srow-ctl">
+          <select id="set-number-format" class="ctl-select" x-model="settingsForm.number_format">
+            <template x-for="f in NUMBER_FORMAT_LIST" :key="f.id">
+              <option :value="f.id" x-text="f.sample" :selected="f.id === settingsForm.number_format"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+    </form>
+
     <div class="settings-card fun-zone" id="settings-data">
       <div class="settings-card-head">
         <div>

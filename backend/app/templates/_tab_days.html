@@ -194,7 +194,7 @@
               <span><span x-text="l.payout.fx_rate ? '@ ' + fmtFx(l.payout.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(l.payout)" :aria-label="'Edit the exchange rate of ' + l.source.name + ' ' + r.id" title="Edit the exchange rate">✎</button></span>
             </template>
             <template x-if="fxEditing === l.payout.id">
-              <input type="text" inputmode="decimal" class="fxin metric" :value="l.payout.fx_rate || ''" x-init="$nextTick(() => $el.focus())"
+              <input type="text" inputmode="decimal" class="fxin metric" :value="l.payout.fx_rate ? fmtPlain(l.payout.fx_rate) : ''" x-init="$nextTick(() => $el.focus())"
                 @keydown.enter.prevent="fxSave(l.payout, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(l.payout, $event.target.value)"
                 :aria-label="'Exchange rate USD per EUR, ' + l.source.name + ' ' + r.id">
             </template>
@@ -208,7 +208,7 @@
             <template x-if="l.payout.currency !== 'EUR' && (l.payout.amount_eur === null || worthOpen === l.payout.id)">
               <label class="worth"><span>worth €</span>
                 <input type="text" inputmode="decimal" class="worthin metric" autocomplete="off"
-                  :value="l.payout.amount_eur === null ? '' : l.payout.amount_eur"
+                  :value="l.payout.amount_eur === null ? '' : fmtPlain(l.payout.amount_eur)"
                   x-init="if (worthOpen === l.payout.id) $nextTick(() => $el.focus())"
                   @change="worthSave(l.payout, $event.target.value)" @keydown.escape="worthOpen = null"
                   :aria-label="'Worth in euros, ' + l.source.name + ' ' + r.id"></label>
@@ -440,8 +440,8 @@
                   </button>
                   <span class="ws-days metric" x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span>
                 </td>
-                <td class="num metric ws-net" data-testid="e-week-net" x-text="r.net + 'h'"></td>
-                <td class="num metric ws-target" data-testid="e-week-target" x-text="r.target + 'h'"></td>
+                <td class="num metric ws-net" data-testid="e-week-net" x-text="fmtPlain(r.net) + 'h'"></td>
+                <td class="num metric ws-target" data-testid="e-week-target" x-text="fmtPlain(r.target) + 'h'"></td>
                 <td class="num metric ws-delta" data-l="Δ" title="Difference from target" data-testid="e-week-delta" :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></td>
                 <td class="num metric ws-sigma" data-l="Σ" title="Running balance" data-testid="e-week-sigma" :class="surplusClass(r.cumulative)" x-text="formatSurplus(r.cumulative)"></td>
                 <td colspan="2" class="ws-end"></td>
@@ -453,7 +453,7 @@
                   <span class="month-sep-name" x-text="r.label"></span>
                   <span class="month-sep-sum metric">
                     <span x-text="r.count + (r.count === 1 ? ' day' : ' days')"></span> ·
-                    <b x-text="r.net + 'h'"></b> / <span x-text="r.target + 'h'"></span> ·
+                    <b x-text="fmtPlain(r.net) + 'h'"></b> / <span x-text="fmtPlain(r.target) + 'h'"></span> ·
                     <b :class="surplusClass(r.surplus)" x-text="formatSurplus(r.surplus)"></b>
                   </span>
                 </td>
@@ -468,8 +468,8 @@
                 <td class="num metric phone-hide" x-text="r.e.start_time || '—'"></td>
                 <td class="num metric phone-hide" x-text="r.e.end_time || '—'"></td>
                 <td class="num metric phone-hide" x-text="r.e.total_break_minutes ? r.e.total_break_minutes + 'm' : '—'"></td>
-                <td class="num metric" x-text="r.e.net_hours + 'h'"></td>
-                <td class="num metric phone-hide" x-text="r.e.target_hours + 'h'"></td>
+                <td class="num metric" x-text="fmtPlain(r.e.net_hours) + 'h'"></td>
+                <td class="num metric phone-hide" x-text="fmtPlain(r.e.target_hours) + 'h'"></td>
                 <td class="num metric" :class="surplusClass(r.e.surplus_hours)" x-text="formatSurplus(r.e.surplus_hours)"></td>
                 <td class="num metric" :class="surplusClass(r.e._cumulative)" x-text="formatSurplus(r.e._cumulative)"></td>
                 <td class="notes-col phone-hide" x-html="r.e.notes ? highlightNotes(r.e.notes, notesQuery) : ''"></td>

@@ -9,10 +9,12 @@ from __future__ import annotations
 import json
 from datetime import date
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import DEFAULT_CUMULATIVE_START_DATE, DEFAULT_DAILY_TARGET_HOURS
-from app.models import Setting
+from app.models import FreelanceBlock, Setting, WorkEntry
+from app.services import countries, numbers
 from app.services.computations import DailyTargetSchedule
 
 DAILY_TARGET_HOURS = "daily_target_hours"  # legacy single value; fallback before a timeline exists
@@ -25,6 +27,10 @@ DEFAULT_START_TIME = "default_start_time"
 DEFAULT_END_TIME = "default_end_time"
 HOLIDAY_COUNTRY = "holiday_country"
 HOLIDAY_REGION = "holiday_region"
+# Where the user lives (an ISO 3166-1 alpha-2 code: picks the tax module and the holidays' default)
+# and how numbers are written (a BCP 47 tag from `numbers.FORMATS`).
+COUNTRY = "country"
+NUMBER_FORMAT = "number_format"
 # Profile: who the printable timesheet is for. All optional free text.
 PROFILE_NAME = "profile_name"
 PROFILE_EMPLOYER = "profile_employer"
@@ -178,6 +184,34 @@ def get_holiday_region(session: Session) -> str:
 
 def set_holiday_region(session: Session, value: str) -> None:
     _set(session, HOLIDAY_REGION, value)
+
+
+def get_country(session: Session) -> str:
+    """The user's country; "ES" until one is chosen, so an older database behaves as ever."""
+    value = _get(session, COUNTRY, countries.DEFAULT_COUNTRY)
+    return value if countries.valid(value) else countries.DEFAULT_COUNTRY
+
+
+def set_country(session: Session, value: str) -> None:
+    _set(session, COUNTRY, value)
+
+
+def get_number_format(session: Session) -> str:
+    value = _get(session, NUMBER_FORMAT, numbers.DEFAULT_FORMAT)
+    return value if numbers.valid(value) else numbers.DEFAULT_FORMAT
+
+
+def set_number_format(session: Session, value: str) -> None:
+    _set(session, NUMBER_FORMAT, value)
+
+
+def is_new_database(session: Session) -> bool:
+    """Nothing logged yet and no country picked: the only database Settings offers a country."""
+    if session.get(Setting, COUNTRY) is not None:
+        return False
+    return session.scalar(select(func.count()).select_from(WorkEntry)) == 0 and (
+        session.scalar(select(func.count()).select_from(FreelanceBlock)) == 0
+    )
 
 
 def get_profile(session: Session) -> dict[str, str]:

@@ -338,11 +338,11 @@
           <div class="impact-card" x-show="logPreview()" x-transition.duration.200ms>
             <div class="impact-cell">
               <span class="impact-label">Net</span>
-              <span class="impact-value" x-text="(logPreview()?.net_hours ?? '') + 'h'"></span>
+              <span class="impact-value" x-text="fmtPlain(logPreview()?.net_hours ?? '') + 'h'"></span>
             </div>
             <div class="impact-cell">
               <span class="impact-label">Target</span>
-              <span class="impact-value" x-text="(logPreview()?.target_hours ?? '') + 'h'"></span>
+              <span class="impact-value" x-text="fmtPlain(logPreview()?.target_hours ?? '') + 'h'"></span>
             </div>
             <div class="impact-cell">
               <span class="impact-label">Δ</span>

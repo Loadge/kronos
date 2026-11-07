@@ -24,7 +24,7 @@
   </span>
   <span class="sp"></span>
   <span class="seg" role="radiogroup" aria-label="Hours format">
-    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }} onchange="this.form.requestSubmit()">7.50</label>
+    <label class="{{ 'on' if hours == 'dec' else '' }}"><input type="radio" name="hours" value="dec" {{ 'checked' if hours == 'dec' else '' }} onchange="this.form.requestSubmit()">{{ 7.5|fmtdec }}</label>
     <label class="{{ 'on' if hours == 'hm' else '' }}"><input type="radio" name="hours" value="hm" {{ 'checked' if hours == 'hm' else '' }} onchange="this.form.requestSubmit()">7:30</label>
   </span>
   <label class="tb-check"><input type="checkbox" name="notes" value="1" {{ 'checked' if show_notes else '' }} onchange="this.form.requestSubmit()"> notes</label>

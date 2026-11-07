@@ -13,6 +13,53 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+/// ── Numbers: one way to write them, one way to read them ───────────────────────────────────────────
+// The format is a BCP 47 tag kept in the settings. Every number the app prints goes through `swapMarks`
+// (the digits are made as ever, in en-US, and only the two separators change) and every number a person
+// types goes through `parseNum`. The server has the same rules in services/numbers.py; both are tested
+// against tests/fixtures/number_cases.json.
+const NUMBER_FORMATS = {
+  'en-US': { group: ',', decimal: '.' },
+  'es-ES': { group: '.', decimal: ',' },
+  'fr-FR': { group: ' ', decimal: ',' },
+  'de-CH': { group: '’', decimal: '.' },
+};
+const DEFAULT_NUMBER_FORMAT = 'en-US';
+// "1,234.56" (en-US) rewritten with the separators of `tag`.
+function swapMarks(text, tag) {
+  const f = NUMBER_FORMATS[tag];
+  if (!f || tag === DEFAULT_NUMBER_FORMAT) return text;
+  return text.replace(/[.,]/g, ch => (ch === ',' ? f.group : f.decimal));
+}
+// What a person typed, read the way `tag` writes numbers; NaN when it is no number. Spaces and
+// apostrophes are only ever group marks. A comma and a dot together: the last is the decimal mark. A mark
+// repeated is a group mark. A single mark that is the format's decimal mark is the decimal point. A single
+// group mark is a group mark when exactly three digits follow ("55.000" is 55000 in es-ES, "1,234" is 1234 in
+// en-US) and a lone dot otherwise stays a decimal point ("1.5"). A comma the format does not use reads as a
+// decimal comma when one or two digits follow ("12,5" is 12.5 in en-US), else as a group mark.
+function parseNum(text, tag = DEFAULT_NUMBER_FORMAT) {
+  const f = NUMBER_FORMATS[tag] || NUMBER_FORMATS[DEFAULT_NUMBER_FORMAT];
+  const decimal = f.decimal, group = f.group;
+  let t = String(text ?? '').replace(/[\s'’]/g, '').replace(/−/g, '-');
+  if (t === '') return NaN;
+  const commas = t.split(',').length - 1, dots = t.split('.').length - 1;
+  if (commas && dots) {
+    const mark = t.lastIndexOf(',') > t.lastIndexOf('.') ? ',' : '.';
+    const other = mark === ',' ? '.' : ',';
+    t = t.split(other).join('').replace(mark, '.');
+  } else if (commas || dots) {
+    const mark = commas ? ',' : '.', count = commas || dots;
+    const at = t.lastIndexOf(mark), before = t.slice(0, at), after = t.slice(at + 1);
+    if (count > 1) t = t.split(mark).join('');
+    else if (mark === decimal) t = before + '.' + after;
+    else if (mark === group) {
+      if (after.length === 3 && (mark === ',' || /^[+-]?\d{1,3}$/.test(before))) t = before + after;
+      else if (mark === ',') t = after.length <= 2 ? before + '.' + after : before + after;
+    } else if (mark === ',') t = before + (after.length <= 2 ? '.' + after : after);
+  }
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) : NaN;
+}
+
 // What the year dial reads for the day under its index (see dialData): kept out of Alpine's state.
 const _dial = { entries: new Map(), keys: [], sums: [], reset: false };
 
@@ -213,7 +260,7 @@ function app() {
     _anPinObserver: null,
 
     // ---------- settings ------------------------------------------------
-    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '', freelance_hours_per_week: 0, freelance_days_off: 0 },
+    settingsForm: { daily_target_hours: 8, cumulative_start_date: '', reset_annually: false, work_week_days: [0,1,2,3,4], vacation_budget_days: 0, default_start_time: '09:00', default_end_time: '17:00', holiday_country: '', holiday_region: '', country: 'ES', number_format: 'en-US', daily_target_schedule: [], profile_name: '', profile_employer: '', profile_extra: '', freelance_hours_per_week: 0, freelance_days_off: 0 },
     // Settings save themselves: a field half a second after the last keystroke, a switch or a
     // picker at once. Per section: '' · 'busy' · 'saved' · 'invalid' · 'error'.
     settingsStatus: {},
@@ -237,6 +284,7 @@ function app() {
       { id: 'taxes',      group: 'freelance', label: 'Taxes',      fields: [] },
       { id: 'projection', group: 'freelance', label: 'Projection', fields: ['freelance_hours_per_week', 'freelance_days_off'] },
       { id: 'currency',   group: 'freelance', label: 'Currency',   fields: [] },
+      { id: 'locale',     group: 'general',   label: 'Country', fields: ['country', 'number_format'] },
       { id: 'data',       group: 'general',   label: 'Data',       fields: [] },
     ],
     settingsGroup: localStorage.getItem('k-settings-group') || 'employee',
@@ -276,10 +324,13 @@ function app() {
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
     _taxSaved: null,
     calcEdit: null, calcDraft: '',   // the calculator field being typed in, and its text as typed
-    calc: { mode: 'hourly', hourly: 60, daily: '', net: '', currency: 'EUR', fx_rate: '', fx_source: 'ECB', billable_days: 220, billable_mode: 'default', hours_per_day: 8, salary_annual: 0, gestoria_annual: 0, other_expenses: 0, tarifa_plana: false, inicio_actividad: false, result: null, busy: false, _seq: 0 },
+    calc: { mode: 'hourly', hourly: 60, daily: '', net: '', currency: 'EUR', fx_rate: '', fx_source: 'ECB', billable_days: 220, billable_mode: 'default', hours_per_day: 8, salary_annual: 0, gestoria_annual: 0, other_expenses: 0, tarifa_plana: false, inicio_actividad: false, set_aside_pct: 30, result: null, busy: false, _seq: 0 },
 
     // ---------- public holidays ------------------------------------------
     holidayCountries: [],
+    NUMBER_FORMAT_LIST: Object.keys(NUMBER_FORMATS).map(id => ({ id, sample: swapMarks('1,234.56', id) })),
+    countryFallback: [],  // the static list of the server, for when Nager.Date does not answer
+    localeHint: null,     // { country, format } while Settings offers the browser's country
     holidaySubdivisions: [],
     holidayPreview: [],
     holidayYear: new Date().getFullYear(),
@@ -977,7 +1028,7 @@ function app() {
       return blocks;
     },
     _planBlockLabel(dates) {
-      const fmt = (iso, opts) => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', opts);
+      const fmt = (iso, opts) => new Date(iso + 'T12:00:00').toLocaleDateString(this.dateLocale(), opts);
       if (dates.length === 1) return fmt(dates[0], { weekday: 'short', month: 'short', day: 'numeric' });
       const a = dates[0], b = dates[dates.length - 1];
       const sameMonth = a.slice(0, 7) === b.slice(0, 7);
@@ -1193,7 +1244,7 @@ function app() {
       const day = new Date(iso + 'T12:00:00');
       const e = _dial.entries.get(iso) || null;
       const p = e ? null : this.draftMap()[iso];
-      const r = { date: day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) };
+      const r = { date: day.toLocaleDateString(this.dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' }) };
       r.wk = [this.weekId(this._mondayIso(day)), iso === today ? 'today' : '', this.isPartial(e) ? this.pillLabel(e) : ''].filter(Boolean).join(' · ');
       if (e && (e.day_type === 'work' || this.isPartial(e))) {
         r.big = this.fmtHours(e.net_hours); r.bigKind = 'work';
@@ -1257,6 +1308,25 @@ function app() {
     // =====================================================================
     // helpers — formatting
     // =====================================================================
+    // The format numbers are written in (Settings > General); en-US until the settings arrive.
+    numFormat() {
+      const f = this.settingsForm.number_format;
+      return NUMBER_FORMATS[f] ? f : DEFAULT_NUMBER_FORMAT;
+    },
+    // The few long dates the app prints stay in English and follow the format's order: "Nov 7" in en-US,
+    // "7 Nov" in the others.
+    dateLocale() { return this.numFormat() === DEFAULT_NUMBER_FORMAT ? 'en-US' : 'en-GB'; },
+    // `n` with exactly `digits` decimals and no grouping ("24.50", "24,50"): hours, rates, percents.
+    fmtFixed(n, digits) { return swapMarks((Number(n) || 0).toFixed(digits), this.numFormat()); },
+    // A number as the plain text of an editable field, no grouping: 1234.5 → "1234.5" / "1234,5".
+    fmtPlain(v) { return swapMarks(String(v), this.numFormat()); },
+    // `n` between `min` and `max` decimals, thousands grouped ("1,234.5", "1.234,5").
+    fmtGrouped(n, min = 0, max = min) {
+      return swapMarks(new Intl.NumberFormat('en-US', { minimumFractionDigits: min, maximumFractionDigits: max, useGrouping: 'always' }).format(n), this.numFormat());
+    },
+    // What was typed in a number field, read in the chosen format; NaN when it is no number.
+    num(text) { return parseNum(text, this.numFormat()); },
+
     surplusClass(h) {
       if (h > 0.01) return 'surplus';
       if (h < -0.01) return 'deficit';
@@ -1266,7 +1336,7 @@ function app() {
     formatSurplus(h) {
       if (h === undefined || h === null) return '';
       const sign = h > 0 ? '+' : h < 0 ? '−' : '±';
-      return `${sign}${Math.abs(h).toFixed(2)}h`;
+      return `${sign}${this.fmtFixed(Math.abs(h), 2)}h`;
     },
 
     // Line 2 of a Days row on a phone, only what the day has: "09:30-18:00 · 60m · Σ +24.50h".
@@ -1296,16 +1366,16 @@ function app() {
 
     // 3 → "3h", 3.5 → "3.5h", 0.75 → "0.75h" — at most two decimals, no trailing zeros.
     fmtHours(h) {
-      return `${Math.round((Number(h) || 0) * 100) / 100}h`;
+      return `${this.fmtPlain(Math.round((Number(h) || 0) * 100) / 100 + 0)}h`;
     },
     // An exchange rate: four decimals, "1.1172".
-    fmtFx(n) { return (Number(n) || 0).toFixed(4); },
+    fmtFx(n) { return this.fmtFixed(n, 4); },
     // The count-up of the Dashboard numbers: always two decimals while it runs, so it ends on
     // what formatSurplus shows.
-    animText(n) { return (Number(n) || 0).toFixed(2); },
+    animText(n) { return this.fmtFixed(n, 2); },
     // Day counts can be fractional (a 3h-off day is 0.62 work + 0.38 off).
     fmtDays(n) {
-      return String(Math.round((Number(n) || 0) * 100) / 100);
+      return this.fmtPlain(Math.round((Number(n) || 0) * 100) / 100 + 0);
     },
 
     // ---------- partial-day leave ----------------------------------------
@@ -1443,7 +1513,7 @@ function app() {
     // "Tue 27 Oct · 08:42" — today and the live clock, in one chip.
     todayChip() {
       const d = this.dashboard ? new Date(this.dashboard.today + 'T12:00:00') : new Date();
-      const label = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      const label = d.toLocaleDateString(this.dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
       return this.nowDisplay ? `${label} · ${this.nowDisplay}` : label;
     },
     // "12.5 work days, 2 off" — the counts the old cards printed, now a tooltip.
@@ -1884,8 +1954,8 @@ function app() {
       const base = new Date(this.weekStart + 'T00:00:00');
       const end = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 6);
       const sameMonth = base.getMonth() === end.getMonth();
-      const startLabel = base.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const endLabel = end.toLocaleDateString('en-US', sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
+      const startLabel = base.toLocaleDateString(this.dateLocale(), { month: 'short', day: 'numeric' });
+      const endLabel = end.toLocaleDateString(this.dateLocale(), sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
       return `${startLabel} – ${endLabel}`;
     },
 
@@ -2547,7 +2617,7 @@ function app() {
     // The sign and two decimals of a balance, as the big number on the Dashboard shows it.
     heroHours(h) {
       const v = Number(h) || 0;
-      return `${v > 0.01 ? '+' : v < -0.01 ? '\u2212' : '\u00b1'}${Math.abs(v).toFixed(2)}h`;
+      return `${v > 0.01 ? '+' : v < -0.01 ? '\u2212' : '\u00b1'}${this.fmtFixed(Math.abs(v), 2)}h`;
     },
 
     // `el` becomes an odometer that shows `text`: every digit is a reel of 0-9 that turns to its
@@ -3049,7 +3119,7 @@ function app() {
       jan4.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
       return 1 + Math.round((d - jan4) / (7 * 86400000));
     },
-    _shortDay(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); },
+    _shortDay(iso) { return new Date(iso + 'T12:00:00').toLocaleDateString(this.dateLocale(), { month: 'short', day: 'numeric' }); },
     // "Nov 2 – 8", or "Oct 26 – Nov 1" across a month end
     _weekRange(mondayIso) {
       const sunday = this._addDaysIso(mondayIso, 6);
@@ -3351,7 +3421,7 @@ function app() {
     // ---------- typing a payout (autosave like Settings) ------------------------------
     payText(sourceId, weekStart, p) {
       const k = this.payKey(sourceId, weekStart);
-      return k in this.payDraft ? this.payDraft[k] : (p ? String(p.amount) : '');
+      return k in this.payDraft ? this.payDraft[k] : (p ? this.fmtPlain(p.amount) : '');
     },
     payTyped(sourceId, weekStart, text) {
       const k = this.payKey(sourceId, weekStart);
@@ -3401,7 +3471,7 @@ function app() {
         } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
         return;
       }
-      const amount = Number(text.replace(/[,\s]/g, ''));
+      const amount = this.num(text);
       if (!(amount > 0)) { this._setStatus(st, 'invalid'); return; }
       if (existing && existing.amount === amount && !acctChanged) { drop(); this._setStatus(st, ''); return; }
       this._setStatus(st, 'busy');
@@ -3431,7 +3501,7 @@ function app() {
     async fxSave(p, value) {
       if (this.fxEditing !== p.id) return;
       this.fxEditing = null;
-      const v = Number(value);
+      const v = this.num(value);
       if (!(v > 0) || v === p.fx_rate) return;
       const st = 'wk-' + p.week_start;
       this._setStatus(st, 'busy');
@@ -3470,7 +3540,7 @@ function app() {
       const k = this.payKey(sourceId, weekStart);
       this.payAcct = { ...this.payAcct, [k]: value === '' ? null : Number(value) };
       if (!p) return;  // nothing to save until an amount is typed
-      if (!(k in this.payDraft)) this.payDraft = { ...this.payDraft, [k]: String(p.amount) };
+      if (!(k in this.payDraft)) this.payDraft = { ...this.payDraft, [k]: this.fmtPlain(p.amount) };
       clearTimeout(this._autosave['pay-' + k]);
       await this._queued('payout', () => this._paySave(sourceId, weekStart));
     },
@@ -3478,7 +3548,7 @@ function app() {
     // (or when the user wants their own). It is sent as `eur_amount`.
     async worthSave(p, value) {
       this.worthOpen = null;
-      const v = Number(String(value).replace(/[,\s]/g, ''));
+      const v = this.num(value);
       if (!(v > 0) || v === p.amount_eur) return;
       const st = 'wk-' + p.week_start;
       this._setStatus(st, 'busy');
@@ -3490,7 +3560,7 @@ function app() {
     },
     // The FX chip: what the exchange and the fees cost, in plain words.
     fxHasCost(p) { return p.fx_cost_eur !== null && p.fx_cost_eur !== undefined; },
-    _fxRateText(r) { return r >= 0.01 ? r.toFixed(4) : Number(r.toPrecision(4)).toString(); },
+    _fxRateText(r) { return r >= 0.01 ? this.fmtFixed(r, 4) : this.fmtPlain(Number(r.toPrecision(4))); },
     fxStory(p) {
       const bc = p.billed_currency;
       let billed = `Billed ${this.fmtMoney(p.billed_amount, bc)}`;
@@ -3501,7 +3571,7 @@ function app() {
       }
       const parts = [billed];
       parts.push(`You received ${this.fmtMoney(p.amount, p.currency)}` + (p.currency !== 'EUR' && p.amount_eur !== null ? ` (${this.fmtMoney(p.amount_eur)})` : ''));
-      const cost = p.fx_cost_eur, share = p.billed_eur ? ` (${(Math.abs(cost) / p.billed_eur * 100).toFixed(1)}%)` : '';
+      const cost = p.fx_cost_eur, share = p.billed_eur ? ` (${this.fmtFixed(Math.abs(cost) / p.billed_eur * 100, 1)}%)` : '';
       parts.push(cost < 0 ? `Exchange and fees left you ${this.fmtMoney(-cost)} ahead${share}` : `Exchange and fees cost you ${this.fmtMoney(cost)}${share}`);
       if (p.effective_rate) parts.push(`Your rate was ${this._fxRateText(p.effective_rate)}`);
       return parts.join(' · ');
@@ -3709,7 +3779,7 @@ function app() {
         // One decimal everywhere; the sign follows the rounded value, so a tiny
         // average reads 0.0h rather than −0.0h.
         const r = avg === null ? null : Math.round(avg * 10) / 10;
-        const text = r === null ? '—' : `${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}h`;
+        const text = r === null ? '—' : `${r > 0 ? '+' : r < 0 ? '−' : ''}${this.fmtFixed(Math.abs(r), 1)}h`;
         const times = timed ? `${hhmm(start / timed)}\n${hhmm(end / timed)}` : '';
         const barStyle = avg === null ? '' : `height:${Math.round(Math.abs(avg) / maxAbs * 50)}%`;
         return { label, avg, count, text, times, barStyle,
@@ -3768,10 +3838,10 @@ function app() {
       const rows = [];
       const add = (label, value, when, cls) => rows.push({ label, value, when, cls });
       const longest = best(work, 'net_hours'), shortest = worst(work, 'net_hours');
-      if (longest) add('Longest day', longest.net_hours + 'h', longest.date);
-      if (shortest) add('Shortest day', shortest.net_hours + 'h', shortest.date);
+      if (longest) add('Longest day', this.fmtPlain(longest.net_hours) + 'h', longest.date);
+      if (shortest) add('Shortest day', this.fmtPlain(shortest.net_hours) + 'h', shortest.date);
       const lm = best(months, 'net'), sm = best(months, 'surplus'), dm = worst(months, 'surplus');
-      if (lm) add('Longest month', lm.net + 'h', lm.key);
+      if (lm) add('Longest month', this.fmtPlain(lm.net) + 'h', lm.key);
       if (sm) add('Most surplus month', this.formatSurplus(sm.surplus), sm.key, this.surplusClass(sm.surplus));
       if (dm && dm.surplus < 0) add('Most deficit month', this.formatSurplus(dm.surplus), dm.key, 'deficit');
       add('Longest positive streak', `${bestRun} day${bestRun !== 1 ? 's' : ''}`, 'in the black', bestRun ? 'surplus' : '');
@@ -3824,7 +3894,7 @@ function app() {
     anSetMode(mode) { this.an.mode = mode; this.anRender(); },
     anRangeLabel() {
       if (!this.an.x1) return '';
-      const f = d => d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      const f = d => d.toLocaleDateString(this.dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
       const days = Math.round((this.an.x1 - this.an.x0) / this.DAY_MS);
       return `${f(new Date(this.an.x0))} – ${f(new Date(this.an.x1 - 1))} · ${days} days`;
     },
@@ -3845,7 +3915,7 @@ function app() {
       } else {
         const day0 = new Date(x0); day0.setHours(0, 0, 0, 0);
         for (let d = day0; +d <= x1; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
-          if (span <= 14 || d.getDay() === 1) out.push([+d, d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })]);
+          if (span <= 14 || d.getDay() === 1) out.push([+d, d.toLocaleDateString(this.dateLocale(), { day: 'numeric', month: 'short' })]);
         }
       }
       return out;
@@ -3906,7 +3976,7 @@ function app() {
         for (const e of vis) {
           const t = this._ms(e.date), h = e.net_hours + (e.leave_hours || 0);
           const style = this.entryCellStyle(e);
-          s += `<rect class="an-bar ${this.entryCellCls(e)}" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h))}" height="${f(Math.max(0, Y(0) - Y(h)))}"${style ? ` style="${style.replace(/"/g, "'")}"` : ''}><title>${e.date} · ${this.pillLabel(e)} · ${e.net_hours}h · ${this.formatSurplus(e.surplus_hours)}</title></rect>`;
+          s += `<rect class="an-bar ${this.entryCellCls(e)}" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h))}" height="${f(Math.max(0, Y(0) - Y(h)))}"${style ? ` style="${style.replace(/"/g, "'")}"` : ''}><title>${e.date} · ${this.pillLabel(e)} · ${this.fmtPlain(e.net_hours)}h · ${this.formatSurplus(e.surplus_hours)}</title></rect>`;
           const fl = flByDay[e.date];
           if (fl) { drawn.add(e.date); s += `<rect class="an-bar an-bar-fl" x="${f(X(t + DAY / 2) - bw / 2)}" width="${f(bw)}" y="${f(Y(h + fl))}" height="${f(Math.max(0, Y(h) - Y(h + fl)))}"><title>${e.date} · ⚡ ${this.fmtHours(fl)} freelance</title></rect>`; }
         }
@@ -3949,7 +4019,7 @@ function app() {
       if (this.an.hover !== null && this.an.mode === 'balance' && !d) {
         const t = this.an.hover; let v = series[0][1]; for (const [pt, pv] of series) { if (pt <= t) v = pv; else break; }
         s += `<line class="an-hover-x" x1="${f(X(t))}" x2="${f(X(t))}" y1="${PADT}" y2="${H - PADB}"/><circle class="an-hover-dot" cx="${f(X(t))}" cy="${f(Y(v))}" r="3.5"/>`;
-        s += `<text class="an-hover-lbl" x="${f(Math.min(X(t) + 8, W - PADR - 70))}" y="${f(Y(v) - 8)}">${this.formatSurplus(v)} · ${new Date(t).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}</text>`;
+        s += `<text class="an-hover-lbl" x="${f(Math.min(X(t) + 8, W - PADR - 70))}" y="${f(Y(v) - 8)}">${this.formatSurplus(v)} · ${new Date(t).toLocaleDateString(this.dateLocale(), { day: 'numeric', month: 'short' })}</text>`;
       }
       const svg = `<svg class="an-chart" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s}</svg>`;
       const sum = this.anSummary(), flSum = this.anFlSummary();
@@ -4090,11 +4160,11 @@ function app() {
       const date = cell.dataset.date;
       const e = this.entries.find(x => x.date === date), draft = this.draftMap()[date];
       const d = new Date(date + 'T12:00:00');
-      const title = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      const title = d.toLocaleDateString(this.dateLocale(), { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
       let body = '', note = '', hint = 'click → log it';
       if (e) {
         const pill = `<span class="day-pill ${e.day_type}">${this.pillLabel(e)}</span>`;
-        const hours = `${e.start_time || '—'}–${e.end_time || '—'} · <b>${e.net_hours}h</b> · <b class="${this.surplusClass(e.surplus_hours)}">${this.formatSurplus(e.surplus_hours)}</b>`;
+        const hours = `${e.start_time || '—'}–${e.end_time || '—'} · <b>${this.fmtPlain(e.net_hours)}h</b> · <b class="${this.surplusClass(e.surplus_hours)}">${this.formatSurplus(e.surplus_hours)}</b>`;
         body = e.day_type === 'work' ? hours : this.isPartial(e) ? `${pill} · ${hours}` : pill;
         note = e.notes || '';
         hint = 'click → open in Log';
@@ -4214,7 +4284,7 @@ function app() {
           cls = this.dayCellCls(entry, draft);
           style = this.entryCellStyle(entry);
           const sign = entry && entry.surplus_hours > 0 ? '+' : '';
-          title = entry ? `${day.iso} · ${this.pillLabel(entry)} · ${sign}${entry.surplus_hours}h`
+          title = entry ? `${day.iso} · ${this.pillLabel(entry)} · ${sign}${this.fmtPlain(entry.surplus_hours)}h`
             : draft ? `${day.iso} · ${draft.day_type} · planned` : day.iso;
         }
         const today = day.iso === this.todayIso();
@@ -4266,8 +4336,55 @@ function app() {
         cfg.daily_target_schedule = this._keyedSchedule(cfg.daily_target_schedule);
         this.settingsForm = { ...cfg };
         this._settingsSaved = JSON.parse(JSON.stringify(cfg));
+        this.loadCountryFallback();
+        this.localeHintFor(cfg);
       } catch (e) { this.error = e.message; }
       finally { this.loading.settings = false; }
+    },
+
+    // ---------- country and number format --------------------------------
+    // The countries to pick from: Nager.Date's own list when it answered (the Holidays card asked for it),
+    // else the static list the server keeps; the country in use is always on it.
+    countryChoices() {
+      const list = this.holidayCountries.length ? this.holidayCountries : this.countryFallback;
+      const c = this.settingsForm.country;
+      return !c || list.some(x => x.code === c) ? list : [...list, { code: c, name: c }];
+    },
+    countryName(code) { return this.countryChoices().find(c => c.code === code)?.name || code; },
+    // A new database, a browser whose language names another country, and nobody has answered yet: Settings
+    // offers that country's holidays and number format once. Nothing changes by itself.
+    async loadCountryFallback() {
+      if (this.countryFallback.length) return;
+      try { this.countryFallback = await this.api('GET', '/api/config/countries'); } catch { /* the picker shows what it has */ }
+    },
+    async localeHintFor(cfg) {
+      this.localeHint = null;
+      if (!cfg.new_database) return;
+      try { if (localStorage.getItem('k-locale-hint')) return; } catch { /* storage blocked: ask anyway */ }
+      let region = '';
+      try { region = new Intl.Locale(navigator.language || '').maximize().region || ''; } catch { /* no usable language */ }
+      if (!region || region === 'ES' || region === 'US') return;
+      await this.loadCountryFallback();
+      if (!this.countryFallback.some(c => c.code === region)) return;
+      this.localeHint = { country: region, format: this.formatForCountry(region) };
+    },
+    formatForCountry(code) {
+      if (['DE', 'AT', 'IT', 'NL', 'PT', 'BR', 'AR', 'CL', 'CO', 'DK', 'GR', 'TR', 'ID', 'ES'].includes(code)) return 'es-ES';
+      if (['FR', 'BE', 'NO', 'SE', 'FI', 'PL', 'CZ', 'SK', 'HU', 'RU', 'UA', 'BG'].includes(code)) return 'fr-FR';
+      if (['CH', 'LI'].includes(code)) return 'de-CH';
+      return 'en-US';
+    },
+    localeHintDone() {
+      try { localStorage.setItem('k-locale-hint', '1'); } catch { /* storage blocked */ }
+      this.localeHint = null;
+    },
+    acceptLocaleHint() {
+      const h = this.localeHint;
+      if (!h) return;
+      this.settingsForm.country = h.country;
+      this.settingsForm.number_format = h.format;
+      this.localeHintDone();
+      this.saveSettings('locale', { quiet: true });
     },
 
     // Autosaves of one thing run one after the other: two PUTs in flight could land in the
@@ -4286,13 +4403,26 @@ function app() {
       for (const s of sections) for (const k of s.fields) body[k] = this.settingsForm[k];
       if (!Object.keys(body).length) return;
       if (section) this._setStatus(section, 'busy');
+      const wasCountry = this._settingsSaved?.country;
       try {
         await this.api('PUT', '/api/config', body);
         for (const k of Object.keys(body)) this._settingsSaved[k] = JSON.parse(JSON.stringify(body[k]));
+        if ('country' in body && body.country !== wasCountry) this._countryMoved(wasCountry);
         if (section) this._setStatus(section, 'saved'); else if (!quiet) this.showToast('Settings saved', 'neutral');
         this.loadDashboard();  // the target or the start date may have moved every number
         if ('freelance_hours_per_week' in body) this._flStale = true;  // the projection moved
       } catch (e) { this.error = e.message; if (section) this._setStatus(section, 'error'); }
+    },
+    // The country changed: the holidays follow it (unless a country of their own was picked), and the tax
+    // module, so the year, the tax inputs and the calculator are asked again.
+    _countryMoved(was) {
+      const f = this.settingsForm;
+      if (!f.holiday_country || f.holiday_country === was) { f.holiday_country = f.country; f.holiday_region = ''; this.loadHolidayData(); }
+      this._flStale = true;
+      this.flSummary = null;
+      this.calc.result = null;
+      this.loadTaxYear(this.taxYear);
+      if (this.hasFreelance() && this.tab === 'freelance') this.loadFreelance();
     },
     // A field of a section changed: save it half a second after the last keystroke (a switch or
     // a picker at once), only when something is dirty and the card's fields are valid. The
@@ -4454,6 +4584,8 @@ function app() {
     // never calls the external holiday API directly. Loaded lazily when the
     // Settings tab opens; the country list is cached across visits.
     async loadHolidayData() {
+      // Spain keeps asking ("Select a country…"); anywhere else the Holidays card starts on the country.
+      if (!this.settingsForm.holiday_country && this.settingsForm.country && this.settingsForm.country !== 'ES') this.settingsForm.holiday_country = this.settingsForm.country;
       if (!this.holidayCountries.length) {
         try { this.holidayCountries = await this.api('GET', '/api/holidays/countries'); }
         catch { this.holidayCountries = []; }
@@ -4509,6 +4641,14 @@ function app() {
       return parts.join(' · ');
     },
 
+    // The help text of the Holidays card: Spain has its own source, the rest come from Nager.Date.
+    holidayNote() {
+      const local = "Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab.";
+      return this.isSpain()
+        ? `Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. ${local}`
+        : `Public holidays come from Nager.Date. ${local.replace('in neither', 'in it')}`;
+    },
+
     holidayImportLabel() {
       if (this.holidayImporting) return 'Importing…';
       if (!this.holidayPreview.length) return 'Import holidays';
@@ -4555,7 +4695,7 @@ function app() {
         .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
         .map(h => ({
           date: h.date,
-          label: new Date(h.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+          label: new Date(h.date + 'T00:00:00').toLocaleDateString(this.dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' }),
           name: h.name,
           regional: h.regional,
           exists: h.exists,
@@ -4754,9 +4894,13 @@ function app() {
       // a coin keeps up to eight decimals with the trailing zeros trimmed: "0.0105 BTC"
       if (this.isCoin(currency)) {
         const body = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 8 }).format(Math.abs(n));
-        return `${n < 0 ? '-' : ''}${body} ${currency}`;
+        return `${n < 0 ? '-' : ''}${swapMarks(body, this.numFormat())} ${currency}`;
       }
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+      // The symbol, its place and the sign are en-US's, as they always were; only the number's two
+      // separators follow the chosen format (€1,234.56 → €1.234,56).
+      const parts = new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).formatToParts(n);
+      const tag = this.numFormat();
+      return parts.map(p => (p.type === 'group' || p.type === 'decimal' ? swapMarks(p.value, tag) : p.value)).join('');
     },
     COIN_CODES: ['BTC', 'ETH', 'USDC', 'USDT', 'SOL'],
     isCoin(code) { return this.COIN_CODES.includes(code) || this.currencyList.some(c => c.code === code && c.kind === 'crypto'); },
@@ -4765,15 +4909,9 @@ function app() {
     // "€1,234": only inside charts, where a label has no room for the cents. Everywhere else money
     // reads "€1,289.71" (fmtMoney).
     fmtMoney0(n, currency = 'EUR') { return this.fmtMoney(n, currency, 0); },
-    // The Calculator speaks Spanish decimals, like its inputs do in an es browser: "€28.687,41".
-    calcMoney(n, currency = 'EUR') {
-      if (n === null || n === undefined || isNaN(n)) return '—';
-      const body = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }).format(Math.abs(n));
-      return `${n < 0 ? '-' : ''}${currency === 'USD' ? '$' : '€'}${body}`;
-    },
     // "+€170.07" / "−€12.00"
     fmtMoneySigned(n, currency = 'EUR') { return (n < 0 ? '−' : '+') + this.fmtMoney(Math.abs(n), currency); },
-    pct(x, digits = 1) { return `${(Number(x) * 100).toFixed(digits)}%`; },
+    pct(x, digits = 1) { return `${this.fmtFixed(Number(x) * 100, digits)}%`; },
 
     // ---------- blocks of a day ------------------------------------------------
     blocksOn(iso) { return this.blocks.filter(b => b.date === iso); },
@@ -4839,7 +4977,7 @@ function app() {
     flDayBlocks() { return this.blocksOn(this.form.date); },
     flDayLabel() {
       if (!this.form.date) return '';
-      return new Date(this.form.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+      return new Date(this.form.date + 'T12:00:00').toLocaleDateString(this.dateLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
     },
     flDayTotal(iso = this.form.date) {
       const list = this.blocksOn(iso);
@@ -4976,7 +5114,7 @@ function app() {
       const f = this.fxInfo;
       if (!f) return 'asking…';
       if (!f.available) return `no rate · ${(f.error || 'unavailable').replace(/\s*\(.*\)$/, '')}`;
-      return `$${f.usd_per_eur} per € · ECB ${f.date}${f.stale ? ' · stale' : ''}`;
+      return `$${this.fmtPlain(f.usd_per_eur)} per € · ECB ${f.date}${f.stale ? ' · stale' : ''}`;
     },
 
     // ---------- Settings → Sources ---------------------------------------------
@@ -5227,15 +5365,18 @@ function app() {
       return `<svg class="flm" viewBox="0 0 ${W} ${H}" aria-hidden="true">${out}</svg>`;
     },
     flQuarterLabel(q) {
-      const f = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      const f = iso => new Date(iso + 'T12:00:00').toLocaleDateString(this.dateLocale(), { day: 'numeric', month: 'short' });
       return `${f(q.from)} – ${f(q.to)}`;
     },
     flDeadlineLabel(q) {
-      return new Date(q.deadline + 'T12:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      return new Date(q.deadline + 'T12:00:00').toLocaleDateString(this.dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
     },
     flQuarterStatus(q) {
       return { paid: 'filed', due: 'due now', current: 'running', future: 'ahead' }[q.status] || q.status;
     },
+    // Spain's tax module is the one with brackets, the RETA and the quarterly 130; every other country
+    // has the Simple one (a share of every payment set aside).
+    isSpain() { return (this.settingsForm.country || 'ES') === 'ES'; },
     fl130Total() { return this.flSummary ? Math.round(this.flSummary.quarters.reduce((s, q) => s + q.payment, 0) * 100) / 100 : 0; },
     // The projection's two inputs live in the config; editing them here saves them.
     async flSaveProjection() {
@@ -5284,6 +5425,7 @@ function app() {
         mode: 'hourly', hourly, daily: '', net: '', currency, hours_per_day: perDay,
         salary_annual: t.salary_annual ?? 0, gestoria_annual: t.gestoria_annual ?? 0, other_expenses: t.other_expenses ?? 0,
         tarifa_plana: !!t.tarifa_plana, inicio_actividad: !!t.inicio_actividad,
+        set_aside_pct: Math.round((t.set_aside_share ?? 0.3) * 1000) / 10,
       });
       if (this.calc.billable_mode === 'calendar') this.calc.billable_days = this.calcCalendarDays();
       if (run) this.calcRun('hourly', true);
@@ -5319,18 +5461,18 @@ function app() {
       this.calcRun(this.calc.mode, true);
     },
     calcFxTyped() { this.calc.fx_source = 'typed by hand'; this.calcRun(this.calc.mode); },
-    // The money fields show the same grouping as the results ("28.960,03") until one gets focus, and
-    // then the number as typed. They take "28960,03", "28960.03" and "28.960,03" alike, and a dot
-    // before exactly three digits is a thousands mark: "55.000" is fifty-five thousand.
+    // The money fields show the same grouping as the results until one gets focus, and then the number
+    // as typed. What is typed is read in the chosen format (parseNum): in es-ES "28.960,03", "28960,03"
+    // and "28960.03" are the same number and "55.000" is fifty-five thousand; in en-US "55.000" is 55.
     calcShow(key) {
       if (this.calcEdit === key) return this.calcDraft;
       const v = this.calc[key];
       if (v === '' || v === null || v === undefined || isNaN(Number(v))) return '';
-      return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2, useGrouping: 'always' }).format(Number(v));
+      return this.fmtGrouped(Number(v), 0, 2);
     },
     calcFocus(key, el) {
       const v = this.calc[key];
-      this.calcDraft = (v === '' || v === null || v === undefined || isNaN(Number(v))) ? '' : String(Number(v)).replace('.', ',');
+      this.calcDraft = (v === '' || v === null || v === undefined || isNaN(Number(v))) ? '' : this.fmtPlain(Number(v));
       this.calcEdit = key;
       // swap the grouped text for the plain number right now (not on Alpine's next paint), and
       // select it, so typing replaces it as it did in a number field
@@ -5339,10 +5481,9 @@ function app() {
     calcBlur() { this.calcEdit = null; },
     calcTyped(key, text, mode) {
       this.calcDraft = text;
-      const t = text.trim().replace(/\s/g, '');
-      const n = t.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g, '').replace(',', '.') : t;
-      if (n === '') this.calc[key] = '';
-      else if (!isNaN(Number(n))) this.calc[key] = Number(n);
+      const n = this.num(text);
+      if (text.trim() === '') this.calc[key] = '';
+      else if (!isNaN(n)) this.calc[key] = n;
       this.calcRun(mode || this.calc.mode);
     },
     // One of the three fields changed: it drives the other two. Debounced; the last answer
@@ -5357,7 +5498,8 @@ function app() {
         const body = { year: this.flYear, mode, value, currency: c.currency, fx_rate: c.currency === 'USD' ? Number(c.fx_rate) : null,
           billable_days: Number(c.billable_days) || 0, hours_per_day: Number(c.hours_per_day) || 8,
           salary_annual: Number(c.salary_annual) || 0, gestoria_annual: Number(c.gestoria_annual) || 0, other_expenses: Number(c.other_expenses) || 0,
-          tarifa_plana: !!c.tarifa_plana, inicio_actividad: !!c.inicio_actividad };
+          tarifa_plana: !!c.tarifa_plana, inicio_actividad: !!c.inicio_actividad,
+          country: this.settingsForm.country || 'ES', set_aside_share: Math.min(1, Math.max(0, (Number(c.set_aside_pct) || 0) / 100)) };
         const seq = ++c._seq;
         c.busy = true;
         try {
@@ -5377,10 +5519,14 @@ function app() {
     calcWaterfall() { return this.waterfall(this.calc.result?.figures); },
     waterfall(f) {
       if (!f || f.gross <= 0) return [];
-      const parts = [
+      const parts = this.isSpain() ? [
         { id: 'expenses', label: 'expenses', value: f.expenses },
         { id: 'reta', label: 'RETA', value: f.reta_annual },
         { id: 'irpf', label: 'IRPF', value: Math.max(0, f.irpf) },
+        { id: 'net', label: 'net', value: Math.max(0, f.net) },
+      ] : [
+        { id: 'expenses', label: 'expenses', value: f.expenses },
+        { id: 'aside', label: 'set aside', value: f.set_aside ?? 0 },
         { id: 'net', label: 'net', value: Math.max(0, f.net) },
       ];
       const total = parts.reduce((s, p) => s + p.value, 0) || 1;

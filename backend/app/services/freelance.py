@@ -24,10 +24,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Account, FreelanceBlock, FreelancePayout, FreelanceTaxYear, IncomeSource
-from app.services import currencies, tax
+from app.services import currencies, tax, taxes
 from app.services.tax import Figures, TaxParams, money
 
-DEFAULT_SET_ASIDE = 0.4
 DEFAULT_HOURS_PER_DAY = 8.0
 DEFAULT_BILLABLE_DAYS = 220
 
@@ -60,7 +59,7 @@ class TaxYearInputs:
         )
 
 
-def tax_inputs_for(session: Session, year: int) -> TaxYearInputs:
+def tax_inputs_for(session: Session, year: int, country: str = taxes.SPAIN) -> TaxYearInputs:
     row = session.scalar(
         select(FreelanceTaxYear)
         .where(FreelanceTaxYear.year <= year)
@@ -73,7 +72,7 @@ def tax_inputs_for(session: Session, year: int) -> TaxYearInputs:
             salary_annual=0.0,
             tarifa_plana=False,
             inicio_actividad=False,
-            set_aside_share=DEFAULT_SET_ASIDE,
+            set_aside_share=taxes.default_share(country),
             gestoria_annual=0.0,
             other_expenses=0.0,
             inherited_from=None,
@@ -381,9 +380,10 @@ def default_source(session: Session) -> IncomeSource | None:
 # ---------- the year ---------------------------------------------------------
 
 
-def figures_out(f: Figures) -> dict:
-    """A ``Figures`` in euros and cents, for the API."""
-    return {
+def figures_out(f: Figures, simple: bool = False) -> dict:
+    """A ``Figures`` in euros and cents, for the API. The Simple module adds what it set aside;
+    Spain's answer has exactly the keys it always had."""
+    out = {
         "fiscal_year": f.fiscal_year,
         "region": f.region,
         "gross": money(f.gross),
@@ -409,6 +409,9 @@ def figures_out(f: Figures) -> dict:
         "net": money(f.net),
         "net_share": round(f.net / f.gross, 4) if f.gross > 0 else 0.0,
     }
+    if simple:
+        out["set_aside"] = money(f.set_aside)
+    return out
 
 
 def _quarter_of(d: date) -> int:
@@ -528,8 +531,10 @@ def year_summary(
     hours_per_week: float,
     days_off: float,
     latest_usd_per_eur: float | None,
+    country: str = taxes.SPAIN,
 ) -> dict:
-    """Everything the Freelance tab, the dashboard card and Analytics show for a year."""
+    """Everything the Freelance tab, the dashboard card and Analytics show for a year. The tax
+    figures and the quarterly payments come from the module of `country`."""
     jan1, dec31 = date(year, 1, 1), date(year, 12, 31)
     lines = money_lines(session, jan1, dec31)
     total = sum_lines(lines)
@@ -560,7 +565,9 @@ def year_summary(
     week = sum_lines(ln for ln in lines if monday <= ln.date <= monday + timedelta(days=6))
     month = sum_lines(ln for ln in lines if ln.date.month == today.month and today.year == year)
 
-    inputs = tax_inputs_for(session, year)
+    module = taxes.module_for(country)
+    simple = module is taxes.SIMPLE_MODULE
+    inputs = tax_inputs_for(session, year, country)
     params = inputs.params()
 
     # The projection: planned hours at the rate realised so far (the mix of sources in
@@ -582,10 +589,10 @@ def year_summary(
     projected_gross = total.gross_eur + planned_gross
     projected_hours = total.minutes / 60.0 + planned_hours
 
-    fig = tax.figures(projected_gross, params, year)
+    fig = module.figures(projected_gross, params, year, inputs.set_aside_share)
     fixed_annual = params.gestoria_annual + params.other_expenses + fig.reta_annual
 
-    return {
+    out = {
         "year": year,
         "today": today,
         "total": total.out(),
@@ -611,7 +618,7 @@ def year_summary(
         ],
         "fx_cost_eur": fx_cost,
         "accounts": accounts,
-        "quarters": quarters_out(by_quarter, fixed_annual, year, today),
+        "quarters": quarters_out(by_quarter, fixed_annual, year, today) if module.quarterly else [],
         "tax_inputs": {
             "year": inputs.year,
             "salary_annual": inputs.salary_annual,
@@ -637,9 +644,12 @@ def year_summary(
             "eur_per_hour_gross": money(projected_gross / projected_hours)
             if projected_hours > 0
             else 0.0,
-            "figures": figures_out(fig),
+            "figures": figures_out(fig, simple),
         },
     }
+    if simple:
+        out["tax_module"] = module.name
+    return out
 
 
 # ---------- the calculator --------------------------------------------------
@@ -655,13 +665,16 @@ def calculate(
     hours_per_day: float,
     params: TaxParams,
     year: int,
+    country: str = taxes.SPAIN,
+    set_aside_share: float | None = None,
 ) -> dict:
     """Hourly ⇄ daily ⇄ net yearly: the given field drives the other two.
 
     Rates are in `currency`; a rate in any currency but EUR needs `fx_rate` (units of it per EUR).
-    The net is always in euros — the taxes are. Returns every figure to the cent, plus the
-    month and the rate the
-    inverse found (None when no rate reaches the net asked for).
+    The net is always in euros — the taxes are. The taxes are `country`'s module: Spain's, or the
+    Simple one that sets `set_aside_share` of the gross aside (30 % when absent). Returns every
+    figure to the cent, plus the month and the rate the inverse found (None when no rate reaches
+    the net asked for).
     """
     fx = 1.0 if currency == "EUR" else fx_rate
     if fx is None or fx <= 0:
@@ -674,6 +687,9 @@ def calculate(
         tarifa_plana=params.tarifa_plana,
         inicio_actividad=params.inicio_actividad,
     )
+    module = taxes.module_for(country)
+    simple = module is taxes.SIMPLE_MODULE
+    share = taxes.default_share(country) if set_aside_share is None else set_aside_share
     reachable = True
     if mode == "hourly":
         hourly = value
@@ -682,7 +698,7 @@ def calculate(
         daily = value
         hourly = tax.daily_to_hourly(daily, p)
     elif mode == "net":
-        daily_eur = tax.rate_from_net(value, billable_days, p, year)
+        daily_eur = module.rate_from_net(value, billable_days, p, year, share)
         if daily_eur is None:
             reachable = False
             daily_eur = 0.0
@@ -691,9 +707,9 @@ def calculate(
     else:
         raise ValueError("mode must be hourly, daily or net")
     gross_eur = tax.gross(daily / fx, billable_days)
-    fig = tax.figures(gross_eur, p, year)
+    fig = module.figures(gross_eur, p, year, share)
     m_gross, m_net = tax.month_figures(daily / fx, billable_days / 12, fig)
-    return {
+    out = {
         "mode": mode,
         "currency": currency,
         "fx_rate": None if currency == "EUR" else fx,
@@ -710,5 +726,8 @@ def calculate(
         if billable_days * hours_per_day > 0
         else 0.0,
         "month": {"gross_eur": money(m_gross), "net_eur": money(m_net)},
-        "figures": figures_out(fig),
+        "figures": figures_out(fig, simple),
     }
+    if simple:
+        out.update({"tax_module": module.name, "set_aside_share": share})
+    return out

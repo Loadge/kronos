@@ -328,6 +328,10 @@ class ConfigOut(BaseModel):
     default_end_time: str = "17:00"
     holiday_country: str = ""  # ISO 3166-1 alpha-2; "" = none chosen
     holiday_region: str = ""  # ISO 3166-2 subdivision, e.g. "ES-MD"; "" = national only
+    country: str = "ES"  # ISO 3166-1 alpha-2: picks the tax module and the holidays' default
+    number_format: str = "en-US"  # BCP 47 tag: en-US 1,234.56 · es-ES 1.234,56 · fr-FR · de-CH
+    # read-only: nothing logged and no country chosen yet (Settings may suggest one)
+    new_database: bool = False
     # Profile printed on the timesheet; all optional.
     profile_name: str = ""
     profile_employer: str = ""
@@ -347,6 +351,8 @@ class ConfigIn(BaseModel):
     default_end_time: HHMM | None = None
     holiday_country: str | None = None
     holiday_region: str | None = None
+    country: str | None = None
+    number_format: str | None = None
     profile_name: str | None = Field(default=None, max_length=120)
     profile_employer: str | None = Field(default=None, max_length=120)
     profile_extra: str | None = Field(default=None, max_length=160)
@@ -869,6 +875,9 @@ class FreelanceCalcIn(BaseModel):
     other_expenses: float = Field(default=0, ge=0)
     tarifa_plana: bool = False
     inicio_actividad: bool = False
+    # The tax module: Spain's for "ES", the Simple one (a share set aside) for any other country.
+    country: str = "ES"
+    set_aside_share: float | None = Field(default=None, ge=0, le=1)
 
     @model_validator(mode="after")
     def _foreign_needs_a_rate(self):

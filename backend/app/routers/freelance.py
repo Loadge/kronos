@@ -40,6 +40,7 @@ from app.schemas import (
 from app.services import currencies, freelance, fx, tax
 from app.services.clock import local_today
 from app.services.settings import (
+    get_country,
     get_freelance_days_off,
     get_freelance_hours_per_week,
 )
@@ -703,7 +704,7 @@ def delete_payout(payout_id: int, session: Session = Depends(get_session)) -> Re
 
 
 def _tax_year_out(session: Session, year: int) -> FreelanceTaxYearOut:
-    t = freelance.tax_inputs_for(session, year)
+    t = freelance.tax_inputs_for(session, year, get_country(session))
     r = tax.rules_for(year)
     return FreelanceTaxYearOut(
         year=year,
@@ -806,6 +807,7 @@ def summary(
         hours_per_week=get_freelance_hours_per_week(session),
         days_off=get_freelance_days_off(session),
         latest_usd_per_eur=latest,
+        country=get_country(session),
     )
 
 
@@ -832,6 +834,8 @@ def calc(body: FreelanceCalcIn) -> dict:
         hours_per_day=body.hours_per_day,
         params=params,
         year=body.year,
+        country=body.country,
+        set_aside_share=body.set_aside_share,
     )
 
 

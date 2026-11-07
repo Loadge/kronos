@@ -197,8 +197,8 @@
       <template x-if="anSummary()">
         <div class="an-ledger-rows">
           <div class="an-lrow an-lrow--big"><span>Balance</span><b class="metric" :class="surplusClass(anSummary().surplus)" x-text="formatSurplus(anSummary().surplus)"></b></div>
-          <div class="an-lrow"><span>Net worked</span><b class="metric" x-text="anSummary().net + 'h'"></b></div>
-          <div class="an-lrow"><span>Target</span><b class="metric" x-text="anSummary().target + 'h'"></b></div>
+          <div class="an-lrow"><span>Net worked</span><b class="metric" x-text="fmtPlain(anSummary().net) + 'h'"></b></div>
+          <div class="an-lrow"><span>Target</span><b class="metric" x-text="fmtPlain(anSummary().target) + 'h'"></b></div>
           <div class="an-lrow"><span>Per work day</span><b class="metric" :class="surplusClass(anSummary().perDay)" x-text="anSummary().workDays ? formatSurplus(anSummary().perDay) : '—'"></b></div>
           <div class="an-lrow"><span>Work days</span><b class="metric" x-text="fmtDays(anSummary().workDays)"></b></div>
           <div class="an-lrow"><span>Off</span><b class="metric" x-text="fmtDays(anSummary().offDays)"></b></div>
@@ -248,14 +248,14 @@
         <template x-for="row in yearlyWithCarryover()" :key="row.year">
           <tr>
             <td class="metric" x-text="row.label"></td>
-            <td class="num metric" x-text="row.net_hours + 'h'"></td>
-            <td class="num metric" x-text="row.target_hours + 'h'"></td>
+            <td class="num metric" x-text="fmtPlain(row.net_hours) + 'h'"></td>
+            <td class="num metric" x-text="fmtPlain(row.target_hours) + 'h'"></td>
             <td class="num metric" :class="surplusClass(row.surplus_hours)"
                 x-text="formatSurplus(row.surplus_hours)"></td>
             <td class="num metric" :class="surplusClass(row.carry_in)"
                 x-text="row.carry_in !== 0 ? formatSurplus(row.carry_in) : '—'"></td>
-            <td class="num metric" x-text="row.work_days"></td>
-            <td class="num metric" x-text="row.non_work_days"></td>
+            <td class="num metric" x-text="fmtPlain(row.work_days)"></td>
+            <td class="num metric" x-text="fmtPlain(row.non_work_days)"></td>
           </tr>
         </template>
       </tbody>

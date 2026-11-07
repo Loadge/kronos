@@ -242,7 +242,10 @@ class TestDashboardCard:
 
 
 class TestFreelanceTab:
-    def test_year_quarters_projection_and_the_calculator_anchor(self, page, base_url):
+    def test_year_quarters_projection_and_the_calculator_anchor(self, page, base_url, request):
+        request.addfinalizer(
+            lambda: httpx.put(f"{base_url}/api/config", json={"number_format": "en-US"})
+        )
         src = _source(base_url, "Northwind", 100, "USD")
         with httpx.Client(base_url=base_url) as c:
             c.put(
@@ -280,7 +283,10 @@ class TestFreelanceTab:
 
         # the calculator: the side-job anchor — $100/h, 2 h a day, 220 days, 55,000 salary,
         # 600 gestoría at 1.1172 -> 19,938.23 net (tests/unit/test_tax.py, by hand). The calculator
-        # writes Spanish decimals (€19.938,23), the rest of the app €19,938.23.
+        # follows the number format like the rest of the app: in es-ES it writes €19.938,23.
+        httpx.put(f"{base_url}/api/config", json={"number_format": "es-ES"}).raise_for_status()
+        page.reload()
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
         calc = page.locator("[data-testid='fl-calc']")
         calc.locator(".seg-toggle[aria-label='Currency'] button", has_text="USD").click()
         calc.locator("input[aria-label='Exchange rate']").fill("1.1172")
@@ -681,6 +687,7 @@ class TestHeadsAndShortcuts:
         assert page.locator(".days-count").count() == 0
         assert "entries" not in page.locator(".page-head").inner_text()
 
+    @pytest.mark.usefixtures("es_numbers")
     def test_calculator_and_options_lead_to_each_other(self, page, base_url):
         _source(base_url)
         page.goto(f"{base_url}/#freelance")

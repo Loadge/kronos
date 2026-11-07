@@ -729,6 +729,7 @@ def test_linked_figures_have_presence_and_the_arrow_turns_once(make_page):
     )
 
 
+@pytest.mark.usefixtures("es_numbers_demo")
 def test_calculator_inputs_show_the_grouping_of_its_results_until_focused(make_page):
     page = make_page(DESKTOP, "freelance")
     calc = page.locator("[data-testid=fl-calc]")
@@ -948,6 +949,7 @@ def test_profile_inputs_and_work_week_on_a_phone(make_page):
         ("95", 95),
     ],
 )
+@pytest.mark.usefixtures("es_numbers")
 def test_the_calculator_reads_what_a_spanish_hand_types(page, base_url, typed, value):
     page.goto(base_url)
     page.wait_for_selector("main .page-head", timeout=5000)

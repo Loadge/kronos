@@ -12,16 +12,19 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
 from sqlalchemy import false, select
 from sqlalchemy.orm import Session
 
 from app.config import TEMPLATES_DIR
 from app.database import get_session
 from app.models import FreelanceBlock, FreelancePayout, IncomeSource, WorkEntry
+from app.services import numbers
 from app.services.clock import local_today
 from app.services.freelance import money_lines
 from app.services.settings import (
     get_daily_target_schedule,
+    get_number_format,
     get_profile,
     get_work_week_days,
 )
@@ -36,6 +39,17 @@ router = APIRouter(tags=["timesheet"])
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.filters["fmtdays"] = fmt_days
 templates.env.filters["money"] = fmt_money
+
+
+@pass_context
+def _fmtdec(_ctx, x: float) -> str:
+    """A number with two decimals in the sheet's format. It takes the context only so that Jinja
+    does not fold `{{ 7.5|fmtdec }}` into a constant when it compiles the template, once, for
+    the first format."""
+    return numbers.format_number(x, 2, grouping=False)
+
+
+templates.env.filters["fmtdec"] = _fmtdec
 
 MAX_DAYS = 3 * 366  # a custom range longer than three years is a mistake, not a report
 _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -64,6 +78,7 @@ def timesheet(
             status.HTTP_422_UNPROCESSABLE_CONTENT, f"range too long (max {MAX_DAYS} days)"
         )
 
+    numbers.activate(get_number_format(session))
     schedule = get_daily_target_schedule(session)
     work_week = get_work_week_days(session)
     entries = session.scalars(
@@ -83,7 +98,7 @@ def timesheet(
     targets = sorted(
         {schedule.for_date(start + timedelta(days=i)) for i in range((end - start).days + 1)}
     )
-    target_label = " / ".join(f"{t:g}h" for t in targets)
+    target_label = " / ".join(numbers.localize(f"{t:g}h") for t in targets)
     work_week_label = ", ".join(_DOW[d] for d in sorted(work_week))
     if sorted(work_week) == [0, 1, 2, 3, 4]:
         work_week_label = "Mon–Fri"
@@ -139,6 +154,7 @@ def freelance_timesheet(
     ticked in the toolbar. Same page conventions as /timesheet: a GET form, the browser's
     print as the PDF, nothing on the employee's sheet touched."""
     today = today or local_today()
+    numbers.activate(get_number_format(session))
     start, end = _period(from_, to, today)
     all_sources = list(session.scalars(select(IncomeSource).order_by(IncomeSource.id)))
     if sources is None:

@@ -34,9 +34,9 @@
             <span class="odo" x-effect="odoSet($el, heroHours(dashboard.cumulative.surplus_hours))"></span>
           </div>
           <div class="hero-cap">
-            <b x-text="dashboard.cumulative.net_hours + 'h'"></b> worked /
-            <b x-text="dashboard.cumulative.target_hours + 'h'"></b> target
-            · <span x-text="dashboard.daily_target_hours + 'h a day'"></span>
+            <b x-text="fmtPlain(dashboard.cumulative.net_hours) + 'h'"></b> worked /
+            <b x-text="fmtPlain(dashboard.cumulative.target_hours) + 'h'"></b> target
+            · <span x-text="fmtPlain(dashboard.daily_target_hours) + 'h a day'"></span>
           </div>
         </div>
         <!-- The trajectory is built as markup in app.js (buildTrajectory): Alpine's x-for needs
@@ -49,7 +49,7 @@
       <div class="chips">
         <div class="chip" :title="daysTitle(dashboard.week)">
           <span class="chip-label">this week</span>
-          <span class="chip-sub" x-text="dashboard.week.net_hours + 'h / ' + dashboard.week.target_hours + 'h'"></span>
+          <span class="chip-sub" x-text="fmtPlain(dashboard.week.net_hours) + 'h / ' + fmtPlain(dashboard.week.target_hours) + 'h'"></span>
           <span class="chip-value metric" :class="surplusClass(dashboard.week.surplus_hours)">
             <span x-text="dashboard.week.surplus_hours > 0.01 ? '+' : dashboard.week.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animWeek)"></span>h
           </span>
@@ -57,7 +57,7 @@
         </div>
         <button type="button" class="chip chip--link" @click="go('analytics')" :title="daysTitle(dashboard.month) + ' — open Analytics'">
           <span class="chip-label">this month</span>
-          <span class="chip-sub" x-text="dashboard.month.net_hours + 'h / ' + dashboard.month.target_hours + 'h'"></span>
+          <span class="chip-sub" x-text="fmtPlain(dashboard.month.net_hours) + 'h / ' + fmtPlain(dashboard.month.target_hours) + 'h'"></span>
           <span class="chip-value metric" :class="surplusClass(dashboard.month.surplus_hours)">
             <span x-text="dashboard.month.surplus_hours > 0.01 ? '+' : dashboard.month.surplus_hours < -0.01 ? '−' : '±'"></span><span x-text="animText(animMonth)"></span>h
           </span>
@@ -144,7 +144,7 @@
           <h3><span aria-hidden="true">👔</span> This week · <span x-text="weekLabel()"></span></h3>
           <span class="wk-total metric" :class="surplusClass(weekSummary().surplus)">
             <span x-text="formatSurplus(weekSummary().surplus)"></span>
-            <span class="muted" x-text="'· ' + weekSummary().net + 'h of ' + weekSummary().target + 'h'"></span>
+            <span class="muted" x-text="'· ' + fmtPlain(weekSummary().net) + 'h of ' + fmtPlain(weekSummary().target) + 'h'"></span>
           </span>
         </div>
         <div class="wk-grid">
@@ -169,13 +169,13 @@
               </span>
               <span class="wd-foot">
                 <template x-if="d.entry && d.entry.day_type === 'work'">
-                  <span class="wd-nums"><span class="wd-net" x-text="d.entry.net_hours + 'h'"></span><span class="wd-delta" :class="surplusClass(d.entry.surplus_hours)" x-text="formatSurplus(d.entry.surplus_hours).replace('h', '')"></span></span>
+                  <span class="wd-nums"><span class="wd-net" x-text="fmtPlain(d.entry.net_hours) + 'h'"></span><span class="wd-delta" :class="surplusClass(d.entry.surplus_hours)" x-text="formatSurplus(d.entry.surplus_hours).replace('h', '')"></span></span>
                 </template>
                 <template x-if="d.entry && d.entry.day_type !== 'work'">
                   <span class="wd-nums">
                     <span class="day-pill" :class="d.entry.day_type" x-text="pillLabel(d.entry)"></span>
                     <template x-if="isPartial(d.entry)">
-                      <span class="wd-delta" :class="surplusClass(d.entry.surplus_hours)" x-text="d.entry.net_hours + 'h ' + formatSurplus(d.entry.surplus_hours).replace('h', '')"></span>
+                      <span class="wd-delta" :class="surplusClass(d.entry.surplus_hours)" x-text="fmtPlain(d.entry.net_hours) + 'h ' + formatSurplus(d.entry.surplus_hours).replace('h', '')"></span>
                     </template>
                   </span>
                 </template>
@@ -209,7 +209,7 @@
       <template x-if="vacationStatus()">
         <div class="vac">
           <span class="vac-label">🏖 Vacation</span>
-          <span class="vac-notches" :title="vacationStatus().used + ' of ' + vacationStatus().budget + ' days used'">
+          <span class="vac-notches" :title="fmtPlain(vacationStatus().used) + ' of ' + fmtPlain(vacationStatus().budget) + ' days used'">
             <template x-for="n in vacationNotches()" :key="n.i">
               <i :class="'vac-' + n.kind" :style="n.style"></i>
             </template>

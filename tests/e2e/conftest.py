@@ -97,7 +97,11 @@ def cleanup_snapshot_failures(pytestconfig):
 # "New: press the logo to spin through your year" shows once per browser, 1.2 s after a first load.
 # Every context of the suite has seen it already, so no test, picture or aria snapshot meets it
 # unless it asks: the callout tests remove the key themselves (tests/e2e/test_v51_notes.py).
-DIAL_HINT_SEEN = "try { localStorage.setItem('k-dial-hint', '1'); } catch (e) {}"
+DIAL_HINT_SEEN = (
+    "try { localStorage.setItem('k-dial-hint', '1'); "
+    "if (!localStorage.getItem('k-locale-hint-test')) localStorage.setItem('k-locale-hint', '1'); "
+    "} catch (e) {}"
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -215,6 +219,30 @@ def demo_url():
         finally:
             proc.terminate()
             proc.wait(timeout=10)
+
+
+# ── the number format of a server, for the length of a test ───────────────────────────────────
+
+
+def _number_format(url: str, tag: str):
+    httpx.put(f"{url}/api/config", json={"number_format": tag}).raise_for_status()
+    try:
+        yield
+    finally:
+        httpx.put(f"{url}/api/config", json={"number_format": "en-US"}).raise_for_status()
+
+
+@pytest.fixture
+def es_numbers(base_url):
+    """The shared server writes numbers the Spanish way (1.234,56) until the test ends. The
+    Calculator's Spanish decimals are tested under it."""
+    yield from _number_format(base_url, "es-ES")
+
+
+@pytest.fixture
+def es_numbers_demo(demo_url):
+    """The same for the demo server."""
+    yield from _number_format(demo_url, "es-ES")
 
 
 # ── Playwright page fixtures ───────────────────────────────────────────────────
