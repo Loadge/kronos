@@ -186,7 +186,8 @@ def test_pressing_the_logo_closes_it_and_opens_the_dial(page, base_url):
 def test_opening_the_dial_first_means_it_never_shows(page, base_url):
     _fresh(page, base_url)
     page.keyboard.press("y")  # before the callout's 1.2 s are up
-    page.wait_for_selector("#yd", timeout=5000)
+    # the dial takes Escape once it has read its day; before that a slow runner keeps it open
+    page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=8000)
     assert page.evaluate(KEY) == "1"  # written by opening, not by the callout
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
