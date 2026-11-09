@@ -365,6 +365,24 @@ def billed_for(p: FreelancePayout, blocks: list[FreelanceBlock]) -> Billed:
     )
 
 
+def sent_gap(p: FreelancePayout, billed: Billed) -> float | None:
+    """What was sent minus what was billed, in the billed currency, for a payout that records
+    what was sent; the sent amount is converted at the rate of the payout's day when its currency
+    differs. None for a payout "as billed", or when the day has no rate (no gap, not a guess)."""
+    if p.sent_amount is None or not p.sent_currency:
+        return None
+    if p.sent_currency == billed.currency:
+        sent = p.sent_amount
+    else:
+        day = p.rate_date or (p.week_start + timedelta(days=6))
+        rate = currencies.cross_rate(p.sent_currency, billed.currency, day)
+        if rate is None:
+            return None
+        sent = p.sent_amount * rate
+    sent = currencies.quantize(sent, billed.currency)
+    return currencies.quantize(sent - billed.amount, billed.currency)
+
+
 def default_source(session: Session) -> IncomeSource | None:
     """The default source, else the first live one, else None."""
     live = list(

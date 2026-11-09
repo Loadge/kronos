@@ -237,7 +237,7 @@ def test_the_marks_follow_the_saved_hours_and_not_a_half_typed_field(page, base_
     assert _marks(page)["marks"]["start"]["label"] == "09:00"
 
 
-# ── 3. the FX chip ───────────────────────────────────────────────────────────────
+# ── 3. the DIFF chip ───────────────────────────────────────────────────────────────
 
 
 def _fx_page(page, money_url, amount):
@@ -258,18 +258,18 @@ def _fx_page(page, money_url, amount):
 
 def test_the_fx_chip_says_what_the_exchange_cost(page, money_url):
     chip = _fx_page(page, money_url, 877.94)  # billed $1,059.25 = EUR 948.13: 70.19 lost
-    assert chip.inner_text().strip() == "FX -7.4%"
+    assert chip.inner_text().strip() == "DIFF -7.4%"
     chip.hover()
-    expect(page.locator("#fx-tip")).to_have_text("Exchange and fees cost you €70.19")
+    expect(page.locator("#fx-tip")).to_have_text("€70.19 less than billed")
     box = chip.bounding_box()
     assert box["height"] <= 34 and box["width"] < 120, box  # one line
 
 
 def test_the_fx_chip_says_what_it_gave(page, money_url):
     chip = _fx_page(page, money_url, 1000)  # EUR 1,000 against 948.13: 51.87 ahead
-    assert chip.inner_text().strip() == "FX +5.5%"
+    assert chip.inner_text().strip() == "DIFF +5.5%"
     chip.hover()
-    expect(page.locator("#fx-tip")).to_have_text("Exchange and fees left you €51.87 ahead")
+    expect(page.locator("#fx-tip")).to_have_text("€51.87 more than billed")
 
 
 def test_the_fx_chip_stays_one_line_at_375(browser, money_url):
@@ -284,7 +284,7 @@ def test_the_fx_chip_stays_one_line_at_375(browser, money_url):
         assert box["height"] <= 34, box
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         chip.tap()  # a tap pins the tip
-        expect(page.locator("#fx-tip")).to_have_text("Exchange and fees cost you €70.19")
+        expect(page.locator("#fx-tip")).to_have_text("€70.19 less than billed")
     finally:
         ctx.close()
 

@@ -282,6 +282,7 @@ class TestBackupRoundTripIsIdentity:
             "is_default",
             "archived",
             "default_account_id",
+            "default_from_account_id",
         }
         assert set(backup["freelance_blocks"][0]) == {
             "date",
@@ -304,6 +305,9 @@ class TestBackupRoundTripIsIdentity:
             "account_id",
             "rate_source",
             "rate_date",
+            "sent_amount",
+            "sent_currency",
+            "from_account_id",
         }
         assert set(backup["freelance_tax_years"][0]) == {
             "year",
@@ -381,6 +385,7 @@ class TestAccountsSurviveTheRoundTrip:
             "name",
             "currency",
             "kind",
+            "role",
             "is_default",
             "archived",
             "created_at",

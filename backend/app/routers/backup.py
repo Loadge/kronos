@@ -28,7 +28,8 @@ The backup format is intentionally simple (version 4):
 Accounts (where a payout landed, each with a currency, with their ids), the source's default
 account and, on a payout, its account, where its rate came from and the day it is of ride in the
 same version 4 as optional keys: a file without them restores no accounts and leaves the current
-ones alone.
+ones alone. So do an account's role, a source's "Paid from" and, on a payout, what was sent (amount,
+currency, account): a file without them restores as before, every payout "as billed".
 Version 4 adds the freelance payouts: what a source paid for an ISO week, in the source's
 currency, with the exchange rate it was saved with; they reference the sources' ids like the
 blocks do, and a file of an older version restores none (they are data, so they are wiped).
@@ -153,6 +154,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "name": a.name,
             "currency": a.currency,
             "kind": a.kind,
+            "role": a.role,
             "is_default": bool(a.is_default),
             "archived": bool(a.archived),
             "created_at": a.created_at.isoformat(),
@@ -168,6 +170,7 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "is_default": bool(s.is_default),
             "archived": bool(s.archived),
             "default_account_id": s.default_account_id,
+            "default_from_account_id": s.default_from_account_id,
         }
         for s in session.scalars(select(IncomeSource).order_by(IncomeSource.id))
     ]
@@ -198,6 +201,9 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "account_id": p.account_id,
             "rate_source": p.rate_source,
             "rate_date": None if p.rate_date is None else p.rate_date.isoformat(),
+            "sent_amount": p.sent_amount,
+            "sent_currency": p.sent_currency,
+            "from_account_id": p.from_account_id,
         }
         for p in session.scalars(
             select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
@@ -294,6 +300,14 @@ def restore_backup(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"source {s.name!r} references unknown account {s.default_account_id}",
             )
+        if (
+            s.default_from_account_id is not None
+            and s.default_from_account_id not in known_accounts
+        ):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"source {s.name!r} references unknown account {s.default_from_account_id}",
+            )
     for b in payload.freelance_blocks:
         if b.source_id not in known_sources:
             raise HTTPException(
@@ -313,6 +327,12 @@ def restore_backup(
                 f"freelance payout for week {p.week_start.isoformat()} "
                 f"references unknown account {p.account_id}",
             )
+        if p.from_account_id is not None and p.from_account_id not in known_accounts:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"freelance payout for week {p.week_start.isoformat()} "
+                f"references unknown account {p.from_account_id}",
+            )
     for a in payload.accounts:
         session.add(
             Account(
@@ -320,6 +340,7 @@ def restore_backup(
                 name=a.name,
                 currency=a.currency,
                 kind=a.kind,
+                role=a.role,
                 is_default=a.is_default,
                 archived=a.archived,
                 **({} if a.created_at is None else {"created_at": a.created_at}),
@@ -336,6 +357,7 @@ def restore_backup(
                 is_default=s.is_default,
                 archived=s.archived,
                 default_account_id=s.default_account_id,
+                default_from_account_id=s.default_from_account_id,
             )
         )
     session.flush()
@@ -365,6 +387,9 @@ def restore_backup(
                 account_id=p.account_id,
                 rate_source=p.rate_source,
                 rate_date=p.rate_date,
+                sent_amount=p.sent_amount,
+                sent_currency=p.sent_currency,
+                from_account_id=p.from_account_id,
             )
         )
     for t in payload.freelance_tax_years:

@@ -167,11 +167,20 @@ class Account(Base):
     archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )
+    # Which side of a payout it may be: "origin" sends, "destination" receives, "both" either.
+    role: Mapped[str] = mapped_column(
+        String(12), nullable=False, default="both", server_default="both"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
 
-    payouts: Mapped[list[FreelancePayout]] = relationship(back_populates="account")
+    payouts: Mapped[list[FreelancePayout]] = relationship(
+        back_populates="account", foreign_keys="FreelancePayout.account_id"
+    )
+    sent_payouts: Mapped[list[FreelancePayout]] = relationship(
+        back_populates="from_account", foreign_keys="FreelancePayout.from_account_id"
+    )
 
 
 class IncomeSource(Base):
@@ -198,6 +207,10 @@ class IncomeSource(Base):
     # The account the Payout form preselects for this source (None: none).
     default_account_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    # The account it is usually paid from ("Paid from", beside "Paid into"; None: as billed).
+    default_from_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True
     )
 
     blocks: Mapped[list[FreelanceBlock]] = relationship(back_populates="source")
@@ -282,9 +295,21 @@ class FreelancePayout(Base):
     )
     rate_source: Mapped[str | None] = mapped_column(String(12), nullable=True)
     rate_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    # What was SENT (``amount``/``currency``/``account_id`` are what ARRIVED). ``sent_amount``
+    # None means "as billed": a payout from before this was recorded, read as it always was.
+    sent_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sent_currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    from_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
 
     source: Mapped[IncomeSource] = relationship(back_populates="payouts", lazy="joined")
-    account: Mapped[Account | None] = relationship(back_populates="payouts", lazy="joined")
+    account: Mapped[Account | None] = relationship(
+        back_populates="payouts", lazy="joined", foreign_keys=[account_id]
+    )
+    from_account: Mapped[Account | None] = relationship(
+        back_populates="sent_payouts", lazy="joined", foreign_keys=[from_account_id]
+    )
 
     @property
     def amount_eur(self) -> float | None:

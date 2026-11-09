@@ -68,6 +68,7 @@ def _source_out(s: IncomeSource, blocks: int) -> IncomeSourceOut:
         is_default=bool(s.is_default),
         archived=bool(s.archived),
         default_account_id=s.default_account_id,
+        default_from_account_id=s.default_from_account_id,
         blocks=blocks,
     )
 
@@ -76,6 +77,27 @@ def _account_or_422(session: Session, account_id: int) -> Account:
     account = session.get(Account, account_id)
     if account is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "unknown account")
+    return account
+
+
+def _into_or_422(session: Session, account_id: int, keep: int | None = None) -> Account:
+    """An account a payout may land in: its role is not "origin" (unless `keep`, the account the
+    payout already uses: an old row stays editable)."""
+    account = _account_or_422(session, account_id)
+    if account.role == "origin" and account.id != keep:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "that account only sends: it cannot receive"
+        )
+    return account
+
+
+def _from_or_422(session: Session, account_id: int, keep: int | None = None) -> Account:
+    """An account a payout may be sent from: its role is not "destination" (unless `keep`)."""
+    account = _account_or_422(session, account_id)
+    if account.role == "destination" and account.id != keep:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "that account only receives: it cannot send"
+        )
     return account
 
 
@@ -98,7 +120,9 @@ def list_sources(session: Session = Depends(get_session)) -> list[IncomeSourceOu
 @router.post("/sources", response_model=IncomeSourceOut, status_code=status.HTTP_201_CREATED)
 def create_source(body: IncomeSourceIn, session: Session = Depends(get_session)) -> IncomeSourceOut:
     if body.default_account_id is not None:
-        _account_or_422(session, body.default_account_id)
+        _into_or_422(session, body.default_account_id)
+    if body.default_from_account_id is not None:
+        _from_or_422(session, body.default_from_account_id)
     # The first source is the default whatever the body says: a single source must be pickable.
     first = session.scalar(select(func.count()).select_from(IncomeSource)) == 0
     src = IncomeSource(
@@ -108,6 +132,7 @@ def create_source(body: IncomeSourceIn, session: Session = Depends(get_session))
         is_default=body.is_default or first,
         archived=body.archived,
         default_account_id=body.default_account_id,
+        default_from_account_id=body.default_from_account_id,
     )
     if src.is_default:
         _clear_default(session, None)
@@ -132,8 +157,12 @@ def update_source(
         src.currency = body.currency
     if "default_account_id" in body.model_fields_set:
         if body.default_account_id is not None:
-            _account_or_422(session, body.default_account_id)
+            _into_or_422(session, body.default_account_id, keep=src.default_account_id)
         src.default_account_id = body.default_account_id
+    if "default_from_account_id" in body.model_fields_set:
+        if body.default_from_account_id is not None:
+            _from_or_422(session, body.default_from_account_id, keep=src.default_from_account_id)
+        src.default_from_account_id = body.default_from_account_id
     if body.archived is not None:
         src.archived = body.archived
         if body.archived:
@@ -171,12 +200,29 @@ def delete_source(source_id: int, session: Session = Depends(get_session)) -> Re
 
 
 def _payout_counts(session: Session) -> dict[int, int]:
-    rows = session.execute(
-        select(FreelancePayout.account_id, func.count())
-        .where(FreelancePayout.account_id.is_not(None))
-        .group_by(FreelancePayout.account_id)
+    """How many payouts use each account, on either side (one that uses it twice counts once)."""
+    counts: dict[int, int] = defaultdict(int)
+    for into, sent_from in session.execute(
+        select(FreelancePayout.account_id, FreelancePayout.from_account_id)
+    ):
+        for account_id in {into, sent_from} - {None}:
+            counts[account_id] += 1
+    return counts
+
+
+def _is_a_default(session: Session, account_id: int) -> bool:
+    """Whether a source names the account as its "Paid into" or its "Paid from"."""
+    return (
+        session.scalar(
+            select(func.count())
+            .select_from(IncomeSource)
+            .where(
+                (IncomeSource.default_account_id == account_id)
+                | (IncomeSource.default_from_account_id == account_id)
+            )
+        )
+        > 0
     )
-    return {aid: n for aid, n in rows}
 
 
 def _account_out(a: Account, payouts: int) -> AccountOut:
@@ -185,6 +231,7 @@ def _account_out(a: Account, payouts: int) -> AccountOut:
         name=a.name,
         currency=a.currency,
         kind=a.kind,
+        role=a.role,
         is_default=bool(a.is_default),
         archived=bool(a.archived),
         created_at=a.created_at,
@@ -220,6 +267,7 @@ def create_account(body: AccountIn, session: Session = Depends(get_session)) -> 
         name=body.name,
         currency=body.currency,
         kind=body.kind,
+        role=body.role,
         is_default=body.is_default and not body.archived,
         archived=body.archived,
     )
@@ -239,10 +287,14 @@ def update_account(
     if not account:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
     used = _payout_counts(session).get(account.id, 0)
-    if body.currency is not None and body.currency != account.currency and used:
+    if (
+        body.currency is not None
+        and body.currency != account.currency
+        and (used or _is_a_default(session, account.id))
+    ):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "payouts went into this account in its currency; open another account instead",
+            "this account is in use, in its currency; open another account instead",
         )
     if body.name is not None:
         _refuse_duplicate_account(session, body.name, own_id=account.id)
@@ -251,6 +303,8 @@ def update_account(
         account.currency = body.currency
     if body.kind is not None:
         account.kind = body.kind
+    if body.role is not None:
+        account.role = body.role
     if body.archived is not None:
         account.archived = body.archived
         if body.archived:
@@ -267,19 +321,16 @@ def update_account(
 
 @router.delete("/accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_account(account_id: int, session: Session = Depends(get_session)) -> Response:
-    """Delete an account no payout went into. One with payouts is a 409: archive it."""
+    """Delete an account nothing uses. One a payout used, on either side, or that a source names
+    as its "Paid into" or "Paid from" is a 409: archive it."""
     account = session.get(Account, account_id)
     if not account:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "account not found")
-    if _payout_counts(session).get(account.id, 0):
+    if _payout_counts(session).get(account.id, 0) or _is_a_default(session, account.id):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "payouts went into this account; archive it instead of deleting it",
+            "this account is in use by payouts or a source; archive it instead of deleting it",
         )
-    for src in session.scalars(
-        select(IncomeSource).where(IncomeSource.default_account_id == account.id)
-    ):
-        src.default_account_id = None
     session.delete(account)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -476,6 +527,11 @@ def _payout_out(p: FreelancePayout, blocks: list[FreelanceBlock]) -> FreelancePa
         billed_eur=billed.eur,
         fx_cost_eur=billed.fx_cost_eur,
         effective_rate=billed.effective_rate,
+        sent_amount=p.sent_amount,
+        sent_currency=p.sent_currency,
+        from_account_id=p.from_account_id,
+        from_account_name=None if p.from_account is None else p.from_account.name,
+        sent_gap=freelance.sent_gap(p, billed),
     )
 
 
@@ -530,7 +586,11 @@ def _settle_payout(
     """
     new = payout.id is None
     old_account, old_currency = payout.account_id, payout.currency
-    account = None if body.account_id is None else _account_or_422(session, body.account_id)
+    account = (
+        None
+        if body.account_id is None
+        else _into_or_422(session, body.account_id, keep=old_account)
+    )
     if account is not None:
         currency = account.currency
     elif not new and old_account is None and payout.source_id == src.id:
@@ -572,6 +632,57 @@ def _settle_payout(
             payout.fx_rate, payout.rate_source, payout.rate_date = None, None, paid_on
 
 
+def _settle_sent(
+    session: Session, payout: FreelancePayout, src: IncomeSource, body: FreelancePayoutIn
+) -> None:
+    """Fill what was SENT from the body (the arrived side is `_settle_payout`'s).
+
+    Nothing sent given: the payout is "as billed" and all three fields are cleared. An account
+    gives the currency, and a ``sent_currency`` that disagrees with it is a 422; a bare currency
+    stands for itself; an amount alone is in the source's currency. An amount is needed with any
+    of them. One place, deterministic.
+    """
+    old_from = payout.from_account_id
+    if body.sent_amount is None:
+        if body.from_account_id is not None or body.sent_currency is not None:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "give sent_amount with the sent side"
+            )
+        payout.sent_amount = payout.sent_currency = payout.from_account_id = None
+        return
+    sent_from = (
+        None
+        if body.from_account_id is None
+        else _from_or_422(session, body.from_account_id, keep=old_from)
+    )
+    if sent_from is not None:
+        if body.sent_currency is not None and body.sent_currency != sent_from.currency:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "sent_currency is not the currency of the account it was sent from",
+            )
+        currency = sent_from.currency
+    else:
+        currency = body.sent_currency or src.currency
+    payout.sent_amount = body.sent_amount
+    payout.sent_currency = currency
+    payout.from_account_id = None if sent_from is None else sent_from.id
+
+
+@router.get("/rate")
+def get_rate(
+    from_: str = Query(..., alias="from", description="The currency of one unit."),
+    to: str = Query(..., description="The currency the answer is in."),
+    on: date = Query(..., description="The day the rate is of."),
+) -> dict:
+    """Units of ``to`` for one unit of ``from`` on a day, through the same rates as a payout
+    (the ECB's, a coin's): `{"rate": 0.8957}`, or `{"rate": null}` when there is none."""
+    for code in (from_, to):
+        if not currencies.is_known(code):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"unknown currency {code}")
+    return {"rate": currencies.cross_rate(from_, to, on)}
+
+
 @router.post("/payouts", response_model=FreelancePayoutOut, status_code=status.HTTP_201_CREATED)
 def create_payout(
     body: FreelancePayoutIn, session: Session = Depends(get_session)
@@ -587,6 +698,7 @@ def create_payout(
         note=(body.note or "").strip() or None,
     )
     _settle_payout(session, payout, src, body)
+    _settle_sent(session, payout, src, body)
     session.add(payout)
     session.commit()
     session.refresh(payout)
@@ -617,6 +729,9 @@ PAYOUT_CSV_COLUMNS = [
     "billed_amount",
     "billed_eur",
     "fx_cost_eur",
+    "sent_amount",
+    "sent_currency",
+    "from_account",
 ]
 
 
@@ -654,6 +769,9 @@ def payouts_csv(session: Session = Depends(get_session)) -> Response:
                 _amount_text(o.billed_amount, o.billed_currency),
                 "" if o.billed_eur is None else f"{o.billed_eur:.2f}",
                 "" if o.fx_cost_eur is None else f"{o.fx_cost_eur:.2f}",
+                "" if o.sent_amount is None else _amount_text(o.sent_amount, o.sent_currency),
+                o.sent_currency or "",
+                o.from_account_name or "",
             ]
         )
     return Response(
@@ -681,6 +799,7 @@ def update_payout(
     src = _source_or_404(session, body.source_id)
     _refuse_duplicate_week(session, src.id, body.week_start, own_id=payout.id)
     _settle_payout(session, payout, src, body)
+    _settle_sent(session, payout, src, body)
     payout.source_id = src.id
     payout.week_start = body.week_start
     payout.amount = body.amount

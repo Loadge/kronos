@@ -582,6 +582,8 @@ class TemplateOut(BaseModel):
 Currency = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(CURRENCY_CODES) + r")$")]
 ACCOUNT_KINDS = ("bank", "wallet", "cash", "other")
 AccountKind = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(ACCOUNT_KINDS) + r")$")]
+ACCOUNT_ROLES = ("origin", "destination", "both")  # sends / receives / either
+AccountRole = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(ACCOUNT_ROLES) + r")$")]
 
 
 def _clean_account_name(value: str) -> str:
@@ -597,6 +599,7 @@ class AccountIn(BaseModel):
     name: str
     currency: Currency
     kind: AccountKind = "bank"
+    role: AccountRole = "both"
     is_default: bool = False
     archived: bool = False
 
@@ -607,6 +610,7 @@ class AccountUpdate(BaseModel):
     name: str | None = None
     currency: Currency | None = None
     kind: AccountKind | None = None
+    role: AccountRole | None = None
     is_default: bool | None = None
     archived: bool | None = None
 
@@ -621,10 +625,11 @@ class AccountOut(BaseModel):
     name: str
     currency: str
     kind: str
+    role: str  # origin, destination or both
     is_default: bool
     archived: bool
     created_at: datetime_
-    payouts: int  # how many payouts went into it (one with payouts is archived, not deleted)
+    payouts: int  # how many payouts used it, on either side (one in use is archived, not deleted)
 
 
 class AccountBackup(AccountIn):
@@ -643,6 +648,7 @@ class IncomeSourceIn(BaseModel):
     is_default: bool = False
     archived: bool = False
     default_account_id: int | None = None
+    default_from_account_id: int | None = None
 
 
 class IncomeSourceUpdate(BaseModel):
@@ -652,6 +658,7 @@ class IncomeSourceUpdate(BaseModel):
     is_default: bool | None = None
     archived: bool | None = None
     default_account_id: int | None = None  # null clears it; leave it out to keep it
+    default_from_account_id: int | None = None  # same
 
 
 class IncomeSourceOut(BaseModel):
@@ -662,6 +669,7 @@ class IncomeSourceOut(BaseModel):
     is_default: bool
     archived: bool
     default_account_id: int | None
+    default_from_account_id: int | None
     blocks: int  # how many blocks bill to it (a source with blocks is archived, not deleted)
 
 
@@ -675,6 +683,7 @@ class IncomeSourceBackup(BaseModel):
     is_default: bool = False
     archived: bool = False
     default_account_id: int | None = None
+    default_from_account_id: int | None = None
 
 
 class _BlockDuration(BaseModel):
@@ -790,6 +799,11 @@ class FreelancePayoutIn(BaseModel):
     account_id: int | None = None
     paid_on: date_ | None = None
     eur_amount: float | None = Field(default=None, gt=0)
+    # What was sent. All three left out: "as billed". With ``from_account_id`` the currency is
+    # the account's; without it, ``sent_currency`` (a bare currency) or else the source's.
+    sent_amount: float | None = Field(default=None, gt=0)
+    sent_currency: Currency | None = None
+    from_account_id: int | None = None
 
     _monday = field_validator("week_start")(_must_be_monday)
 
@@ -815,8 +829,13 @@ class FreelancePayoutOut(BaseModel):
     billed_amount: float  # the week's estimate in the source's currency
     billed_currency: str
     billed_eur: float | None  # that estimate at the ECB rate of rate_date
-    fx_cost_eur: float | None  # billed_eur - amount_eur: lost to the exchange and fees
+    fx_cost_eur: float | None  # billed_eur - amount_eur: the difference from billed
     effective_rate: float | None  # source units per EUR actually obtained
+    sent_amount: float | None  # as stored; None: a payout "as billed"
+    sent_currency: str | None
+    from_account_id: int | None
+    from_account_name: str | None
+    sent_gap: float | None  # sent - billed, in the billed currency; None without sent or a rate
 
 
 class FreelancePayoutBackup(BaseModel):
@@ -829,6 +848,9 @@ class FreelancePayoutBackup(BaseModel):
     account_id: int | None = None
     rate_source: str | None = None
     rate_date: date_ | None = None
+    sent_amount: float | None = Field(default=None, gt=0)
+    sent_currency: Currency | None = None
+    from_account_id: int | None = None
 
     _monday = field_validator("week_start")(_must_be_monday)
 

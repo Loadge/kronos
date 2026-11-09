@@ -191,6 +191,9 @@ class TestAccountsApi:
         a = _account(client)
         usd = _source(client, default_account_id=a["id"])
         assert client.get("/api/freelance/sources").json()[0]["default_account_id"] == a["id"]
+        # a source's default is a use, so the delete is refused until it is cleared
+        assert client.delete(f"/api/freelance/accounts/{a['id']}").status_code == 409
+        client.put(f"/api/freelance/sources/{usd}", json={"default_account_id": None})
         assert client.delete(f"/api/freelance/accounts/{a['id']}").status_code == 204
         assert client.get("/api/freelance/accounts").json() == []
         (src,) = client.get("/api/freelance/sources").json()

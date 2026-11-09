@@ -69,7 +69,7 @@ Kronos has one helper per kind of number in `app.js`. Never format by hand in a 
 
 - Hours: `fmtHours` for totals (trailing zeros trimmed: 34.5h) and `formatSurplus` for signed deltas (always two decimals: +24.50h). This is Miguel's decision.
 - Money: `fmtMoney`, always with cents and a thousands comma: €1,289.71. Inside a chart a label may round (`fmtMoney0`: €1,290) because it has no room for cents. A coin keeps up to 8 decimals with the trailing zeros trimmed and its code after the number: 0.0105 BTC.
-- A payout in another currency than its source shows "= €877.94" after the amount and a small chip with the percentage it cost or gained ("FX -7.4%"). The chip's tooltip is one sentence ("Exchange and fees cost you €70.19"). A row in a single currency gets no chip.
+- A payout has two lines: what was sent (amount and origin) and what arrived (amount and destination). A third line "= €877.94" appears only for a destination not in euros. A payout that arrived in another currency than its source gets a small chip with the percentage ("DIFF -7.4%") whose tooltip is one sentence ("€70.19 less than billed"). A row in a single currency gets no chip.
 - Tooltips and help chips list what you can do, action first and then its effect, one short line each ("Drag bar to adjust work time"). A status chip says only its conclusion. `test_no_tooltip_or_help_is_a_paragraph` fails on any line over 90 characters.
 - Calculator: the Freelance calculator is the one place with Spanish decimals, typed and shown (`calcMoney`: €28.687,41), because its inputs follow the browser's locale. This is Miguel's decision.
 - Compact exceptions, on purpose: the weekday averages under the Weekday pattern bars keep one decimal (+0.7h) because the cell is narrow.

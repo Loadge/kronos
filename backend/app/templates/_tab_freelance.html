@@ -58,7 +58,7 @@
           </template>
           <!-- what the exchange and the fees took this year, and where the money landed -->
           <template x-if="flSummary.fx_cost_eur > 0">
-            <p class="fl-fxlost metric" data-testid="fl-fxlost" x-text="'Lost to exchange and fees: ' + fmtMoney(flSummary.fx_cost_eur)"></p>
+            <p class="fl-fxlost metric" data-testid="fl-fxlost" x-text="'Difference from billed: ' + fmtMoney(flSummary.fx_cost_eur)"></p>
           </template>
           <template x-if="flSummary.accounts && flSummary.accounts.length">
             <div class="fl-landed" data-testid="fl-landed">

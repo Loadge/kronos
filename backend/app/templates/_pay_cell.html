@@ -1,0 +1,81 @@
+{#- The payout cell of one source and one week. Line 1 is what was sent (a mark, an amount, where from); line 2
+    is what arrived (a mark, an amount, where to); line 3 is the euro value of a payout that arrived in another
+    currency, and appears only then. The Weeks row and the "Payouts waiting" form of the page where days are logged
+    both draw it from here, from the same app.js functions (payCell and what it calls), so they cannot drift apart.
+    `sid`, `week` and `label` are JavaScript expressions (the source id, the Monday, and "Source W45" for the
+    aria-labels). With `form` the cell does not save by itself: the form's button does.
+    Without accounts there is no line 1 and no select, and the cell is the single line it always was. -#}
+{% macro pay_cell(sid, week, label, form=false) %}
+{% set quiet = ', false' if form else '' %}
+<template x-for="c in [payCell({{ sid }}, {{ week }})]" :key="'pay-cell'">
+  <div class="payc">
+    <template x-if="c.two">
+      <div class="payc-l payc-from">
+        <span class="cur-from metric" x-text="c.sent.mark"></span>
+        <input type="text" inputmode="decimal" class="paysent metric" :class="c.sent.sug ? 'is-sug' : ''" autocomplete="off"
+          :value="c.sent.text" @input="paySentTyped({{ sid }}, {{ week }}, $event.target.value{{ quiet }})"
+          :aria-label="'Sent ' + {{ label }}">
+        <select class="payfrom" :aria-label="'Paid from, ' + {{ label }}"
+          @change="payPickFrom({{ sid }}, {{ week }}, $event.target.value{{ quiet }})">
+          <template x-for="o in c.sent.options" :key="o.value">
+            <option :value="o.value" :selected="o.selected" x-text="o.label"></option>
+          </template>
+          <optgroup label="Currency">
+            <template x-for="o in c.sent.currencies" :key="o.value">
+              <option :value="o.value" :selected="o.selected" x-text="o.label"></option>
+            </template>
+          </optgroup>
+        </select>
+      </div>
+    </template>
+    <div class="payc-l payc-to">
+      <span class="cur metric" x-text="c.arr.mark"></span>
+      <input type="text" inputmode="decimal" class="payin metric" :class="c.arr.sug ? 'is-sug' : ''" autocomplete="off"
+        {% if form %}data-testid="pay-wait-amount"{% endif %}
+        :value="c.arr.text" @input="payTyped({{ sid }}, {{ week }}, $event.target.value{{ quiet }})"
+        :placeholder="c.p ? '' : 'payout'"
+        :aria-label="'Payout ' + {{ label }}">
+      {#- where the money lands: only once an account exists -#}
+      <template x-if="accounts.length">
+        <select class="payacct" {% if form %}data-testid="pay-wait-account"{% endif %} :aria-label="'Paid into, ' + {{ label }}"
+          @change="paySetAccount({{ sid }}, {{ week }}, $event.target.value, c.p{{ quiet }})">
+          <template x-for="o in c.arr.options" :key="o.value === '' ? 'billed' : o.value">
+            <option :value="o.value" :selected="o.selected" x-text="o.label"></option>
+          </template>
+        </select>
+      </template>
+    </div>
+    {#- line 3, a payout with no account in dollars: its rate, and what it is worth in euros -#}
+    <template x-if="c.p && c.src.currency === 'USD' && c.p.account_id == null">
+      <span class="wk-fx metric">
+        <template x-if="fxEditing !== c.p.id">
+          <span><span x-text="c.p.fx_rate ? '@ ' + fmtFx(c.p.fx_rate) : 'no rate'"></span> <button type="button" class="pen" @click="fxEdit(c.p)" :aria-label="'Edit the exchange rate of ' + {{ label }}" title="Edit the exchange rate">✎</button></span>
+        </template>
+        <template x-if="fxEditing === c.p.id">
+          <input type="text" inputmode="decimal" class="fxin metric" :value="c.p.fx_rate ? fmtPlain(c.p.fx_rate) : ''" x-init="$nextTick(() => $el.focus())"
+            @keydown.enter.prevent="fxSave(c.p, $event.target.value)" @keydown.escape="fxEditing = null" @blur="fxSave(c.p, $event.target.value)"
+            :aria-label="'Exchange rate USD per EUR, ' + {{ label }}">
+        </template>
+        <span class="wk-conv" x-text="c.p.amount_eur === null ? '' : '= ' + fmtMoney(c.p.amount_eur)"></span>
+      </span>
+    </template>
+    {#- line 3, a payout that arrived in an account in a currency other than the euro: what it is worth in euros -#}
+    <template x-if="c.p && c.p.account_id != null && c.p.currency !== 'EUR'">
+      <span class="wk-fx metric">
+        <span class="wk-conv" x-text="c.p.amount_eur === null ? '' : '= ' + fmtMoney(c.p.amount_eur)"></span>
+        <template x-if="c.p.amount_eur === null || worthOpen === c.p.id">
+          <label class="worth"><span>worth €</span>
+            <input type="text" inputmode="decimal" class="worthin metric" autocomplete="off"
+              :value="c.p.amount_eur === null ? '' : fmtPlain(c.p.amount_eur)"
+              x-init="if (worthOpen === c.p.id) $nextTick(() => $el.focus())"
+              @change="worthSave(c.p, $event.target.value)" @keydown.escape="worthOpen = null"
+              :aria-label="'Worth in euros, ' + {{ label }}"></label>
+        </template>
+        <template x-if="c.p.amount_eur !== null && worthOpen !== c.p.id">
+          <button type="button" class="pen-link" @click="worthOpen = c.p.id" :aria-label="'Set the € value of ' + {{ label }}">set the € value</button>
+        </template>
+      </span>
+    </template>
+  </div>
+</template>
+{% endmacro %}

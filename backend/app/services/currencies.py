@@ -171,3 +171,15 @@ def rate_for(currency: str, on: date) -> dict:
         "stale": bool(answer.get("stale")),
         "error": answer.get("error"),
     }
+
+
+def cross_rate(frm: str, to: str, on: date) -> float | None:
+    """Units of `to` for one unit of `frm` on `on` (EUR is the pivot), or None when either
+    side has no rate. The same currency is exactly 1.0 and asks nobody. Eight significant
+    digits, so a coin's tiny rate keeps its precision."""
+    if frm == to:
+        return 1.0
+    a, b = rate_for(frm, on), rate_for(to, on)
+    if not a["available"] or not b["available"] or not a["per_eur"]:
+        return None
+    return float(f"{b['per_eur'] / a['per_eur']:.8g}")

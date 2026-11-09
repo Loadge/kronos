@@ -3876,10 +3876,10 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .wk-src.wk-name1 { display: none; grid-area: src; }
 .wk-line.has-pay .wk-est { color: var(--k-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-muted) 50%, transparent); }
 .wk-pay { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; cursor: default; }
-.wk-pay .cur { color: var(--k-muted); }
+.wk-pay .cur, .wk-pay .cur-from { color: var(--k-muted); }
 .wk-line.has-pay .wk-pay .cur { color: var(--paid); }
 .wk-conv { color: var(--paid); }
-.wk-pay .payin { font-size: 0.84rem; width: 4.6rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
+.wk-pay .payin, .wk-pay .paysent { font-size: 0.84rem; width: 4.6rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
 .wk-pay .payin:not(:placeholder-shown) { border-bottom-style: solid; color: var(--paid); font-weight: 600; }
 .wk-pay .payin::placeholder { color: var(--k-muted); font-style: italic; }
 .wk-fx { font-size: 0.76rem; color: var(--k-muted); display: inline-flex; align-items: baseline; gap: 0.3rem; }
@@ -5608,7 +5608,7 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 .acct-curlist li[aria-selected="true"] b::after { content: " •"; }
 
 /* the payout: where it lands, what it is worth, what the exchange cost */
-.wk-pay .payacct {
+.wk-pay .payacct, .wk-pay .payfrom {
   margin: 0; width: auto; max-width: 8rem; height: auto; min-height: 1.5rem; padding: 0.1rem 1.3rem 0.1rem 0.35rem;
   font-size: 0.74rem; background-position: center right 0.35rem; background-size: 0.75rem auto; border-radius: 4px;
 }
@@ -5628,6 +5628,40 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 }
 .fx-chip:hover, .fx-chip:focus-visible { background: color-mix(in srgb, var(--k-brass) 16%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 22%, transparent); transform: translateY(-1px); }
 .fx-chip:active { transform: scale(0.95); }
+/* The payout cell, from _pay_cell.html: line 1 what was sent, line 2 what arrived, line 3 the euro value. Without
+   accounts there is one line, and the lines dissolve into the old flex row. */
+.payc { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.payc-l { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.wk-pay:not(.two) .payc, .wk-pay:not(.two) .payc-l { display: contents; }
+.wk-pay.two { display: block; align-self: start; --pl: 2rem; }
+.wk-pay.two .payc { gap: 0; }
+.wk-pay.two .payc-l { height: var(--pl); }
+.wk-pay.two .payin, .wk-pay.two .paysent { width: 5.6rem; flex: none; }
+.wk-pay.two .payacct, .wk-pay.two .payfrom { width: 8.6rem; max-width: 8.6rem; flex: none; }
+.wk-pay.two .wk-fx { padding-left: 0.2rem; flex-wrap: wrap; }
+.wk-pay .paysent { border-bottom-style: solid; color: var(--k-text); }
+.wk-pay .payin.is-sug, .wk-pay .paysent.is-sug, .fl-wait-form .payin.is-sug, .fl-wait-form .paysent.is-sug { color: var(--k-muted); font-weight: 400; border-bottom-style: dashed; }
+.wk-chip { grid-area: chip; justify-self: end; display: flex; align-items: center; min-width: 0; }
+.wk-line.two {
+  --pl: 2rem; grid-template-rows: var(--pl) var(--pl) auto;
+  grid-template-areas: "head h est pay gap eph tail" ". . . pay chip . tail" ". . . pay . . .";
+}
+@media (max-width: 1279px) {
+  .wk-line.two { grid-template-rows: auto var(--pl) var(--pl) auto; grid-template-areas: "head head head tail tail" "h est pay gap eph" ". . pay chip ." ". . pay . ."; }
+}
+@media (max-width: 600px) {
+  .wk-line.two { grid-template-rows: auto auto auto calc(var(--pl) + 0.9rem) var(--pl) auto; grid-template-areas: "head head tail" "src src src" "h est eph" "pay pay gap" "pay pay chip" "pay pay ."; }
+  .wk-line.two:not(.wk-main) { grid-template-rows: auto auto calc(var(--pl) + 0.9rem) var(--pl) auto; grid-template-areas: "head head head" "h est eph" "pay pay gap" "pay pay chip" "pay pay ."; }
+  .wk-line.two .wk-pay, .wk-line.two .wk-gap, .wk-line.two .wk-chip { margin-top: 0; }
+  .wk-line.two .wk-h, .wk-line.two .wk-est, .wk-line.two .wk-eph { margin-bottom: 0.4rem; }
+  /* the labels of the Payout and Gap cells are one 0.9rem line, so line 1 and the gap's figure share a height */
+  .wk-line.two .wk-pay::before, .wk-line.two .wk-gap::before { display: block; height: 0.9rem; line-height: 0.9rem; }
+  .wk-line.two .wk-gap { height: calc(var(--pl) + 0.9rem); }
+  .wk-line.two .wk-gap b { display: flex; align-items: center; height: var(--pl); }
+  .wk-line.two .wk-chip { justify-self: start; }
+  .wk-pay.two .payin, .wk-pay.two .paysent { width: 5rem; }
+  .wk-pay.two .payacct, .wk-pay.two .payfrom { width: 7.6rem; max-width: 7.6rem; }
+}
 /* Payouts waiting: the Freelance card of the page where days are logged. Selected chip: teal outline and text. */
 .fl-wait { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--k-border); display: flex; flex-direction: column; gap: 0.5rem; }
 .fl-wait-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
@@ -5645,11 +5679,12 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 @keyframes fl-wait-out { to { opacity: 0; transform: translateY(-6px) scale(0.8); } }
 .fl-wait-more { font-size: 0.74rem; color: var(--k-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; padding: 0 0.3rem; }
 .fl-wait-more:hover { color: var(--k-text); }
-.fl-wait-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; animation: fl-wait-in 0.2s ease-out; }
+.fl-wait-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; margin: 0; animation: fl-wait-in 0.2s ease-out; }
 @keyframes fl-wait-in { from { opacity: 0; transform: translateY(3px); } }
 .fl-wait-form .cur { color: var(--paid); }
-.fl-wait-form .payin { width: 6rem; margin: 0; height: 2rem; padding: 0 0.5rem; font-size: 0.88rem; text-align: right; }
-.fl-wait-form .payacct { width: auto; max-width: 11rem; margin: 0; height: 2rem; padding-top: 0; padding-bottom: 0; font-size: 0.82rem; }
+.fl-wait-form .cur-from { color: var(--k-muted); }
+.fl-wait-form .payin, .fl-wait-form .paysent { width: 6rem; margin: 0; height: 2rem; padding: 0 0.5rem; font-size: 0.88rem; text-align: right; }
+.fl-wait-form .payacct, .fl-wait-form .payfrom { width: auto; max-width: 11rem; margin: 0; height: 2rem; padding-top: 0; padding-bottom: 0; font-size: 0.82rem; }
 button.fl-wait-save { width: auto; margin: 0; height: 2rem; padding: 0 1rem; border: 1px solid var(--paid); border-radius: 6px; background: var(--paid); color: var(--k-bg); font-weight: 600; cursor: pointer; transition: opacity var(--k-transition-fast), transform var(--k-transition-fast); }
 button.fl-wait-save:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
 button.fl-wait-save:active:not(:disabled) { transform: scale(0.97); }
@@ -5661,7 +5696,7 @@ button.fl-wait-save:disabled { opacity: 0.4; cursor: default; }
   color: var(--k-text); font-size: 0.78rem; line-height: 1.45; text-align: left; pointer-events: none; animation: q-pop 0.16s ease-out;
 }
 @media (min-width: 1280px) {
-  .days-table--fl.has-accts .wk-cols, .days-table--fl.has-accts .wk-line { grid-template-columns: minmax(12rem, 1fr) 3.2rem 5.2rem minmax(19.5rem, 1fr) 5.2rem 3.8rem 6.6rem; }
+  .days-table--fl.has-accts .wk-cols, .days-table--fl.has-accts .wk-line { grid-template-columns: minmax(12rem, 1fr) 3.2rem 5.2rem minmax(19.5rem, 1fr) 6.6rem 3.8rem 6.6rem; }
 }
 
 /* the Freelance tab: what the year lost to the exchange, and where the money landed */

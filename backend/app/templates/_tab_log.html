@@ -1,3 +1,4 @@
+{% from "_pay_cell.html" import pay_cell %}
 <!-- ========================= DAYS (tab id "log", address #days) ========================= -->
 <template x-if="tab==='log'">
 <section aria-label="Days">
@@ -515,18 +516,7 @@
             </div>
             <template x-for="sel in [payWaitSelected()].filter(Boolean)" :key="sel.key">
               <form class="fl-wait-form" @submit.prevent="payWaitSave($el.querySelector('.fl-wait-save'))">
-                <span class="cur metric" x-text="curMark(payCurrency(sel.source_id, sel.week, null, sel.currency))"></span>
-                <input type="text" inputmode="decimal" class="payin metric" autocomplete="off" data-testid="pay-wait-amount"
-                       :value="payText(sel.source_id, sel.week, null)" @input="payWaitTyped(sel, $event.target.value)"
-                       placeholder="payout" :aria-label="'Payout ' + sel.src.name + ' ' + weekId(sel.week)">
-                <template x-if="accounts.length">
-                  <select class="payacct" data-testid="pay-wait-account" :aria-label="'Paid into, ' + sel.src.name + ' ' + weekId(sel.week)"
-                          @change="paySetAccount(sel.source_id, sel.week, $event.target.value, null)">
-                    <template x-for="o in payAccountOptions(sel.source_id, sel.week, null, sel.currency)" :key="o.id === null ? 'billed' : o.id">
-                      <option :value="o.id === null ? '' : o.id" :selected="o.selected" x-text="o.label"></option>
-                    </template>
-                  </select>
-                </template>
+                {{ pay_cell("sel.source_id", "sel.week", "sel.src.name + ' ' + weekId(sel.week)", true) }}
                 <button type="submit" class="fl-wait-save" data-testid="pay-wait-save" :disabled="payWait.busy">Save</button>
                 <span class="wk-status" :class="payStatusCls(sel.week)" x-text="payStatus(sel.week)" aria-live="polite"></span>
               </form>

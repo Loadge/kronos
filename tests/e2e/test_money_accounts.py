@@ -67,7 +67,7 @@ ECB = """<?xml version="1.0" encoding="UTF-8"?>
   </Cube>
 </gesmes:Envelope>
 """
-EXPECTED_STORY = "Exchange and fees cost you €70.19"
+EXPECTED_STORY = "€70.19 less than billed"
 
 
 class _Stub(BaseHTTPRequestHandler):
@@ -286,10 +286,10 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert got["billed_eur"] == 948.13 and got["fx_cost_eur"] == 70.19
     assert got["effective_rate"] == 1.2065
 
-    page.wait_for_function(
-        "(w) => document.querySelector('#wk-' + w + ' .wk-conv')?.textContent.includes('= €877.94')",
-        arg=W44,
-    )
+    expect(line.get_by_test_id("fx-chip")).to_be_visible()  # the payout is saved and drawn again
+    assert (
+        line.locator(".wk-conv").count() == 0
+    )  # euros arrived: line 2 says it, there is no line 3
     assert line.get_by_label("Payout Acme W44").input_value() == "877.94"
     assert line.locator(".cur").inner_text().strip() == "€"
     # the struck-through estimate stays as it was
@@ -301,9 +301,9 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert gap.inner_text().strip() == "-€70.19"
     assert gap.get_attribute("title") == "Received minus billed, in euros"
 
-    # 5. the FX chip tells the story: hover, focus and tap
+    # 5. the DIFF chip tells the story: hover, focus and tap
     chip = line.get_by_test_id("fx-chip")
-    assert chip.inner_text().strip() == "FX -7.4%"  # the share of what was billed
+    assert chip.inner_text().strip() == "DIFF -7.4%"  # the share of what was billed
     tip = page.locator("#fx-tip")
     chip.hover()
     expect(tip).to_have_text(EXPECTED_STORY)
@@ -324,7 +324,7 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     # 6. the Freelance tab carries the year's cost and where the money landed
     _app(page, "d.flYear = 2026; d.go('freelance');")
     lost = page.get_by_test_id("fl-fxlost")
-    expect(lost).to_have_text("Lost to exchange and fees: €70.19")
+    expect(lost).to_have_text("Difference from billed: €70.19")
     landed = page.get_by_test_id("fl-landed")
     assert "where it landed" in landed.inner_text().lower()
     assert "Deutsche Bank" in landed.inner_text() and "€877.94" in landed.inner_text()
@@ -391,10 +391,8 @@ def test_a_dollar_payout_moved_to_the_euro_account_reads_what_arrived(page, mone
         "Deutsche Bank",
     )
     assert (got["billed_eur"], got["fx_cost_eur"], got["effective_rate"]) == (948.13, 70.19, 1.2065)
-    page.wait_for_function(
-        "(w) => document.querySelector('#wk-' + w + ' .wk-conv')?.textContent.includes('= €877.94')",
-        arg=W44,
-    )
+    expect(line.get_by_test_id("fx-chip")).to_be_visible()
+    assert line.locator(".wk-conv").count() == 0  # euros arrived: no line 3
     assert line.locator(".cur").inner_text().strip() == "€"
 
 
@@ -649,7 +647,11 @@ def test_the_new_controls_are_drawn_properly(browser, money_url, width):
             """
             - img "wallet"
             - strong: Cold wallet
-            - text: BTC
+            - text: BTC Use
+            - combobox "Use, Cold wallet":
+              - option "Paid from"
+              - option "Paid into"
+              - option "Both" [selected]
             - button "Make Cold wallet the default account" [pressed=false]
             - button "Edit Cold wallet"
             - button "Archive Cold wallet"

@@ -312,8 +312,18 @@
             <label class="src-paid"><span class="fl-lbl">Paid into</span>
               <select :aria-label="'Paid into, ' + s.name" @change="srcSetAccount(s, $event.target.value)">
                 <option value="" :selected="s.default_account_id == null" x-text="'As billed (' + s.currency + ')'"></option>
-                <template x-for="a in accounts.filter(x => !x.archived || x.id === s.default_account_id)" :key="a.id">
+                <template x-for="a in accounts.filter(x => (!x.archived && x.role !== 'origin') || x.id === s.default_account_id)" :key="a.id">
                   <option :value="a.id" :selected="a.id === s.default_account_id" x-text="a.name"></option>
+                </template>
+              </select>
+            </label>
+          </template>
+          <template x-if="accounts.length">
+            <label class="src-paid"><span class="fl-lbl">Paid from</span>
+              <select :aria-label="'Paid from, ' + s.name" @change="srcSetFrom(s, $event.target.value)">
+                <option value="" :selected="s.default_from_account_id == null" x-text="'As billed (' + s.currency + ')'"></option>
+                <template x-for="a in accounts.filter(x => (!x.archived && x.role !== 'destination') || x.id === s.default_from_account_id)" :key="a.id">
+                  <option :value="a.id" :selected="a.id === s.default_from_account_id" x-text="a.name"></option>
                 </template>
               </select>
             </label>
@@ -380,6 +390,13 @@
             </span>
             <template x-if="a.archived"><span class="src-tag">archived</span></template>
           </div>
+          <label class="src-paid"><span class="fl-lbl">Use</span>
+            <select :aria-label="'Use, ' + a.name" @change="acctSetRole(a, $event.target.value)">
+              <option value="origin" :selected="a.role === 'origin'">Paid from</option>
+              <option value="destination" :selected="a.role === 'destination'">Paid into</option>
+              <option value="both" :selected="a.role === 'both'">Both</option>
+            </select>
+          </label>
           <div class="src-actions">
             <template x-if="!a.archived">
               <button type="button" class="acct-star" :class="a.is_default ? 'on' : ''" @click="acctSetDefault(a)"
