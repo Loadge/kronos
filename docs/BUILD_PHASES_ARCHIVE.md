@@ -895,6 +895,179 @@ had no reaction of their own.
 
 ---
 
+## Phase 51 — Miguel's notes on v50
+
+**Why.** Miguel tried v50 and loved the dial, the ribbon and the coins, but could not find the dial's crown,
+said people would miss the dial itself, asked for an explanation of the ribbon in his own words, asked what
+the golden dot was for, and wanted the coins to follow the amount.
+
+**Decisions.**
+- The tab title is just "Kronos".
+- The dial's crown is bigger, and while the ring is away from today an engraved "Today" label sits next to
+  it and the crown glows once. Both bring the ring back.
+- The logo says "Your year as a dial (Y)" and winds a little under the pointer. Once per browser a brass
+  callout under it says "New: press the logo to spin through your year", and it never comes back after it
+  is closed or the dial is opened.
+- A "?" chip next to "Employee" in Log explains the day bar in plain words.
+- One coin per €100 of the payout, between 1 and 40, all landed within 1.6s, with a glint when the payout
+  beats the estimate.
+- The bead on the header's hairline still shows the hour, and once today has a start the line is lit from
+  the start to the bead, with a tick at the time the day reaches its target. Its title says it all: "Now
+  13:00 · in since 08:30 · target at 17:00".
+- Found in the review: the app started twice on every load (Alpine calls `init()` by itself, and the page
+  called it again), so every request of the first load went out twice. It now starts once: 14 requests
+  instead of 27.
+
+**Known limits.** On a phone the dial keeps its width, so "Today" runs vertically beside the crown. The
+tabs that don't show days now load them quietly, so the bead knows today's start on every page.
+
+**Commits.** `9044af0`, `f7c8ef8`
+
+## Phase 52 — Money in any currency
+
+**Why.** Miguel bills a client in dollars, $95/h, but the money lands in his Spanish bank in euros. He typed
+the €877.94 that arrived for W44, Kronos read it as dollars and showed €785.84. He also expects accounts in
+other currencies, such as a dollar account or a crypto wallet, and wants Kronos to stop being Spain-only.
+
+**Decisions (Miguel, 2026-11-07).**
+- Accounts are "where the money lands": a name, a currency and a kind (bank, wallet, cash, other). A payout
+  says which account received it, in that account's currency. A source can say which account it is paid into
+  ("Paid into"), and the payout row picks that account by default.
+- Any currency the ECB publishes (about 30) plus five coins: BTC, ETH, USDC, USDT and SOL. Coin prices come
+  from CoinGecko's free API, which has no key and only goes back 365 days; for an older payout, or when a rate
+  can't be had, the row asks what it was worth in euros.
+- Euros stay the pivot: every stored rate is "units per 1 EUR", so every old USD row keeps its meaning and
+  nothing was rewritten. A base currency other than EUR is a later phase.
+- A payout in another currency than its source tells the story behind a small "FX" chip: what was billed, the
+  ECB rate of the day, what arrived, what the exchange and the fees cost, and the rate he really got. The
+  Freelance tab adds "Lost to exchange and fees" for the year and "Where it landed", per account.
+- A payout from before accounts reads exactly as before, in its source's currency. Pointing it at an account
+  in the row's select re-reads the same number in that account's currency.
+- The backup stays version 4, with accounts as optional keys: an old file restores as before.
+
+**How Miguel fixes W44 on PROD.** Settings > Freelance > Accounts: add "Deutsche Bank" in EUR. Then Days >
+Freelance, W44: switch the payout's select from "As billed (USD)" to "Deutsche Bank". The row then reads
+€877.94, and the FX chip says the exchange cost €70.19.
+
+**Known limits.** CoinGecko's free API answers only the last 365 days. An account's currency is locked once
+a payout uses it. The Accounts card sits inside the Sources section of Settings, with no index entry of its
+own.
+
+**Commits.** `0bbaace`
+
+## Phase 53 — Country and number format
+
+**Why.** Miguel wants Kronos to stop assuming its user lives in Spain, now that it is becoming a
+production-grade app. The app stays in English; what changes is where the user lives and how they write
+numbers.
+
+**Decisions (Miguel, 2026-11-07: "Country + locale").**
+- Settings > General has a new "Country and format" card with two settings. Country picks the holidays'
+  default and the tax module. Number format is one of `1,234.56` (the default, what Kronos always printed),
+  `1.234,56`, `1 234,56` and `1'234.56`. The few long dates follow it ("Nov 7" in the default, "7 Nov" in
+  the others), still in English.
+- An existing database is Spain with the default format, so PROD looks and adds up exactly as before.
+- Every number the app prints goes through one set of formatters, and every number typed into a text field
+  (the Calculator, a payout, an exchange rate, "worth €") goes through one parser that reads the chosen
+  format. The server has the same rules for the printed timesheets, and both copies are tested against one
+  table of cases, so they cannot drift apart.
+- Spain keeps its own tax module (the "autónomo" quota, IRPF, the modelo 130 and the "gestoría" fee), shown
+  only when the country is ES. Any other country gets the Simple module: a share of every payment set aside
+  for the tax office (30% unless he writes another), and the Freelance tab reads "Set aside: €X of €Y
+  received this year" instead of the 130 rail.
+- A new, empty database whose browser speaks another country's language (German, French) gets a one-time
+  suggestion in Settings to use that country's holidays and format. Nothing changes by itself.
+
+**What Miguel will notice.** With the default format, the Calculator now reads "55.000" as 55, the English
+way. Before, it read it the Spanish way, as 55000. If he types numbers the Spanish way, he picks `1.234,56` in
+Settings > General, and then the whole app prints them that way too.
+
+**Known limits.** The plain number boxes (rates, tax inputs, hours) are the browser's own number fields, so
+they keep the browser's decimal mark instead of the chosen one. The Simple module knows no brackets and no
+social security: it is a share, and the screen says to check with an adviser.
+
+**Commits.** `52485f1`
+
+## Phase 54 — The Plan page fills the screen
+
+**Why.** Miguel marked the empty space on Plan at 1280: three figure cards about 360px tall for 150px of
+content, with the calendar pushed below the fold.
+
+**What changed.**
+- The year strip gets a line under the twelve mini months: the real balance day by day up to today, solid
+  brass, and from today to Dec 31 the projection of the mode he picked (On target or At my pace), dashed,
+  with the other one faint. Each month of the line sits under its mini. It has a pip on today, a dot and a
+  label on Dec 31, a small diamond for each drafted day, and the date and balance on hover or tap. The
+  balance comes from the same function the dial uses, so today's pip reads what the Dashboard reads.
+- A past year shows only its real line, and a future year only its projection.
+- The three cards are now one compact row, about 130px tall instead of 358px. Balance has its caption to
+  the right of the figure; Vacation and Drafted have their pips beside the figure. The little line drawing
+  of the Balance card is gone, because the year line replaces it.
+- At 1280 x 900 the calendar starts 205px higher than before.
+- The line draws itself once, left to right, and the tail fades in after it. Switching the mode crossfades
+  the two tails. With reduced motion everything is instant.
+- On a phone the line runs the full width under the 4 x 3 minis, with J F M ... under it.
+
+**Known limits.** The projection tail is a straight run from today to Dec 31, not day by day. The touch
+tooltip (tap, then it hides after 2.5 seconds) is only tested with a mouse.
+
+**Commits.** `a360928`
+
+## Phase 55 — The edges of a web app
+
+**Why.** Miguel asked what a pasted Kronos link should look like in WhatsApp or Telegram (a link preview,
+built from "Open Graph" tags), and what else a web app has that Kronos never had.
+
+**What changed.**
+- Link previews: the page carries Open Graph tags with the title "Kronos", the line "Your hours, your
+  balance and your year, at a glance." and a 1200 x 630 picture (`og.png`, the logo, the name and a slice of
+  the dial's ring). The picture's address is built from the address the browser used, so no host name is
+  written in the repo. WhatsApp builds the preview on the phone that sends the link, so it works on the
+  home network. Telegram fetches it through its own servers, which cannot reach Kronos, so it shows no
+  preview.
+- Icons: the 814 KB `icon.png`, used for everything, is replaced by real sizes (32, 96, 180, 192, 512 and a
+  maskable 512), made by `bin/icons.py`. The header logo is now the disc without its square tile.
+- Install dialog: the manifest has the real icons, the colours, shortcuts to Log, Plan, Days and the year
+  dial, and two screenshots of the Dashboard (wide and narrow), made by `bin/og_image.py`. The address
+  `/#dial` opens the year dial.
+- Not for search engines: `robots.txt` says no, and the pages say `noindex`. The preview crawlers of
+  Facebook, Telegram, WhatsApp and Twitter are allowed by name.
+- A wrong address gets a Kronos page ("This page isn't on the dial") with a button back home. A wrong
+  `/api/` address still answers JSON.
+- When the browser goes offline, or the server does not answer, a banner under the header says Kronos
+  can't reach the server, with "Try again". It goes away by itself when the server answers again.
+- Security headers on every answer, including a Content Security Policy. To make it work, the printed
+  timesheets moved their small scripts into `timesheet.js`.
+- Browser details: dark form controls and scrollbars, brass text selection, no grey flash on tap, and a
+  line for browsers without JavaScript.
+
+**Lighthouse (before, after).** Phone: performance 62, 86; accessibility 96, 96; best practices 100, 100;
+SEO 91, 66. Desktop: performance 94, 97; accessibility 96, 96; best practices 100, 100; SEO 91, 66. SEO drops
+on purpose, because of `noindex`. Performance rose mostly because the 814 KB icon is gone.
+
+**Known limits.** Lighthouse still flags three muted colours under 4.5:1 contrast (the version label, the
+weekday initials of the Log calendar and the holiday dots), and the Log calendar's day buttons, whose
+spoken name differs from their visible text.
+
+**Commits.** `c06e1d7`, `0b91450`
+
+## Phase 56 — Miguel's notes on v55
+
+**Why.** Miguel validated 51 to 55 on INT and sent notes before pressing PROD: tooltips nobody would read, tab names that did not match what the pages do, and a year dial that people will miss. He picked each solution from mockups.
+
+**What changed.**
+- Interface text: a tooltip lists what you can do, one short line each, and a status chip says only its conclusion. The "?" of the day bar is four lines with gesture icons. A test now fails on any tooltip line over 90 characters.
+- Tabs: Log is now Days, Days is now Weeks and Analytics is now Year. The addresses are `#days`, `#weeks` and `#year`, and `#log` and `#analytics` still work. An old `#days` link opens the new Days page, on purpose. Keys: D, W, Y, and K for the year dial. L and A are gone.
+- The header line has a notch and a time at the two default hours (Settings > Employee), and a fainter one at 12:00. It is dropped when a default hour is within 90 minutes of it.
+- The FX chip tells the percentage ("FX -7.4%"), and its tooltip is one sentence ("Exchange and fees cost you €70.19").
+- "Payouts waiting" in the Freelance card of the Days page: a chip per week that is over and has blocks but no payout, then the amount, the account and Save. It saves through the same code as the Weeks page.
+- Calculator: each parameter has its label right beside its value, in three columns. The block is 69px shorter at 1280.
+- The year dial is harder to miss: the logo wears a ring of the year with today lit, and the Dashboard has a tile, "Day 313 of 365", that opens the dial.
+
+**Known limits.** The header line, and so its marks, only exist from 720px wide. The current week never appears in "Payouts waiting", the same rule as the Freelance tab's "awaiting a payout" count. On the plain number boxes the decimal mark is still the browser's own (see Phase 53).
+
+**Commits.** `bce7201`, `4d1c828`
+
 ## Archiving a phase
 When Miguel confirms a phase is live: replace its block in `BUILD_PHASES.md` with one row in the
 "Done" table there, and add a summary here in the same docs commit (what was decided, what shipped,
