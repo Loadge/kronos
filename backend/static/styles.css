@@ -5636,6 +5636,9 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 .wk-pay.two { display: block; align-self: start; --pl: 2rem; }
 .wk-pay.two .payc { gap: 0; }
 .wk-pay.two .payc-l { height: var(--pl); }
+/* the marks get one width, so the two amounts line up in any font ($ and € differ on Linux); a code ("GBP") needs more */
+.wk-pay.two .cur, .wk-pay.two .cur-from, .fl-wait-form .cur, .fl-wait-form .cur-from { flex: 0 0 1.1em; text-align: center; }
+.payc.wide-mark .cur, .payc.wide-mark .cur-from { flex-basis: 3em; }
 .wk-pay.two .payin, .wk-pay.two .paysent { width: 5.6rem; flex: none; }
 .wk-pay.two .payacct, .wk-pay.two .payfrom { width: 8.6rem; max-width: 8.6rem; flex: none; }
 .wk-pay.two .wk-fx { padding-left: 0.2rem; flex-wrap: wrap; }

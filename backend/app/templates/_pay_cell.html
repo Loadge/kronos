@@ -8,7 +8,7 @@
 {% macro pay_cell(sid, week, label, form=false) %}
 {% set quiet = ', false' if form else '' %}
 <template x-for="c in [payCell({{ sid }}, {{ week }})]" :key="'pay-cell'">
-  <div class="payc">
+  <div class="payc" :class="c.two && (c.sent.mark.length > 1 || c.arr.mark.length > 1) ? 'wide-mark' : ''">
     <template x-if="c.two">
       <div class="payc-l payc-from">
         <span class="cur-from metric" x-text="c.sent.mark"></span>

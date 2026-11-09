@@ -586,8 +586,8 @@ def test_the_two_lines_fit_at_every_width(browser, sent_url, width, height):
         amount=880,
         account_id=w["Mercury"],
         sent_amount=900,
-        from_account_id=w["Stripe"],
-    )  # an unpaid week would show the suggestions; this one shows line 3 too
+        sent_currency="GBP",
+    )  # an unpaid week would show the suggestions; this one shows line 3 and a mark that is a code
     ctx = browser.new_context(viewport={"width": width, "height": height}, locale="en-GB")
     page = ctx.new_page()
     page.set_default_timeout(8000)
