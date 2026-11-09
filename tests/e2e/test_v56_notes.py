@@ -757,22 +757,26 @@ def test_the_ring_counts_366_days_in_a_leap_year(page, base_url, clean):
     assert page.locator(".dial-ring .rd").get_attribute("data-angle") == f"{365 / 366 * 360:.2f}"
 
 
+# The dial listens for Escape once it has read its day: pressed before that, on a loaded runner, the key is lost.
+DIAL_READY = "#yd [data-yd=stage][data-day]:not([data-day=''])"
+
+
 def test_the_tile_and_the_logo_both_open_the_dial(page, base_url, clean):
     _at_day(page, base_url, "2026-11-09")
     page.wait_for_selector("[data-testid=dial-tile]")
     assert page.get_by_test_id("dial-tile").get_attribute("aria-label") == "Open the year dial"
     page.get_by_test_id("dial-tile").click()
-    page.wait_for_selector("#yd", state="visible")
+    page.wait_for_selector(DIAL_READY, timeout=8000)
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
     page.locator(".brand-btn").click()
-    page.wait_for_selector("#yd", state="visible")
+    page.wait_for_selector(DIAL_READY, timeout=8000)
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
     for key in ("Enter", " "):  # a button: the keyboard opens it too
         page.get_by_test_id("dial-tile").focus()
         page.keyboard.press(key)
-        page.wait_for_selector("#yd", state="visible")
+        page.wait_for_selector(DIAL_READY, timeout=8000)
         page.keyboard.press("Escape")
         page.wait_for_selector("#yd", state="detached")
 
