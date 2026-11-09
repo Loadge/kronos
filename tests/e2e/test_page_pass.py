@@ -17,7 +17,7 @@ import re
 import httpx
 import pytest
 
-from .conftest import DEMO_NOW
+from .conftest import DEMO_NOW, HASH_OF
 
 pytestmark = pytest.mark.e2e
 
@@ -44,7 +44,7 @@ def make_page(browser, demo_url):
         contexts.append(context)
         page = context.new_page()
         page.clock.set_fixed_time(DEMO_NOW)
-        page.goto(f"{demo_url}/#{tab}", wait_until="networkidle")
+        page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
         page.evaluate("document.fonts.ready")
         page.wait_for_timeout(400)
@@ -357,7 +357,7 @@ def test_plan_commit_is_a_brass_outline_and_the_hints_moved_to_titles(planned):
     assert style == [TRANSPARENT, BRASS, BRASS]
     for sel in (".plan-tools .bulk-hint", ".plan-ledger-note"):
         el = planned.locator(sel)
-        assert len(el.get_attribute("title")) > 60, sel
+        assert len(el.get_attribute("title")) > 40, sel
         assert el.evaluate("e => e.getBoundingClientRect().height") < 28, sel  # one short line
 
 
@@ -553,14 +553,14 @@ def test_a_freelance_day_row_keeps_its_source_on_one_line_on_a_phone(make_page):
 def test_chart_hint_lives_in_a_title_with_a_question_chip(make_page):
     page = make_page(DESKTOP, "analytics")
     page.wait_for_selector(".an-chart-wrap svg", timeout=5000)
-    assert "drag a rectangle" in page.locator(".an-chart-wrap").get_attribute("title").lower()
+    assert "drag to zoom" in page.locator(".an-chart-wrap").get_attribute("title").lower()
     assert page.locator(".an-head .an-hint").count() == 0
     chip = page.locator(".q-chip")
     assert chip.inner_text().strip() == "?"
     assert chip.evaluate("c => getComputedStyle(c, '::after').content") == "none"  # shut at rest
     shown = "c => getComputedStyle(c, '::after').content"
     chip.click()
-    assert "drag a rectangle to zoom" in chip.evaluate(shown)  # open on a tap
+    assert "rag to zoom into a range" in chip.evaluate(shown)  # open on a tap
     page.keyboard.press("Escape")
     assert chip.evaluate(shown) == "none"  # Escape shuts it
     chip.click()
@@ -683,6 +683,8 @@ def test_year_strip_inputs_have_visible_small_caps_labels(make_page):
 
 
 def test_calculator_fields_share_one_grid(make_page):
+    """The parameters are rows of a three-column grid (label beside value), under one line of switches:
+    the columns line up from row to row, and the switches sit above them."""
     page = make_page(DESKTOP, "freelance")
     page.wait_for_selector(".calc-assume", timeout=5000)
     page.locator(".calc-assume .seg-toggle[aria-label=Currency] button", has_text="USD").click()
@@ -691,25 +693,19 @@ def test_calculator_fields_share_one_grid(make_page):
         """() => {
           const box = s => { const r = document.querySelector(s).getBoundingClientRect();
                              return { l: Math.round(r.left), t: Math.round(r.top), b: Math.round(r.bottom) }; };
-          const r2 = [...document.querySelectorAll('.calc-a--r2')].map(e => { const r = e.getBoundingClientRect();
+          const rows = [...document.querySelectorAll('.calc-assume .calc-p')].map(e => { const r = e.getBoundingClientRect();
                       return { l: Math.round(r.left), t: Math.round(r.top) }; });
-          return { cur: box('.calc-a--cur'), fx: box('.calc-a--fx'), days: box('.calc-a--days'),
-                   r2, toggles: box('.calc-toggles') };
+          return { cur: box('.calc-a--cur'), days: box('.calc-a--days'), rows,
+                   toggles: box('.calc-toggles'), params: box('.calc-params') };
         }"""
     )
-    lefts = [c["l"] for c in got["r2"]]
-    assert len(set(lefts)) == 4 and lefts == sorted(lefts), got
-    assert (
-        got["cur"]["l"] == lefts[0] and got["fx"]["l"] == lefts[1] and got["days"]["l"] == lefts[2]
-    )
-    assert len({c["t"] for c in got["r2"]}) == 1, got  # the four amounts share a row
-    assert got["toggles"]["t"] > max(c["t"] for c in got["r2"]) + 30, (
-        got
-    )  # the toggles: their own row
-    assert (
-        got["cur"]["t"] == got["fx"]["t"] == got["days"]["t"]
-        or abs(got["cur"]["t"] - got["fx"]["t"]) <= 2
-    )
+    lefts = sorted({r["l"] for r in got["rows"]})
+    assert len(lefts) == 3, got  # three columns
+    assert len(got["rows"]) == 6, got  # hours, billable days, $ per EUR, salary, gestoria, other
+    first_row = [r for r in got["rows"] if r["t"] == min(x["t"] for x in got["rows"])]
+    assert sorted(r["l"] for r in first_row) == lefts, got  # the first row fills the columns
+    assert got["toggles"]["b"] <= got["params"]["t"], got  # the switches: their own line above
+    assert abs(got["cur"]["t"] - got["days"]["t"]) <= 2, got  # currency and days share it
 
 
 def test_linked_figures_have_presence_and_the_arrow_turns_once(make_page):
@@ -905,7 +901,7 @@ def test_the_country_hint_is_one_short_line_with_a_question_chip(make_page):
     note.wait_for(timeout=5000)
     assert note.evaluate("e => e.getBoundingClientRect().height") < 40
     chip = note.locator(".q-chip")
-    assert len(chip.get_attribute("title")) > 100 and "BOE" in chip.get_attribute("title")
+    assert len(chip.get_attribute("title")) > 60 and "BOE" in chip.get_attribute("title")
     assert "BOE" not in note.inner_text()
     chip.click()
     assert "BOE" in chip.evaluate("c => getComputedStyle(c, '::after').content")
@@ -915,9 +911,9 @@ def test_no_templates_offers_its_one_action(make_page):
     page = make_page(DESKTOP, "settings")
     link = page.locator("#settings-templates .settings-empty a")
     link.wait_for(timeout=5000)
-    assert link.inner_text() == "Save one in Log"
+    assert link.inner_text() == "Save one in Days"
     link.click()
-    page.wait_for_url("**/#log", timeout=3000)
+    page.wait_for_url("**/#days", timeout=3000)
 
 
 def test_profile_inputs_and_work_week_on_a_phone(make_page):

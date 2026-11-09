@@ -33,7 +33,7 @@ def _clean(base_url):
 
 
 def _open_picker(page, base_url):
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_load_state("networkidle")
     page.evaluate("localStorage.removeItem('k-pdf-options')")
     page.wait_for_selector(".pdf-btn", timeout=5000)
@@ -131,7 +131,7 @@ class TestPicker:
         page.keyboard.type("pdf")
         page.keyboard.press("Enter")
         page.wait_for_selector(".pdf-modal", timeout=5000)
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_url("**/#weeks", timeout=5000)
 
 
 class TestPage:

@@ -49,7 +49,7 @@ def _seed(base_url: str, entries: list[dict]) -> None:
 
 
 def _open(page, base_url: str) -> None:
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector(".an-chart", timeout=10000)
     page.wait_for_timeout(200)
 
@@ -188,10 +188,10 @@ class TestYearAtAGlance:
             "Jun 10" in text
             and "+1.00h" in text
             and "Release day" in text
-            and "open in Log" in text
+            and "open in Days" in text
         )
         cell.click()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
         page.wait_for_function(
             "d => Alpine.$data(document.querySelector('main')).editingDate === d",
             arg=date,
@@ -207,7 +207,7 @@ class TestYearAtAGlance:
         tip.wait_for(state="visible", timeout=3000)
         assert "no entry" in tip.inner_text() and "log it" in tip.inner_text()
         cell.click()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
         page.wait_for_selector(".btn-action:has-text('Create entry')", timeout=5000)
         assert (
             page.locator(".log-cal-day[aria-pressed='true']").get_attribute("aria-label")

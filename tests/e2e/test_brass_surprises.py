@@ -140,7 +140,7 @@ def _ribbon(page, startswith: str) -> list[dict]:
 
 
 def _open_log(page, base_url: str) -> None:
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector("button.log-cal-day:not(.log-cal-pad)", timeout=5000)
 
 
@@ -435,7 +435,7 @@ def _payout_setup(base_url: str) -> int:
 
 
 def _open_days_freelance(page, base_url: str) -> None:
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector(".page-head .hm-switch", timeout=5000)
     page.evaluate(f"{MAIN}.daysYear = 'all'")
     page.locator(".page-head .hm-switch button").nth(1).click()

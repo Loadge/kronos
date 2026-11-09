@@ -12,6 +12,8 @@ from datetime import date, timedelta
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"]
@@ -19,14 +21,16 @@ TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"
 # Controls whose text must sit in the middle of the box and on a single line.
 CENTRED = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tabs a, .bz-btn, .q-chip, "
-    ".net-banner-retry, .nf-back"
+    ".net-banner-retry, .nf-back, .fl-wait-chip, .fl-wait-save, .fx-chip, .dial-tile-key"
 )
 # A tab is an icon over a label on a phone: it is the label that has to stay on one line
 ONE_LINE = (
     ".head-btn, .btn-action, .seg-toggle button, .year-all, .tab-label, "
     ".settings-group-btn, .year-step-v, .wk-tag, .wk-now, .wk-range, "
     ".week-sep-name, .week-sep-range, .ws-days, .ws-net, .ws-target, .ws-delta, .ws-sigma, "
-    ".bz-count, .dr-tick b, .dr-tag-big, .net-banner-retry, .nf-back"
+    ".bz-count, .dr-tick b, .dr-tag-big, .net-banner-retry, .nf-back, .fl-wait-chip, "
+    ".fl-wait-save, "
+    ".fx-chip, .dial-tile-day, .dial-tile-sub, .dial-tile-go, .calc-p .fl-lbl, .q-tip li"
 )
 # Desktop and phone: the heads wrap on a phone, which is where labels break.
 VIEWPORTS = [(1280, 900), (375, 800)]
@@ -155,7 +159,7 @@ def _problems(page):
 @pytest.mark.parametrize("tab", TABS)
 def test_text_is_centred_and_on_one_line(page, base_url, tab, width, height):
     page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector("main .page-head", timeout=5000)
     if tab == "settings":
         # the navigation lists the freelance group too: open it so its sections are measured
@@ -200,7 +204,7 @@ def test_the_page_for_a_wrong_address_fits(page, base_url, width, height):
 def test_days_freelance_fits_with_every_week_open(page, base_url, width, height, state):
     """The ⚡ table has its own rows (month, week, source lines, blocks): open them all."""
     page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.get_by_role("radio", name="Freelance").click()
     page.wait_for_selector(".bz-strip", timeout=5000)  # the bezel is part of what is measured
@@ -223,7 +227,7 @@ def test_days_employee_fits_with_every_week_open_and_collapsed(
 ):
     """The Employee table has a line per week: measure it with the days shown and hidden."""
     page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.wait_for_selector(".days-table tr.week-sep", timeout=5000)
     page.wait_for_selector(".bz-strip", timeout=5000)  # the bezel is part of what is measured
@@ -245,7 +249,7 @@ def test_labels_survive_larger_text(page, base_url, tab):
     the Settings nav fix, so it guards the heads more than the nav; the nav fix itself (`nowrap`,
     a wider column) is defensive, because the wrap Miguel saw could not be reproduced here."""
     page.set_viewport_size({"width": 1280, "height": 900})
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate("document.documentElement.style.fontSize = '115%'")
     if tab == "settings":
@@ -254,10 +258,34 @@ def test_labels_survive_larger_text(page, base_url, tab):
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_the_waiting_row_and_the_help_fit(page, base_url, width, height):
+    """Payouts waiting (chips, amount, account, Save) and the day bar's help: one line of text each,
+    centred, nothing clipped, nothing past the edge."""
+    with httpx.Client(base_url=base_url) as c:
+        src = c.get("/api/freelance/sources").json()[0]["id"]
+        monday = date.today() - timedelta(days=date.today().weekday() + 14)
+        for i in range(8):  # more than six weeks: the "+N" link is measured too
+            day = monday - timedelta(days=7 * i)
+            r = c.post(
+                "/api/freelance/blocks",
+                json={"date": day.isoformat(), "source_id": src, "hours": 2},
+            )
+            assert r.status_code == 201, r.text
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{base_url}/#days")
+    page.wait_for_selector("[data-testid=pay-wait]", timeout=5000)
+    page.locator(".log-form-card .q-chip").click()
+    page.wait_for_selector(".q-tip", state="visible")
+    page.wait_for_timeout(300)
+    assert page.locator("[data-testid=pay-wait-more]").inner_text().startswith("+")
+    assert not (found := _problems(page)), "\n".join(map(str, found))
+
+
 def test_the_measurement_can_fail(page, base_url):
     """A positive control: a button with lopsided padding and a wrapping label must be reported."""
     page.set_viewport_size({"width": 1280, "height": 900})
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate(
         """() => {
@@ -281,7 +309,7 @@ def test_the_measurement_can_fail(page, base_url):
 def test_a_bezel_count_that_wraps_is_reported(page, base_url, freelance):
     """A positive control for the bezel's chip: its count on two lines must be reported."""
     page.set_viewport_size({"width": 1280, "height": 900})
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector("main .page-head", timeout=5000)
     if freelance:
         page.get_by_role("radio", name="Freelance").click()
@@ -298,7 +326,7 @@ def test_a_day_ribbon_label_that_wraps_is_reported(page, base_url, width, height
     """A positive control for the day ribbon's ruler: a label on two lines must be reported. The
     tag a drag floats over the ribbon is measured too (it only exists while a handle moves)."""
     page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-tick b", timeout=5000)
     page.wait_for_timeout(300)
     assert page.locator(".dr-tick b").evaluate_all("l => l.filter(e => e.offsetParent).length") >= 4
@@ -319,7 +347,7 @@ def test_the_phone_checks_can_fail(page, base_url):
     """A positive control for the two checks that only run on a phone: a 14px button must be
     reported as `tap-small`, and a table wider than its wrap as `inner-scroll`."""
     page.set_viewport_size({"width": 375, "height": 800})
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.wait_for_timeout(300)
     assert not (found := _problems(page)), "\n".join(map(str, found))

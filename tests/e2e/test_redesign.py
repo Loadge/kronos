@@ -69,9 +69,9 @@ class TestNavigation:
         page.goto(f"{base_url}/#dashboard")
         page.wait_for_load_state("networkidle")
         tabs = page.locator("nav[role='tablist'] a[role='tab']")
-        assert tabs.all_inner_texts() == ["Dashboard", "Plan", "Log", "Days", "Analytics"]
+        assert tabs.all_inner_texts() == ["Dashboard", "Plan", "Days", "Weeks", "Year"]
         # The accented first letter is the tab's shortcut; Dashboard has none (Escape goes there).
-        assert page.locator(".tabs .tab-key").all_inner_texts() == ["P", "L", "D", "A"]
+        assert page.locator(".tabs .tab-key").all_inner_texts() == ["P", "D", "W", "Y"]
         assert tabs.nth(0).locator(".tab-key").count() == 0
 
         gear = page.get_by_role("button", name="Settings")
@@ -80,10 +80,11 @@ class TestNavigation:
         assert "is-open" in (gear.get_attribute("class") or "")
         page.wait_for_selector(".settings-card", timeout=5000)
 
-    def test_s_opens_settings_and_w_does_nothing(self, page, base_url):
+    def test_s_opens_settings_and_l_and_a_do_nothing(self, page, base_url):
         page.goto(f"{base_url}/#dashboard")
         page.wait_for_selector(".hero-num", timeout=5000)
-        page.keyboard.press("w")
+        page.keyboard.press("l")
+        page.keyboard.press("a")
         page.wait_for_timeout(300)
         assert page.url.endswith("#dashboard")
         page.keyboard.press("s")
@@ -95,7 +96,7 @@ class TestNavigation:
         page.keyboard.press(".")
         page.wait_for_selector(".palette", timeout=3000)
         labels = page.locator(".palette li[role='option']").all_inner_texts()
-        assert not any(label.startswith("Week") for label in labels)
+        assert not any(label.startswith("Week ") for label in labels)
         assert any("Settings" in label for label in labels)
 
 
@@ -131,12 +132,12 @@ class TestDashboard:
         assert today.strftime("%a") in page.locator(".today-chip").inner_text()
         assert page.locator(".chip").count() == 3
         assert page.locator(".traj-line").count() == 1
-        assert "by December 31" in (page.locator(".traj-wrap").get_attribute("aria-label") or "")
+        assert "by Dec 31" in (page.locator(".traj-wrap").get_attribute("aria-label") or "")
         # the strip: Monday's bar carries the surplus colour, the day opens in Log
         day = page.locator(f".wd[aria-label*='{monday.isoformat()}']")
         assert "hm-surplus" in (day.locator(".wd-bar").get_attribute("class") or "")
         day.click()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
         page.wait_for_function(
             "d => Alpine.$data(document.querySelector('main')).editingDate === d",
             arg=monday.isoformat(),
@@ -271,7 +272,7 @@ class TestDaysTable:
             _work(f"{year}-03-03", "09:00", "17:00"),  # −1
             _work(f"{year}-02-10", "09:00", "18:00", notes="Dentist at **13:00**"),  # ±0
         )
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".days-table .week-sep", timeout=5000)
         page.get_by_test_id("wk-expand-all").click()
         page.wait_for_selector(".days-table .day-row", timeout=5000)
@@ -301,7 +302,7 @@ class TestDaysTable:
 
         # the whole row opens the day in Log
         page.locator(f"#day-row-{year}-03-03 td").nth(3).click()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
         page.wait_for_function(
             "d => Alpine.$data(document.querySelector('main')).editingDate === d",
             arg=f"{year}-03-03",
@@ -315,7 +316,7 @@ class TestDaysTable:
             _work(f"{year}-04-06", notes="Sprint planning in Madrid"),
             _work(f"{year}-04-07", notes="Quiet day"),
         )
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".days-table .week-sep", timeout=5000)
         page.locator(".notes-search").fill("madrid")
         page.wait_for_function(

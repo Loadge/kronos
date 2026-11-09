@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import DEMO_NOW
+from .conftest import DEMO_NOW, HASH_OF
 
 pytestmark = [
     pytest.mark.e2e,
@@ -56,7 +56,7 @@ def test_screen_matches_its_baseline(browser, demo_url, assert_snapshot, tab, si
     page = context.new_page()
     page.clock.set_fixed_time(DEMO_NOW)
     try:
-        page.goto(f"{demo_url}/#{tab}", wait_until="networkidle")
+        page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
         page.evaluate("document.fonts.ready")
         page.wait_for_timeout(800)  # the charts settle

@@ -1,9 +1,9 @@
-<!-- ========================= ANALYTICS ========================= -->
+<!-- ========================= YEAR (tab id "analytics", address #year) ========================= -->
 <template x-if="tab==='analytics'">
-<section aria-label="Analytics" @mouseleave="hmTip.show = false" x-init="anPinInit($el)">
+<section aria-label="Year" @mouseleave="hmTip.show = false" x-init="anPinInit($el)">
 
   <header class="page-head">
-    <div class="page-head-title"><h2>Analytics</h2></div>
+    <div class="page-head-title"><h2>Year</h2></div>
     <div class="page-head-controls">
       <!-- the exports: pills in the head, before the Employee/Freelance switch and the year -->
       <a href="/api/export.csv" role="button" class="head-btn" download>CSV</a>
@@ -20,7 +20,7 @@
           <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
-      <nav class="year-step" aria-label="Analytics year">
+      <nav class="year-step" aria-label="Year selector">
         <button type="button" @click="anStepYear(-1)" aria-label="Previous year">‹</button>
         <span class="year-step-v" x-text="analyticsYear"></span>
         <button type="button" @click="anStepYear(1)" aria-label="Next year">›</button>
@@ -31,7 +31,7 @@
   <!-- ── Year at a glance: always a whole year; hover a day, click to open it in Log.
        Once it has scrolled out of view, a compact copy stays pinned at the top (below). ── -->
   <div class="an-glance" data-testid="an-glance">
-  <div class="section-header an-head" title="Hover a day; click to open it in Log">
+  <div class="section-header an-head" title="Hover a day, click to open it in Days">
     <h2>Year at a glance</h2>
   </div>
   <template x-if="heatmapCells()">
@@ -96,7 +96,7 @@
           <button type="button" role="radio" :aria-checked="hmMode === 'freelance' ? 'true' : 'false'" :class="hmMode === 'freelance' ? 'on' : ''" @click="hmMode = 'freelance'"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
-      <nav class="year-step" aria-label="Analytics year">
+      <nav class="year-step" aria-label="Year selector">
         <button type="button" @click="anStepYear(-1)" aria-label="Previous year">‹</button>
         <span class="year-step-v" x-text="analyticsYear"></span>
         <button type="button" @click="anStepYear(1)" aria-label="Next year">›</button>
@@ -115,9 +115,9 @@
   <!-- ── Balance over time: the zoomable chart, with the visible range as a ledger ── -->
   <div class="section-header an-head q-host">
     <h2><span aria-hidden="true">👔</span> Balance over time</h2>
-    <button type="button" class="q-chip" data-tip="drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"
-            title="drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"
-            aria-label="Chart controls: drag a rectangle to zoom, wheel to zoom at the cursor, shift+drag to pan, double-click to reset"
+    <button type="button" class="q-chip" data-tip="Drag to zoom into a range&#10;Wheel to zoom at the cursor&#10;Shift-drag to pan&#10;Double-click to reset"
+            title="Drag to zoom into a range&#10;Wheel to zoom at the cursor&#10;Shift-drag to pan&#10;Double-click to reset"
+            aria-label="Chart controls: drag to zoom, wheel to zoom, shift-drag to pan, double-click to reset"
             @click="$el.classList.toggle('open')" @click.outside="$el.classList.remove('open')" @keydown.escape="if ($el.classList.contains('open')) { $event.stopPropagation(); $el.classList.remove('open') }">?</button>
   </div>
   <div class="an-row">
@@ -136,7 +136,7 @@
       </div>
       <!-- Built as markup (x-for cannot live inside <svg>); pointer events attached once by anInit. -->
       <div class="an-chart-wrap" x-init="anInit($el)" x-html="anChart.svg" role="img" :aria-label="anChart.aria"
-           title="Drag a rectangle to zoom · wheel to zoom at the cursor · shift+drag to pan · double-click to reset"></div>
+           title="Drag to zoom into a range&#10;Wheel to zoom at the cursor&#10;Shift-drag to pan&#10;Double-click to reset"></div>
       <!-- the whole history under the chart, with the visible window on it: drag it to pan -->
       <div class="an-brush" x-ref="anBrush" title="The whole history — drag the window to pan">
         <div class="an-brush-svg" x-html="anChart.brush"></div>

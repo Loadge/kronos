@@ -38,7 +38,7 @@
     {
       "name": "Log a day",
       "short_name": "Log",
-      "url": "/#log",
+      "url": "/#days",
       "icons": [
         {
           "src": "/static/icon-96.png",
@@ -60,9 +60,9 @@
       ]
     },
     {
-      "name": "Days",
-      "short_name": "Days",
-      "url": "/#days",
+      "name": "Weeks",
+      "short_name": "Weeks",
+      "url": "/#weeks",
       "icons": [
         {
           "src": "/static/icon-96.png",

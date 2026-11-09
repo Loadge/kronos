@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 TEXT = "New: press the logo to spin through your year"
@@ -42,7 +44,7 @@ def _fresh(page, base_url, size=(1280, 900), *, calm=False, tab="dashboard"):
     if calm:
         page.emulate_media(reduced_motion="reduce")
     page.add_init_script(ABSENT_ONCE)
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector(".brand-btn", state="attached", timeout=5000)
 
 
@@ -68,7 +70,7 @@ def test_the_tab_is_called_kronos_and_the_ios_name_stays(page, base_url):
 def test_the_logo_says_what_it_opens_and_winds_on_hover_and_on_focus(page, base_url):
     page.goto(f"{base_url}/#dashboard")
     logo = page.locator(".brand-btn")
-    assert logo.get_attribute("title") == "Your year as a dial (Y)"
+    assert logo.get_attribute("title") == "Your year as a dial (K)"
     assert logo.get_attribute("aria-label") == "Open the year dial"  # the name stays plain
     img = ".brand-btn .brand-logo"
     assert page.evaluate(f"document.querySelector('{img}').getAnimations().length") == 0
@@ -185,7 +187,7 @@ def test_pressing_the_logo_closes_it_and_opens_the_dial(page, base_url):
 
 def test_opening_the_dial_first_means_it_never_shows(page, base_url):
     _fresh(page, base_url)
-    page.keyboard.press("y")  # before the callout's 1.2 s are up
+    page.keyboard.press("k")  # before the callout's 1.2 s are up
     # the dial takes Escape once it has read its day; before that a slow runner keeps it open
     page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=8000)
     assert page.evaluate(KEY) == "1"  # written by opening, not by the callout
@@ -251,11 +253,12 @@ def test_the_callout_is_still_there_with_reduced_motion_and_the_logo_stays_still
 # ── 4. the ribbon's "?" chip ────────────────────────────────────────────────────
 
 CHIP = ".log-form-card .q-chip"
-AFTER = "(c) => getComputedStyle(c, '::after').content"
-BOX = """(c) => { const s = getComputedStyle(c, '::after');
-  const h = c.closest('.q-host').getBoundingClientRect();
-  const left = h.left + parseFloat(s.left), right = left + parseFloat(s.width);
-  return { left, right, w: innerWidth, sw: document.documentElement.scrollWidth }; }"""
+TIPBOX = ".log-form-card .q-tip"
+# the tip is a list of gestures (an element, since it has icons): open or shut, and where it sits
+OPEN = "(c) => getComputedStyle(c.parentElement.querySelector('.q-tip')).display !== 'none'"
+BOX = """(c) => { const r = c.parentElement.querySelector('.q-tip').getBoundingClientRect();
+  return { left: r.left, right: r.right, w: innerWidth,
+    sw: document.documentElement.scrollWidth }; }"""
 
 
 @pytest.fixture
@@ -280,7 +283,7 @@ def screen(browser, page):
 
 def _log(page, base_url, size):
     page.set_viewport_size({"width": size[0], "height": size[1]})
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(CHIP)
     return page.locator(CHIP)
 
@@ -298,39 +301,19 @@ def test_the_chip_sits_next_to_the_employee_title_and_is_shut_at_rest(page, base
     box = chip.bounding_box()
     assert box["x"] > title["x"] + title["width"] - 1  # after the title, on its line
     assert abs((box["y"] + box["height"] / 2) - (title["y"] + title["height"] / 2)) < 8
-    assert chip.evaluate(AFTER) == "none"
+    assert chip.evaluate(OPEN) is False
     # the app's existing "?" chip, not a second pattern
     assert chip.evaluate("c => c.classList.contains('q-chip')")
 
 
 @pytest.mark.parametrize("size", [(375, 812), (320, 700), (1280, 900)], ids=["375", "320", "1280"])
-def test_the_chip_opens_on_a_tap_inside_the_screen_and_says_to_press_create_entry(
-    screen, base_url, size
-):
+def test_the_chip_opens_on_a_tap_inside_the_screen(screen, base_url, size):
     chip = _log(screen(size), base_url, size)
     _tap(chip, size)
-    text = chip.evaluate(AFTER)
-    assert "Create entry" in text, text
-    assert text.startswith('"The bar above the times is your day.')
+    assert chip.evaluate(OPEN) is True
     box = chip.evaluate(BOX)
     assert box["left"] >= 0 and box["right"] <= box["w"], box
     assert box["sw"] <= box["w"], box
-    assert chip.get_attribute("title") == chip.get_attribute(
-        "data-tip"
-    )  # the mouse gets it as a tooltip
-
-
-def test_the_chip_text_is_the_full_explanation(page, base_url):
-    chip = _log(page, base_url, (1280, 900))
-    tip = chip.get_attribute("data-tip")
-    assert tip == (
-        "The bar above the times is your day. Drag its ends to change when you started and "
-        "finished, or drag the middle to move the whole day. Double-click the bar (double-tap on "
-        "a phone) to add a break, drag a break to move it, and pull it off the bar to remove it. "
-        "The flag marks when you reach your target. Freelance blocks have their own row: click "
-        "one to edit it, or drag along the empty row to add one. Nothing is saved until you "
-        "press Create entry."
-    )
 
 
 def test_the_chip_closes_on_escape_and_on_a_tap_outside(screen, base_url):
@@ -338,16 +321,16 @@ def test_the_chip_closes_on_escape_and_on_a_tap_outside(screen, base_url):
     page = screen(size)
     chip = _log(page, base_url, size)
     chip.tap()
-    assert chip.evaluate(AFTER) != "none"
+    assert chip.evaluate(OPEN) is True
     page.keyboard.press("Escape")
-    assert chip.evaluate(AFTER) == "none"
+    assert chip.evaluate(OPEN) is False
     assert (
-        page.evaluate("location.hash") == "#log"
+        page.evaluate("location.hash") == "#days"
     )  # Escape shut the bubble, it did not leave the tab
     chip.tap()
-    assert chip.evaluate(AFTER) != "none"
+    assert chip.evaluate(OPEN) is True
     page.locator(".log-form-card > .card-title h3").tap()
-    assert chip.evaluate(AFTER) == "none"
+    assert chip.evaluate(OPEN) is False
 
 
 def test_the_app_starts_once(page, base_url):

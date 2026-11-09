@@ -34,7 +34,7 @@
 <template x-if="tab==='days'">
 <section aria-label="All logged days" x-init="$nextTick(() => scrollToToday())">
   <header class="page-head days-header">
-    <div class="page-head-title"><h2>Days</h2></div>
+    <div class="page-head-title"><h2>Weeks</h2></div>
     <div class="page-head-controls">
       <div class="notes-search-wrap">
         <input type="search" class="notes-search" placeholder="Search notes…"
@@ -46,14 +46,14 @@
       <button type="button" class="head-btn pdf-btn" @click="openPdfModal()" :title="daysMode === 'freelance' ? 'Printable freelance timesheet' : 'Printable timesheet'" x-text="daysMode === 'freelance' ? '⚡ PDF' : 'PDF'"></button>
       <!-- 👔 Employee · ⚡ Freelance, the same pill as Analytics, just left of the year — only once an income source exists. -->
       <template x-if="hasFreelance()">
-        <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Days of">
+        <div class="seg-toggle hm-switch" role="radiogroup" aria-label="Weeks of">
           <button type="button" role="radio" :aria-checked="daysMode === 'employee' ? 'true' : 'false'" :class="daysMode === 'employee' ? 'on' : ''" @click="setDaysMode('employee')"><span aria-hidden="true">👔</span> Employee</button>
           <button type="button" role="radio" :aria-checked="daysMode === 'freelance' ? 'true' : 'false'" :class="daysMode === 'freelance' ? 'on' : ''" @click="setDaysMode('freelance')"><span aria-hidden="true">⚡</span> Freelance</button>
         </div>
       </template>
       <!-- the year, or every year -->
       <button type="button" class="year-all" :class="daysYear === 'all' ? 'on' : ''" @click="daysToggleAll()" :aria-pressed="daysYear === 'all' ? 'true' : 'false'" title="Every year">All</button>
-      <nav class="year-step" :class="daysYear === 'all' ? 'is-off' : ''" aria-label="Days year">
+      <nav class="year-step" :class="daysYear === 'all' ? 'is-off' : ''" aria-label="Weeks year">
         <button type="button" @click="daysStepYear(-1)" aria-label="Previous year">‹</button>
         <span class="year-step-v" x-text="daysYear === 'all' ? daysLastYear : daysYear"></span>
         <button type="button" @click="daysStepYear(1)" aria-label="Next year">›</button>
@@ -221,7 +221,7 @@
                 :aria-describedby="fxTip.open && fxTip.id === l.payout.id ? 'fx-tip' : null"
                 @mouseenter="fxTipOpen(l.payout, $el)" @mouseleave="fxTipClose()"
                 @focus="fxTipOpen(l.payout, $el)" @blur="fxTipClose()"
-                @click="fxTipClick(l.payout, $el)">FX</button>
+                @click="fxTipClick(l.payout, $el)" x-text="fxChipText(l.payout)">FX</button>
             </template>
           </span>
         </template>
@@ -323,7 +323,7 @@
                   </tr>
                 </template>
                 <template x-if="r.kind === 'block'">
-                  <tr class="day-row blk" :class="r.last ? 'blk-last' : ''" @click="openBlockInLog(r.b)" :title="'Edit this block in Log'" :style="'--src:' + sourceColor(r.b.source_id)">
+                  <tr class="day-row blk" :class="r.last ? 'blk-last' : ''" @click="openBlockInLog(r.b)" :title="'Edit this block in Days'" :style="'--src:' + sourceColor(r.b.source_id)">
                     <td class="metric" x-text="r.b.date"></td>
                     <td class="dow" x-text="r.dow"></td>
                     <td><span class="fl-dot" aria-hidden="true"></span> <span class="blk-src" :title="r.b.source_name" x-text="r.b.source_name"></span></td>
@@ -335,7 +335,7 @@
                     <td class="num metric" :class="r.b.amount_eur === null ? 'deficit' : (r.b.payout_id != null ? 'fl-est' : 'fl-money')" :title="r.b.payout_id != null ? 'estimate; the week\'s payout counts' : null" x-text="r.b.amount_eur === null ? 'no rate' : fmtMoney(r.b.amount_eur)"></td>
                     <td class="notes-col phone-hide" x-html="r.b.notes ? highlightNotes(r.b.notes, notesQuery) : ''"></td>
                     <td class="act-col phone-hide" @click.stop>
-                      <button type="button" class="row-edit" @click="openBlockInLog(r.b)" aria-label="Edit" title="Edit this block in Log">✎</button>
+                      <button type="button" class="row-edit" @click="openBlockInLog(r.b)" aria-label="Edit" title="Edit this block in Days">✎</button>
                     </td>
                     <td class="day-sub"><span class="day-sub-meta metric" x-text="blockSub(r.b)"></span><template x-if="r.b.notes"><span class="day-sub-note" x-html="(blockSub(r.b) ? ' · ' : '') + highlightNotes(r.b.notes, notesQuery)"></span></template></td>
                   </tr>

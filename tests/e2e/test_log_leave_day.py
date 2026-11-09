@@ -59,7 +59,7 @@ def _day(page, iso):
 
 
 def _edit_14(page, base_url):
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector(".log-form-card form", timeout=5000)
     page.evaluate(f"{DATA}.openDayInLog('{D14}')")
@@ -164,14 +164,14 @@ class TestLeaveDay:
             _day(page, D14).click()
             page.wait_for_function(f"() => {DATA}.editingDate === null", timeout=5000)
         assert page.locator(".back-btn").count() == 0
-        h2 = page.locator("section[aria-label='Log entry'] .page-head h2")
+        h2 = page.locator("section[aria-label='Days'] .page-head h2")
         assert h2.count() == 1
-        assert h2.inner_text() == "Log"
+        assert h2.inner_text() == "Days"
         assert h2.locator(".page-sub").count() == 0
 
     def test_escape_still_leaves_the_edit(self, page, base_url):
         _edit_14(page, base_url)
-        page.locator("section[aria-label='Log entry'] .page-head h2").click()
+        page.locator("section[aria-label='Days'] .page-head h2").click()
         page.keyboard.press("Escape")
         page.wait_for_function(f"() => {DATA}.editingDate === null", timeout=5000)
         st = _state(page)

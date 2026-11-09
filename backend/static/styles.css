@@ -2435,6 +2435,34 @@ button.btn-action.btn-action--outline:disabled { border-style: dashed; border-co
   .brand-logo { width: 36px; height: 36px; }
 }
 
+/* the Dashboard's year dial tile: ring, where the year stands, "Open dial" and its key */
+.dial-tile, .dial-tile:hover, .dial-tile:focus {
+  display: flex; align-items: center; gap: 0.75rem; width: auto; margin: 0; padding: 0.4rem 0.9rem 0.4rem 0.6rem;
+  border: 1px solid var(--k-border); border-radius: 10px; background: var(--k-surface); box-shadow: none; color: var(--k-text);
+  text-align: left; cursor: pointer;
+  transition: border-color var(--k-transition-fast), transform 0.12s ease-out, background var(--k-transition-fast);
+}
+.dial-tile:hover, .dial-tile:focus-visible { border-color: var(--k-brass); }
+.dial-tile:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 2px; }
+.dial-tile:active { transform: scale(0.98); }
+.dial-ring { flex: none; width: 52px; height: 52px; }
+.dial-tile:hover .dial-ring { animation: ring-turn 1.1s cubic-bezier(0.4, 0, 0.2, 1); }
+.dial-tile-txt { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.dial-tile-day { font-size: 0.95rem; white-space: nowrap; }
+.dial-tile-day b { color: var(--k-brass); font-weight: 700; }
+.dial-tile-sub { font-size: 0.78rem; color: var(--k-muted); white-space: nowrap; }
+.dial-tile-sub .metric { font-weight: 600; }
+.dial-tile-go { margin-left: auto; padding-left: 0.5rem; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--k-muted); white-space: nowrap; }
+.dial-tile:hover .dial-tile-go { color: var(--k-brass); }
+.dial-tile-key { margin: 0; padding: 0.05rem 0.4rem; border: 1px solid var(--k-border-strong); border-bottom-width: 2px; border-radius: 4px; background: transparent; color: var(--k-text); font: 600 0.72rem ui-monospace, "Cascadia Mono", Consolas, monospace; line-height: 1.3; }
+@media (hover: none) { .dial-tile-key { display: none; } }
+@media (max-width: 640px) { .dial-tile { flex: 1 1 100%; } }
+@media (prefers-reduced-motion: reduce) {
+  .brand-btn:hover .brand-ring, .brand-btn:focus-visible .brand-ring, .dial-tile:hover .dial-ring { animation: none; }
+  .brand-ring, .dial-tile { transition: none; }
+  .brand-btn:active .brand-ring, .dial-tile:active { transform: none; }
+}
+
 /* ================================================================
    E2: SKELETON SHIMMER + OPTIMISTIC SAVE
    ================================================================ */
@@ -4206,27 +4234,26 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 @keyframes calc-turn { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 .calc-busy { position: absolute; right: 0; top: -0.4rem; width: 8px; height: 8px; border-radius: 50%; background: var(--k-coin); opacity: 0; transition: opacity 0.2s; }
 .calc-busy.on { opacity: 1; animation: fl-pulse 0.9s ease-out infinite; }
-/* the secondary fields share one grid: row 1 currency, the rate and the billable days, row 2 the four
-   amounts, row 3 the toggles, so the columns line up from row to row */
-.calc-assume { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.9rem 1.5rem; align-items: start; margin: 1rem 0 0; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
-.calc-a--cur { grid-column: 1; grid-row: 1; }
-.calc-a--fx { grid-column: 2; grid-row: 1; }
-.calc-a--days { grid-column: 3 / span 2; grid-row: 1; }
-.calc-a--r2 { grid-row: 2; }
-.calc-toggles { grid-column: 1 / -1; grid-row: 3; display: flex; flex-wrap: wrap; gap: 0.5rem 1.75rem; padding-top: 0.2rem; }
+/* the assumptions: one line of switches (currency, which billable days, the Spanish ones), then the parameters,
+   each a row with its label right beside its value: three columns from 900px, two from 641px, one below */
+.calc-assume { display: flex; flex-direction: column; gap: 0.75rem; margin: 1rem 0 0; padding-top: 0.8rem; border-top: 1px dashed var(--k-border); }
+.calc-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.5rem; }
+.calc-opt { flex-direction: row !important; align-items: center; gap: 0.5rem !important; }
+.calc-opt .fl-lbl { white-space: nowrap; }
+.calc-toggles { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 1.25rem; }
 .calc-a { display: flex; flex-direction: column; gap: 0.25rem; margin: 0; min-width: 0; }
 .calc-a input:not([type=checkbox]) { margin: 0; font-size: 0.88rem; height: 2.2rem; padding-top: 0; padding-bottom: 0; }
-.calc-a .ctl-num { width: 100% !important; }
-.calc-a .seg-toggle { align-self: flex-start; }
-.calc-days { flex-wrap: nowrap; }
-.calc-days .seg-toggle { flex: none; }
-.calc-days .seg-toggle button { white-space: nowrap; }
-.calc-days .ctl-num { width: 6rem !important; flex: none; }
-.fl-plan-inputs .calc-a .ctl-num { width: 5.5rem !important; }
-.calc-a .seg-toggle { margin: 0; }
+.calc-a .seg-toggle { align-self: flex-start; margin: 0; }
 .calc-a--switch { flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
 .calc-a--switch input { margin: 0; }
-.calc-days { display: flex; gap: 0.5rem; align-items: center; }
+.fl-plan-inputs .calc-a .ctl-num { width: 5.5rem !important; }
+.calc-params { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem 1.5rem; align-items: center; }
+.calc-p { display: grid; grid-template-columns: 6.6rem 76px auto; column-gap: 8px; align-items: center; justify-content: start; margin: 0; min-width: 0; }
+.calc-p .fl-lbl { justify-content: flex-end; text-align: right; white-space: nowrap; }
+.calc-p input { margin: 0; width: 76px !important; height: 2rem; padding: 0 0.3rem; font-size: 0.88rem; text-align: left; }
+.calc-p input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.calc-p input[type=number]::-webkit-inner-spin-button, .calc-p input[type=number]::-webkit-outer-spin-button { display: none; }
+.calc-p .calc-p-note { display: block; margin: 0; font-size: 0.68rem; line-height: 1; white-space: nowrap; }
 .calc-out { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px dashed var(--k-border); }
 /* gross → expenses → RETA → IRPF → net */
 .calc-fall { display: flex; height: 26px; border-radius: 6px; overflow: hidden; border: 1px solid var(--k-border); margin-bottom: 0.9rem; }
@@ -4247,15 +4274,8 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .calc-link { display: none; }
   .calc-field { flex-basis: 100%; }
 }
-@media (max-width: 760px) {
-  /* two columns on a phone: the same grid, the placements reset */
-  .calc-assume { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem 1rem; }
-  .calc-assume > * { grid-column: auto; grid-row: auto; }
-  .calc-a--days { grid-column: 1 / -1; }
-  .calc-a .fl-lbl { flex-wrap: wrap; }
-  .calc-a .fl-lbl small { white-space: nowrap; }
-  .calc-toggles { grid-column: 1 / -1; flex-direction: column; }
-}
+@media (max-width: 899px) { .calc-params { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .calc-params { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .calc-field.follows input, .calc-busy.on, .calc-link.flow { animation: none; } .calc-seg { transition: none; } }
 
 /* ── Analytics: freelance stacked, the heatmap switch ─────────── */
@@ -4405,7 +4425,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   padding: 0.5rem 0.7rem;
   background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
-  color: var(--k-text); font-size: 0.78rem; font-weight: 400; text-align: left; white-space: normal; line-height: 1.4;
+  color: var(--k-text); font-size: 0.78rem; font-weight: 400; text-align: left; white-space: pre-line; line-height: 1.4;
   animation: q-pop 0.16s ease-out;
 }
 /* in a host row the bubble hangs from the row's left edge, so it never runs off a phone's screen */
@@ -4413,8 +4433,25 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .q-host > .q-chip, .q-host .q-chip { position: static; }
 .q-host .q-chip.open::after { left: 0; max-width: min(22rem, 100%); }
 @keyframes q-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+/* a "?" whose tip is a list of gestures: a real element (the icons are SVG), open by tap or click and on hover */
+.q-tip {
+  display: none; position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 30;
+  width: max-content; max-width: min(22rem, 100%); margin: 0; padding: 0.55rem 0.75rem; list-style: none;
+  background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: var(--k-text); font-size: 0.8rem; line-height: 1.35; text-align: left;
+}
+.q-tip li { display: flex; align-items: center; gap: 0.55rem; margin: 0; padding: 0.2rem 0; list-style: none; }
+.q-ic { flex: none; width: 16px; height: 16px; color: var(--k-brass); }
+.q-tip .q-tip-touch { display: none; }
+@media (hover: none) {
+  .q-tip .q-tip-pointer { display: none; }
+  .q-tip .q-tip-touch { display: inline; }
+}
+.q-chip.open + .q-tip { display: block; animation: q-pop 0.16s ease-out; }
+@media (hover: hover) { .q-chip:hover + .q-tip { display: block; animation: q-pop 0.16s ease-out; } }
 @media (prefers-reduced-motion: reduce) {
-  .q-chip, .q-chip.open::after { transition: none; animation: none; }
+  .q-chip, .q-chip.open::after, .q-chip.open + .q-tip, .q-chip:hover + .q-tip { transition: none; animation: none; }
 }
 
 /* the heatmap: where it scrolls, its right edge fades while there is more to see */
@@ -4786,6 +4823,18 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 }
 .brand-btn:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 3px; }
 .brand-btn .brand-logo { display: block; transition: transform 0.5s cubic-bezier(0.34, 1.9, 0.64, 1); }
+/* the year as a ring around the logo's disc (yearRingSvg): outside it, so the disc keeps its size and place */
+.brand-btn { position: relative; }
+.brand-ring { position: absolute; inset: -8px; pointer-events: none; transition: transform 0.18s ease-out; }
+.ring { display: block; width: 100%; height: 100%; overflow: visible; }
+.rt { stroke: var(--k-border-strong); stroke-width: 1.7; stroke-linecap: round; }
+.rt.rm { stroke-width: 2.6; }
+.rt.on { stroke: var(--k-brass); }
+.rd { fill: var(--k-coin); stroke: var(--k-brass); stroke-width: 1; filter: drop-shadow(0 0 2px color-mix(in srgb, var(--k-brass) 70%, transparent)); }
+/* turned once on hover or focus (it ends where it started); pressed, it gives like a button */
+.brand-btn:hover .brand-ring, .brand-btn:focus-visible .brand-ring { animation: ring-turn 1.1s cubic-bezier(0.4, 0, 0.2, 1); }
+.brand-btn:active .brand-ring { transform: scale(0.92); }
+@keyframes ring-turn { to { transform: rotate(360deg); } }
 /* a quarter turn back, a little past, and to rest: the app's spring (it tells people the logo is a control) */
 .brand-btn:hover .brand-logo, .brand-btn:focus-visible .brand-logo { transform: rotate(-14deg); animation: logo-tease 0.9s cubic-bezier(0.34, 1.56, 0.64, 1); }
 @keyframes logo-tease { 0% { transform: rotate(0); } 38% { transform: rotate(-90deg); } 72% { transform: rotate(10deg); } 100% { transform: rotate(-14deg); } }
@@ -5441,8 +5490,35 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 
 /* The day bead: where the hour of the day sits on the hairline under the header, 06:00 to 24:00.
    The hairline is a desktop thing (from 720px), so the bead is too. */
-.day-bead, .day-lit, .day-goal { display: none; }
+.day-bead, .day-lit, .day-goal, .day-mark { display: none; }
 @media (min-width: 720px) {
+  /* the notches of the working day (start, end) and noon, on the same scale as the bead; the time sits under
+     the line, in the header's margin (labels end 19px under it, the margin is 30px). */
+  .day-mark {
+    position: absolute;
+    bottom: -6px;
+    left: calc(var(--m, 0) * (100% - 7px) + 3.5px);
+    display: block;
+    width: 1px;
+    height: 8px;
+    margin-left: -0.5px;
+    background: color-mix(in srgb, var(--k-brass) 75%, transparent);
+    pointer-events: none;
+  }
+  .day-mark b {
+    position: absolute;
+    top: calc(100% + 1px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    color: var(--k-muted);
+    white-space: nowrap;
+  }
+  .day-mark--noon { bottom: -4px; height: 5px; background: color-mix(in srgb, var(--k-muted) 55%, transparent); }
+  .day-mark--noon b { color: color-mix(in srgb, var(--k-muted) 80%, var(--k-bg)); }
   .day-bead {
     position: absolute;
     bottom: -4px;
@@ -5546,11 +5622,39 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 .fx-chip {
   display: inline-flex; align-items: center; justify-content: center; margin: 0; width: auto; min-width: 1.75rem; height: 1.5rem; padding: 0 0.45rem;
   border: 1px solid var(--k-brass); border-radius: 999px; background: transparent; color: var(--k-brass);
-  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; line-height: 1; cursor: help;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.08em; line-height: 1; cursor: help; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   transition: background var(--k-transition-fast), box-shadow var(--k-transition-fast), transform var(--k-transition-fast);
 }
 .fx-chip:hover, .fx-chip:focus-visible { background: color-mix(in srgb, var(--k-brass) 16%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 22%, transparent); transform: translateY(-1px); }
 .fx-chip:active { transform: scale(0.95); }
+/* Payouts waiting: the Freelance card of the page where days are logged. Selected chip: teal outline and text. */
+.fl-wait { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--k-border); display: flex; flex-direction: column; gap: 0.5rem; }
+.fl-wait-head { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.75rem; }
+.fl-wait-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.fl-wait-chip {
+  margin: 0; width: auto; height: 1.6rem; padding: 0 0.6rem; border: 1px solid var(--k-border-strong); border-radius: 999px;
+  background: transparent; color: var(--k-muted); font-size: 0.74rem; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast), background var(--k-transition-fast), transform 0.22s ease, opacity 0.22s ease, max-width 0.28s ease;
+}
+.fl-wait-chip:hover { color: var(--k-text); border-color: var(--k-muted); }
+.fl-wait-chip:active { transform: scale(0.95); }
+.fl-wait-chip.on { color: var(--paid); border-color: var(--paid); background: color-mix(in srgb, var(--paid) 12%, transparent); }
+.fl-wait-chip.is-leaving { animation: fl-wait-out 0.28s ease-in forwards; pointer-events: none; }
+@keyframes fl-wait-out { to { opacity: 0; transform: translateY(-6px) scale(0.8); } }
+.fl-wait-more { font-size: 0.74rem; color: var(--k-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; padding: 0 0.3rem; }
+.fl-wait-more:hover { color: var(--k-text); }
+.fl-wait-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; animation: fl-wait-in 0.2s ease-out; }
+@keyframes fl-wait-in { from { opacity: 0; transform: translateY(3px); } }
+.fl-wait-form .cur { color: var(--paid); }
+.fl-wait-form .payin { width: 6rem; margin: 0; height: 2rem; padding: 0 0.5rem; font-size: 0.88rem; text-align: right; }
+.fl-wait-form .payacct { width: auto; max-width: 11rem; margin: 0; height: 2rem; padding-top: 0; padding-bottom: 0; font-size: 0.82rem; }
+button.fl-wait-save { width: auto; margin: 0; height: 2rem; padding: 0 1rem; border: 1px solid var(--paid); border-radius: 6px; background: var(--paid); color: var(--k-bg); font-weight: 600; cursor: pointer; transition: opacity var(--k-transition-fast), transform var(--k-transition-fast); }
+button.fl-wait-save:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+button.fl-wait-save:active:not(:disabled) { transform: scale(0.97); }
+button.fl-wait-save:disabled { opacity: 0.4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .fl-wait-chip, .fl-wait-form { transition: none; animation: none; } .fl-wait-chip.is-leaving { animation: none; } }
 .fx-tip {
   position: fixed; z-index: 60; width: max-content; max-width: min(22rem, calc(100vw - 16px)); padding: 0.5rem 0.7rem;
   background: var(--k-surface); border: 1px solid var(--k-border-strong); border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);

@@ -27,7 +27,7 @@ a component.
 - A chip that states something and can be clicked is a small rounded outline in brass (`.fl-jump`,
   `.update-pill`). The same shape is used for "W45 in Days".
 - A table separator names a period and sums it (`.month-sep`, `.week-sep`).
-- The bezel (`.bz`) is a strip with one tick per week over the Days table: a map of the year and the
+- The bezel (`.bz`) is a strip with one tick per week over the Weeks table: a map of the year and the
   way to open, close and reach weeks. Lit brass means open, teal means open and paid out.
 - The day ribbon (`.dr`) draws the day in Log: a brass bar you can drag, notches for breaks, a flag where
   the target is reached, and the surplus in lit coin after it. It only writes what the time fields write.
@@ -37,7 +37,7 @@ a component.
   it is one column.
 - Less text: a card title does not need a hint line. If a label is clear, nothing explains it. Tabs
   are named, not counted; charts carry their caption in a `title`, not under them.
-- The two lives wear a mark: 👔 for the employee side, ⚡ for freelance (card titles, the Days tabs,
+- The two lives wear a mark: 👔 for the employee side, ⚡ for freelance (card titles, the Weeks tabs,
   the Employee/Freelance switches, "Balance over time"). Both are `aria-hidden`.
 - Two charts that share a row fill the height the neighbouring column leaves, instead of leaving a
   hole (Analytics: Weekday pattern and Daily surplus under the balance chart).

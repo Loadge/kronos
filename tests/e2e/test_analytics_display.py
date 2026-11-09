@@ -59,13 +59,13 @@ def _wipe(base_url: str) -> None:
 
 
 def _open_analytics(page, base_url: str) -> None:
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector(".hm-cell", timeout=10000)
     page.wait_for_selector(".weekday-cell", timeout=10000)
 
 
 def _record_titles(page) -> list[str]:
-    return page.locator("section[aria-label=Analytics] .an-rec-label").all_inner_texts()
+    return page.locator("section[aria-label=Year] .an-rec-label").all_inner_texts()
 
 
 class TestAnalyticsDisplay:

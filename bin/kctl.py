@@ -14,7 +14,7 @@ Usage
     python bin/kctl.py up --seed          # fresh instance on a temp DB + sample data
     python bin/kctl.py status
     python bin/kctl.py api GET /api/analytics/monthly
-    python bin/kctl.py shot /#analytics --out .artifacts/kctl-analytics.png
+    python bin/kctl.py shot /#year --out .artifacts/kctl-year.png
     python bin/kctl.py logs --lines 40
     python bin/kctl.py down               # kill the instance, delete the temp dir
 
@@ -530,7 +530,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Typical loop:\n"
             "  python bin/kctl.py up --seed\n"
             "  python bin/kctl.py api GET /api/analytics/monthly\n"
-            "  python bin/kctl.py shot /#analytics --out .artifacts/kctl-analytics.png\n"
+            "  python bin/kctl.py shot /#year --out .artifacts/kctl-year.png\n"
             "  python bin/kctl.py down\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -557,7 +557,7 @@ def build_parser() -> argparse.ArgumentParser:
     api.set_defaults(func=cmd_api)
 
     shot = sub.add_parser("shot", help="screenshot a page of the running instance")
-    shot.add_argument("path", help="app path, e.g. / or /#analytics")
+    shot.add_argument("path", help="app path, e.g. / or /#year")
     shot.add_argument(
         "--out",
         required=True,

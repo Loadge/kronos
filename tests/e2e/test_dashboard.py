@@ -104,7 +104,7 @@ class TestDashboardMetrics:
         assert page.locator(".traj-proj").count() == 1
 
     def test_analytics_tab_loads_without_error(self, page, base_url):
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_load_state("networkidle")
 
         errors: list[str] = []

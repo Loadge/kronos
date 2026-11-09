@@ -17,6 +17,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import OPEN_ALL_WEEKS
+
 pytestmark = pytest.mark.e2e
 
 
@@ -33,7 +35,7 @@ def _clean(base_url):
 
 
 def _open_log_tab(page, base_url):
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector("form", timeout=5000)
 
@@ -100,7 +102,7 @@ class TestLogFormSubmission:
         # Saving keeps the user where they are: the confirmation is the toast.
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.locator(".ribbon-msg").inner_text().startswith("Saved")
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
 
     def test_submit_vacation_day_appears_in_days_list(self, page, base_url):
         date_str = _day_in_current_month(4)
@@ -111,10 +113,11 @@ class TestLogFormSubmission:
 
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
 
         # Open the Days tab: the entry is in the table
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
+        page.evaluate(OPEN_ALL_WEEKS)
         page.wait_for_selector(f"td:has-text('{date_str}'), td:has-text('vacation')", timeout=5000)
 
     def test_duplicate_date_shows_error(self, page, base_url):

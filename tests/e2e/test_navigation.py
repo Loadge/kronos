@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 
@@ -28,8 +30,8 @@ class TestTabSwitching:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        page.click("text=Log")
-        page.wait_for_url("**/#log", timeout=3000)
+        page.click("text=Days")
+        page.wait_for_url("**/#days", timeout=3000)
 
         # The log form must appear
         page.wait_for_selector("form", timeout=3000)
@@ -39,8 +41,8 @@ class TestTabSwitching:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        page.click("text=Days")
-        page.wait_for_url("**/#days", timeout=3000)
+        page.click("text=Weeks")
+        page.wait_for_url("**/#weeks", timeout=3000)
 
         # The entries table (or empty state) must be visible
         table_or_empty = page.locator(
@@ -73,14 +75,14 @@ class TestTabSwitching:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        page.click("text=Log")
-        page.wait_for_url("**/#log", timeout=3000)
-
         page.click("text=Days")
         page.wait_for_url("**/#days", timeout=3000)
 
+        page.click("text=Weeks")
+        page.wait_for_url("**/#weeks", timeout=3000)
+
         page.go_back()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
 
 
 class TestPageLoad:
@@ -113,7 +115,7 @@ class TestClickingATabLeavesNoCaret:
     Chrome on Windows paints as a blinking caret after the label. Labels are unselectable
     now and the caret colour transparent: neither condition may come back."""
 
-    @pytest.mark.parametrize("name", ["Plan", "Log", "Days", "Analytics", "Dashboard"])
+    @pytest.mark.parametrize("name", ["Plan", "Days", "Weeks", "Year", "Dashboard"])
     def test_tab_click(self, page, base_url, name):
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
@@ -141,7 +143,7 @@ class TestEscapeGoesHome:
 
     @pytest.mark.parametrize("tab", ["plan", "log", "days", "analytics", "settings"])
     def test_escape_from_every_tab(self, page, base_url, tab):
-        page.goto(f"{base_url}/#{tab}")
+        page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
         page.wait_for_load_state("networkidle")
         page.evaluate("() => document.activeElement.blur()")  # the page, not a field
         page.keyboard.press("Escape")
@@ -156,24 +158,24 @@ class TestEscapeGoesHome:
         assert page.url.endswith("#dashboard")
 
     def test_escape_leaves_a_field_first(self, page, base_url):
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_load_state("networkidle")
         search = page.locator(".notes-search")
         search.click()
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)
-        assert page.url.endswith("#days")  # first Escape only leaves the field
+        assert page.url.endswith("#weeks")  # first Escape only leaves the field
         assert page.evaluate("() => document.activeElement === document.body")
         page.keyboard.press("Escape")
         page.wait_for_url("**/#dashboard", timeout=3000)
 
     def test_escape_closes_the_palette_first(self, page, base_url):
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_load_state("networkidle")
         page.keyboard.press(".")
         page.wait_for_selector(".palette", timeout=3000)
         page.keyboard.press("Escape")
         page.wait_for_function("() => !document.querySelector('.palette')", timeout=3000)
-        assert page.url.endswith("#days")
+        assert page.url.endswith("#weeks")
         page.keyboard.press("Escape")
         page.wait_for_url("**/#dashboard", timeout=3000)

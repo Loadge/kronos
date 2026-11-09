@@ -37,7 +37,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
 - **Work days** carry a start time, an end time, and any number of breaks — entered as a
   time range or as raw minutes
 - **Partial leave.** A leave day can cover only part of the day — 3h of vacation, a 2h
-  sick leave — with the hours worked in the rest of it logged on the same row. The Log tab
+  sick leave — with the hours worked in the rest of it logged on the same row. The Days tab
   has a slider in hours; the rest of the app shows `vacation · 3h`
 - **Clock in / clock out** stamps the current time into the form, for logging as you go
 - **Bulk logging** applies one non-work type across a whole date range in a single call
@@ -71,7 +71,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
   leaves. Drafts don't touch the numbers until you commit them, block by block, with their notes.
   They show as dashed ghost days on every calendar, and the dashboard forecast counts them
   instead of assuming you'll take the whole remaining budget
-- **Analytics tab** — a year-at-a-glance heatmap first (hover a day for its hours, Δ and
+- **Year tab** — a year-at-a-glance heatmap first (hover a day for its hours, Δ and
   note; click to open it in Log; a switch shows the freelance hours instead; once it scrolls
   away a compact copy stays pinned at the top with the switch and the year), then the
   **balance over time**: a chart you zoom by drawing a rectangle on it (wheel zooms at the
@@ -107,7 +107,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
 - **Logging and on-target streaks**, with milestone toasts at 30 / 100 / 365 days
 - **Plan tab** — a year strip of twelve mini months picks the working month; click or drag to
   draft, one ledger for drafts and the time off already logged ahead (commit, remove, delete,
-  or open a day in the Log tab from there; logged and past days on its calendar open in Log too)
+  or open a day in the Days tab from there; logged and past days on its calendar open in Days too)
 - **Log** tab — the same year strip picks the month, a calendar picks the day; the **Employee**
   card (type, times, breaks, notes) and, with an income source, the **⚡ Freelance** card under
   it. **Days** tab for the full searchable history — a dense table, a row opens its day, a
@@ -230,7 +230,7 @@ in the `settings` key-value table:
 | `reset_annually` | `false` | Auto-advance the cumulative start to Jan 1 each year |
 | `work_week_days` | Mon–Fri | Which weekdays count toward the schedule |
 | `vacation_budget_days` | `0` | Annual vacation allowance shown on the dashboard; halves allowed (`22.5`) |
-| `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Log tab |
+| `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Days tab |
 | `holiday_country` · `holiday_region` | *(none)* | Selection remembered for holiday import |
 | `profile_name` · `profile_employer` · `profile_extra` | *(empty)* | Printed in the timesheet header; blank lines are left out |
 | `freelance_hours_per_week` · `freelance_days_off` | `0` · `0` | The Freelance tab's projection to Dec 31: the hours you plan to bill a week, and the days off a year (spread over it) |
@@ -449,7 +449,7 @@ make check            # lint, then test, then e2e — what to run before a deplo
 163 tests drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
 viewport/responsive checks, the dashboard (hero, trajectory, week strip, quick-log, vacation
 notches, the freelance card), Settings groups and sections saving on their own (two dropdowns on
-the phone), the Days table (month separators, row click,
+the phone), the Weeks table (month separators, row click,
 notes), the Analytics chart (rectangle and wheel zoom, reset, presets, series switch, the range
 driving the ledger, weekday times, histogram and records, the heatmap tooltip and click, the
 freelance switch and stacked bars), the
@@ -510,7 +510,7 @@ human can check a change without touching real data:
 ```sh
 python bin/kctl.py up --seed                                   # ~3 months of sample data
 python bin/kctl.py api GET /api/analytics/monthly
-python bin/kctl.py shot "/#analytics" --out .artifacts/analytics.png [--viewport phone]
+python bin/kctl.py shot "/#year" --out .artifacts/analytics.png [--viewport phone]
 python bin/kctl.py down                                        # kill it, delete the temp DB
 ```
 

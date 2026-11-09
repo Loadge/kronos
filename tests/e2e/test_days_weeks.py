@@ -67,7 +67,7 @@ def _week(base_url: str, monday: str, ends: list[str] | None = None, notes: str 
 def _open(page, base_url: str, size=(1280, 900)) -> None:
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector(".days-table tr.week-sep", timeout=5000)
     page.wait_for_timeout(300)
 
@@ -331,7 +331,7 @@ class TestNotesSearch:
 
 def _open_log(page, base_url: str) -> None:
     page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector(".log-cal-grid.has-wk", timeout=5000)
     page.evaluate(
@@ -361,7 +361,7 @@ class TestJumps:
             timeout=5000,
         )
         page.locator(".log-cal-wk", has_text="44").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_url("**/#weeks", timeout=5000)
         page.wait_for_selector(f"#eweek-{W44}", state="attached", timeout=5000)
         page.wait_for_function(
             "(m) => document.getElementById('eweek-' + m).classList.contains('week-flash')",
@@ -384,10 +384,10 @@ class TestJumps:
         page.set_viewport_size({"width": 1280, "height": 500})
         page.clock.set_fixed_time(FIXED_NOW)
         # the Days tab scrolls to today when it is opened with the entries already loaded
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(".log-cal-grid", timeout=5000)
-        page.get_by_role("tab", name="Days").click()
+        page.get_by_role("tab", name="Weeks").click()
         page.wait_for_selector(f"#eweek-{W44}", state="attached", timeout=5000)
         assert page.locator(f"#day-row-{_day(W44, 4)}").count() == 0
         page.wait_for_function(

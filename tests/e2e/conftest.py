@@ -33,6 +33,18 @@ import pytest
 from playwright.sync_api import Browser
 from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
+# The address of each tab id: the page where days are logged is #days (id "log"), the weekly one
+# is #weeks (id "days"), the year charts are #year (id "analytics"). Tests looping over ids use it.
+HASH_OF = {"log": "days", "days": "weeks", "analytics": "year"}
+
+# Weeks opens only the current week's rows. A test with fixed dates opens them all, so it does not
+# depend on which week the suite runs in.
+OPEN_ALL_WEEKS = (
+    "async () => { const d = Alpine.$data(document.querySelector('main'));"
+    " for (let i = 0; i < 50 && !d.entries.length; i++) await new Promise(r => setTimeout(r, 100));"
+    " d.daysWeeksSetAll(true); }"
+)
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 BACKEND_DIR = Path(__file__).parent.parent.parent / "backend"

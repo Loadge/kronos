@@ -62,14 +62,14 @@ class TestAnalyticsLayout:
             ],
         )
 
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".hm-cell", timeout=10000)
 
-        headings = page.locator("section[aria-label=Analytics] h2").all_inner_texts()
+        headings = page.locator("section[aria-label=Year] h2").all_inner_texts()
         # Balance over time carries a decorative 👔 (aria-hidden): compare the words only
         headings = [h.replace("👔", "").strip() for h in headings]
         # the page's own title first (every tab has one), then the sections in order
-        assert headings[0] == "Analytics"
+        assert headings[0] == "Year"
         assert headings[1:] == EXPECTED_ORDER
 
     def test_point_in_time_section_is_gone(self, page, base_url):
@@ -86,11 +86,11 @@ class TestAnalyticsLayout:
             ],
         )
 
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".hm-cell", timeout=10000)
 
-        assert "Point-in-time" not in page.locator("section[aria-label=Analytics]").inner_text()
-        assert page.locator("section[aria-label=Analytics] input[type=date]").count() == 0
+        assert "Point-in-time" not in page.locator("section[aria-label=Year]").inner_text()
+        assert page.locator("section[aria-label=Year] input[type=date]").count() == 0
 
 
 def _wipe_all(base_url: str) -> None:
@@ -149,7 +149,7 @@ class TestBalanceRow:
 
     def _open(self, page, base_url: str) -> None:
         page.set_viewport_size({"width": 1280, "height": 900})
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-panel .weekday-cell", timeout=10000)
         page.wait_for_selector("[data-testid=an-freelance], .an-ledger-rows", timeout=10000)
         page.wait_for_timeout(300)
@@ -185,13 +185,13 @@ class TestBalanceRow:
         for panel in page.locator(".an-chart-col .an-panel").all():
             box = panel.bounding_box()
             assert box["height"] < 260
-        years = page.locator("section[aria-label=Analytics] h2", has_text="Years").bounding_box()
+        years = page.locator("section[aria-label=Year] h2", has_text="Years").bounding_box()
         assert years["y"] >= col["y"] + col["height"]
 
     def test_hints_captions_gone_and_tie_present(self, page, base_url):
         _seed_year(base_url, freelance=True)
         self._open(page, base_url)
-        section = page.locator("section[aria-label=Analytics]")
+        section = page.locator("section[aria-label=Year]")
         # no hint line under Year at a glance or Records (they live in a title="" tooltip)
         assert section.locator(".an-hint", has_text="for the range shown").count() == 0
         assert page.locator(".an-panel .an-hint").count() == 0

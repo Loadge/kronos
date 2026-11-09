@@ -59,7 +59,7 @@ def _style(locator, prop: str) -> str:
 
 
 def _open_analytics(page, base_url):
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector("main .page-head .hm-switch", timeout=10000)
 
 
@@ -96,7 +96,7 @@ class TestAnalyticsExports:
             c.delete("/api/data")
             for s in c.get("/api/freelance/sources").json():
                 c.delete(f"/api/freelance/sources/{s['id']}")
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector("main .page-head .year-step", timeout=10000)
         head = page.locator("main .page-head .page-head-controls")
         assert head.get_by_role("button", name="CSV", exact=True).count() == 1
@@ -106,7 +106,7 @@ class TestAnalyticsExports:
 
     def test_no_export_block_at_the_bottom(self, page, base_url):
         _open_analytics(page, base_url)
-        section = page.locator("section[aria-label=Analytics]")
+        section = page.locator("section[aria-label=Year]")
         headings = [h.strip() for h in section.locator("h2").all_inner_texts()]
         assert "Export" not in headings, headings
         assert section.locator(".an-export").count() == 0
@@ -114,7 +114,7 @@ class TestAnalyticsExports:
     def test_its_page_level_titles_are_all_section_heads(self, page, base_url):
         _open_analytics(page, base_url)
         for title in ("Year at a glance", "Years", "Records"):
-            h2 = page.locator("section[aria-label=Analytics] h2", has_text=title).first
+            h2 = page.locator("section[aria-label=Year] h2", has_text=title).first
             assert h2.evaluate("e => e.parentElement.classList.contains('an-head')"), title
             root = float(page.evaluate("getComputedStyle(document.documentElement).fontSize")[:-2])
             assert _style(h2, "fontSize") == f"{root * 1.25:g}px", (title, _style(h2, "fontSize"))
@@ -123,7 +123,7 @@ class TestAnalyticsExports:
 class TestHintsAreGone:
     def test_analytics_hints_are_absent(self, page, base_url):
         _open_analytics(page, base_url)
-        text = page.locator("section[aria-label=Analytics]").inner_text().lower()
+        text = page.locator("section[aria-label=Year]").inner_text().lower()
         assert "hover a day" not in text
         assert "for the range shown" not in text
 
@@ -136,7 +136,7 @@ class TestHintsAreGone:
 class TestOnePrimaryButton:
     def test_log_pdf_and_add_block_share_the_look(self, page, base_url):
         # Log: the main submit and the Add block button
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
         page.evaluate(
             f"Alpine.$data(document.querySelector('main')).openDayInLog('{TODAY.isoformat()}')"
@@ -157,7 +157,7 @@ class TestOnePrimaryButton:
         assert abs(_hue(_rgb(log_bg)) - _hue(_rgb(_style(add_block, "color")))) < 15
 
         # Days: the PDF modal's submit is the same brass
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector("main .page-head .pdf-btn", timeout=5000)
         page.locator("main .page-head .pdf-btn").click()
         modal_submit = page.locator(".pdf-modal button[type=submit]")
@@ -187,7 +187,7 @@ ARROWS = """s => ['::before', '::after'].filter(p => {
 class TestDisclosures:
     def test_a_collapsible_wears_one_arrow(self, page, base_url):
         """Pico draws a chevron after every summary; ours draws its own arrow before the text."""
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
         page.evaluate(
             f"Alpine.$data(document.querySelector('main')).openDayInLog('{TODAY.isoformat()}')"

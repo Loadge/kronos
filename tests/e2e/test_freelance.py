@@ -10,9 +10,12 @@ through the browser; Settings has two levels, as dropdowns on the phone.
 from __future__ import annotations
 
 import datetime
+import re
 
 import httpx
 import pytest
+
+from .conftest import HASH_OF
 
 pytestmark = pytest.mark.e2e
 
@@ -60,7 +63,7 @@ def _block(base_url: str, **body) -> dict:
 
 
 def _open_log_day(page, base_url: str, iso: str) -> None:
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
     page.evaluate(f"Alpine.$data(document.querySelector('main')).openDayInLog('{iso}')")
     page.wait_for_selector(f".log-cal-day[aria-label='{iso}'][aria-pressed='true']", timeout=5000)
@@ -79,9 +82,9 @@ class TestOffUntilASourceExists:
         page.goto(f"{base_url}/#dashboard")
         page.wait_for_selector(".hero-num", timeout=5000)
         tabs = page.locator("nav[role='tablist'] a[role='tab']")
-        assert tabs.all_inner_texts() == ["Dashboard", "Plan", "Log", "Days", "Analytics"]
+        assert tabs.all_inner_texts() == ["Dashboard", "Plan", "Days", "Weeks", "Year"]
         assert page.locator("[data-testid='freelance-card']").count() == 0
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
         assert page.locator("[data-testid='freelance-panel']").count() == 0
         # the tab's page itself points at Settings
@@ -268,7 +271,7 @@ class TestFreelanceTab:
         assert "running" in page.locator(".fl-q--current").inner_text().lower()
         assert "Jan 30" in quarters.nth(3).inner_text()  # the fourth 130 falls in January
         proj = page.locator("[data-testid='fl-projection']")
-        assert "Nothing planned" in proj.get_attribute("title")
+        assert proj.get_attribute("title") == "Set h / week to project"
         assert "Nothing planned" not in proj.inner_text()  # the hint moved into the title
         # planning hours a week from the ledger saves the setting and moves the projection
         proj.locator("input[aria-label='Planned hours a week']").fill("5")
@@ -344,7 +347,7 @@ class TestAnalytics:
             assert r.status_code == 201
         _block(base_url, date=d.isoformat(), source_id=src, hours=3)  # 180 EUR
         _block(base_url, date=datetime.date(YEAR, 3, 7).isoformat(), source_id=src, hours=1)
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-chart", timeout=5000)
         page.locator(".an-presets button", has_text="This year").click()
         ledger = page.locator("[data-testid='an-freelance']")
@@ -386,7 +389,7 @@ class TestAnalytics:
         d = datetime.date(YEAR, 3, 6)
         src = _source(base_url, name="<img src=x onerror=window.__xss=1>")
         _block(base_url, date=d.isoformat(), source_id=src, hours=2)
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-chart", timeout=5000)
         page.locator(".an-presets button", has_text="This year").click()
         page.locator(".page-head .hm-switch button", has_text="Freelance").click()
@@ -446,7 +449,7 @@ class TestLogStrip:
                 },
             )
             assert r.status_code == 201
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-strip .plan-mini", timeout=5000)
         # no month arrows, no month title: the strip is the navigation
         assert page.locator(".log-cal .log-cal-nav").count() == 0
@@ -487,7 +490,7 @@ class TestDaysFreelance:
         _source(base_url, "Local", 60, "EUR")
         page.set_viewport_size({"width": 375, "height": 800})
         for tab in ("days", "analytics"):
-            page.goto(f"{base_url}/#{tab}")
+            page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
             page.wait_for_selector(".page-head .hm-switch", timeout=5000)
             yr = page.locator(".page-head .year-step").bounding_box()
             head = page.locator(".page-head").bounding_box()
@@ -513,7 +516,7 @@ class TestDaysFreelance:
                     "end_time": "17:00",
                 },
             )
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".page-head .hm-switch", timeout=5000)
         tabs = page.locator(".page-head .hm-switch button")
         # named, not counted (the counts were noise); 👔 and ⚡ mark the two lives
@@ -525,14 +528,14 @@ class TestDaysFreelance:
         sw = page.locator(".page-head .hm-switch").bounding_box()
         yr = page.locator(".page-head .year-all").bounding_box()
         assert sw["x"] + sw["width"] <= yr["x"] and abs(sw["y"] - yr["y"]) < 20
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".page-head .hm-switch", timeout=5000)
         sw2 = page.locator(".page-head .hm-switch").bounding_box()
         yr2 = page.locator(".page-head .year-step").bounding_box()
         assert sw2["x"] + sw2["width"] <= yr2["x"]
         # same height in the head on both pages: the switch does not move when you change page
         assert abs(sw2["y"] - sw["y"]) < 2, (sw, sw2)
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".page-head .hm-switch", timeout=5000)
         # the employee table: its week lines are always there, the day shows once the weeks are open
         assert page.locator(".days-table .day-row").count() == 0
@@ -590,7 +593,7 @@ class TestDaysFreelance:
         sheet.close()
         # a block's row opens its day in Log with the block in the editor
         page.locator(".days-table--fl .day-row").first.click()
-        page.wait_for_url("**/#log", timeout=3000)
+        page.wait_for_url("**/#days", timeout=3000)
         page.wait_for_selector(".fl-card--editing", timeout=5000)
         assert page.locator(".fl-editor-row--adv input[aria-label='Rate']").input_value() in (
             "60",
@@ -615,7 +618,7 @@ class TestAnalyticsPin:
                         "end_time": "18:00",
                     },
                 )
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-glance .hm-cell", timeout=5000)
         bar = page.locator("[data-testid='an-pin']")
         assert not bar.is_visible()
@@ -652,7 +655,7 @@ class TestAnalyticsPin:
             " === 'none'",
             timeout=3000,
         )
-        assert page.url.endswith("#analytics")
+        assert page.url.endswith("#year")
 
 
 class TestHeadsAndShortcuts:
@@ -661,14 +664,14 @@ class TestHeadsAndShortcuts:
         expected = {
             "dashboard": ("Dashboard", False),
             "plan": ("Plan", True),
-            "log": ("Log", True),
-            "days": ("Days", True),
-            "analytics": ("Analytics", True),
+            "log": ("Days", True),
+            "days": ("Weeks", True),
+            "analytics": ("Year", True),
             "freelance": ("Freelance", True),
             "settings": ("Settings", False),
         }
         for tab, (title, has_year) in expected.items():
-            page.goto(f"{base_url}/#{tab}")
+            page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
             head = page.locator("section .page-head").first
             head.wait_for(timeout=5000)
             assert title in head.locator("h2").inner_text(), tab
@@ -682,7 +685,7 @@ class TestHeadsAndShortcuts:
                 right = pill["x"] + pill["width"] - value["x"] - value["width"]
                 assert abs(left - right) <= 1, tab
         # Days: no "N entries" count in the head any more
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".page-head", timeout=5000)
         assert page.locator(".days-count").count() == 0
         assert "entries" not in page.locator(".page-head").inner_text()
@@ -757,7 +760,7 @@ class TestUiConsistency:
         # the sentence is not visible, its figures are in the title
         assert "still to bill" not in strip.inner_text()
         title = strip.get_attribute("title")
-        assert "still to bill over" in title and "weeks" in title and "/h" in title
+        assert re.fullmatch(r"[\d.]+h still to bill", title), title
         # the Calculator hint
         assert "hourly ⇄" not in page.locator("section").first.inner_text()
         assert page.locator(".calc-head .an-hint").count() == 0

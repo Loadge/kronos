@@ -80,7 +80,7 @@ def _wait_payouts(base_url: str, n: int, timeout=5.0) -> list[dict]:
 
 
 def _open_days_freelance(page, base_url: str) -> None:
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector(".page-head .hm-switch", timeout=5000)
     page.evaluate("Alpine.$data(document.querySelector('main')).daysYear = 'all'")
     page.locator(".page-head .hm-switch button").nth(1).click()
@@ -259,7 +259,7 @@ class TestPayoutOnTheLogCard:
         _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=1, fx_rate=1.2)
         _payout(base_url, source_id=src, week_start=MONDAY.isoformat(), amount=100, fx_rate=1.25)
         iso = MONDAY.isoformat()
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
         page.evaluate(f"Alpine.$data(document.querySelector('main')).openDayInLog('{iso}')")
         page.wait_for_selector("[data-testid='fl-payout-line']", timeout=5000)
@@ -282,7 +282,7 @@ class TestPayoutOnTheLogCard:
 
         pill = page.locator("[data-testid='fl-payout-pill']")
         assert pill.evaluate("e => e.tagName") == "BUTTON"
-        assert pill.inner_text().strip() == f"{_wk(MONDAY)} in Days"
+        assert pill.inner_text().strip() == f"{_wk(MONDAY)} in Weeks"
         pill.focus()
         assert pill.evaluate("e => e === document.activeElement")
         page.keyboard.press("Enter")
@@ -469,7 +469,7 @@ class TestPayoutSplitOnScreens:
 
     def test_the_analytics_ledger_lists_paid_out_and_estimated_for_a_range(self, page, base_url):
         _split_fixture(base_url)
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-chart", timeout=5000)
         page.locator(".an-presets button", has_text="This year").click()
         ledger = page.locator("[data-testid='an-freelance']")
@@ -506,7 +506,7 @@ class TestPayoutSplitOnScreens:
         assert page.locator("[data-testid='fl-dash-paid-week']").count() == 0
         assert "paid out" not in page.locator("[data-testid='freelance-card']").inner_text().lower()
 
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-chart", timeout=5000)
         page.locator(".an-presets button", has_text="This year").click()
         page.locator("[data-testid='an-freelance']").wait_for(timeout=5000)

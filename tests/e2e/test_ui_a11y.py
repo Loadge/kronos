@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 
-from .conftest import DEMO_NOW
+from .conftest import DEMO_NOW, HASH_OF
 
 pytestmark = pytest.mark.e2e
 
@@ -71,7 +71,7 @@ def _blocking(violations: list[dict]) -> list[str]:
 
 
 def _open(page, demo_url, tab):
-    page.goto(f"{demo_url}/#{tab}", wait_until="networkidle")
+    page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate("document.fonts.ready")
     page.wait_for_timeout(300)  # let the entry animations settle before measuring contrast
@@ -133,7 +133,7 @@ def test_the_open_year_dial_has_no_serious_violations(demo_page, demo_url, width
     entries in the list). It has no entry of its own: it must have no serious violation at all."""
     page = demo_page(width, height)
     _open(page, demo_url, "dashboard")
-    page.get_by_role("button", name="Open the year dial").click()
+    page.locator(".brand-btn").click()
     page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=5000)
     page.wait_for_timeout(300)
     violations = Axe().run(page, context="#yd").response["violations"]

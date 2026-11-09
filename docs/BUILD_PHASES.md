@@ -50,10 +50,25 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 50 confirmed and archived. 51 to 55 built and waiting for Miguel's check
+37 to 50 confirmed and archived. 51 to 56 built and waiting for Miguel's check
 (Miguel, 2026-11-07: money first, because PROD reads a euro payout as dollars); 28 after them (Anselmo
 logs through the CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass)
 in slices, each one a weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+
+### Phase 56 — Miguel's notes on v55 (built 2026-11-09, awaiting confirmation)
+
+**Why.** Miguel validated 51 to 55 on INT and sent notes before pressing PROD: tooltips nobody would read, tab names that did not match what the pages do, and a year dial that people will miss. He picked each solution from mockups.
+
+**What changed.**
+- Interface text: a tooltip lists what you can do, one short line each, and a status chip says only its conclusion. The "?" of the day bar is four lines with gesture icons. A test now fails on any tooltip line over 90 characters.
+- Tabs: Log is now Days, Days is now Weeks and Analytics is now Year. The addresses are `#days`, `#weeks` and `#year`, and `#log` and `#analytics` still work. An old `#days` link opens the new Days page, on purpose. Keys: D, W, Y, and K for the year dial. L and A are gone.
+- The header line has a notch and a time at the two default hours (Settings > Employee), and a fainter one at 12:00. It is dropped when a default hour is within 90 minutes of it.
+- The FX chip tells the percentage ("FX -7.4%"), and its tooltip is one sentence ("Exchange and fees cost you €70.19").
+- "Payouts waiting" in the Freelance card of the Days page: a chip per week that is over and has blocks but no payout, then the amount, the account and Save. It saves through the same code as the Weeks page.
+- Calculator: each parameter has its label right beside its value, in three columns. The block is 69px shorter at 1280.
+- The year dial is harder to miss: the logo wears a ring of the year with today lit, and the Dashboard has a tile, "Day 313 of 365", that opens the dial.
+
+**Known limits.** The header line, and so its marks, only exist from 720px wide. The current week never appears in "Payouts waiting", the same rule as the Freelance tab's "awaiting a payout" count. On the plain number boxes the decimal mark is still the browser's own (see Phase 53).
 
 ### Phase 55 — The edges of a web app (built 2026-11-07, awaiting confirmation)
 

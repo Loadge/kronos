@@ -193,7 +193,7 @@
           <button type="button" class="bulk-pill-btn plan-type flex"     :class="planType === 'flex' ? 'on' : ''"     @click="planType = 'flex'">Flex</button>
         </div>
         <input type="text" class="plan-note" x-model="planNote" placeholder="Note for new drafts (optional)" aria-label="Note for new drafts" maxlength="120">
-        <p class="muted bulk-hint" title="Click a day to draft it, click it again to remove it, drag for a range (work days only). Logged days and the past open in the Log tab.">Click or drag days to draft them as <span class="day-pill" :class="planType" x-text="planType"></span></p>
+        <p class="muted bulk-hint" title="Click a day to draft it&#10;Click it again to remove it&#10;Drag for a range of work days&#10;Click a logged or past day to open it in Days">Click or drag days to draft them as <span class="day-pill" :class="planType" x-text="planType"></span></p>
       </div>
       <div class="section-header an-head">
         <h2>Upcoming time off <span class="muted plan-ledger-count" x-text="planYear"></span></h2>
@@ -208,7 +208,7 @@
               <tr :class="'plan-row-' + b.kind">
                 <td class="plan-when">
                   <template x-if="b.kind === 'logged'">
-                    <button type="button" class="plan-open" @click="openDayInLog(b.dates[0])" :title="'Open ' + b.label + ' in the Log tab'" x-text="b.label"></button>
+                    <button type="button" class="plan-open" @click="openDayInLog(b.dates[0])" :title="'Open ' + b.label + ' in Days'" x-text="b.label"></button>
                   </template>
                   <template x-if="b.kind !== 'logged'"><span x-text="b.label"></span></template>
                 </td>
@@ -260,7 +260,7 @@
           </tbody>
         </table>
       </template>
-      <p class="muted plan-ledger-note" title="Drafts don't touch your numbers until committed. Logged days (holidays you imported, days logged ahead) are listed so the plan reads as one timeline.">Drafts don't touch your numbers until committed.</p>
+      <p class="muted plan-ledger-note" title="Drafts don't touch your numbers until committed">Drafts don't touch your numbers until committed.</p>
     </div>
   </div>
 

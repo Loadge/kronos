@@ -60,6 +60,48 @@ function parseNum(text, tag = DEFAULT_NUMBER_FORMAT) {
   return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) : NaN;
 }
 
+// The address and the tab ids differ for three tabs: the page where days are logged is #days (id "log"),
+// the weekly page is #weeks (id "days"), the year charts are #year (id "analytics"). One table, both ways.
+// #log and #analytics are the old addresses: they still open their page and are rewritten to the new one.
+const TAB_BY_HASH = {
+  dashboard: 'dashboard', plan: 'plan', days: 'log', weeks: 'days', year: 'analytics',
+  freelance: 'freelance', settings: 'settings',
+  log: 'log', analytics: 'analytics',
+};
+const HASH_BY_TAB = {
+  dashboard: 'dashboard', plan: 'plan', log: 'days', days: 'weeks', analytics: 'year',
+  freelance: 'freelance', settings: 'settings',
+};
+
+// The year as a ring, for the logo and the Dashboard tile (one function, so they never disagree). A tick about every
+// five days clockwise from 12 o'clock (Jan 1), a longer one on the first of each month; the ticks up to today are
+// brass, the rest grey, and a brass dot sits on the ring at today. 366 days in a leap year.
+// A tick of the plain kind next to a month's first is left out, so the two never touch.
+function yearDayOf(iso) {
+  const y = +iso.slice(0, 4), jan1 = Date.UTC(y, 0, 1);
+  const n = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 366 : 365;
+  return { year: y, total: n, doy: Math.round((Date.UTC(y, +iso.slice(5, 7) - 1, +iso.slice(8, 10)) - jan1) / 86400000) + 1 };
+}
+function yearRingSvg(iso) {
+  const { year, total, doy } = yearDayOf(iso);
+  const jan1 = Date.UTC(year, 0, 1);
+  const starts = new Set(Array.from({ length: 12 }, (_, k) => Math.round((Date.UTC(year, k, 1) - jan1) / 86400000)));
+  const at = (i, r) => {
+    const a = i / total * 2 * Math.PI;
+    return [(50 + r * Math.sin(a)).toFixed(2), (50 - r * Math.cos(a)).toFixed(2)];
+  };
+  let ticks = '';
+  for (let i = 0; i < total; i++) {
+    const first = starts.has(i);
+    if (!first && (i % 5 !== 0 || starts.has(i - 1) || starts.has(i + 1))) continue;
+    const [x1, y1] = at(i, 48), [x2, y2] = at(i, first ? 41 : 44.5);
+    ticks += `<line class="rt${first ? ' rm' : ''}${i < doy ? ' on' : ''}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  }
+  const [dx, dy] = at(doy - 1, 45.5);
+  const angle = ((doy - 1) / total * 360).toFixed(2);
+  return `<svg class="ring" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${ticks}<circle class="rd" cx="${dx}" cy="${dy}" r="3.6" data-angle="${angle}"/></svg>`;
+}
+
 // What the year dial reads for the day under its index (see dialData): kept out of Alpine's state.
 const _dial = { entries: new Map(), keys: [], sums: [], reset: false };
 
@@ -307,6 +349,7 @@ function app() {
     daysWeekOpenQ: {},    // the same while the notes search has text (unset = open, so a hit is never hidden); emptied when the search clears
     daysWave: {},         // week key -> ms of delay, for the wave after the bezel's + or -: its ticks light and its rows fade in; emptied after
     payDraft: {},         // `${source}|${week}` -> the payout text being typed, until it is saved
+    payWait: { sel: '', leaving: [], busy: false },  // the "Payouts waiting" row: the chip picked, the chips on their way out
     fxEditing: null,      // id of the payout whose exchange rate is being edited
     // the Log tab's block editor: `id` set while editing an existing block
     flForm: { id: null, source_id: null, by: 'hours', hours: 1, start_time: '18:00', end_time: '19:00', notes: '', rate: null, fx_rate: null },
@@ -326,7 +369,6 @@ function app() {
     curQuery: '', curOpen: false, curIdx: 0,   // the currency picker of that editor
     payAcct: {},          // `${source}|${week}` -> the account chosen for a payout before it is saved (null = as billed)
     worthOpen: null,      // id of the payout whose "worth €" field is open by hand
-    fxRates: {},          // `${currency}|${date}` -> the ECB rate the FX chip quotes, asked for when a chip opens
     fxTip: { open: false, pinned: false, id: null, text: '', style: '' },   // the FX chip's tooltip
     taxYear: new Date().getFullYear(),
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
@@ -398,9 +440,8 @@ function app() {
       // Clearing the notes search puts every week back as it was before the search.
       this.$watch('notesQuery', q => { if (!q.trim()) this.daysWeekOpenQ = {}; });
 
-      const TABS = ['dashboard', 'plan', 'log', 'days', 'analytics', 'freelance', 'settings'];
       const hash = location.hash.replace('#', '');
-      if (TABS.includes(hash)) this.tab = hash;
+      if (Object.hasOwn(TAB_BY_HASH, hash)) this.tab = TAB_BY_HASH[hash];
       // /#dial (the install shortcut "The year dial") opens the dial once the page has loaded
       const dialOnLoad = hash === 'dial';
 
@@ -415,7 +456,9 @@ function app() {
       window.addEventListener('hashchange', () => {
         const t = location.hash.replace('#', '');
         if (t === 'dial') { this._cleanHash(); this.openDial(); return; }
-        if (TABS.includes(t) && t !== this.tab) this.go(t);
+        if (!Object.hasOwn(TAB_BY_HASH, t)) return;
+        if (TAB_BY_HASH[t] !== this.tab) this.go(TAB_BY_HASH[t]);
+        else if (t !== HASH_BY_TAB[this.tab]) this._cleanHash();  // an old address (#log, #analytics)
       });
 
       // The banner: the browser says it is offline, or comes back. A request that never arrives
@@ -425,11 +468,25 @@ function app() {
 
       // Keyboard shortcuts
       let _keyBuf = '';
+      // W6 — "kronos" easter egg key buffer. K opens the year dial, so the word is read before the dial
+      // takes the keys: when it is complete the dial (opened by its first letter) closes and the egg runs.
+      const eggKey = (e) => {
+        if (e.key?.length !== 1) return;
+        _keyBuf = (_keyBuf + e.key.toLowerCase()).slice(-6);
+        if (_keyBuf === 'kronos') {
+          _keyBuf = '';
+          if (this.dialOpen) this.closeDial();
+          this.triggerEasterEgg();
+        }
+      };
       document.addEventListener('keydown', (e) => {
-        // The year dial takes every key while it is open (Esc and Tab it handles itself).
-        if (this.dialOpen) return;
         const tag = e.target?.tagName?.toUpperCase() || '';
         const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target?.isContentEditable;
+        // The year dial takes every key while it is open (Esc and Tab it handles itself); only the egg listens.
+        if (this.dialOpen) {
+          if (!inInput && !e.ctrlKey && !e.altKey && !e.metaKey) eggKey(e);
+          return;
+        }
 
         // Ctrl+Enter — submit visible form regardless of focus
         if (e.ctrlKey && e.key === 'Enter') {
@@ -457,23 +514,19 @@ function app() {
 
         switch (e.key) {
           case 'p': case 'P': e.preventDefault(); this.go('plan');      break;
-          case 'l': case 'L': e.preventDefault(); this.go('log');       break;
-          case 'd': case 'D': e.preventDefault(); this.go('days');      break;
-          case 'a': case 'A': e.preventDefault(); this.go('analytics'); break;
+          case 'd': case 'D': e.preventDefault(); this.go('log');       break;  // Days
+          case 'w': case 'W': e.preventDefault(); this.go('days');      break;  // Weeks
+          case 'y': case 'Y': e.preventDefault(); this.go('analytics'); break;  // Year
           case 'f': case 'F': e.preventDefault(); this.go('freelance'); break;
           case 's': case 'S': e.preventDefault(); this.go('settings');  break;
           case '.': e.preventDefault(); this.openPalette(); break;
-          case 'y': case 'Y':
+          case 'k': case 'K':
             e.preventDefault();
             if (!this.bulkModal.open && !this.pdfModal.open) this.openDial();
             break;
         }
 
-        // W6 — "kronos" easter egg key buffer
-        if (e.key?.length === 1) {
-          _keyBuf = (_keyBuf + e.key.toLowerCase()).slice(-6);
-          if (_keyBuf === 'kronos') { this.triggerEasterEgg(); _keyBuf = ''; }
-        }
+        eggKey(e);
       });
 
       // Live clock for the "Now" stamp pill — synced to the minute boundary
@@ -539,7 +592,11 @@ function app() {
       if (this.tab === 'settings' && t !== 'settings') this.settingsFlush();
       this.tab = t;
       // Mirror tab to URL hash without re-triggering hashchange
-      if (location.hash.replace('#', '') !== t) location.hash = t;
+      const cur = location.hash.replace('#', '');
+      if (cur !== HASH_BY_TAB[t]) {
+        if (TAB_BY_HASH[cur] === t) this._cleanHash();  // an old address of this tab: rewritten in place
+        else location.hash = HASH_BY_TAB[t];
+      }
       this.error = null;
       this.notesQuery = '';
       if (t === 'dashboard') await this.loadDashboard();
@@ -1013,7 +1070,7 @@ function app() {
         cells.push({ padded: false, key: iso, date: iso, day: d, entry, draft, opensLog,
           cls: this.dayCellCls(entry, draft), style: this.entryCellStyle(entry),
           isToday: iso === todayStr, weekend: dow === 0 || dow === 6, past: iso < todayStr,
-          title: entry ? `${this.pillLabel(entry)} — logged · open in Log` : opensLog ? 'open in Log'
+          title: entry ? `${this.pillLabel(entry)} — logged · open in Days` : opensLog ? 'open in Days'
             : draft ? `${draft.day_type} · drafted${draft.notes ? ' · ' + draft.notes : ''}` : '' });
       }
       return cells;
@@ -1189,13 +1246,13 @@ function app() {
     _COMMANDS: [
       { id: 'dashboard', label: 'Dashboard',     hint: 'Esc' },
       { id: 'plan',      label: 'Plan time off', hint: 'P'   },
-      { id: 'log',       label: 'Log new entry', hint: 'L'   },
-      { id: 'days',      label: 'Days',          hint: 'D'   },
+      { id: 'log',       label: 'Log new entry', hint: 'D'   },
+      { id: 'days',      label: 'Weeks',         hint: 'W'   },
       { id: 'pdf',       label: 'PDF timesheet', hint: ''    },
-      { id: 'analytics', label: 'Analytics',     hint: 'A'   },
+      { id: 'analytics', label: 'Year',          hint: 'Y'   },
       { id: 'freelance', label: 'Freelance',     hint: 'F'   },
       { id: 'calc',      label: 'Rate calculator', hint: ''  },
-      { id: 'dial',      label: 'Year dial',     hint: 'Y'   },
+      { id: 'dial',      label: 'Year dial',     hint: 'K'   },
       { id: 'settings',  label: 'Settings',      hint: 'S'   },
     ],
 
@@ -1301,10 +1358,12 @@ function app() {
       this.dialOpen = false;
     },
 
-    // The address says what is open (#log, #days), never "#dial": the dial is an overlay, not a tab.
+    // The address says what is open (#days, #weeks), never "#dial": the dial is an overlay, not a tab.
+    // An old address of the tab that is open (#log, #analytics) is rewritten to the new one too.
     _cleanHash() {
-      if (location.hash.replace('#', '') === 'dial') {
-        history.replaceState(null, '', location.pathname + location.search + '#' + this.tab);
+      const h = location.hash.replace('#', '');
+      if (h === 'dial' || (h !== HASH_BY_TAB[this.tab] && TAB_BY_HASH[h] === this.tab)) {
+        history.replaceState(null, '', location.pathname + location.search + '#' + HASH_BY_TAB[this.tab]);
       }
     },
 
@@ -1773,8 +1832,8 @@ function app() {
       svg += '</svg>';
 
       const aria = projected === null
-        ? `Cumulative balance this year: ${this.formatSurplus(current)} today.`
-        : `Cumulative balance this year: ${this.formatSurplus(current)} today, ${this.formatSurplus(projected)} by December 31 at this rate.`;
+        ? `Balance this year: ${this.formatSurplus(current)} today.`
+        : `Balance this year: ${this.formatSurplus(current)} today, ${this.formatSurplus(projected)} by Dec 31.`;
       return { svg, aria };
     },
 
@@ -2728,7 +2787,7 @@ function app() {
         leave_hours: e.day_type === 'work' ? null : e.leave_hours,
       };
       this.tab = 'log';
-      if (location.hash.replace('#', '') !== 'log') location.hash = 'log';  // as go() does
+      if (location.hash.replace('#', '') !== HASH_BY_TAB.log) location.hash = HASH_BY_TAB.log;  // as go() does
       this.error = null;
     },
 
@@ -2881,7 +2940,8 @@ function app() {
     // viewport, gone when they land.
     payCoins(input, amount, above) {
       if (this._reduced() || !input) return;
-      const target = document.querySelector('[data-testid="days-fl-total"] b');
+      // on the weekly page the coins land on the Selected card; on the page where days are logged, on the bolt of the Freelance card
+      const target = document.querySelector('[data-testid="days-fl-total"] b') || document.querySelector('[data-testid="freelance-panel"] .fl-bolt');
       if (!target) return;
       const vw = document.documentElement.clientWidth, vh = window.innerHeight;
       const clamp = (v, hi) => Math.max(10, Math.min(hi - 10, v));
@@ -2908,10 +2968,24 @@ function app() {
         end = Math.max(end, i * gap + t);
       }
       setTimeout(() => {
-        const card = document.querySelector('[data-testid="days-fl-total"] b');
+        const card = target.isConnected ? target : document.querySelector('[data-testid="days-fl-total"] b');
         this._bzFx(card, 'coin-bump', 820);
         if (above) this._bzFx(card, 'coin-glint', 820);
       }, end);
+    },
+
+    // The ring of the logo and of the Dashboard tile, and the tile's words ("Day 313 of 365", "52 days left").
+    // The last day of the year says "0 days left" on purpose: it is true, and it is the same sentence every other day.
+    yearRing() { return yearRingSvg(this.todayIso()); },
+    dialTile() {
+      const { total, doy } = yearDayOf(this.todayIso());
+      const left = total - doy;
+      const c = this.dashboard?.cumulative;
+      return {
+        doy, total, left: `${left} day${left === 1 ? '' : 's'} left`,
+        balance: c && this.entries.length ? this.heroHours(c.surplus_hours) : '',
+        cls: c ? this.surplusClass(c.surplus_hours) : '',
+      };
     },
 
     // Where the bead sits on the hairline under the header: 06:00 at the left edge, 24:00 at the right.
@@ -2943,6 +3017,23 @@ function app() {
       if (cut > a + 1e-6) out.litStyle = `--a:${a.toFixed(4)};--b:${cut.toFixed(4)}`;
       if (g !== null && b > g + 1e-6) out.overStyle = `--a:${Math.max(a, g).toFixed(4)};--b:${b.toFixed(4)}`;
       return out;
+    },
+
+    // The notches on the same hairline, same 06:00-24:00 scale as the bead: the start and the end of the working
+    // day (Settings > Employee > Default hours, as last saved, so typing there does not move them), each with its
+    // time under the line, and a fainter one at noon. Noon goes when a working-day mark is within 90 minutes, and
+    // the end's label goes when it would touch the start's. Marks outside the scale are not drawn.
+    dayMarks() {
+      const s = this._settingsSaved;
+      if (!s) return [];
+      const at = m => ((m - 360) / 1080).toFixed(4);
+      const a = drMin(s.default_start_time), b = drMin(s.default_end_time);
+      const on = m => m !== null && m >= 360 && m <= 1440;
+      const marks = [];
+      if (on(a)) marks.push({ key: 'start', cls: '', style: `--m:${at(a)}`, label: drHHMM(a) });
+      if (on(b)) marks.push({ key: 'end', cls: '', style: `--m:${at(b)}`, label: on(a) && Math.abs(b - a) <= 90 ? '' : drHHMM(b) });
+      if (![a, b].some(m => on(m) && Math.abs(m - 720) <= 90)) marks.push({ key: 'noon', cls: 'day-mark--noon', style: `--m:${at(720)}`, label: '12:00' });
+      return marks;
     },
 
     // W3 — break rows slide in/out; new input focused at frame 0 (before animation)
@@ -3608,7 +3699,7 @@ function app() {
       } catch (e) { this.error = e.message; }
       this._flStale = true;  // a block's effective money depends on its week's payout
     },
-    async _paySave(sourceId, weekStart) {
+    async _paySave(sourceId, weekStart, from = null) {
       const k = this.payKey(sourceId, weekStart), st = 'wk-' + weekStart;
       if (!(k in this.payDraft)) return;
       const text = String(this.payDraft[k]).trim();
@@ -3652,7 +3743,7 @@ function app() {
         if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { ...body, account_id: acct, note: existing.note });
         else await this.api('POST', '/api/freelance/payouts', body);
         const field = document.activeElement?.classList.contains('payin') ? document.activeElement : null;
-        const input = field || [...document.querySelectorAll('.payin')].find(x => x.getAttribute('aria-label') === `Payout ${src?.name} ${this.weekId(weekStart)}`);
+        const input = from || field || [...document.querySelectorAll('.payin')].find(x => x.getAttribute('aria-label') === `Payout ${src?.name} ${this.weekId(weekStart)}`);
         drop();
         await this.reloadFlData();
         this._setStatus(st, 'saved');
@@ -3731,21 +3822,16 @@ function app() {
     },
     // The FX chip: what the exchange and the fees cost, in plain words.
     fxHasCost(p) { return p.fx_cost_eur !== null && p.fx_cost_eur !== undefined; },
-    _fxRateText(r) { return r >= 0.01 ? this.fmtFixed(r, 4) : this.fmtPlain(Number(r.toPrecision(4))); },
+    // The chip says its conclusion: the share of the billed amount that the exchange and the fees took ("FX -99.7%"),
+    // or gave ("FX +0.4%"). Its tip is one sentence with the amount.
+    fxChipText(p) {
+      const cost = p.fx_cost_eur;
+      if (!p.billed_eur) return 'FX';
+      return `FX ${cost > 0 ? '-' : cost < 0 ? '+' : ''}${this.fmtFixed(Math.abs(cost) / p.billed_eur * 100, 1)}%`;
+    },
     fxStory(p) {
-      const bc = p.billed_currency;
-      let billed = `Billed ${this.fmtMoney(p.billed_amount, bc)}`;
-      if (bc !== 'EUR' && p.billed_eur) {
-        const exact = this.fxRates[`${bc}|${p.rate_date}`];
-        const rate = this._fxRateText(exact || p.billed_amount / p.billed_eur);
-        billed += ` · ${this.isCoin(bc) ? 'CoinGecko' : 'ECB'} rate ${rate} on ${this._shortDay(p.rate_date)} → ${this.fmtMoney(p.billed_eur)}`;
-      }
-      const parts = [billed];
-      parts.push(`You received ${this.fmtMoney(p.amount, p.currency)}` + (p.currency !== 'EUR' && p.amount_eur !== null ? ` (${this.fmtMoney(p.amount_eur)})` : ''));
-      const cost = p.fx_cost_eur, share = p.billed_eur ? ` (${this.fmtFixed(Math.abs(cost) / p.billed_eur * 100, 1)}%)` : '';
-      parts.push(cost < 0 ? `Exchange and fees left you ${this.fmtMoney(-cost)} ahead${share}` : `Exchange and fees cost you ${this.fmtMoney(cost)}${share}`);
-      if (p.effective_rate) parts.push(`Your rate was ${this._fxRateText(p.effective_rate)}`);
-      return parts.join(' · ');
+      const cost = p.fx_cost_eur;
+      return cost < 0 ? `Exchange and fees left you ${this.fmtMoney(-cost)} ahead` : `Exchange and fees cost you ${this.fmtMoney(cost)}`;
     },
     // hover and focus show it, a tap (or a click) pins it, Escape or a click elsewhere closes it
     _fxTipStyle(el) {
@@ -3760,18 +3846,9 @@ function app() {
       if (!this._fxEl || !this._fxEl.isConnected) { this.fxTipClose(true); return; }
       this.fxTip.style = this._fxTipStyle(this._fxEl);
     },
-    async fxTipOpen(p, el, pin = false) {
+    fxTipOpen(p, el, pin = false) {
       this._fxEl = el;
       this.fxTip = { open: true, pinned: pin || (this.fxTip.open && this.fxTip.id === p.id && this.fxTip.pinned), id: p.id, text: this.fxStory(p), style: this._fxTipStyle(el) };
-      const bc = p.billed_currency, key = `${bc}|${p.rate_date}`;
-      if (bc !== 'EUR' && !this.isCoin(bc) && p.rate_date && !(key in this.fxRates)) {
-        try {
-          const a = await this.api('GET', `/api/fx?date=${p.rate_date}&currency=${bc}`);
-          const v = a.available ? (a.per_eur ?? a.usd_per_eur) : null;
-          this.fxRates = { ...this.fxRates, [key]: v || 0 };
-          if (this.fxTip.open && this.fxTip.id === p.id) this.fxTip.text = this.fxStory(p);
-        } catch { this.fxRates = { ...this.fxRates, [key]: 0 }; }
-      }
     },
     fxTipClick(p, el) {
       if (this.fxTip.open && this.fxTip.id === p.id && this.fxTip.pinned) { this.fxTipClose(true); return; }
@@ -3782,6 +3859,65 @@ function app() {
     payGapLabel(gap, currency) {
       return (gap < 0 ? '-' : '+') + this.fmtMoney(Math.abs(gap), currency, Number.isInteger(gap) ? 0 : 2);
     },
+    // ---------- Payouts waiting (the Freelance card of the page where days are logged) -----------------
+    // One entry per week that is over, has blocks of a source and no payout of it, newest first (the same weeks
+    // as the "awaiting a payout" count of the Freelance tab). A week with blocks of several sources has a chip
+    // per source and names the source on it.
+    payWaitList() {
+      const today = this.todayIso();
+      const seen = new Map();
+      for (const b of this.blocks) {
+        const monday = this._mondayIso(new Date(b.date + 'T12:00:00'));
+        if (this._addDaysIso(monday, 6) >= today) continue;
+        const k = this.payKey(b.source_id, monday);
+        if (!seen.has(k)) seen.set(k, { key: k, source_id: b.source_id, week: monday, minutes: 0, amount: 0, blocks: [] });
+        const w = seen.get(k);
+        w.minutes += b.minutes; w.amount += b.amount || 0; w.blocks.push(b);
+      }
+      const order = this.sources.map(s => s.id);
+      const crowd = {};
+      for (const w of seen.values()) crowd[w.week] = (crowd[w.week] || 0) + 1;
+      return [...seen.values()]
+        .filter(w => this.sourceById(w.source_id) && (!this.payoutOf(w.source_id, w.week) || this.payWait.leaving.includes(w.key)))
+        .sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : order.indexOf(a.source_id) - order.indexOf(b.source_id)))
+        .map(w => {
+          const src = this.sourceById(w.source_id);
+          return { ...w, currency: src.currency, src, hours: this._r2(w.minutes / 60), estimate: this._r2(w.amount),
+            label: this.weekId(w.week) + (crowd[w.week] > 1 ? ' ' + src.name : ''),
+            title: `${this.fmtHours(w.minutes / 60)} \u00b7 ${this.fmtMoney(this._r2(w.amount), src.currency)} billed`,
+            leaving: this.payWait.leaving.includes(w.key) };
+        });
+    },
+    payWaitShown() { return this.payWaitList().slice(0, 6); },
+    payWaitMore() { return Math.max(0, this.payWaitList().length - 6); },
+    // The week picked: the one chosen, else the newest.
+    payWaitSelected() {
+      const list = this.payWaitList().filter(w => !w.leaving);
+      return list.find(w => w.key === this.payWait.sel) || list[0] || null;
+    },
+    payWaitPick(w) { this.payWait.sel = w.key; },
+    payWaitTyped(w, text) { this.payDraft = { ...this.payDraft, [w.key]: text }; },
+    // Saving goes through the Weeks page's own path (_paySave: same account, same checks, same errors). On success
+    // the coins fly from the button, the chip leaves and the next week is picked.
+    async payWaitSave(btn) {
+      const w = this.payWaitSelected();
+      if (!w || this.payWait.busy) return;
+      this.payWait.busy = true;
+      try {
+        const live = this.payWaitList().filter(x => !x.leaving);
+        const at = live.findIndex(x => x.key === w.key);
+        await this._queued('payout', () => this._paySave(w.source_id, w.week, btn));
+        if (!this.payoutOf(w.source_id, w.week)) return;  // invalid or refused: the status beside the button says so
+        const next = live[at + 1] || live[at - 1] || null;
+        this.payWait.sel = next ? next.key : '';
+        if (!this._reduced()) {
+          this.payWait.leaving = [...this.payWait.leaving, w.key];
+          await new Promise(r => setTimeout(r, 280));
+          this.payWait.leaving = this.payWait.leaving.filter(k => k !== w.key);
+        }
+      } finally { this.payWait.busy = false; }
+    },
+
     // The payouts of the week of the day open in Log (its ⚡ card shows them read-only).
     flDayPayouts() {
       if (!this.form.date) return [];
@@ -4338,7 +4474,7 @@ function app() {
         const hours = `${e.start_time || '—'}–${e.end_time || '—'} · <b>${this.fmtPlain(e.net_hours)}h</b> · <b class="${this.surplusClass(e.surplus_hours)}">${this.formatSurplus(e.surplus_hours)}</b>`;
         body = e.day_type === 'work' ? hours : this.isPartial(e) ? `${pill} · ${hours}` : pill;
         note = e.notes || '';
-        hint = 'click → open in Log';
+        hint = 'click → open in Days';
       } else if (draft) {
         body = `<span class="day-pill ghost ${draft.day_type}">${draft.day_type}</span> · planned`;
         note = draft.notes || '';
@@ -4814,10 +4950,10 @@ function app() {
 
     // The help text of the Holidays card: Spain has its own source, the rest come from Nager.Date.
     holidayNote() {
-      const local = "Local or municipal fiestas (a town's two local holidays) are in neither: add those manually from the Log tab.";
+      const local = 'Local fiestas: add them by hand in Days';
       return this.isSpain()
-        ? `Spain uses the official BOE list (published each October for the next year); other countries use Nager.Date. ${local}`
-        : `Public holidays come from Nager.Date. ${local.replace('in neither', 'in it')}`;
+        ? `Spain: the official BOE list\nOther countries: Nager.Date\n${local}`
+        : `Holidays come from Nager.Date\n${local}`;
     },
 
     holidayImportLabel() {
@@ -5525,7 +5661,7 @@ function app() {
         const x = PADL + i * bw + bw * 0.18, w = bw * 0.64;
         const isNow = today.getFullYear() === year && today.getMonth() === i;
         const paid = split ? Math.min(b.paid, b.real) : b.real, est = b.real - paid;
-        const tip = `${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtHours(b.hours)} · ${this.fmtMoney(b.real)}${split ? ` · ${this.fmtMoney(paid)} paid out · ${this.fmtMoney(est)} estimated` : ''}`;
+        const tip = `${new Date(year, i, 1).toLocaleDateString('en-US', { month: 'long' })} · ${this.fmtMoney(b.real)}${split && paid > 0 ? ` · ${this.fmtMoney(paid)} paid out` : ''}`;
         if (paid > 0) out += `<rect class="flm-bar${split ? ' paid' : ''}${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(paid))}" width="${f(w)}" height="${f(Y(0) - Y(paid))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
         if (est > 0.005) out += `<rect class="flm-est${isNow ? ' now' : ''}" x="${f(x)}" y="${f(Y(b.real))}" width="${f(w)}" height="${f(Y(paid) - Y(b.real))}" rx="2" style="--i:${i}"><title>${tip}</title></rect>`;
         if (b.plan > 0.5) out += `<rect class="flm-plan" x="${f(x)}" y="${f(Y(b.real + b.plan))}" width="${f(w)}" height="${f(Y(0) - Y(b.plan))}" rx="2" style="--i:${i}"><title>planned · ${this.fmtMoney(b.plan)}</title></rect>`;

@@ -4,6 +4,17 @@
   <header class="page-head">
     <div class="page-head-title"><h2>Dashboard</h2></div>
     <div class="page-head-controls">
+      <!-- the year dial, in the room the head has: the ring of the logo, where the year stands, one press to open -->
+      <template x-if="dashboard">
+        <button type="button" class="dial-tile" data-testid="dial-tile" aria-label="Open the year dial" @click="openDial()">
+          <span class="dial-ring" aria-hidden="true" x-html="yearRing()"></span>
+          <span class="dial-tile-txt">
+            <span class="dial-tile-day" data-testid="dial-tile-day"><b x-text="'Day ' + dialTile().doy"></b> <span x-text="'of ' + dialTile().total"></span></span>
+            <span class="dial-tile-sub" data-testid="dial-tile-sub"><span x-text="dialTile().left"></span><template x-if="dialTile().balance"><span> · <b class="metric" :class="dialTile().cls" data-testid="dial-tile-balance" x-text="dialTile().balance"></b></span></template></span>
+          </span>
+          <span class="dial-tile-go">Open dial <kbd class="dial-tile-key" aria-hidden="true">K</kbd></span>
+        </button>
+      </template>
       <span class="today-chip" x-text="todayChip()" :title="dashboard ? 'Today is ' + dashboard.today : ''"></span>
     </div>
   </header>
@@ -55,7 +66,7 @@
           </span>
           <span class="bullet"><i :class="surplusClass(dashboard.week.surplus_hours)" :style="bulletStyle(dashboard.week.surplus_hours, 10)"></i></span>
         </div>
-        <button type="button" class="chip chip--link" @click="go('analytics')" :title="daysTitle(dashboard.month) + ' — open Analytics'">
+        <button type="button" class="chip chip--link" @click="go('analytics')" :title="daysTitle(dashboard.month) + ' — open Year'">
           <span class="chip-label">this month</span>
           <span class="chip-sub" x-text="fmtPlain(dashboard.month.net_hours) + 'h / ' + fmtPlain(dashboard.month.target_hours) + 'h'"></span>
           <span class="chip-value metric" :class="surplusClass(dashboard.month.surplus_hours)">
@@ -63,7 +74,7 @@
           </span>
           <span class="bullet"><i :class="surplusClass(dashboard.month.surplus_hours)" :style="bulletStyle(dashboard.month.surplus_hours, 20)"></i></span>
         </button>
-        <button type="button" class="chip chip--link" @click="go('analytics')" title="This year against the same period last year — open Analytics">
+        <button type="button" class="chip chip--link" @click="go('analytics')" title="This year against the same period last year — open Year">
           <span class="chip-label">vs last year</span>
           <template x-if="yoy">
             <span class="chip-sub" x-text="yoy.last_year.label.slice(0, 4) + ' to date: ' + formatSurplus(yoy.last_year.surplus_hours)"></span>
@@ -138,7 +149,7 @@
       </template>
 
       <!-- This week, day by day: the old Week tab, as a strip of tiny bar charts.
-           Always the current week; a day opens in Log. -->
+           Always the current week; a day opens in Days. -->
       <div class="wk">
         <div class="wk-head">
           <h3><span aria-hidden="true">👔</span> This week · <span x-text="weekLabel()"></span></h3>

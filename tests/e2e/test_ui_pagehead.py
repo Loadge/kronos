@@ -10,6 +10,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"]
@@ -38,7 +40,7 @@ def _freelance_source(base_url):
 
 
 def _open(page, base_url, tab):
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector("main .page-head", timeout=5000)
 
 

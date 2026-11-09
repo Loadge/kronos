@@ -26,6 +26,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import OPEN_ALL_WEEKS
+
 pytestmark = pytest.mark.e2e
 
 _TODAY = datetime.date.today()
@@ -100,7 +102,7 @@ class TestFullWorkDayJourney:
         _set_daily_target(base_url, 8)
 
         # ── Log via the real browser form ──
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_load_state("networkidle")
         # Target the specific day directly rather than the bare ".log-cal-day"
         # class: that also matches invisible padding cells (`.log-cal-pad`,
@@ -119,11 +121,12 @@ class TestFullWorkDayJourney:
 
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")  # saving no longer leaves the Log tab
+        assert page.url.endswith("#days")  # saving no longer leaves the Log tab
 
         # ── Days table ──
-        page.get_by_role("tab", name="Days").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.get_by_role("tab", name="Weeks").click()
+        page.evaluate(OPEN_ALL_WEEKS)
+        page.wait_for_url("**/#weeks", timeout=5000)
         row = page.locator(f"#day-row-{WORK_DATE}")
         page.wait_for_selector(f"#day-row-{WORK_DATE}", timeout=5000)
         # Wait past the optimistic-insert window for the server-confirmed row
@@ -160,7 +163,7 @@ class TestFullWorkDayJourney:
         assert "1 work days, 0 off" in (month_chip.get_attribute("title") or "")
 
         # ── Analytics: heatmap cell carries the surplus color class ──
-        page.get_by_role("tab", name="Analytics").click()
+        page.get_by_role("tab", name="Year").click()
         page.wait_for_selector(".hm-cell", timeout=5000)
         cell = page.locator(f".hm-cell[aria-label='{WORK_DATE} · work · +1h']")
         cell.wait_for(timeout=5000)
@@ -175,7 +178,8 @@ class TestEditEntryJourney:
         _set_daily_target(base_url, 8)
         _seed(base_url, [_work(EDIT_DATE, start="09:00", end="17:00")])  # 8h net == target
 
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
+        page.evaluate(OPEN_ALL_WEEKS)
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(f"#day-row-{EDIT_DATE}", timeout=5000)
 
@@ -197,10 +201,11 @@ class TestEditEntryJourney:
 
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")  # the edit is saved in place
+        assert page.url.endswith("#days")  # the edit is saved in place
 
         # Back on the Days table with the updated row.
-        page.get_by_role("tab", name="Days").click()
+        page.get_by_role("tab", name="Weeks").click()
+        page.evaluate(OPEN_ALL_WEEKS)
         page.wait_for_selector(f"#day-row-{EDIT_DATE}", timeout=5000)
         row = page.locator(f"#day-row-{EDIT_DATE}")
         row.get_by_role("button", name="Edit").wait_for(timeout=5000)
@@ -217,7 +222,8 @@ class TestDeleteEntryJourney:
     def test_delete_via_log_tab_removes_entry_from_days_table(self, page, base_url):
         _seed(base_url, [_work(DELETE_DATE)])
 
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
+        page.evaluate(OPEN_ALL_WEEKS)
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(f"#day-row-{DELETE_DATE}", timeout=5000)
 
@@ -234,8 +240,9 @@ class TestDeleteEntryJourney:
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.locator(".ribbon-msg").inner_text() == f"Deleted {DELETE_DATE}"
-        assert page.url.endswith("#log")  # deleting no longer leaves the Log tab
-        page.get_by_role("tab", name="Days").click()
+        assert page.url.endswith("#days")  # deleting no longer leaves the Log tab
+        page.get_by_role("tab", name="Weeks").click()
+        page.evaluate(OPEN_ALL_WEEKS)
         page.wait_for_selector("text=No entries yet", timeout=5000)
         assert page.locator(f"#day-row-{DELETE_DATE}").count() == 0
 
@@ -260,7 +267,7 @@ class TestNonWorkDayTypes:
     def test_non_work_day_shows_correct_pill_and_heatmap_color(
         self, page, base_url, day_type, iso_date
     ):
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_load_state("networkidle")
         # See the comment in TestFullWorkDayJourney: target the specific day
         # rather than the bare ".log-cal-day" class, which also matches
@@ -272,9 +279,10 @@ class TestNonWorkDayTypes:
 
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
-        page.get_by_role("tab", name="Days").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        assert page.url.endswith("#days")
+        page.get_by_role("tab", name="Weeks").click()
+        page.evaluate(OPEN_ALL_WEEKS)
+        page.wait_for_url("**/#weeks", timeout=5000)
 
         row = page.locator(f"#day-row-{iso_date}")
         page.wait_for_selector(f"#day-row-{iso_date}", timeout=5000)
@@ -287,7 +295,7 @@ class TestNonWorkDayTypes:
         # the work-day journey's exact-string checks.
         assert _cell(row, 6).inner_text() == "0h"
 
-        page.get_by_role("tab", name="Analytics").click()
+        page.get_by_role("tab", name="Year").click()
         page.wait_for_selector(".hm-cell", timeout=5000)
         cell = page.locator(f".hm-cell[aria-label='{iso_date} · {day_type} · 0h']")
         cell.wait_for(timeout=5000)

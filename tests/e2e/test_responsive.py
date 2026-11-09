@@ -29,6 +29,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 MOBILE = (375, 812)
@@ -104,7 +106,7 @@ class TestNoHorizontalOverflow:
     @pytest.mark.parametrize("width,height", [MOBILE, TABLET, DESKTOP])
     def test_no_horizontal_overflow(self, page, base_url, width, height, tab):
         page.set_viewport_size({"width": width, "height": height})
-        page.goto(f"{base_url}/#{tab}")
+        page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(150)  # let Alpine finish rendering (heatmap, grids)
 
@@ -156,7 +158,7 @@ class TestHeaderLayout:
 class TestLogLayout:
     def test_mobile_calendar_stacks_above_form(self, page, base_url):
         page.set_viewport_size({"width": MOBILE[0], "height": MOBILE[1]})
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector("form", timeout=5000)
 
@@ -169,7 +171,7 @@ class TestLogLayout:
 
     def test_desktop_calendar_beside_form(self, page, base_url):
         page.set_viewport_size({"width": DESKTOP[0], "height": DESKTOP[1]})
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector("form", timeout=5000)
 
@@ -211,7 +213,7 @@ class TestWeekStrip:
 class TestHeatmapScroll:
     def test_mobile_heatmap_scrolls_internally_without_page_overflow(self, page, base_url):
         page.set_viewport_size({"width": MOBILE[0], "height": MOBILE[1]})
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(".heatmap-scroll", timeout=5000)
 

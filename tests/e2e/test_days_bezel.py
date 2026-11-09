@@ -105,7 +105,7 @@ def _payout(base_url: str, source: int, monday: str, amount: float) -> None:
 def _open_days(page, base_url: str, size=(1280, 900), freelance: bool = False) -> None:
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     if freelance:
         page.get_by_role("radio", name="Freelance").click()
     page.wait_for_selector(".bz-strip", timeout=5000)
@@ -761,7 +761,7 @@ class TestWhenItShows:
 
     def test_no_entries_no_strip(self, page, base_url):
         page.clock.set_fixed_time(FIXED_NOW)
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector("text=No entries yet", timeout=5000)
         page.wait_for_timeout(300)
         assert page.locator(".bz").count() == 0
@@ -770,7 +770,7 @@ class TestWhenItShows:
         _source(base_url)
         _week(base_url, W44)
         page.clock.set_fixed_time(FIXED_NOW)
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.get_by_role("radio", name="Freelance").click()
         page.wait_for_selector("text=No freelance blocks here", timeout=5000)
         assert page.locator(".bz").count() == 0

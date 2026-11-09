@@ -50,7 +50,7 @@ def _open(page, base_url: str, size=(1280, 900), reduced: bool = True) -> None:
     if reduced:
         page.emulate_media(reduced_motion="reduce")
     page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-field", timeout=5000)
 
 
@@ -1123,11 +1123,11 @@ def test_a_drag_leaves_no_error_in_the_console(page, base_url):
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.set_viewport_size({"width": 1280, "height": 900})
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-bar", timeout=5000)
     page.goto(f"{base_url}/#plan")
-    page.wait_for_selector("section[aria-label='Log entry']", state="detached", timeout=5000)
-    page.goto(f"{base_url}/#log")
+    page.wait_for_selector("section[aria-label='Days']", state="detached", timeout=5000)
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-bar", timeout=5000)
     page.wait_for_timeout(300)
     grip = page.locator("[data-dr=end]").bounding_box()
@@ -1138,6 +1138,6 @@ def test_a_drag_leaves_no_error_in_the_console(page, base_url):
     page.mouse.up()
     page.wait_for_timeout(300)
     page.goto(f"{base_url}/#dashboard")
-    page.wait_for_selector("section[aria-label='Log entry']", state="detached", timeout=5000)
+    page.wait_for_selector("section[aria-label='Days']", state="detached", timeout=5000)
     page.wait_for_timeout(500)
     assert errors == []

@@ -11,12 +11,21 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 YEAR = """
 - navigation "{name} year":
   - button "Previous year"
   - text: /\\d{{4}}/
+  - button "Next year"
+"""
+
+YEAR_PAGE = """
+- navigation "Year selector":
+  - button "Previous year"
+  - text: /\\d{4}/
   - button "Next year"
 """
 
@@ -29,9 +38,9 @@ HEADER = """
   - /children: equal
   - tab "Dashboard"
   - tab "Plan"
-  - tab "Log"
   - tab "Days"
-  - tab "Analytics"
+  - tab "Weeks"
+  - tab "Year"
   - tab "Freelance"
 - button "Keyboard shortcuts"
 - button "Settings"
@@ -41,6 +50,7 @@ HEADS = {
     "dashboard": """
 - /children: equal
 - heading "Dashboard" [level=2]
+- button "Open the year dial"
 - text: /\\w+, \\w+ \\d+/
 """,
     "plan": """
@@ -50,25 +60,25 @@ HEADS = {
     + YEAR.format(name="Plan"),
     "log": """
 - /children: equal
-- heading /Log/ [level=2]
+- heading "Days" [level=2]
 - button /Add freelance/
 """
-    + YEAR.format(name="Log"),
+    + YEAR.format(name="Days"),
     "days": """
 - /children: equal
-- heading "Days" [level=2]
+- heading "Weeks" [level=2]
 - searchbox "Filter entries by notes"
 - button "PDF"
-- radiogroup "Days of":
+- radiogroup "Weeks of":
   - /children: equal
   - radio "Employee"
   - radio "Freelance"
 - button "All"
 """
-    + YEAR.format(name="Days"),
+    + YEAR.format(name="Weeks"),
     "analytics": """
 - /children: equal
-- heading "Analytics" [level=2]
+- heading "Year" [level=2]
 - button "CSV"
 - button "JSON"
 - button "Freelance CSV"
@@ -78,7 +88,7 @@ HEADS = {
   - radio "Employee"
   - radio "Freelance"
 """
-    + YEAR.format(name="Analytics"),
+    + YEAR_PAGE,
     "freelance": """
 - /children: equal
 - heading "Freelance" [level=2]
@@ -113,7 +123,7 @@ def _freelance_source(base_url):
 
 
 def _open(page, base_url, tab):
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector("main .page-head", timeout=5000)
 
 

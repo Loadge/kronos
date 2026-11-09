@@ -239,7 +239,7 @@
       <div class="settings-card-head">
         <div>
           <h3>Profile</h3>
-          <p class="muted">Printed in the header of the timesheet (Days → PDF). Leave blank what you don't want on it.</p>
+          <p class="muted">Printed in the header of the timesheet (Weeks → PDF). Leave blank what you don't want on it.</p>
         </div>
         <span class="settings-saved" :class="settingsStatusCls('profile')" x-text="settingsStatusText('profile')" aria-live="polite"></span>
       </div>
@@ -265,7 +265,7 @@
         </div>
       </div>
       <template x-if="templates.length === 0">
-        <p class="muted settings-empty">No templates yet. <a @click.prevent="go('log')" href="#log">Save one in Log</a></p>
+        <p class="muted settings-empty">No templates yet. <a @click.prevent="go('log')" href="#days">Save one in Days</a></p>
       </template>
       <template x-for="t in templates" :key="t.id">
         <div class="template-item">
@@ -559,7 +559,7 @@
       </div>
       <div class="srow">
         <span class="srow-key">A dollar block
-          <small>keeps the rate of its own day, taken once when it is saved (a weekend takes Friday's) and editable by hand from the Log tab (✎). It is never fetched again, so a later rate never moves an old amount.</small></span>
+          <small>keeps the rate of its own day, taken once when it is saved (a weekend takes Friday's) and editable by hand from the Days tab (✎). It is never fetched again, so a later rate never moves an old amount.</small></span>
         <div class="srow-ctl"></div>
       </div>
     </div>
@@ -636,7 +636,7 @@
       <div class="fun-zone-action">
         <div>
           <strong>Import CSV</strong>
-          <p class="muted">Adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped. The freelance blocks have their own CSV (Analytics → Export); they travel in the backup.</p>
+          <p class="muted">Adds historical days from a Kronos CSV export — existing dates are skipped and nothing is wiped. The freelance blocks have their own CSV (Year → Export); they travel in the backup.</p>
         </div>
         <div class="backup-actions">
           <button type="button" class="secondary outline" @click="$refs.importCsvInput.click()">⇪ Import CSV…</button>

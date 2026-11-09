@@ -42,7 +42,7 @@ def _clean(base_url):
 
 def _open_log(page, base_url: str, width: int = 1400, height: int = 900) -> None:
     page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector(".log-form-card form", timeout=5000)
 
@@ -135,11 +135,11 @@ class TestNotesAreOptional:
         _notes(page).fill("hello")
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
 
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/entries/{TODAY.isoformat()}").json()["notes"] == "hello"
-        page.get_by_role("tab", name="Days").click()
+        page.get_by_role("tab", name="Weeks").click()
         page.wait_for_selector("td.notes-col:has-text('hello')", timeout=5000)
 
         _post_entry(base_url, YESTERDAY.isoformat())
@@ -201,7 +201,7 @@ class TestNotesCollapse:
         page.keyboard.press("Escape")
         _add_note_button(page).wait_for(state="visible", timeout=3000)
         # and Escape on a field did not throw the whole form away: still on the Log tab
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
 
     def test_a_textarea_with_text_stays_open(self, page, base_url):
         _open_log(page, base_url)
@@ -229,7 +229,7 @@ class TestNotesCollapse:
         _notes(page).wait_for(state="visible", timeout=3000)
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/entries/{TODAY.isoformat()}").status_code == 200
 

@@ -54,7 +54,7 @@
             </div>
           </template>
           <template x-if="payouts.length > 0 && flSummary.awaiting_payout > 0">
-            <p class="fl-awaiting"><a href="#days" @click.prevent="openAwaitingInDays()" data-testid="fl-awaiting" x-text="flAwaitingLabel()"></a></p>
+            <p class="fl-awaiting"><a href="#weeks" @click.prevent="openAwaitingInDays()" data-testid="fl-awaiting" x-text="flAwaitingLabel()"></a></p>
           </template>
           <!-- what the exchange and the fees took this year, and where the money landed -->
           <template x-if="flSummary.fx_cost_eur > 0">
@@ -95,7 +95,7 @@
         </div>
         <!-- the twelve months: billed (solid) and, after today, the planned share (dashed) -->
         <div class="fl-months-wrap" x-html="flMonthsSvg()" role="img"
-             :aria-label="'Freelance income per month of ' + flYear + ': ' + fmtMoney(flSummary.total.gross_eur) + ' billed so far' + (flSummary.projection.planned_gross_eur ? ', ' + fmtMoney(flSummary.projection.planned_gross_eur) + ' planned' : '')"></div>
+             :aria-label="'Income per month, ' + flYear + ': ' + fmtMoney(flSummary.total.gross_eur) + ' billed' + (flSummary.projection.planned_gross_eur ? ', ' + fmtMoney(flSummary.projection.planned_gross_eur) + ' planned' : '')"></div>
         <template x-if="flSplitOn()">
           <div class="fl-legend" aria-hidden="true"><span><i class="fl-sw paid"></i>paid out</span><span><i class="fl-sw est"></i>estimated</span><span x-show="flSummary.projection.planned_gross_eur > 0"><i class="fl-sw plan"></i>planned</span></div>
         </template>
@@ -103,7 +103,7 @@
 
       <!-- ── The year to Dec 31, as a strip: the two inputs, the basis, where each euro goes,
            eight tiles. Nothing tall, so the 130 and the Calculator follow without a hole. ── -->
-      <div class="fl-ystrip" data-testid="fl-projection" :title="flSummary.projection.planned_hours > 0 ? fmtHours(flSummary.projection.planned_hours) + ' still to bill over ' + fmtPlain(flSummary.projection.weeks_left) + ' weeks' + (flSummary.projection.rate_eur ? ' at ' + fmtMoney(flSummary.projection.rate_eur) + '/h (' + (flSummary.projection.rate_basis === 'realised' ? 'realised so far' : 'the default source') + ')' : '') : 'Nothing planned beyond what is billed, set hours a week to project'">
+      <div class="fl-ystrip" data-testid="fl-projection" :title="flSummary.projection.planned_hours > 0 ? fmtHours(flSummary.projection.planned_hours) + ' still to bill' : 'Set h / week to project'">
         <div class="fl-ystrip-head">
           <h3>The year to Dec 31</h3>
           <span class="fl-plan-inputs">
@@ -118,7 +118,7 @@
           </span>
         </div>
         <!-- gross → expenses → RETA → IRPF → net -->
-        <div class="calc-fall fl-fall" role="img" :aria-label="'Of ' + fmtMoney(flSummary.projection.figures.gross) + ' gross: ' + fmtMoney(flSummary.projection.figures.expenses) + ' expenses, ' + (isSpain() ? fmtMoney(flSummary.projection.figures.reta_annual) + ' RETA, ' + fmtMoney(flSummary.projection.figures.irpf) + ' IRPF, ' : fmtMoney(flSummary.projection.figures.set_aside) + ' set aside, ') + fmtMoney(flSummary.projection.figures.net) + ' net'">
+        <div class="calc-fall fl-fall" role="img" :aria-label="'Gross ' + fmtMoney(flSummary.projection.figures.gross) + ': expenses ' + fmtMoney(flSummary.projection.figures.expenses) + ', ' + (isSpain() ? 'RETA ' + fmtMoney(flSummary.projection.figures.reta_annual) + ', IRPF ' + fmtMoney(flSummary.projection.figures.irpf) + ', ' : 'set aside ' + fmtMoney(flSummary.projection.figures.set_aside) + ', ') + 'net ' + fmtMoney(flSummary.projection.figures.net)">
           <template x-for="p in waterfall(flSummary.projection.figures)" :key="p.id">
             <span class="calc-seg" :class="'calc-seg--' + p.id" :style="'width:' + p.pct + '%'" :title="p.label + ' · ' + fmtMoney(p.value) + ' · ' + fmtPlain(p.pct) + '%'">
               <span class="calc-seg-lbl" x-show="p.pct > 9" x-text="p.label + ' ' + Math.round(p.pct) + '%'"></span>
@@ -214,60 +214,67 @@
           <span class="calc-busy" :class="calc.busy ? 'on' : ''" aria-hidden="true"></span>
         </div>
 
+        <!-- the assumptions: one line of switches, then the parameters, each one a row with its label right beside its value -->
         <div class="calc-assume">
-          <div class="calc-a calc-a--cur">
-            <span class="fl-lbl">Currency</span>
-            <div class="seg-toggle" role="radiogroup" aria-label="Currency">
-              <button type="button" role="radio" :aria-checked="calc.currency === 'EUR' ? 'true' : 'false'" :class="calc.currency === 'EUR' ? 'on' : ''" @click="calcSetCurrency('EUR')">EUR</button>
-              <button type="button" role="radio" :aria-checked="calc.currency === 'USD' ? 'true' : 'false'" :class="calc.currency === 'USD' ? 'on' : ''" @click="calcSetCurrency('USD')">USD</button>
+          <div class="calc-opts">
+            <div class="calc-a calc-a--cur calc-opt">
+              <span class="fl-lbl">Currency</span>
+              <div class="seg-toggle" role="radiogroup" aria-label="Currency">
+                <button type="button" role="radio" :aria-checked="calc.currency === 'EUR' ? 'true' : 'false'" :class="calc.currency === 'EUR' ? 'on' : ''" @click="calcSetCurrency('EUR')">EUR</button>
+                <button type="button" role="radio" :aria-checked="calc.currency === 'USD' ? 'true' : 'false'" :class="calc.currency === 'USD' ? 'on' : ''" @click="calcSetCurrency('USD')">USD</button>
+              </div>
             </div>
-          </div>
-          <template x-if="calc.currency === 'USD'">
-            <label class="calc-a calc-a--fx">
-              <span class="fl-lbl">$ per € <small class="muted" x-text="calc.fx_source"></small></span>
-              <input type="number" x-model="calc.fx_rate" min="0.0001" step="0.0001" @input="calcFxTyped()" class="ctl-num" aria-label="Exchange rate">
-            </label>
-          </template>
-          <div class="calc-a calc-a--days">
-            <span class="fl-lbl">Billable days</span>
-            <div class="calc-days">
+            <div class="calc-a calc-a--days calc-opt">
+              <span class="fl-lbl">Days</span>
               <div class="seg-toggle" role="radiogroup" aria-label="Billable days">
                 <button type="button" role="radio" :aria-checked="calc.billable_mode === 'default' ? 'true' : 'false'" :class="calc.billable_mode === 'default' ? 'on' : ''" @click="calcSetBillable('default')">220</button>
-                <button type="button" role="radio" :aria-checked="calc.billable_mode === 'calendar' ? 'true' : 'false'" :class="calc.billable_mode === 'calendar' ? 'on' : ''" @click="calcSetBillable('calendar')" :title="'The year\'s work-week days less the holidays logged and the vacation budget: ' + calcCalendarDays()">the calendar's</button>
+                <button type="button" role="radio" :aria-checked="calc.billable_mode === 'calendar' ? 'true' : 'false'" :class="calc.billable_mode === 'calendar' ? 'on' : ''" @click="calcSetBillable('calendar')" :title="'Work-week days less holidays and vacation: ' + calcCalendarDays()">the calendar's</button>
               </div>
-              <input type="number" x-model="calc.billable_days" min="0" max="366" step="1" @input="calc.billable_mode = 'custom'; calcRun(calc.mode)" class="ctl-num" aria-label="Billable days">
+            </div>
+            <div class="calc-toggles" x-show="isSpain()">
+              <label class="calc-a calc-a--switch">
+                <input type="checkbox" role="switch" x-model="calc.tarifa_plana" @change="calcRun(calc.mode, true)"> Tarifa plana
+              </label>
+              <label class="calc-a calc-a--switch">
+                <input type="checkbox" role="switch" x-model="calc.inicio_actividad" @change="calcRun(calc.mode, true)"> Start-up reduction (20 %)
+              </label>
             </div>
           </div>
-          <label class="calc-a calc-a--r2">
-            <span class="fl-lbl">Hours a day</span>
-            <input type="number" x-model="calc.hours_per_day" min="0.25" max="24" step="0.25" @input="calcRun(calc.mode)" class="ctl-num" aria-label="Hours per day">
-          </label>
-          <template x-if="isSpain()"><div class="calc-es" style="display:contents">
-          <label class="calc-a calc-a--r2">
-            <span class="fl-lbl">Salary of the job <small class="muted">€ / year</small></span>
-            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('salary_annual')" @focus="calcFocus('salary_annual', $el)" @input="calcTyped('salary_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Salary">
-          </label>
-          <label class="calc-a calc-a--r2">
-            <span class="fl-lbl">Gestoría <small class="muted">€ / year</small></span>
-            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('gestoria_annual')" @focus="calcFocus('gestoria_annual', $el)" @input="calcTyped('gestoria_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Gestoría">
-          </label>
-          </div></template>
-          <template x-if="!isSpain()">
-            <label class="calc-a calc-a--r2">
-              <span class="fl-lbl">Set aside <small class="muted">% of every payment</small></span>
-              <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('set_aside_pct')" @focus="calcFocus('set_aside_pct', $el)" @input="calcTyped('set_aside_pct', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Set aside">
+          <div class="calc-params" data-testid="calc-params">
+            <label class="calc-p calc-a--r2">
+              <span class="fl-lbl">Hours a day</span>
+              <input type="number" x-model="calc.hours_per_day" min="0.25" max="24" step="0.25" @input="calcRun(calc.mode)" class="ctl-num" aria-label="Hours per day">
             </label>
-          </template>
-          <label class="calc-a calc-a--r2">
-            <span class="fl-lbl">Other expenses <small class="muted">€ / year</small></span>
-            <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('other_expenses')" @focus="calcFocus('other_expenses', $el)" @input="calcTyped('other_expenses', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Other expenses">
-          </label>
-          <div class="calc-toggles" x-show="isSpain()">
-            <label class="calc-a calc-a--switch">
-              <input type="checkbox" role="switch" x-model="calc.tarifa_plana" @change="calcRun(calc.mode, true)"> Tarifa plana
+            <label class="calc-p calc-a--r2">
+              <span class="fl-lbl">Billable days</span>
+              <input type="number" x-model="calc.billable_days" min="0" max="366" step="1" @input="calc.billable_mode = 'custom'; calcRun(calc.mode)" class="ctl-num" aria-label="Billable days">
             </label>
-            <label class="calc-a calc-a--switch">
-              <input type="checkbox" role="switch" x-model="calc.inicio_actividad" @change="calcRun(calc.mode, true)"> Start-up reduction (20 %)
+            <template x-if="calc.currency === 'USD'">
+              <label class="calc-p calc-a--fx">
+                <span class="fl-lbl">$ per €</span>
+                <input type="number" x-model="calc.fx_rate" min="0.0001" step="0.0001" @input="calcFxTyped()" class="ctl-num" aria-label="Exchange rate">
+                <small class="calc-p-note muted" x-text="calc.fx_source"></small>
+              </label>
+            </template>
+            <template x-if="isSpain()"><div class="calc-es" style="display:contents">
+            <label class="calc-p calc-a--r2">
+              <span class="fl-lbl">Salary €/y</span>
+              <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('salary_annual')" @focus="calcFocus('salary_annual', $el)" @input="calcTyped('salary_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Salary" title="Salary of the job">
+            </label>
+            <label class="calc-p calc-a--r2">
+              <span class="fl-lbl">Gestoría €/y</span>
+              <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('gestoria_annual')" @focus="calcFocus('gestoria_annual', $el)" @input="calcTyped('gestoria_annual', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Gestoría">
+            </label>
+            </div></template>
+            <template x-if="!isSpain()">
+              <label class="calc-p calc-a--r2">
+                <span class="fl-lbl">Set aside %</span>
+                <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('set_aside_pct')" @focus="calcFocus('set_aside_pct', $el)" @input="calcTyped('set_aside_pct', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Set aside" title="Share of every payment put by for the tax office">
+              </label>
+            </template>
+            <label class="calc-p calc-a--r2">
+              <span class="fl-lbl">Other €/y</span>
+              <input type="text" inputmode="decimal" autocomplete="off" :value="calcShow('other_expenses')" @focus="calcFocus('other_expenses', $el)" @input="calcTyped('other_expenses', $event.target.value)" @blur="calcBlur()" class="ctl-num" aria-label="Other expenses" title="Other expenses">
             </label>
           </div>
         </div>
@@ -278,7 +285,7 @@
               <p class="deficit">No rate reaches that net.</p>
             </template>
             <!-- gross → expenses → RETA → IRPF → net -->
-            <div class="calc-fall" role="img" :aria-label="'Of ' + fmtMoney(calc.result.figures.gross) + ' gross: ' + fmtMoney(calc.result.figures.expenses) + ' expenses, ' + (isSpain() ? fmtMoney(calc.result.figures.reta_annual) + ' RETA, ' + fmtMoney(calc.result.figures.irpf) + ' IRPF, ' : fmtMoney(calc.result.figures.set_aside) + ' set aside, ') + fmtMoney(calc.result.figures.net) + ' net'">
+            <div class="calc-fall" role="img" :aria-label="'Gross ' + fmtMoney(calc.result.figures.gross) + ': expenses ' + fmtMoney(calc.result.figures.expenses) + ', ' + (isSpain() ? 'RETA ' + fmtMoney(calc.result.figures.reta_annual) + ', IRPF ' + fmtMoney(calc.result.figures.irpf) + ', ' : 'set aside ' + fmtMoney(calc.result.figures.set_aside) + ', ') + 'net ' + fmtMoney(calc.result.figures.net)">
               <template x-for="p in calcWaterfall()" :key="p.id">
                 <span class="calc-seg" :class="'calc-seg--' + p.id" :style="'width:' + p.pct + '%'" :title="p.label + ' · ' + fmtMoney(p.value) + ' · ' + fmtPlain(p.pct) + '%'">
                   <span class="calc-seg-lbl" x-show="p.pct > 9" x-text="p.label + ' ' + Math.round(p.pct) + '%'"></span>

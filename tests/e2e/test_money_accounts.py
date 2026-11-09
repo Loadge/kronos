@@ -67,10 +67,7 @@ ECB = """<?xml version="1.0" encoding="UTF-8"?>
   </Cube>
 </gesmes:Envelope>
 """
-EXPECTED_STORY = (
-    "Billed $1,059.25 · ECB rate 1.1172 on Nov 1 → €948.13 · You received €877.94 · "
-    "Exchange and fees cost you €70.19 (7.4%) · Your rate was 1.2065"
-)
+EXPECTED_STORY = "Exchange and fees cost you €70.19"
 
 
 class _Stub(BaseHTTPRequestHandler):
@@ -230,7 +227,7 @@ def _open_settings_freelance(page, base: str) -> None:
 
 
 def _open_days_freelance(page, base: str, year: str = "all") -> None:
-    page.goto(f"{base}/#days")
+    page.goto(f"{base}/#weeks")
     page.wait_for_selector(".page-head .hm-switch")
     _app(page, f"d.daysYear = '{year}';")
     page.locator(".page-head .hm-switch button").nth(1).click()
@@ -306,6 +303,7 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
 
     # 5. the FX chip tells the story: hover, focus and tap
     chip = line.get_by_test_id("fx-chip")
+    assert chip.inner_text().strip() == "FX -7.4%"  # the share of what was billed
     tip = page.locator("#fx-tip")
     chip.hover()
     expect(tip).to_have_text(EXPECTED_STORY)
@@ -315,7 +313,7 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     expect(tip).to_have_text(EXPECTED_STORY)
     page.keyboard.press("Escape")  # closes the tip and does not send the app home
     expect(tip).to_be_hidden()
-    assert page.evaluate("() => location.hash") == "#days"
+    assert page.evaluate("() => location.hash") == "#weeks"
     chip.click()  # a tap pins it; a click elsewhere lets it go
     expect(tip).to_have_text(EXPECTED_STORY)
     page.mouse.move(5, 5)

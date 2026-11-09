@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 ARTIFACTS = Path(__file__).resolve().parents[2] / ".artifacts"
@@ -60,11 +62,13 @@ def test_no_screen_breaks_the_content_security_policy(csp_page, base_url, freela
     page.wait_for_selector("main .page-head", timeout=5000)
 
     for tab in TABS:
-        page.evaluate(f"location.hash = '{tab}'")
+        page.evaluate(f"location.hash = '{HASH_OF.get(tab, tab)}'")
         page.wait_for_function(
             "t => document.querySelector('.tabs [aria-selected=true]')?.textContent.toLowerCase()"
             ".includes(t) || t === 'settings'",
-            arg=tab[:3] if tab != "settings" else tab,
+            arg={"log": "day", "days": "wee", "analytics": "yea"}.get(
+                tab, tab[:3] if tab != "settings" else tab
+            ),
             timeout=5000,
         )
         page.wait_for_timeout(250)
@@ -86,7 +90,7 @@ def test_no_screen_breaks_the_content_security_policy(csp_page, base_url, freela
     page.wait_for_selector(".palette", timeout=3000)
     assert not _violations(page), ("palette", _violations(page))
     page.keyboard.press("Escape")
-    page.keyboard.press("y")
+    page.keyboard.press("k")
     page.wait_for_selector("#yd [data-yd=stage]", timeout=8000)
     page.wait_for_timeout(300)
     assert not _violations(page), ("dial", _violations(page))
@@ -160,7 +164,7 @@ def test_going_offline_shows_the_banner_and_coming_back_hides_it(page, base_url)
 
 def test_the_banner_on_a_phone_never_covers_the_tab_bar_or_the_log_dock(page, base_url):
     page.set_viewport_size({"width": 375, "height": 800})
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_selector(".log-col-rail", timeout=5000)
     page.context.set_offline(True)
     page.wait_for_selector(BANNER, state="visible", timeout=3000)
@@ -247,11 +251,11 @@ def test_the_dial_shortcut_opens_the_dial_and_leaves_the_address_clean(page, bas
 def test_the_dial_address_works_in_a_page_that_is_already_open(page, base_url):
     """An installed app that is running gets the shortcut as a hash change, not a reload."""
     page.set_viewport_size({"width": 1280, "height": 900})
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate("location.hash = 'dial'")
     page.wait_for_selector("#yd [data-yd=stage]", timeout=8000)
-    assert page.evaluate("location.hash") == "#days"
+    assert page.evaluate("location.hash") == "#weeks"
     page.wait_for_timeout(400)  # its keys are bound once it has drawn
     page.keyboard.press("Escape")
     page.wait_for_function("() => !document.getElementById('yd')", timeout=3000)

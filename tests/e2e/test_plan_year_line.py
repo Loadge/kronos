@@ -16,7 +16,7 @@ import re
 import httpx
 import pytest
 
-from .conftest import DEMO_NOW
+from .conftest import DEMO_NOW, HASH_OF
 
 pytestmark = pytest.mark.e2e
 
@@ -88,7 +88,7 @@ def make_page(browser, demo_url, drafted):
         contexts.append(context)
         page = context.new_page()
         page.clock.set_fixed_time(DEMO_NOW)
-        page.goto(f"{demo_url}/#{tab}", wait_until="networkidle")
+        page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
         if tab == "plan":
             page.wait_for_selector("[data-testid=plan-line-today]", timeout=5000)

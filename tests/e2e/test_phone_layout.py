@@ -13,6 +13,8 @@ from datetime import date, timedelta
 import httpx
 import pytest
 
+from .conftest import OPEN_ALL_WEEKS
+
 pytestmark = pytest.mark.e2e
 
 PHONE = {"width": 375, "height": 800}
@@ -63,7 +65,8 @@ def days(base_url):
 
 def _open_days(page, base_url: str, size: dict) -> None:
     page.set_viewport_size(size)
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
+    page.evaluate(OPEN_ALL_WEEKS)
     page.wait_for_selector("tr.day-row", timeout=5000)
     page.wait_for_timeout(300)
 
@@ -141,7 +144,8 @@ def test_a_freelance_block_is_two_lines_on_a_phone(page, base_url, days):
         )
         assert r.status_code == 201, r.text
     page.set_viewport_size(PHONE)
-    page.goto(f"{base_url}/#days")
+    page.goto(f"{base_url}/#weeks")
+    page.evaluate(OPEN_ALL_WEEKS)
     page.get_by_role("radio", name="Freelance").click()
     # the week of the block may be the only one, and open already: `+` is then aria-disabled
     page.get_by_test_id("wk-expand-all").click(force=True)
@@ -167,7 +171,7 @@ def test_the_desktop_table_keeps_its_columns(page, base_url, days):
 
 def test_the_range_card_follows_the_chart_on_a_phone(page, base_url, days):
     page.set_viewport_size(PHONE)
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector(".an-ledger", timeout=5000)
     page.wait_for_timeout(300)
     brush = page.locator(".an-brush").bounding_box()
@@ -179,7 +183,7 @@ def test_the_range_card_follows_the_chart_on_a_phone(page, base_url, days):
 
 def test_the_years_table_fits_a_phone(page, base_url, days):
     page.set_viewport_size(PHONE)
-    page.goto(f"{base_url}/#analytics")
+    page.goto(f"{base_url}/#year")
     page.wait_for_selector(".an-years", timeout=5000)
     wrap = page.locator(".an-years").locator("xpath=..")
     assert wrap.evaluate("el => el.scrollWidth <= el.clientWidth + 1")

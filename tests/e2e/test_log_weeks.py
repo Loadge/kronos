@@ -74,7 +74,7 @@ def _block(base_url: str, **body) -> dict:
 def _open_log(page, base_url: str, year: int, month: int) -> None:
     """Log tab on `month` (1-12) of `year`, with the browser clock fixed."""
     page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector(".log-cal-grid.has-wk", timeout=5000)
     page.evaluate(
@@ -178,7 +178,7 @@ class TestJump:
             "() => !document.querySelectorAll('.log-cal-wk')[1].disabled", timeout=5000
         )
         page.locator(".log-cal-wk", has_text="45").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_url("**/#weeks", timeout=5000)
         page.wait_for_selector("#eweek-2026-11-02", state="attached", timeout=5000)
 
         # checked after the Days tab's own scroll to today has run and settled
@@ -204,7 +204,7 @@ class TestJump:
             "() => !document.querySelectorAll('.log-cal-wk')[4].disabled", timeout=5000
         )
         page.locator(".log-cal-wk", has_text="53").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_url("**/#weeks", timeout=5000)
         page.wait_for_selector("#eweek-2026-12-28", state="attached", timeout=5000)
         page.wait_for_timeout(1500)
         year = page.evaluate("Alpine.$data(document.querySelector('main')).daysYear")
@@ -222,7 +222,7 @@ class TestJump:
             "() => !document.querySelectorAll('.log-cal-wk')[2].disabled", timeout=5000
         )
         page.locator(".log-cal-wk", has_text="46").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        page.wait_for_url("**/#weeks", timeout=5000)
         page.wait_for_selector("[data-testid='days-freelance']", timeout=5000)
         row = page.locator("tr.wk-row#wk-2026-11-09")
         row.wait_for(state="visible", timeout=5000)
@@ -236,7 +236,7 @@ class TestWeekSeparators:
     def test_one_separator_per_week_while_sorted_by_date(self, page, base_url):
         _seed(base_url, ["2026-11-02", "2026-11-03", "2026-11-09", "2026-11-10"])
         page.clock.set_fixed_time(FIXED_NOW)
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".days-table", timeout=5000)
         assert page.locator(".days-table .week-sep").count() == 2
         page.get_by_test_id("wk-expand-all").click()
@@ -252,7 +252,7 @@ class TestWeekSeparators:
     def test_no_week_separators_under_the_net_hours_sort(self, page, base_url):
         _seed(base_url, ["2026-11-02", "2026-11-03", "2026-11-09"])
         page.clock.set_fixed_time(FIXED_NOW)
-        page.goto(f"{base_url}/#days")
+        page.goto(f"{base_url}/#weeks")
         page.wait_for_selector(".days-table", timeout=5000)
         assert page.locator(".days-table .week-sep").count() == 2
         page.locator(".days-table th.sortable", has_text="Net").click()

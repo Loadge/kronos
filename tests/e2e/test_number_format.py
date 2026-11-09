@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from .conftest import BACKEND_DIR, DEMO_NOW, _find_free_port, _wait_for_server
+from .conftest import BACKEND_DIR, DEMO_NOW, HASH_OF, _find_free_port, _wait_for_server
 
 pytestmark = pytest.mark.e2e
 
@@ -54,7 +54,7 @@ def make_page(browser, demo_url):
         contexts.append(context)
         page = context.new_page()
         page.clock.set_fixed_time(DEMO_NOW)
-        page.goto(f"{url or demo_url}/#{tab}", wait_until="networkidle")
+        page.goto(f"{url or demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
         page.evaluate("document.fonts.ready")
         page.wait_for_timeout(300)
@@ -244,7 +244,7 @@ def test_the_odometer_and_the_dial_roll_with_a_decimal_comma(make_page, put_conf
           return { reels: o.querySelectorAll('.odo-reel').length, marks: [...o.querySelectorAll('.odo-ch')].map(c => c.dataset.ch).join('') }; }"""
     )
     assert reels["reels"] >= 3 and "," in reels["marks"], reels
-    page.keyboard.press("y")
+    page.keyboard.press("k")
     page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=8000)
     assert re.search(r"[+−±]\d+,\d{2}h", page.locator("[data-yd=balv]").first.text_content()), (
         page.locator("[data-yd=balv]").first.text_content()

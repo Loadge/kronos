@@ -18,6 +18,8 @@ import time
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 NEWER = {"version": "99", "build": "deadbeef00"}
@@ -40,7 +42,7 @@ def _day(day: int) -> str:
 
 
 def _open(page, base_url: str, tab: str = "log") -> None:
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector("main .app-header", timeout=5000)
 
@@ -82,7 +84,7 @@ class TestStayInLog:
         )
         cell = page.locator(f".log-cal-day[aria-label='{date_str}']")
         assert "hm-vacation" in (cell.get_attribute("class") or "")
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
         assert page.evaluate("Alpine.$data(document.querySelector('main')).tab") == "log"
         # the form is ready for the next day and the saved one reached the server
         assert page.locator("button.btn-action--block").inner_text() == "Create entry"
@@ -107,7 +109,7 @@ class TestStayInLog:
             " return [d.calYear, d.calMonth]; }"
         )
         assert month == [2025, 2]
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
 
     def test_editing_and_saving_keeps_the_log_tab(self, page, base_url):
         date_str = _day(11)
@@ -122,7 +124,7 @@ class TestStayInLog:
         page.locator("button.btn-action--block").click()
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
         page.wait_for_function(
             "iso => document.querySelector(`[aria-label='${iso}']`)?.className.includes('hm-sick')",
             arg=date_str,
@@ -143,7 +145,7 @@ class TestStayInLog:
 
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
         assert page.locator(".ribbon-msg").inner_text() == f"Deleted {date_str}"
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
         assert page.evaluate("Alpine.$data(document.querySelector('main')).tab") == "log"
         page.wait_for_function(
             "iso => document.querySelector(`[aria-label='${iso}']`)"
@@ -182,7 +184,7 @@ class TestVersionLabel:
     def test_the_header_shows_a_faint_version_next_to_the_title(self, page, base_url):
         _open(page, base_url, "dashboard")
         label = page.locator(".app-header .brand-ver")
-        assert label.inner_text() == "v55"
+        assert label.inner_text() == "v56"
         title = page.locator(".app-header h1")
         a, b = title.bounding_box(), label.bounding_box()
         assert b["x"] >= a["x"] + a["width"] - 1  # to the right of the title

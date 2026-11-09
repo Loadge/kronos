@@ -33,7 +33,7 @@ def _clean(base_url):
 
 
 def _open_log_tab(page, base_url):
-    page.goto(f"{base_url}/#log")
+    page.goto(f"{base_url}/#days")
     page.wait_for_load_state("networkidle")
     page.wait_for_selector("form", timeout=5000)
 
@@ -98,9 +98,9 @@ class TestSaveAndDisplay:
         times.nth(1).fill("13:00")
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
-        page.get_by_role("tab", name="Days").click()
-        page.wait_for_url("**/#days", timeout=5000)
+        assert page.url.endswith("#days")
+        page.get_by_role("tab", name="Weeks").click()
+        page.wait_for_url("**/#weeks", timeout=5000)
 
         # Days table: pill carries the hours, net/target reflect the worked half. The week lines
         # are always there; the day itself shows once the weeks are open.

@@ -19,12 +19,14 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 FIXED_NOW = "2026-11-04T10:00:00"
 TODAY = "2026-11-04"
 MAIN = "Alpine.$data(document.querySelector('main'))"
-NAMES = ["Dashboard", "Plan", "Log", "Days", "Analytics", "Freelance"]
+NAMES = ["Dashboard", "Plan", "Days", "Weeks", "Year", "Freelance"]
 TABS = ["dashboard", "plan", "log", "days", "analytics", "freelance", "settings"]
 MINUS = "−"
 
@@ -87,7 +89,7 @@ def phone(browser):
 
 
 def _open(page, base_url: str, tab: str) -> None:
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_selector("main .page-head", timeout=10000)
     if tab != "settings":
         page.wait_for_function(
@@ -156,7 +158,7 @@ def test_the_tabs_are_a_bar_at_the_bottom_of_the_screen(phone, base_url, width):
     assert max(widths) - min(widths) <= 0.5, widths  # equal columns
     for t in s["tabs"]:
         assert t["h"] >= 44, t
-        assert t["lines"] == 1, t  # "Analytics" and "Freelance" on one line
+        assert t["lines"] == 1, t  # "Freelance" on one line
         assert t["inside"] and t["clip"] <= 0, t  # and not clipped
         assert t["icon"], t
         assert t["key"], t  # the shortcut letter is not coloured on a phone
@@ -308,12 +310,12 @@ def test_the_ink_sits_on_the_active_tab_and_follows_a_click_and_a_resize(
         "() => { window.__slid = false; document.querySelector('.tabs-ink')"
         ".addEventListener('transitionrun', () => { window.__slid = true; }); }"
     )
-    _go(page, "Analytics", touch)
+    _go(page, "Year", touch)
     page.wait_for_function("() => window.__slid === true", timeout=6000)
     _wait_ink(page, phone_layout)
     assert page.evaluate(
         "document.querySelector('.tabs [aria-selected=true]').textContent.trim()"
-    ) == ("Analytics")
+    ) == ("Year")
     # a resize puts it under the active tab again, with no slide
     other = (375, 800) if width > 640 else (1280, 900)
     page.set_viewport_size({"width": other[0], "height": other[1]})
@@ -331,7 +333,7 @@ def test_with_settings_open_the_ink_is_gone(phone, base_url, width, height, touc
     gear.tap() if touch else gear.click()
     expect(page.locator(".tabs-ink")).to_have_css("opacity", "0")
     assert page.locator(".tabs [aria-selected=true]").count() == 0
-    _go(page, "Days", touch)
+    _go(page, "Weeks", touch)
     expect(page.locator(".tabs-ink")).to_have_css("opacity", "1")
     _wait_ink(page, width <= 640)
 
@@ -362,7 +364,7 @@ def test_a_page_fades_in_on_a_tab_change_and_not_on_load(phone, base_url):
     _open(page, base_url, "dashboard")
     page.wait_for_timeout(600)
     assert "page-in" not in page.evaluate("window.__fx")
-    _go(page, "Days", True)
+    _go(page, "Weeks", True)
     page.wait_for_function("() => window.__fx.includes('page-in')", timeout=6000)
     page.wait_for_timeout(500)
     assert page.evaluate("window.__fx.filter(n => n === 'page-in').length") == 1
@@ -374,8 +376,8 @@ def test_reduced_motion_turns_the_new_motion_off(phone, base_url):
     _open(page, base_url, "dashboard")
     ink = page.locator(".tabs-ink")
     assert ink.evaluate("e => getComputedStyle(e).transitionDuration") == "0s"
-    _go(page, "Days", True)
-    page.wait_for_selector("main .page-head h2:has-text('Days')", timeout=5000)
+    _go(page, "Weeks", True)
+    page.wait_for_selector("main .page-head h2:has-text('Weeks')", timeout=5000)
     assert "page-in" not in page.evaluate("window.__fx")
     assert page.evaluate("document.querySelector('main > section').getAnimations().length") == 0
     page.keyboard.press(".")

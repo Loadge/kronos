@@ -74,7 +74,7 @@ class TestHeatmapWeekNumbers:
             ],
         )
 
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(".hm-week-label", timeout=5000)
 
@@ -107,7 +107,7 @@ class TestHeatmapWeekNumbers:
             ],
         )
 
-        page.goto(f"{base_url}/#analytics")
+        page.goto(f"{base_url}/#year")
         page.wait_for_load_state("networkidle")
         page.wait_for_selector(".hm-week-label", timeout=5000)
 

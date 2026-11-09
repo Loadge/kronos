@@ -61,9 +61,9 @@ class TestSettingsUiConsistency:
         _open_settings(page, base_url)
         page.wait_for_selector("#settings-templates", timeout=5000)
         empty = page.locator("#settings-templates .settings-empty")
-        assert empty.inner_text().strip() == "No templates yet. Save one in Log"
-        empty.locator("a", has_text="Save one in Log").click()
-        page.wait_for_url("**/#log", timeout=3000)
+        assert empty.inner_text().strip() == "No templates yet. Save one in Days"
+        empty.locator("a", has_text="Save one in Days").click()
+        page.wait_for_url("**/#days", timeout=3000)
         page.goto(f"{base_url}/#settings")
         page.wait_for_selector("#settings-templates", timeout=5000)
         # "+ Add a change" is an outline opener, not the old ghost button

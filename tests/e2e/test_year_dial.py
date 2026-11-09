@@ -27,6 +27,8 @@ import math
 import httpx
 import pytest
 
+from .conftest import HASH_OF
+
 pytestmark = pytest.mark.e2e
 
 FIXED_NOW = "2026-11-04T10:00:00"
@@ -167,20 +169,20 @@ def _open_app(
         page.emulate_media(reduced_motion="reduce")
     if fixed:
         page.clock.set_fixed_time(FIXED_NOW)
-    page.goto(f"{base_url}/#{tab}")
+    page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
     page.wait_for_function(LOADED, arg=entries, timeout=8000)
 
 
 def _open_dial(page, how: str = "key") -> None:
     if how == "logo":
-        page.get_by_role("button", name="Open the year dial").click()
+        page.locator(".brand-btn").click()
     elif how == "palette":
         page.keyboard.press(".")
         page.wait_for_selector("#k-palette-input:focus")
-        page.keyboard.type("year")
+        page.keyboard.type("year dial")
         page.keyboard.press("Enter")
     else:
-        page.keyboard.press("y")
+        page.keyboard.press("k")
     page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=8000)
 
 
@@ -346,20 +348,20 @@ def test_y_typed_in_a_field_does_not_open_it(page, base_url):
     _open_app(page, base_url, tab="days")
     field = page.get_by_role("searchbox", name="Filter entries by notes")
     field.click()
-    field.press("y")
-    assert field.input_value() == "y"
+    field.press("k")
+    assert field.input_value() == "k"
     page.wait_for_timeout(300)
     assert page.locator("#yd").count() == 0
     # the control: out of the field, the same key opens it
     field.press("Escape")
-    page.keyboard.press("y")
+    page.keyboard.press("k")
     page.wait_for_selector("#yd")
 
 
 def test_esc_closes_it_and_focus_goes_back_to_the_logo(page, base_url):
     _seed(base_url)
     _open_app(page, base_url, tab="days")
-    page.get_by_role("button", name="Open the year dial").focus()
+    page.locator(".brand-btn").focus()
     _open_dial(page, "logo")
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
@@ -833,10 +835,10 @@ def test_enter_opens_the_day_in_log_and_the_dial_closes(page, base_url):
         timeout=5000,
     )
     # the brass button does the same
-    page.keyboard.press("y")
+    page.keyboard.press("k")
     page.wait_for_selector("#yd")
     _wait_day(page, TODAY)
-    page.get_by_role("button", name="Open in Log").click()
+    page.get_by_role("button", name="Open in Days").click()
     page.wait_for_selector("#yd", state="detached")
     page.wait_for_function(
         "Alpine.$data(document.querySelector('main')).editingDate === '2026-11-04'", timeout=5000
@@ -881,7 +883,7 @@ def test_with_reduced_motion_it_opens_on_today_at_once_and_a_release_does_not_co
     _seed(base_url)
     today = datetime.date.today().isoformat()
     _open_app(page, base_url, fixed=False)  # reduced motion, the real clock
-    page.get_by_role("button", name="Open the year dial").click()
+    page.locator(".brand-btn").click()
     page.wait_for_function("document.querySelector('[data-yd=stage]')?.dataset.day")
     # the first thing it ever says is today: nothing winds round
     assert _day(page) == today
@@ -906,7 +908,7 @@ def test_with_motion_the_ring_winds_to_today_the_index_jiggles_and_the_second_ha
     _seed(base_url)
     today = datetime.date.today().isoformat()
     _open_app(page, base_url, calm=False, fixed=False)
-    page.get_by_role("button", name="Open the year dial").click()
+    page.locator(".brand-btn").click()
     page.wait_for_function("document.querySelector('[data-yd=stage]')?.dataset.day")
     assert _day(page) != today  # it starts 150 days away
     _wait_day(page, today)

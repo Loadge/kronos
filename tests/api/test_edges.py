@@ -250,10 +250,10 @@ class TestManifest:
 
     def test_the_shortcuts(self, manifest):
         shortcuts = {s["url"]: s for s in manifest["shortcuts"]}
-        assert list(shortcuts) == ["/#log", "/#plan", "/#days", "/#dial"]
-        assert shortcuts["/#log"]["name"] == "Log a day"
+        assert list(shortcuts) == ["/#days", "/#plan", "/#weeks", "/#dial"]
+        assert shortcuts["/#days"]["name"] == "Log a day"
         assert shortcuts["/#plan"]["name"] == "Plan"
-        assert shortcuts["/#days"]["name"] == "Days"
+        assert shortcuts["/#weeks"]["name"] == "Weeks"
         assert shortcuts["/#dial"]["name"] == "The year dial"
         for shortcut in shortcuts.values():
             (icon,) = shortcut["icons"]

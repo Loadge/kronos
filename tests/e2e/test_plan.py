@@ -189,7 +189,7 @@ class TestOpenInLog:
         past = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
         _open_plan(page, base_url, past)
         page.locator(f"button.log-cal-day[aria-label='{past}']").click()
-        page.wait_for_url("**/#log", timeout=5000)
+        page.wait_for_url("**/#days", timeout=5000)
         page.wait_for_function(
             "iso => document.querySelector(`button.log-cal-day[aria-label='${iso}']`)"
             "?.getAttribute('aria-pressed') === 'true'",
@@ -206,7 +206,7 @@ class TestOpenInLog:
             c.post("/api/entries", json={"date": mon, "day_type": "holiday", "notes": "fiesta"})
         _open_plan(page, base_url, mon)
         page.locator(f"button.log-cal-day[aria-label='{mon}']").click()
-        page.wait_for_url("**/#log", timeout=5000)
+        page.wait_for_url("**/#days", timeout=5000)
         page.wait_for_function(
             "d => Alpine.$data(document.querySelector('main')).editingDate === d",
             arg=mon,
@@ -245,7 +245,7 @@ class TestGhostsElsewhere:
         mon, _, _ = _next_week_days()
         with httpx.Client(base_url=base_url) as c:
             c.post("/api/plans", json={"dates": [mon], "day_type": "flex", "notes": "long weekend"})
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector("form", timeout=5000)
         target = datetime.date.fromisoformat(mon)
         if target.month != datetime.date.today().month:
@@ -261,7 +261,7 @@ class TestGhostsElsewhere:
         mon, _, _ = _next_week_days()
         with httpx.Client(base_url=base_url) as c:
             c.post("/api/plans", json={"dates": [mon], "day_type": "vacation"})
-        page.goto(f"{base_url}/#log")
+        page.goto(f"{base_url}/#days")
         page.wait_for_selector("form", timeout=5000)
         if datetime.date.fromisoformat(mon).month != datetime.date.today().month:
             page.locator("button.log-cal-nav[aria-label='Next month']").click()
@@ -272,7 +272,7 @@ class TestGhostsElsewhere:
         )
         page.locator("button.btn-action--block").click()
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        assert page.url.endswith("#log")
+        assert page.url.endswith("#days")
         page.wait_for_function(
             "() => fetch('/api/plans').then(r => r.json()).then(p => p.length === 0)", timeout=5000
         )
