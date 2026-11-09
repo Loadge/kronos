@@ -60,6 +60,14 @@ Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed an
 CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass) in slices, each one a
 weekend; 30 only if logging from the phone outside the LAN turns out to be common.
 
+### Phase 58 — The chain of accounts (planned 2026-11-09, mockup first)
+
+**Why.** A payout can travel through several accounts before it is really his: a client pays into Stripe, and Stripe later transfers to Deutsche Bank. Other people will only ever use one account.
+
+**Decided in an interview with Miguel.** Each freelance project has a chain of 1 to 4 accounts, assigned by dragging accounts into dashed slots beside its name. Each account fills in the next one until a number is typed, and a typed number stays fixed. The final figure is the last account's. "As billed", bare currencies and the "Paid from" and "Paid into" selectors go away. A payout is saved only with a confirm button, which ends in a stamp from Kronos. Accounts, income sources and day templates can be reordered with a dotted handle.
+
+The full specification, with its acceptance criteria and accepted risks, is in `.agents/changes/backlog/cadena-de-cuentas-payout/03-specification.md`.
+
 ### Phase 57 — Sent and arrived (built 2026-11-09, awaiting confirmation)
 
 **Why.** Miguel wants to say, for each payout, what was sent and what reached his account, because they are different things: a client pays $999 through Stripe and €894.76 lands in Deutsche Bank. He confirmed the layout on a mockup of his own W45 row.
