@@ -1068,6 +1068,25 @@ spoken name differs from their visible text.
 
 **Commits.** `bce7201`, `4d1c828`
 
+## Phase 57 — Sent and arrived
+
+**Superseded.** Miguel validated it on INT on 2026-11-09 and replaced it the same day with the chain of accounts of Phase 58, which removes "As billed", bare currencies and the "Use" roles.
+
+**Why.** Miguel wants to say, for each payout, what was sent and what reached his account, because they are different things: a client pays $999 through Stripe and €894.76 lands in Deutsche Bank. He confirmed the layout on a mockup of his own W45 row.
+
+**Decisions (Miguel, 2026-11-09).**
+- The payout cell has two lines in the space of the old one. Line 1 is what was sent: an amount and "As billed", an account that sends, or any of the 35 currencies. Line 2 is what arrived: an amount and an account that receives. When the destination is not in euros, a third line keeps "= €X set the € value".
+- Each account says in Settings how it is used: "Paid from", "Paid into" or "Both". Accounts created before this phase are "Both". Each source gets a "Paid from" default beside "Paid into".
+- The arrived amount comes pre-filled at the day's rate, and it follows line 1 until it is overwritten. With the same currency on both sides it copies the sent amount.
+- Emptying the arrived amount brings the suggestion back, and emptying the sent amount deletes the payout.
+- The red gap compares what was sent with what was billed.
+- FX is renamed DIFF. It keeps measuring what was billed, at the day's rate, against what arrived, so it also counts what the client did not pay. The Freelance tab says "Difference from billed".
+- A payout from before this phase has no sent side: "sent" counts as billed, and it reads and adds up as before until it is edited.
+
+**Known limits.** Euros stay the pivot, so totals still come from what arrived. Without any account the cell stays a single line. The rate is the one of the week's Sunday.
+
+**Commits.** `1303288`, `f356a6d`
+
 ## Archiving a phase
 When Miguel confirms a phase is live: replace its block in `BUILD_PHASES.md` with one row in the
 "Done" table there, and add a summary here in the same docs commit (what was decided, what shipped,
