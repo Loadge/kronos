@@ -31,6 +31,17 @@ unit:
   cache:
     policy: pull  # e2e is the one that writes it: this job has no browser to keep
 
+# `make lint` without make (the slim image has none); ruff at the spec requirements-dev.txt declares.
+lint:
+  extends: [.test-python, .deps-cache]
+  stage: test
+  cache:
+    policy: pull
+  script:
+    - pip install -q "$(grep -i '^ruff' requirements-dev.txt)"
+    - ruff check .
+    - ruff format --check .
+
 e2e:
   extends: [.test-python, .deps-cache]
   stage: test
@@ -52,7 +63,7 @@ e2e:
 deploy-int:
   extends: .deploy
   stage: int
-  needs: [unit, e2e]
+  needs: [lint, unit, e2e]
   environment: int
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

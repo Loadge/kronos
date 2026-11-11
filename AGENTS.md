@@ -79,3 +79,16 @@ Rules:
 - **Mirrors**: where a repo has a GitHub mirror, only the pipeline publishes there (its guard checks what goes out); never push to the `github` remote by hand.
 
 **This repo**: tests (unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it uses the shared `.mirror-github` block in public mode: gitleaks plus the `MIRROR_DENYLIST` variable over what is published, and it refuses to run without that list). Branch `master`.
+
+## Shared practices
+
+The text of this section is the same in every repo; it lives in `ayuntamiento/canon/practicas.md`.
+
+- Reproduce a reported failure through the exact path the user triggers, fix it, and reproduce it again before saying it is fixed.
+- A bug Miguel finds gets a test that fails without the fix. New tests must be able to fail: plant a one-line bug and see them go red.
+- End-to-end tests wait for a state, never for a fixed time.
+- Back up PROD before a change that touches stored data; afterwards read only, and compare with the backup.
+- A schema change is a numbered migration.
+- A UI rule that moves changes the project's guide in the same commit. A screen that moves updates its baseline in the same commit, after opening the picture.
+- One primary button look, and one formatter per kind of number.
+- Interface text is actions first, one short line each, or one conclusion.
