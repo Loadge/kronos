@@ -8,7 +8,7 @@ Single-user. No auth. One SQLite file. Runs as a Docker container behind your ow
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-707%20passing-brightgreen.svg)](#tests)
+[![Tests](https://img.shields.io/badge/tests-pytest%20%2B%20Playwright-brightgreen.svg)](#tests)
 
 ![Kronos dashboard and analytics](docs/demo.gif)
 
@@ -46,11 +46,17 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
   (Spain from the official BOE list; other countries via [Nager.Date](https://date.nager.at/))
 - **Free-text notes** per day, searchable across all entries
 - **Freelance blocks** — several per day if need be, each with its hours (or a start and an
-  end), a note and an income source; added, edited and removed from a panel under the Log form
-  in two taps, with Undo. A block takes its source's rate and currency when it is saved, and a
-  dollar block the ECB rate of its own day, so a later rate never rewrites the past. They count
+  end), a note and an income source; added, edited and removed from a panel under the form of
+  the Days tab in two taps, with Undo. A block takes its source's rate and currency when it is
+  saved, and a block in another currency than the euro takes the exchange rate of its own day,
+  so a later rate never rewrites the past. They count
   for nothing on the employee side: not the target, not the balance, not the streaks, not the
   timesheet
+- **Payouts and accounts.** What a source really paid for an ISO week is logged next to its
+  hours, from the Days and Weeks tabs. The money goes through a chain of one to four accounts
+  (a bank account, a wallet, cash, each with its own currency), set per source in Settings.
+  Each account fills in the next one with the rate of the day until you type a number, and the
+  figure of the last account is what the payout is worth
 
 ### The numbers
 
@@ -72,7 +78,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
   They show as dashed ghost days on every calendar, and the dashboard forecast counts them
   instead of assuming you'll take the whole remaining budget
 - **Year tab** — a year-at-a-glance heatmap first (hover a day for its hours, Δ and
-  note; click to open it in Log; a switch shows the freelance hours instead; once it scrolls
+  note; click to open it in Days; a switch shows the freelance hours instead; once it scrolls
   away a compact copy stays pinned at the top with the switch and the year), then the
   **balance over time**: a chart you zoom by drawing a rectangle on it (wheel zooms at the
   cursor, shift+drag and the strip below pan, double-click resets; pinch and drag on the phone),
@@ -91,8 +97,11 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
   does), in euros or dollars at the ECB's rate or one you type, every assumption on view
   (billable days — 220 or the calendar's —, hours a day, the salary of the job, expenses, tarifa
   plana, start-up reduction), with the waterfall of where each euro goes and how the IRPF is
-  paid. One source of tax maths: `backend/app/services/tax.py` with the year's figures in
-  `backend/app/data/fiscal_es.json` (Spain, Andalucía; estimates — check with an adviser). The
+  paid. The tax maths lives in one place per country: Spain has `backend/app/services/tax.py`
+  with the year's figures in `backend/app/data/fiscal_es.json` (Spain, Andalucía; estimates,
+  check with an adviser), and any other country chosen in Settings gets `tax_simple.py`, which
+  sets aside a share of every payment (30% by default) and shows no quarterly 130. `taxes.py`
+  picks between the two. The
   browser shows what the API computes and keeps no copy of the formulas
 
 ### The app itself
@@ -100,7 +109,7 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
 - **Dashboard** — one number (the cumulative balance) next to its **trajectory**: the balance
   day by day this year, then a dashed line to where it lands on Dec 31 at this rate. Week,
   month and *vs last year* as three chips; the current week as a strip of seven tiny bar
-  charts (a day opens in Log); the vacation budget as notches (used · planned · left);
+  charts (a day opens in Days); the vacation budget as notches (used · planned · left);
   quick-log pills only while today has no entry. With an income source, a freelance card: hours
   and gross this week and this month, what to set aside for the tax office, eight weeks of
   hours as a sparkline
@@ -108,28 +117,36 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
 - **Plan tab** — a year strip of twelve mini months picks the working month; click or drag to
   draft, one ledger for drafts and the time off already logged ahead (commit, remove, delete,
   or open a day in the Days tab from there; logged and past days on its calendar open in Days too)
-- **Log** tab — the same year strip picks the month, a calendar picks the day; the **Employee**
-  card (type, times, breaks, notes) and, with an income source, the **⚡ Freelance** card under
-  it. **Days** tab for the full searchable history — a dense table, a row opens its day, a
+- **Days** tab — the same year strip picks the month, a calendar picks the day; the **Employee**
+  card (type, times, breaks, notes), under it the day as a ribbon you can drag (the day, its
+  breaks and its blocks) and, with an income source, the **⚡ Freelance** card.
+  **Weeks** tab for the full searchable history — a dense table, a row opens its day, a
   separator with the subtotal per month, notes always visible in the last column; with a
   source, an **Employee · ⚡ Freelance** switch, the freelance side filtered by source (none,
   one, several, all) with the selection's total
-- **Settings** behind the gear next to the theme toggle: three groups — **Employee** (Work,
-  Leave, Holidays, Profile, Templates), **Freelance** (income sources and rates, taxes per year,
-  the projection, the currency) and **General** (Data) — a section index under the open group
+- **Settings** behind the gear at the right of the header: three groups — **Employee** (Work,
+  Leave, Holidays, Profile, Templates), **Freelance** (income sources with their rates and
+  chains, the accounts, taxes per year, the projection, the currency) and **General** (Country
+  and number format, Data) — a section index under the open group
   (two dropdowns on the phone), a card per section. No save buttons: a field saves itself half
   a second after you stop typing, a switch at once, and the card says *saved ✓*
-- **Command palette** (<kbd>.</kbd>), keyboard shortcuts, a dark brass look
-- **PWA-installable**, with a service worker for the app shell
+- **Command palette** (<kbd>.</kbd>), keyboard shortcuts, a dark brass look (dark only, there
+  is no theme switch)
+- **Year dial** (<kbd>K</kbd>, the logo or the dashboard's tile): the year as a chronograph
+- **PWA-installable**, with a service worker for the app shell. A banner says when the server
+  is out of reach, and an *Update ready* pill when the server runs a newer build than the page
 - **CSV import/export** and full JSON backup/restore
-- **Currency** — sources bill in euros or dollars; everything is added up in euros with the
-  European Central Bank's reference rate, asked for only when a view needs it (see *A note on
+- **Currency** — sources and accounts take any currency of the catalogue (the euro, the ones
+  the European Central Bank publishes and a few coins priced by CoinGecko); everything is added
+  up in euros with the rate of the day, asked for only when a view needs it (see *A note on
   exchange rates*)
+- **Country and number format**: the country picks the tax module and the holidays' default,
+  and the format decides how numbers are written (1,234.56 or 1.234,56)
 - **A CLI for agents** — `bin/kronos.py` reads and logs days through the HTTP API from a
   terminal, a script or a bot: `today`, `balance`, `days`, `plan`, `log`, `clock in|out`,
   `holidays import`, `backup` / `restore`, each with `--json` and `--dry-run`, against
   `local`, `int` or `prod` — a write to prod takes a backup first
-- **Printable timesheets** (Days → **PDF**, and **⚡ PDF** on the freelance side: the blocks of
+- **Printable timesheets** (Weeks → **PDF**, and **⚡ PDF** on the freelance side: the blocks of
   a range for the sources you tick, in their currency and in euros) — a month, a year, or any
   range as a clean A4 document:
   every calendar day, hours as 7.50 or 7:30, *Compact* (hours only) or *Full* (target, Δ, running
@@ -142,7 +159,8 @@ Social Security and income tax, quarter by quarter, and what would a rate have t
 
 | Key | |
 |---|---|
-| <kbd>P</kbd> <kbd>L</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>F</kbd> <kbd>S</kbd> | Plan · Log · Days · Analytics · Freelance · Settings — the accented first letter of a tab is its key |
+| <kbd>P</kbd> <kbd>D</kbd> <kbd>W</kbd> <kbd>Y</kbd> <kbd>F</kbd> <kbd>S</kbd> | Plan · Days · Weeks · Year · Freelance · Settings — the accented first letter of a tab is its key |
+| <kbd>K</kbd> | The year dial |
 | <kbd>.</kbd> | Command palette |
 | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Save the current form |
 | <kbd>Esc</kbd> | Close an overlay, leave a field, cancel an edit — otherwise back to the Dashboard from any tab |
@@ -217,7 +235,8 @@ Environment variables:
 | `TZ` | `Europe/Madrid` | Decides what "today" means everywhere in the app |
 | `KRONOS_DATA_DIR` | `/app/data` (container) · `./data` (local) | Where `kronos.db` lives |
 | `DATABASE_URL` | derived from `KRONOS_DATA_DIR` | Full override for the SQLAlchemy URL |
-| `KRONOS_FX_URL` | the ECB's daily XML | Where the EUR/USD rate comes from; `""` switches every fetch off (tests, an air-gapped Kronos). `KRONOS_FX_HIST90_URL` / `KRONOS_FX_HIST_URL` override the two dated documents |
+| `KRONOS_FX_URL` | the ECB's daily XML | Where the exchange rates come from (the dollar and every other currency the ECB publishes); `""` switches every fetch off (tests, an air-gapped Kronos). `KRONOS_FX_HIST90_URL` / `KRONOS_FX_HIST_URL` override the two dated documents |
+| `KRONOS_CRYPTO_URL` | CoinGecko's API | Where the price of a coin comes from; `""` switches every fetch off |
 
 Everything else is runtime-editable from the Settings tab or `GET`/`PUT /api/config`, and lives
 in the `settings` key-value table:
@@ -232,26 +251,31 @@ in the `settings` key-value table:
 | `vacation_budget_days` | `0` | Annual vacation allowance shown on the dashboard; halves allowed (`22.5`) |
 | `default_start_time` · `default_end_time` | `09:00` · `17:00` | Pre-filled on the Days tab |
 | `holiday_country` · `holiday_region` | *(none)* | Selection remembered for holiday import |
+| `country` · `number_format` | `ES` · `en-US` | The country picks the tax module and the holidays' default; the format is how numbers are written (`en-US` 1,234.56, `es-ES` 1.234,56) |
 | `profile_name` · `profile_employer` · `profile_extra` | *(empty)* | Printed in the timesheet header; blank lines are left out |
 | `freelance_hours_per_week` · `freelance_days_off` | `0` · `0` | The Freelance tab's projection to Dec 31: the hours you plan to bill a week, and the days off a year (spread over it) |
 
 The freelance side keeps its own tables, edited from Settings → Freelance or the API: **income
-sources** (name, hourly rate, EUR or USD, one default; a source with blocks is archived, not
-deleted) and the **tax inputs per year** (the gross salary of the job held at the same time,
+sources** (name, hourly rate, a currency, one default and the chain of accounts it is usually
+paid through; a source with blocks or payouts is archived, not deleted), the **accounts** (name,
+kind and a currency; an account a payout went through is archived, not deleted, and keeps its
+currency) and the **tax inputs per year** (the gross salary of the job held at the same time,
 tarifa plana, the 20 % start-up reduction, the share of each payment set aside — 40 % by default
 —, gestoría and other deductible expenses). A year without values of its own uses the latest
 earlier year's. The fiscal figures themselves (RETA tramos, IRPF scales, the 130's deadlines)
 live in `backend/app/data/fiscal_es.json`, one block per year; a year without a block uses the
-latest earlier one, and the page says so.
+latest earlier one, and the page says so. With a country other than Spain, only the share set
+aside applies (30% when none was written).
 
 ### A note on exchange rates
 
 Kronos never calls the European Central Bank on a timer. It asks when a view needs a rate —
-Settings → Currency, the calculator in dollars — and when a dollar block is saved, for the rate
-of that block's own date (a weekend takes Friday's); each document at most once an hour. The
+Settings → Currency, the calculator in dollars — and when a block or a payout in another
+currency than the euro is saved, for the rate of its own date (a weekend takes Friday's); each
+document at most once an hour. The price of a coin comes from CoinGecko in the same way. The
 block keeps that rate for good, editable by hand, so an old amount never moves. A block saved
 while the ECB is unreachable counts its hours but not its money until you set a rate. Set
-`KRONOS_FX_URL=""` to switch fetching off entirely.
+`KRONOS_FX_URL=""` to switch fetching off entirely (and `KRONOS_CRYPTO_URL=""` for the coins).
 
 ### A note on the target timeline
 
@@ -271,8 +295,9 @@ The database is `kronos.db` at **`/app/data/`** inside the container, on the **`
 named volume.
 
 - **From the UI** — Settings → General → *Download backup* writes a portable JSON snapshot
-  (entries, planner drafts, freelance sources / blocks / tax years, settings) that *Restore from
-  file* reads back. CSV import/export sits next to it.
+  (entries, planner drafts, accounts, freelance sources / blocks / payouts / tax years, settings)
+  that *Restore from file* reads back. CSV import sits next to it, and the CSV exports are
+  buttons at the top of the Year tab.
 - **From the API** — `GET /api/backup` and `POST /api/restore`.
 - **From the host:**
 
@@ -284,15 +309,21 @@ named volume.
 > Restore **wipes existing data first**. SQLite checkpoints the WAL on connection close; for a
 > tighter guarantee, stop the container before copying the file directly.
 
-Backups are **version 4** since the freelance payouts (what each source paid for each ISO week,
-with its exchange rate); version 3 brought the freelance side: the income sources (with their
+Backups are **version 6**. Version 6 dropped what the chains replaced: an account's `role`, a
+source's two default accounts and a payout's sent side. Version 5 brought the chain of accounts
+and the hand-made order: every account and every source carries its `position`, a source its
+`chain` (the accounts it is usually paid through) and a payout its `legs`, from the first
+account to the last. Version 4 brought the freelance payouts (what each source paid for each
+ISO week, with its exchange rate) and the accounts; version 3 brought the freelance side: the
+income sources (with their
 ids, which the blocks and payouts reference), the hour blocks with the rate, currency and
 exchange rate they were saved with, and the tax inputs per year; version 2 added every entry's
 `fraction`. Older
-files still restore (whole days, no freelance); an older Kronos refuses a newer file rather than
+files still restore (whole days, no freelance, and a payout or a source without its chain is
+given one by the rule the migration used); an older Kronos refuses a newer file rather than
 silently dropping what it does not know. The entries CSV has a `fraction` column for the same
-reason — a CSV without it imports as whole days — and the freelance blocks have a CSV of their
-own (`GET /api/freelance/export.csv`, export only).
+reason — a CSV without it imports as whole days — and the freelance blocks and the payouts have
+a CSV each (`GET /api/freelance/export.csv` and `GET /api/freelance/payouts.csv`, export only).
 
 ---
 
@@ -368,7 +399,7 @@ batch.
 | `GET /api/dashboard` | Week + month + cumulative summary |
 | `GET /api/streaks` | Logging streak, on-target streak, all-time days logged |
 | `GET /api/analytics/cumulative?as_of=` | Balance as of a date (API only — no UI since 2026-10-01) |
-| `GET /api/analytics/cumulative-series?year=` · `?all=true` | The balance after each logged day of a year, plus what was carried into it (the dashboard's trajectory) — or the whole history, restarting each January 1st when the cumulative resets annually (the Analytics chart) |
+| `GET /api/analytics/cumulative-series?year=` · `?all=true` | The balance after each logged day of a year, plus what was carried into it (the dashboard's trajectory) — or the whole history, restarting each January 1st when the cumulative resets annually (the Year chart) |
 | `GET /api/analytics/monthly` · `/yearly` | One row per calendar month / year |
 | `GET /api/analytics/records` | Longest day, best month, longest streak, best/worst year |
 | `GET /api/analytics/yoy` | This year vs. the same period last year |
@@ -379,19 +410,29 @@ batch.
 |---|---|
 | `GET · PUT /api/config` | All app-level settings |
 | `GET · PUT /api/config/daily-target-schedule` | The date-effective target timeline |
+| `GET /api/config/countries` | The countries the picker can show with no network |
 
 **Freelance**
 
 | | |
 |---|---|
-| `GET · POST /api/freelance/sources` · `PUT · DELETE /api/freelance/sources/{id}` | Income sources (a source with blocks is a 409 on delete: archive it) |
+| `GET · POST /api/freelance/sources` · `PUT · DELETE /api/freelance/sources/{id}` | Income sources, each with its `chain` of account ids (a source with blocks or payouts is a 409 on delete: archive it) |
+| `PUT /api/freelance/sources/order` | The order of the sources, as a list of ids |
+| `GET · POST /api/freelance/accounts` · `PUT · DELETE /api/freelance/accounts/{id}` | Accounts: a name, a kind and a currency (an account a payout went through is a 409 on delete: archive it; one in use is a 409 on a change of currency) |
+| `PUT /api/freelance/accounts/order` | The order of the accounts, as a list of ids |
 | `GET /api/freelance/blocks?from&to&year` · `POST /api/freelance/blocks` | Hour blocks; `hours` or `start_time` + `end_time`, optional `rate` and `fx_rate` overrides |
 | `GET · PUT · DELETE /api/freelance/blocks/{id}` | A block keeps its stored rate and exchange rate unless told otherwise |
 | `GET /api/freelance/tax-years` · `GET · PUT · DELETE /api/freelance/tax-years/{year}` | The tax inputs in force for a year (own, inherited, or the defaults) |
 | `GET /api/freelance/summary?year=` | Totals, this week and month, per month and source, the four 130s, the projection and its tax figures |
 | `POST /api/freelance/calc` | The calculator: hourly ⇄ daily ⇄ net yearly with every assumption in the body; pure |
 | `GET /api/freelance/export.csv` | One row per block |
-| `GET /api/fx` · `GET /api/fx?date=` | The ECB's EUR/USD reference rate, latest or the one in force on a date; always 200, `available` says whether there is one |
+| `GET /api/freelance/payouts?from&to&source_id` · `POST /api/freelance/payouts` | What a source paid for an ISO week, with its `legs` (one per account of the chain); a second payout for the same source and week is a 409 |
+| `POST /api/freelance/payouts/preview` | What a save of this body would answer, worked out and never saved |
+| `GET · PUT · DELETE /api/freelance/payouts/{id}` | A saved payout |
+| `GET /api/freelance/payouts.csv` | One row per payout |
+| `GET /api/freelance/rate?from&to&on` | Units of `to` for one unit of `from` on a day, through the same rates as a payout; `{"rate": null}` when there is none |
+| `GET /api/fx` · `GET /api/fx?date=` · `?currency=` | The ECB's reference rate per euro (the dollar's, unless `currency` names another), latest or the one in force on a date; always 200, `available` says whether there is one |
+| `GET /api/currencies` | The currencies Kronos knows: code, name, kind (fiat or crypto), rate source and decimals |
 
 **Data in and out**
 
@@ -401,7 +442,7 @@ batch.
 | `GET /timesheet?from&to&detail&hours&notes&sign&theme` | The printable timesheet (HTML, not JSON) — every switch is a query parameter, so a URL is a report |
 | `GET /timesheet/freelance?from&to&sources&hours&notes&sign&theme` | The freelance timesheet: one row per block for the sources listed (ids, comma-separated; every source when absent) |
 | `POST /api/import/csv` | Bulk import from a Kronos-format CSV |
-| `GET /api/backup` · `POST /api/restore` | Full JSON snapshot / restore (entries, settings, planner drafts) |
+| `GET /api/backup` · `POST /api/restore` | Full JSON snapshot / restore (entries, settings, planner drafts, accounts and the freelance side) |
 | `DELETE /api/data` · `POST /api/data/seed` | Wipe / sample data (admin, testing) |
 
 **Time-off planner**
@@ -420,8 +461,10 @@ batch.
 | `GET /api/holidays/countries` · `/subdivisions` | Lookups, proxied from Nager.Date (Spain's regions: the BOE table) |
 | `GET /api/holidays/preview` · `POST /api/holidays/import` | Preview, then commit |
 | `GET · POST /api/templates` · `DELETE /api/templates/{id}` | Day templates |
+| `PUT /api/templates/order` | The order of the templates, as a list of ids |
 
-`GET /healthz` backs the container healthcheck.
+`GET /healthz` backs the container healthcheck, and `GET /api/version` says which version and
+build the server runs (an open page compares the build with the one it loaded).
 
 ---
 
@@ -432,30 +475,33 @@ make test             # pytest — in-memory SQLite, no container needed
 make lint             # ruff check + format --check
 make e2e              # Playwright end-to-end suite (see below)
 make check            # lint, then test, then e2e — what to run before a deploy
+make snapshots        # the key screens against their baselines, in the CI image (needs Docker)
+make cli-check        # the CLI's GET-only report against SMOKE_URL
 ```
 
-**707 passing**, across four suites:
+**1,274 tests** as of v58 (`pytest --collect-only`), in `tests/unit`, `tests/api` and
+`tests/integration`, grouped here by what they cover:
 
 | Suite | |
 |---|---|
 | **Unit** | Net-hours math, break conversions, ISO week/month boundaries, `DayType`, `WorkEntry` properties, the daily-target schedule value object, settings service, partial-day target/net/summary math, the time-off projection, the timesheet rows / totals / hour formatting, the tax engine (two reference cases worked by hand to the cent, the RETA tramos, the IRPF scales, the quarterly 130, the one rounding rule), the freelance sums and the weeks left in a year, the CLI's pure parts (target resolution — env beats file, `int`/`prod` must be set — the `kronos.env` parser, date / time / break arguments, the request `log` builds, backup retention and the fail-closed safety backup) |
-| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV, `leave_hours` resolving per date against the schedule, the preview that writes nothing, clock in / out with a pinned server clock, gzip and the vendor cache headers, the ECB rate (once an hour, stale, unavailable, of a date), the freelance side (sources and archiving, blocks with their rate snapshot and the missing-rate path, tax years and inheritance, a year's summary by hand, the calculator's two anchors to the cent, the CSV) — and that none of it moves the dashboard or the timesheet |
+| **API** | Every router — happy paths plus validation failures: duplicate date, end ≤ start, break longer than the span, day-type transitions, invalid config, what a partial leave day may carry, fraction round-trips through backup and CSV, `leave_hours` resolving per date against the schedule, the preview that writes nothing, clock in / out with a pinned server clock, gzip and the vendor cache headers, the ECB rate (once an hour, stale, unavailable, of a date), the freelance side (sources and archiving, blocks with their rate snapshot and the missing-rate path, tax years and inheritance, a year's summary by hand, the calculator's two anchors to the cent, the CSV, the accounts and their order, the payouts with their chain of legs and the preview that saves nothing) — and that none of it moves the dashboard or the timesheet |
 | **Integration** | Full CRUD flows, dashboard recalculation after state changes, cross-month weeks, export/import round-trips |
 | **Regression** | Cumulative start boundary, `as_of` inclusivity, float precision, backup field fidelity (backup → wipe → restore → backup is identical, freelance sources / blocks / tax years included), orphaned-break FK, the non-work zero-target invariant, CSV quoting, per-date target resolution |
 | **Repo hygiene** | The models and the Alembic migrations describe the same schema (Alembic runs in-process on an in-memory database; autogenerate finds nothing to add after `upgrade head`); no phase numbers in code; no file mixes line endings |
 
 ### End-to-end
 
-163 tests drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
+1,177 tests (as of v58) drive a real browser — or the CLI as a subprocess — against a real uvicorn server: cross-tab journeys,
 viewport/responsive checks, the dashboard (hero, trajectory, week strip, quick-log, vacation
 notches, the freelance card), Settings groups and sections saving on their own (two dropdowns on
 the phone), the Weeks table (month separators, row click,
-notes), the Analytics chart (rectangle and wheel zoom, reset, presets, series switch, the range
+notes), the Year chart (rectangle and wheel zoom, reset, presets, series switch, the range
 driving the ledger, weekday times, histogram and records, the heatmap tooltip and click, the
 freelance switch and stacked bars), the
-Analytics section order, keyboard rules (Escape, no caret after a tab click), the partial-leave slider, the planner (click, drag, commit,
-notes, delete, opening days in Log, ghosts on the Log calendar), the freelance side (nothing on
-the page until a source exists, the Log panel adding / editing / removing a block with Undo
+Year section order, keyboard rules (Escape, no caret after a tab click), the partial-leave slider, the planner (click, drag, commit,
+notes, delete, opening days in Days, ghosts on the Days calendar), the freelance side (nothing on
+the page until a source exists, the Days panel adding / editing / removing a block with Undo
 without moving the employee's day, the tab's year and 130s, the calculator typing in the
 side-job anchor and reading 19,938.23 € back), the timesheet picker and page
 (including Chromium's own PDF printer), the smoke script itself, and the CLI: every read and
@@ -463,12 +509,17 @@ write with its `--dry-run` (nothing written) and `--json`, the error contract, `
 against the server and red against a dead port, and the prod rule simulated by URL —
 `KRONOS_PROD_URL` aimed at the test server leaves a valid snapshot taken *before* the write,
 aimed at a dead port exits 3 with nothing written and no file, `int` takes no backup, `restore`
-backs up everywhere, retention keeps exactly 50. Excluded
+backs up everywhere, retention keeps exactly 50. The suite also covers the payouts and the
+accounts (the chain of a payout, money in any currency, the drag handle that orders a list) and
+the interface audits: the geometry of every tab at desktop and phone width, aria snapshots, an
+axe scan and screenshot baselines (the baselines are Linux only: `make snapshots`). Excluded
 from `make test` and from the Docker build (no browser in the image), so `deploy.sh` and
-`deploy-staging.sh` run them locally and abort if they fail or collect nothing.
+`deploy-staging.sh` run them locally and abort if they fail or collect nothing, unless the
+caller already ran them (`DEPLOY_SKIP_TESTS=1`, which is how the pipeline in `.gitlab-ci.yml`
+calls `deploy.sh` after its own test stage).
 
 ```sh
-pip install pytest-playwright
+make install                   # pytest-playwright comes with requirements-dev.txt
 playwright install chromium
 
 pytest tests/e2e -v            # headless
@@ -538,8 +589,9 @@ make revision MSG="add new column"     # autogenerate a new one
 ```
 
 Alembic runs with `render_as_batch=True`, so SQLite-unfriendly `ALTER TABLE` operations (drop
-column, alter type) rebuild the table correctly. Settings that are pure key-value — the target
-timeline, the dashboard layout — are stored as JSON and need no migration at all.
+column, alter type) rebuild the table correctly. A setting that is pure key-value, such as the
+target timeline, is stored as JSON and needs no migration at all. The migrations are numbered
+files in `alembic/versions/`, from `0001_initial` to `0014_close_the_chain` as of v58.
 
 ---
 
@@ -550,21 +602,26 @@ kronos/
 ├── backend/
 │   ├── app/
 │   │   ├── data/         # fiscal_es.json — the Spanish tax figures, one block per year
-│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates · plans · timesheet · clock · fx · freelance
-│   │   ├── services/     # computations · settings · views · timesheet · tax · fx · freelance
-│   │   └── templates/    # Jinja2 shell + one partial per tab
-│   ├── static/           # app.js · styles.css · sw.js · manifest.json · vendor/
+│   │   ├── routers/      # entries · analytics · export · config · backup · admin · holidays · templates · plans · timesheet · clock · fx · currencies · freelance
+│   │   ├── services/     # computations · settings · views · timesheet · leave · clock · numbers · countries · boe_holidays · fx · crypto · currencies · chains · freelance · tax · tax_simple · taxes
+│   │   └── templates/    # Jinja2 shell + one partial per tab, the two timesheets, the year dial, the 404 page
+│   ├── static/           # app.js · dial.js · styles.css · timesheet.css · timesheet.js · sw.js · manifest.json · icons · vendor/
 │   └── seed.py           # sample-data generator
 ├── alembic/              # migrations + env.py
-├── tests/                # unit · api · integration · e2e
+├── tests/                # unit · api · integration · e2e · fixtures
 ├── docs/
+│   ├── mockups/          # HTML mockups of the interface
 │   ├── BUILD_PHASES.md   # open phases (the roadmap)
 │   ├── BUILD_PHASES_ARCHIVE.md  # completed phases: what was decided and why
 │   ├── demo.gif          # the README GIF
 │   └── demo/             # scripted Playwright recorder that produces it
-├── bin/                  # kronos.py (the CLI) · smoke.py (post-deploy checks) · kctl.py (disposable instance) · review_sandbox.sh (all checks, or serve on :8799)
+├── bin/                  # kronos.py (the CLI) · smoke.py (post-deploy checks) · kctl.py (disposable instance) · snapshots.py (screenshot baselines) · review_sandbox.sh (all checks, or serve on :8799)
+├── UI_GUIDE.md           # the rules of the interface (DESIGN.md has the look)
 ├── kronos.env.example    # where the CLI's local / int / prod targets go (copy to kronos.env, git-ignored)
+├── .gitlab-ci.yml        # the pipeline: the tests on every push, then the deploys
 ├── deploy.sh             # one-command deploy to a remote Docker host over SSH
+├── deploy.env.example    # the host, path and URL deploy.sh reads (copy to deploy.env, git-ignored)
+├── deploy-staging.sh     # the same build as a second local container (docker-compose.staging.yml)
 ├── Dockerfile            # base → test (pytest, no e2e) → runtime; red tests = no image
 ├── docker-compose.yml
 ├── entrypoint.sh         # alembic upgrade head, then uvicorn
@@ -580,13 +637,23 @@ scripted tour of a throwaway seeded database, never your real data.
 ## Roadmap
 
 Open phases in [`docs/BUILD_PHASES.md`](docs/BUILD_PHASES.md); completed ones, with the reasons
-behind them, in [`docs/BUILD_PHASES_ARCHIVE.md`](docs/BUILD_PHASES_ARCHIVE.md). Next up:
+behind them, in [`docs/BUILD_PHASES_ARCHIVE.md`](docs/BUILD_PHASES_ARCHIVE.md). The plan has
+the detail and the order; this is only what is open:
 
-- **BOE resolution discovery** — find next year's Spanish holiday resolution instead of adding
-  its id by hand each October
-- **Tactile Kronos** — the numbers you explore become things you drag: a day ribbon on the Log
-  tab, sliders under the calculator with its waterfall as the handle, a pull on the dashboard's
-  forecast, a brush on the heatmap, swipes on the phone (Phase 36 in `docs/BUILD_PHASES.md`)
+- **Tactile Kronos** (Phase 36): the numbers you explore become things you drag, one slice at a
+  time. The day ribbon of the Days tab already shipped, and the other slices are in the plan
+- **Log without typing** (Phase 28): Kronos proposes the day from signals that already exist
+  and you only confirm it
+- **BOE resolution discovery** (Phase 29): find next year's Spanish holiday resolution instead
+  of adding its id by hand each October
+- **Offline PWA** (Phase 30): queue the writes made offline on the phone and sync them on
+  reconnect
+- **Kronos away from home** (Phase 59): a sign-in, so that the app can be reached from outside
+  the trusted network
+- **History and undo** (Phase 60), **Your year in Kronos** (Phase 61) and **The living
+  background** (Phase 62), which are ideas for now
+- **Weeks between 901 and 1279 px** (Phase 63): a small layout pass, so that the Weeks tab stops
+  scrolling sideways at those widths with weeks open
 
 ---
 
