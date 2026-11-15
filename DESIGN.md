@@ -25,14 +25,18 @@ a component.
 - A secondary, optional field is a `+ Add ...` button (`secondary outline`) that opens the field in
   place: breaks, notes. Nothing optional sits open on the page by default.
 - A chip that states something and can be clicked is a small rounded outline in brass (`.fl-jump`,
-  `.update-pill`). The same shape is used for "W45 in Days".
+  `.update-pill`). The same shape is used for "W45 in Weeks".
 - A table separator names a period and sums it (`.month-sep`, `.week-sep`).
 - The bezel (`.bz`) is a strip with one tick per week over the Weeks table: a map of the year and the
   way to open, close and reach weeks. Lit brass means open, teal means open and paid out.
-- The day ribbon (`.dr`) draws the day in Log: a brass bar you can drag, notches for breaks, a flag where
+- The day ribbon (`.dr`) draws the day in Days: a brass bar you can drag, notches for breaks, a flag where
   the target is reached, and the surplus in lit coin after it. It only writes what the time fields write.
 - The year dial (`.yd`, `dial.js`) opens from the logo: the year as a chronograph whose outer ring turns,
   one day per detent. It is the one place with brushed metal: the `--k-metal-*` tokens stay inside it.
+- Lists and accounts have their own pieces: the dotted handle that puts a list in order (`.grip`), the four
+  account boxes of an income source (`.chain`, `.slot`), the account name that is dragged into a box
+  (`.acct-chip`) and the seal that a Confirm drops in Weeks (`.seal`). `UI_GUIDE.md` describes each one
+  under "Words you will meet".
 - From 1100px a form card may have a rail beside it with the result and the main button. Below that
   it is one column.
 - Less text: a card title does not need a hint line. If a label is clear, nothing explains it. Tabs
@@ -52,7 +56,8 @@ small second hand of the year dial, which ticks because it is a clock, and only 
 
 Moments that deserve a reaction get a small one of brass: the big numbers roll like a mechanical counter
 (`.odo`), a saved day is stamped on the calendar, the save that completes a week seals it in the toast, a
-payout drops coins toward the Selected card (one per €100, up to 40), and a bead on the header's hairline
+confirmed payout drops coins (one per €100, up to 40) from the seal in Weeks, or from the Confirm button in
+"Payouts waiting", toward the Selected card in Weeks and toward the bolt of the Freelance card in Days, and a bead on the header's hairline
 shows the hour of the day. Once the day has a start, the hairline is lit from the start to the bead, with a
 tick where the day reaches its target.
 
@@ -62,6 +67,6 @@ its explanation in plain words, as the day ribbon has next to "Employee".
 
 ## Version label and updates
 
-The faint "v50" next to the title is the phase number (`backend/app/version.py`). The "Update ready"
+The faint version label next to the title is the phase number (`backend/app/version.py`). The "Update ready"
 pill is the only way the app tells the user that a newer build exists, and it never reloads the page
 by itself.

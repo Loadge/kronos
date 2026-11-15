@@ -46,9 +46,11 @@ Read `UI_GUIDE.md` before touching a template or `styles.css`, and `DESIGN.md` f
 the page head (title left; controls right: the page's buttons, then the Employee/Freelance pill, then the year),
 exports as head pills, one primary button look (`btn-action`), one formatter per kind of number (money with
 cents, hours trimmed for totals), no hint lines, and 👔/⚡ marks. Run its checklist before shipping, and change
-the guide in the same commit when a rule moves. `tests/unit/test_ui_rules.py`, `tests/e2e/test_ui_pagehead.py`
-and `tests/e2e/test_ui_geometry.py` enforce the checkable part, plus `test_ui_aria.py`, `test_ui_a11y.py` and
-`test_ui_snapshots.py` (Linux only, so they skip on Windows: run `make snapshots`, which needs Docker). A change
+the guide in the same commit when a rule moves. `tests/unit/test_ui_rules.py`, `tests/e2e/test_ui_pagehead.py`,
+`tests/e2e/test_ui_geometry.py` and `tests/e2e/test_ui_consistency.py` enforce the checkable part, `test_reorder.py`
+and `test_chain_boxes.py` the drag handle and the account boxes, plus `test_ui_aria.py` and `test_ui_a11y.py` (any
+system) and `test_ui_snapshots.py` (the only Linux-only one: it skips on Windows, so run `make snapshots`, which
+needs Docker). A change
 that moves a screen updates its baseline with `make snapshots-update` in the same commit; open the new pictures
 first. A UI change is not done until you have opened screenshots at 1280 and 375 px and the geometry audit is
 green (`software/AGENTS.md`, "UI validation").
@@ -78,7 +80,7 @@ Rules:
 - **Trying a change without deploying**: push a temporary non-default branch. Only the tests run; delete it afterwards.
 - **Mirrors**: where a repo has a GitHub mirror, only the pipeline publishes there (its guard checks what goes out); never push to the `github` remote by hand.
 
-**This repo**: tests (unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it uses the shared `.mirror-github` block in public mode: gitleaks plus the `MIRROR_DENYLIST` variable over what is published, and it refuses to run without that list). Branch `master`.
+**This repo**: tests (lint + unit + E2E) -> INT -> PROD manual, then the public GitHub mirror (`mirror-github`, after INT; it uses the shared `.mirror-github` block in public mode: gitleaks plus the `MIRROR_DENYLIST` variable over what is published, and it refuses to run without that list). Branch `master`.
 
 ## Shared practices
 

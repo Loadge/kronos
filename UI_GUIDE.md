@@ -52,8 +52,8 @@ These are the terms used in design circles, with what each means in Kronos.
 Every tab starts with `<header class="page-head">`. The title is on the left. The controls are in `.page-head-controls`, on the right, in this order from left to right:
 
 1. The page's own buttons, all `.head-btn`: a shortcut ("Freelance options"), exports ("CSV", "JSON", "⚡ Freelance CSV", "⚡ Payouts CSV", "PDF") or search.
-2. The Employee/Freelance pill, when the page has both sides (Days and Analytics today).
-3. The year selector (`.year-step`, plus "All" in Days).
+2. The Employee/Freelance pill, when the page has both sides (Weeks and Year today).
+3. The year selector (`.year-step`, plus "All" in Weeks).
 
 On a phone the controls row spans the whole head and wraps, but the year selector stays at the right edge. After the head come the content blocks, each one a card or a section with a title.
 
@@ -72,19 +72,19 @@ Rule 3 is Miguel's decision (2026-11-05): a user who learned where the pill is o
 Kronos has one helper per kind of number in `app.js`. Never format by hand in a template.
 
 - Hours: `fmtHours` for totals (trailing zeros trimmed: 34.5h) and `formatSurplus` for signed deltas (always two decimals: +24.50h). This is Miguel's decision.
-- Money: `fmtMoney`, always with cents and a thousands comma: €1,289.71. Inside a chart a label may round (`fmtMoney0`: €1,290) because it has no room for cents. A coin keeps up to 8 decimals with the trailing zeros trimmed and its code after the number: 0.0105 BTC.
+- Money: `fmtMoney`, always with cents and a thousands mark: €1,289.71 in the default format. Inside a chart a label may round (`fmtMoney0`: €1,290) because it has no room for cents. A coin keeps up to 8 decimals with the trailing zeros trimmed and its code after the number: 0.0105 BTC.
 - A payout has one line per account of its chain (see "Payout cell"). Under the last one, "= €877.94" appears only for an account not in euros. A payout that arrived in another currency than its source gets a small chip with the percentage ("DIFF -7.4%") whose tooltip is one sentence ("€70.19 less than billed"). A row in a single currency gets no chip.
 - Tooltips and help chips list what you can do, action first and then its effect, one short line each ("Drag bar to adjust work time"). A status chip says only its conclusion. `test_no_tooltip_or_help_is_a_paragraph` fails on any line over 90 characters.
-- Calculator: the Freelance calculator is the one place with Spanish decimals, typed and shown (`calcMoney`: €28.687,41), because its inputs follow the browser's locale. This is Miguel's decision.
+- Number format: one setting (Settings > General, "Country and format") governs every number the app prints and every number typed into a text field, such as the Calculator, a payout, an exchange rate and "worth €". It is one of `1,234.56` (the default), `1.234,56`, `1 234,56` and `1'234.56`. The digits are made as ever and only the two separators change (`swapMarks`), and what is typed is read in the chosen format (`parseNum`). The Calculator has no Spanish decimals of its own any more: it follows the setting like everything else. This is Miguel's decision (2026-11-07).
 - Compact exceptions, on purpose: the weekday averages under the Weekday pattern bars keep one decimal (+0.7h) because the cell is narrow.
 - Numbers use the `.metric` class, so the digits are tabular and the columns line up, and numeric columns are right-aligned.
-- Dates have two forms, and the form follows what the reader is doing (Miguel, 2026-11-05). Where the reader looks things up, scans a column or sorts (Days, the Records, the exports), the date is exact and sortable: ISO, `2026-11-05`. Where the reader takes in a card or a label in passing (the Dashboard, Plan, Log, chips), the date is short and carries the weekday, which is what places it in the week: "Thu, Nov 5". A table needs a fixed width and an order that sorts, a card is read like a sentence. Never mix the two forms inside one block.
+- Dates have two forms, and the form follows what the reader is doing (Miguel, 2026-11-05). Where the reader looks things up, scans a column or sorts (Weeks, the Records, the exports), the date is exact and sortable: ISO, `2026-11-05`. Where the reader takes in a card or a label in passing (the Dashboard, Plan, Days, chips), the date is short and carries the weekday, which is what places it in the week: "Thu, Nov 5". A table needs a fixed width and an order that sorts, a card is read like a sentence. Never mix the two forms inside one block.
 
 MDN documents tabular figures and `Intl.NumberFormat`, the helper the formatters use.
 
 # On a phone
 
-A phone is not a small desktop, and it is held in one hand. The tabs are a bar at the bottom of the screen, under the thumb, with an icon over each label. In Log the day's result and its main button are a dock just above that bar, so the action is always in reach; Delete stays in the form, away from the thumb. Both step aside while the keyboard is up, but not for a time or date field, which opens the phone's own picker. Log shows the year as twelve letters instead of twelve mini months, and folds its legend. A table with more columns than fit becomes rows of two lines: line 1 says what the row is and holds the numbers that matter, line 2 holds the detail, and nothing is dropped. Days and the Plan ledger work this way. The column headers go, and with them sorting by clicking a header, because a phone has no room for them. The whole row is the tap target, so the pencil goes too. Nothing that matters scrolls sideways: the heatmap is the one deliberate exception, because a year does not fit. A control is at least 24px each way, which is the WCAG 2.2 minimum; a link inside a sentence is exempt. When two blocks sit side by side on a desktop, the one that explains the main chart comes right after it on a phone, as the Range card does in Analytics.
+A phone is not a small desktop, and it is held in one hand. The tabs are a bar at the bottom of the screen, under the thumb, with an icon over each label. In Days the day's result and its main button are a dock just above that bar, so the action is always in reach; Delete stays in the form, away from the thumb. Both step aside while the keyboard is up, but not for a time or date field, which opens the phone's own picker. Days shows the year as twelve letters instead of twelve mini months, and folds its legend. A table with more columns than fit becomes rows of two lines: line 1 says what the row is and holds the numbers that matter, line 2 holds the detail, and nothing is dropped. Weeks and the Plan ledger work this way. The column headers go, and with them sorting by clicking a header, because a phone has no room for them. The whole row is the tap target, so the pencil goes too. Nothing that matters scrolls sideways: the heatmap is the one deliberate exception, because a year does not fit. A control is at least 24px each way, which is the WCAG 2.2 minimum; a link inside a sentence is exempt. When two blocks sit side by side on a desktop, the one that explains the main chart comes right after it on a phone, as the Range card does in Analytics.
 
 # Titles, hints and empty states
 
@@ -128,13 +128,13 @@ A phone is not a small desktop, and it is held in one hand. The tabs are a bar a
 
 Tests that read the markup cannot see a label that sits off-centre in its button, a name that wraps onto two lines or a line of text that came back. Those were found by eye, after the tests were green. So every UI change is looked at before it is called done, and that is a rule of the workspace (`software/AGENTS.md`, "UI validation"), not a preference.
 
-1. Shoot every screen you touched at 1280px and at 375px (`python bin/kctl.py shot "/#<tab>" --out .artifacts/x.png`, add `--viewport phone`) and open the images. Say what you saw.
+1. Shoot every screen you touched on a desktop and on a phone (`python bin/kctl.py shot "/#<tab>" --out .artifacts/x.png`, add `--viewport phone`) and open the images. Say what you saw. The desktop shot is 1280px wide. The phone shot is 390px wide, because kctl has those two sizes only, while the audit below measures at 375px. The tabs are `dashboard`, `plan`, `days`, `weeks`, `year`, `freelance` and `settings`.
 2. Run `tests/e2e/test_ui_geometry.py`. It measures every tab at both widths: the text of a control sits in its middle, no label takes two lines, no text is clipped, the page does not scroll sideways. It has a positive control, a test that must report a deliberately broken button, so it cannot pass by measuring nothing.
 3. A change adds the assertion for what it touched, and one bad style is planted to see the audit turn red.
 
 Three more tools watch what the geometry audit cannot.
 
-- Screenshot baselines (`tests/e2e/test_ui_snapshots.py`) compare ten key screens pixel by pixel with an approved picture, drawn from the demo data on a frozen day. They notice what nobody wrote a rule for. The pictures are Linux pictures, because text renders differently on Windows, so they are made in the same image as the pipeline: `make snapshots` compares and `make snapshots-update` replaces them. When a change is meant to move a screen, update the baseline in the same commit and open the new picture before committing it. A red run leaves the expected picture, the new one and their diff in `.artifacts/snapshot_failures/`, and the pipeline keeps them as job artifacts.
+- Screenshot baselines (`tests/e2e/test_ui_snapshots.py`) compare eleven screens (the seven tabs at 1280px and four of them at 375px) pixel by pixel with an approved picture, drawn from the demo data on a frozen day. They notice what nobody wrote a rule for. The pictures are Linux pictures, because text renders differently on Windows, so they are made in the same image as the pipeline: `make snapshots` compares and `make snapshots-update` replaces them. When a change is meant to move a screen, update the baseline in the same commit and open the new picture before committing it. A red run leaves the expected picture, the new one and their diff in `.artifacts/snapshot_failures/`, and the pipeline keeps them as job artifacts.
 - Aria snapshots (`tests/e2e/test_ui_aria.py`) pin the header and the head of every page by role and name. They run on any system with no picture to maintain, and an extra child fails, so a line that comes back under the title or a control added without a decision is caught here.
 - The accessibility scan (`tests/e2e/test_ui_a11y.py`) runs axe on every tab at both widths. What it found on the day it was added is in `tests/e2e/a11y_known.json` and explained in `docs/a11y_report.md`. A new serious finding fails, and an entry that no longer happens fails too, so the list can only shrink.
 
@@ -160,14 +160,16 @@ Answer yes or no. Any "no" is a reason to stop.
 
 # How the guide is enforced
 
-- `tests/e2e/test_ui_pagehead.py` walks every tab and asserts that it has one page head, that the title comes first, that the year selector is the last control, that the pill comes after the page's buttons and just before the year, that the pill keeps its height between Days and Analytics, and that the controls end at the right edge of the head.
+- `tests/e2e/test_ui_pagehead.py` walks every tab and asserts that it has one page head, that the title comes first, that the year selector is the last control, that the pill comes after the page's buttons and just before the year, that the pill keeps its height between Weeks and Year, and that the controls end at the right edge of the head.
 - `tests/e2e/test_ui_geometry.py` measures the drawn boxes on every tab at 1280px and 375px: centred text, one line, no clipping, no sideways scroll, no theme switch and no line under the title.
 - `tests/e2e/test_ui_snapshots.py`, `tests/e2e/test_ui_aria.py` and `tests/e2e/test_ui_a11y.py` are described in "Look at it".
 - `tests/e2e/test_reorder.py` drags the handle with a mouse, a finger and the keyboard, and `tests/e2e/test_ui_geometry.py` measures it: size, centred dots, no sideways scroll, no name on more lines than before.
 - `tests/e2e/test_chain_boxes.py` fills and empties the account boxes with a mouse, a finger and the keyboard, and `tests/e2e/test_ui_geometry.py` measures them: size, centred contents, no clipped text, no sideways scroll with the list shut or open.
+- `tests/e2e/test_chain_drag.py` drags an account's name into a box with a mouse and with a finger, and `tests/e2e/test_payout_chain_cell.py` types, clears, confirms and deletes in the payout cell.
+- `tests/e2e/test_v56_notes.py` reads every tooltip and help chip of every tab (`test_no_tooltip_or_help_is_a_paragraph`) and fails on a line over 90 characters.
 - `tests/e2e/test_ui_consistency.py` asserts the export names in the head, the removed hints and that the primary buttons share one look.
 - `tests/unit/test_ui_rules.py` reads the templates and fails on a bottom "Export" block, the old export names, a second primary-button class, a ghost button, money without cents outside a chart, a hand-made number format, an h3 as page-level title and any hint from the removed list.
-- To see the app's buttons, tabs and heads side by side, run `python bin/kctl.py up --seed`, then `python bin/kctl.py shot "/#<tab>"` for each tab, and compare them. Do it by hand before each UI phase; a pixel diff in the pipeline would be flaky.
+- To see the app's buttons, tabs and heads side by side, run `python bin/kctl.py up --seed`, then `python bin/kctl.py shot "/#<tab>"` for each tab, and compare them. Do it by hand before each UI phase. The screenshot baselines already run in the pipeline (`test_ui_snapshots.py`, in the `e2e` job, on Linux, and a red run keeps its pictures as job artifacts), but they compare each screen with its own approved picture, so they do not see two pages that disagree with each other.
 
 # Sources
 

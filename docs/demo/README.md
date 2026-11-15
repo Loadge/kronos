@@ -3,12 +3,17 @@
 The README GIF is produced from a scripted Playwright tour of a **throwaway,
 seeded** Kronos instance. Your real data is never involved.
 
+The current GIF was recorded at v45, so it still shows the tabs as Log, Days and
+Analytics (today they are Days, Weeks and Year). Before the tour runs again,
+`record_demo.mjs` needs those names updated: `tab('Log')` and `tab('Analytics')`
+no longer match a tab.
+
 Requires Node 20+, ffmpeg, and the project's Python dependencies.
 
 ## 1. Seed a disposable database
 
-`seed_demo.py` deletes all work entries, freelance blocks, payouts and income
-sources before writing, so it refuses to run unless `KRONOS_DATA_DIR` is set.
+`seed_demo.py` deletes all work entries, freelance blocks, payouts, income
+sources and accounts before writing, so it refuses to run unless `KRONOS_DATA_DIR` is set.
 Use a directory outside the repo:
 
 ```sh
@@ -20,7 +25,7 @@ python docs/demo/seed_demo.py
 The dates are fixed, so the result does not depend on the day you run it:
 
 - Work entries from 2025-01-01 to Mon 2026-11-02 (about 22 months), so
-  Analytics has a real year-over-year comparison and a well-filled "Year at a
+  Year has a real year-over-year comparison and a well-filled "Year at a
   glance" heatmap. Tue 3 Nov and Wed 4 Nov are left empty: the tour logs
   Tue 3 Nov live.
 - A short note on about one work day in eight.
@@ -54,21 +59,21 @@ scroll offset, the cursor position, the typed characters, the flash of the
 opened week and the "Saved" toast before screenshotting, so playback is smooth
 no matter how slow the capture machine is. Edit the scene list in
 `record_demo.mjs` to change what the tour shows. The viewport is 1280 x 720
-(the header fits on one row and the Log tab has its three columns).
+(the header fits on one row and the Days tab has its three columns).
 
-The tour, in order (about 21 s):
+The tour, in order (about 21 s), with the tabs under their names of today:
 
-1. **Dashboard**, the faint `v45` next to the title, then a scroll down to the
-   end of the page.
-2. **Log**: the calendar with its Wk column; the October mini month, then the
+1. **Dashboard**, the faint version label next to the title (`v45` in the
+   current GIF), then a scroll down to the end of the page.
+2. **Days**: the calendar with its Wk column; the October mini month, then the
    week number `41`.
-3. **Days > Employee**: the app opens that week's `W41` separator; the week
+3. **Weeks > Employee**: the app opens that week's `W41` separator; the week
    flashes.
-4. **Log again**: click Tue 3 Nov, `+ Add note`, type a note, change the end
+4. **Days again**: click Tue 3 Nov, `+ Add note`, type a note, change the end
    time to 18:15 (the result rail follows: Net 9.25h, target 8h, +1.25h, fill
-   bar), `Create entry`: the page stays in Log, the "Saved" toast shows and the
+   bar), `Create entry`: the page stays in Days, the "Saved" toast shows and the
    calendar cell takes its colour.
-5. **Analytics**: the year at a glance, then a scroll down through every chart
+5. **Year**: the year at a glance, then a scroll down through every chart
    to the export buttons.
 6. **Freelance**: billed this year, per-source totals, paid out vs estimated,
    then a scroll down to the year to Dec 31, the tax split and the exports.

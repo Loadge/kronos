@@ -1,5 +1,9 @@
 # Interview record — `kronos` CLI for agents (`BUILD_PHASES.md`, Phase 32)
 
+This file is the record of the Phase 32 interview of 2026-10-30 and is kept as history. Some facts moved
+afterwards: the backup is version 6 today (Q16 says v2), and the work came back on the branch `phase32`
+(Q14 says `master`).
+
 Four rounds, 19 questions, 2026-10-30. The answers below are the spec the implementation
 follows; anything not listed here is an implementation detail the implementer decides and
 documents in `BUILD_PHASES.md` when the phase is marked built.
