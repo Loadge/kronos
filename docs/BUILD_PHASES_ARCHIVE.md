@@ -29,6 +29,12 @@ How a phase gets here: see "Archiving a phase" at the end.
   values and probed half-typed dates; clicking a cell sets a whole date. Logged days use the
   heatmap's `hm-*` colours.
 
+## Dropped before they were phases
+
+- **Live timer** and **browser reminder to log the day** (dropped 2026-07-15, `234844f`). Both came from the
+  first backlog, `IMPROVEMENTS.md`, which is retired: everything else in it shipped. Clock in / clock out
+  (Phase 13) covers what the timer was for, and nothing replaced the reminder.
+
 ## Phase 11 — Bulk date logging (`ac562e1`)
 A modal calendar where click toggles a day and click+drag selects a range, then one non-work type
 is applied through `POST /api/entries/batch`. Existing entries are skipped silently, never

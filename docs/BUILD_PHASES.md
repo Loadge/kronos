@@ -58,9 +58,86 @@ it for the history of a decision, not by default). This file keeps only open and
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 58 archived (57 superseded by 58); 28 next (Anselmo logs through the
+37 to 58 archived (57 superseded by 58); 63 is small and comes from Phase 58's leftovers; 59 is the next
+large one, with 60, 61 and 62 as ideas behind it; 28 after it (Anselmo logs through the
 CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass) in slices, each one a
-weekend; 30 only if logging from the phone outside the LAN turns out to be common.
+weekend; 30 only if logging from the phone outside the LAN turns out to be common, and after 59.
+
+### Phase 63 — Weeks between 901 and 1279 px (idea, 2026-11-15, measure first)
+
+**Why.** With weeks open in Weeks > Freelance, the page scrolls sideways on a window between 1024 and 1279 px.
+It was seen while reviewing Phase 58 and it is older than it (52, 142 and 180 px of scroll on the commit before).
+The cause is in `styles.css`: the block rows of an open week do not wrap, and the table's wrap only scrolls
+up to 900 px (`.days-wrap`), so from 901 px the page scrolls instead of the wrap. The geometry audit does not
+see it, because it measures 1280 and 375 px, plus 1100 px with rows that are too short to overflow.
+
+**What.**
+- **Measure first** at 901, 950, 1024, 1100 and 1279 px, with two weeks open and real rows (start and end
+  times, a long note, a long source name). The code says 901 to 1023 px should overflow too; nobody has seen it.
+- **Choose one of two**, with a mockup, because the choice shows:
+  - The wrap scrolls up to 1279 px, as it already does up to 900 px. It takes three or four lines of CSS, and
+    the column header stops sticking under the bezel in that range.
+  - The block rows get narrower in that range (hide Start and End, or let the note wrap), and the header keeps
+    sticking.
+- **The audit** gains those widths and the fatter rows, and its planted style is seen red at 1100 px.
+
+**Not in this phase.** Anything from 1280 px up, and the phone layout.
+
+### Phase 59 — Kronos away from home (planned 2026-11-11)
+
+**Why.** Kronos trusts the network: there is no sign-in, and the CLI of Phase 32 and the chat bot write to PROD with
+nothing but a URL. Logging from the phone outside the LAN (Phase 30) needs the app to be reachable from outside, and
+that needs a door first.
+
+**What.**
+- **Off by default.** With auth off, today's deploys keep working as they are. With auth on, every page and every
+  API call needs a session or a token, except the health check and the static files.
+- **Signing in.** A passkey (WebAuthn) first, TOTP as the second way in, and ten single-use recovery codes. One
+  user, set up on the first run with auth on. Whether a password exists at all is decided in the phase, and
+  explained.
+- **Sessions.** An `HttpOnly`, `Secure`, `SameSite` cookie with an idle and an absolute expiry, "sign out
+  everywhere", and CSRF protection on every write made with the cookie.
+- **Tokens for the CLI and agents.** Named, read or write, shown once, stored hashed, revocable from Settings, with
+  the last time each was used. `bin/kronos.py` takes `KRONOS_TOKEN` and says plainly when one is missing or refused.
+- **Limits.** Failed sign-ins and failed codes slow down and then lock for a while, without locking the owner out
+  for good.
+- **The access log.** Sign-ins, failures, new and revoked tokens, and which token wrote what, visible in Settings.
+- **Backups.** A backup never carries a secret in a form that can be used. What a restore does with sessions and
+  tokens is decided in the phase, and explained.
+
+**Checks.** Everything above is proven with pytest and no browser: TOTP against a fixed clock, WebAuthn against a
+software authenticator, tokens through the CLI as a subprocess. The browser tests are an extra.
+
+**Not in this phase.** More than one user, OAuth or SSO, password reset by email, and exposing PROD to the internet
+(that is a deploy decision, after the phase).
+
+### Phase 60 — History and undo (idea, 2026-11-11)
+
+**Why.** A day overwritten by mistake is gone today, unless a backup happens to hold it. Modern apps keep a version
+history and let you go back.
+
+**What.** Every write to a day, a block, a payout or a setting keeps the previous version, with when and from where
+(the UI, the CLI, which token). A day shows its history and what changed between versions; any version can be
+restored, and the restore is itself a new version. "Undo" reaches past the ribbon's last action. The history has a
+retention and travels in the backup. With Phase 59 in place, the access log and the history name the same writer.
+
+### Phase 61 — Your year in Kronos (idea, 2026-11-11)
+
+**Why.** At the end of the year the numbers deserve a story, the way music apps wrap a year.
+
+**What.** A sequence of cards, opened from the year dial or by itself in December: hours worked against the target,
+the balance curve, the longest streak, the earliest start and the latest finish, the busiest week, the time off
+taken, and what the freelance side earned after tax. Animated, with `prefers-reduced-motion` respected, and a PNG to
+share with the amounts hidden by choice. The figures come from one endpoint per year, tested on its own.
+
+### Phase 62 — The living background (idea, 2026-11-11)
+
+**Why.** A touch of play: a field of characters behind the dashboard that ripples under the pointer like water.
+
+**What.** Brass characters on a canvas, a ripple that follows the pointer or the finger and fades, and the field
+quiet again a few seconds later. It stays at low contrast behind anything that has to be read, keeps within a frame
+budget, pauses when the tab is hidden, is off with `prefers-reduced-motion`, and has a switch in Settings. It is the
+one exception to "no canvas" of Phase 36, on purpose.
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 
@@ -227,8 +304,6 @@ range goes through `/batch` and so cannot carry times.
   (fixed, old files still load); `bin/smoke.py` checks the planner and the timesheet too.
 - **PROD data from the Phase 27 check (2026-10-16):** 1-may is stored as `vacation`, and 12-jun /
   19-jun as holidays without a note. Left for Miguel to decide.
-- **`IMPROVEMENTS.md`** (git-ignored, local only) is a superseded backlog (see its banner); delete
-  it or fold what's left in here.
 
 ---
 
