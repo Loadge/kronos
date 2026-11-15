@@ -115,7 +115,7 @@ const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0,
 // The payout cell's scratch space, out of Alpine's state: the preview each row wants (`want`: row key -> the signature
 // of the state it was last asked about), its timer and the one in flight, the four-at-a-time queue, and the field being
 // typed in (`editing`), which a redraw leaves alone.
-const _pay = { want: {}, timers: {}, live: {}, retried: {}, inflight: 0, queue: [], editing: '', sourcesOk: false, payoutsOk: false };
+const _pay = { want: {}, timers: {}, live: {}, retried: {}, inflight: 0, queue: [], editing: '', sourcesOk: false, payoutsOk: false, marksOf: null, marks: {} };
 
 // What was typed in a payout row and not confirmed is kept in the browser. What is read back is not trusted: only
 // drafts of the right shape come in here; the ones of a source or account that is gone are dropped once those are
@@ -3831,6 +3831,20 @@ function app() {
       const text = i === 'e' ? c.fx.text : (c.lines[i] ? c.lines[i].text : null);
       if (text !== null && el.value !== text) el.value = text;
     },
+    // The blocks of a source's week as the row's figures see them (id, minutes, amount, currency), in the order of
+    // their ids. It is part of the row's signature, so a row asks again when its own week's blocks moved, and only
+    // then. One pass over the blocks for each array of them: they are replaced, never changed in place.
+    _payWeekMark(sourceId, weekStart) {
+      const blocks = this.blocks;
+      if (_pay.marksOf !== blocks) {
+        const marks = {};
+        for (const b of blocks) (marks[b.source_id + '|' + this._mondayIso(new Date(b.date + 'T12:00:00'))] ||= []).push([b.id, b.minutes, b.amount, b.currency]);
+        for (const k of Object.keys(marks)) marks[k].sort((x, y) => x[0] - y[0]);
+        _pay.marksOf = blocks;
+        _pay.marks = marks;
+      }
+      return _pay.marks[sourceId + '|' + weekStart] || [];
+    },
     // Everything the cell of a row draws, from the row's state and the answer the server gave for it. The Weeks row
     // and the "Payouts waiting" form read the same thing, so they cannot drift apart.
     payRow(sourceId, weekStart) {
@@ -3858,7 +3872,8 @@ function app() {
         body = { source_id: sourceId, week_start: weekStart, legs: lines.map(l => ({ account_id: l.acc, amount: l.fixed ? l.value : null, fixed: l.fixed })) };
         if (lastNonEur && eurTyped) body.eur_amount = eurValue;
         if (p) body.payout_id = p.id;
-        sig = JSON.stringify(body);
+        // the answer also depends on what the request does not carry: the week's blocks and the currencies
+        sig = JSON.stringify([body, src.currency, lines.map(l => l.a.currency), this._payWeekMark(sourceId, weekStart)]);
       }
       const pv = this.payPrev[key];
       let ans = null, fresh = false;
@@ -3962,7 +3977,7 @@ function app() {
         this.blocks = blocks;
         this.payouts = payouts;
       } catch (e) { this.error = e.message; }
-      for (const k of Object.keys(this.payPrev)) this.payPrev[k] = { ...this.payPrev[k], sig: null };   // the weeks moved: every row asks again
+      // no row is told to ask again here: a row whose week's blocks moved has another signature (_payWeekMark)
       this._flStale = true;  // a block's effective money depends on its week's payout
     },
     // Confirm: the row as it is shown is saved (every line with the amount in its field, `fixed` for a typed one). On

@@ -1936,3 +1936,103 @@ def test_the_line_thuds_with_each_seal_and_keeps_no_thud_after_it(page, chain_ur
     page.wait_for_function("() => window.__thud.starts === 2")
     expect(row.locator(".seal")).to_have_count(0, timeout=5000)
     _ends_with_badge(row)
+
+
+# ── a row asks for its figures again only when its own week moved ─────────────
+
+THREE_DAYS = ("2026-11-03", "2026-10-27", "2026-10-20")
+W43 = "2026-10-19"
+
+
+def _three_weeks_with_figures(page, base: str, **world) -> dict:
+    """Acme billed W45, W44 and W43; Weeks is open and every unpaid row has its figures."""
+    w = _world(base, days=THREE_DAYS, **world)
+    _open_weeks(page, base)
+    for monday, label in ((W45, "W45"), (W44, "W44"), (W43, "W43")):
+        if not page.locator(f"tr.wk-row#wk-{monday} [data-testid=pay-delete]").count():
+            expect(_confirm(_row(page, monday), f"Acme {label}")).to_be_enabled()
+    page.wait_for_load_state("networkidle")
+    return w
+
+
+def _weeks_asked(page, since: int) -> list[str]:
+    """The weeks of the previews sent after the first `since`, once the page has gone quiet."""
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(700)  # espera-fija: a request that must not come cannot be awaited
+    return [body["week_start"] for body in page.wire.previews[since:]]
+
+
+def test_a_confirm_asks_nothing_of_the_other_rows(page, chain_url):
+    _three_weeks_with_figures(page, chain_url)
+    asked = len(page.wire.previews)
+    assert asked == 3
+    row = _row(page)
+    _confirm(row).click()
+    _wait_for(chain_url, lambda p: len(p) == 1, "the row saves")
+    expect(row.get_by_test_id("pay-delete")).to_have_count(1)  # the payouts were read again
+    assert _weeks_asked(page, asked) == []
+    for monday, label in ((W44, "W44"), (W43, "W43")):  # and the other rows kept their figures
+        expect(_confirm(_row(page, monday), f"Acme {label}")).to_be_enabled()
+        expect(_amounts(_row(page, monday)).nth(1)).not_to_have_value("")
+
+
+def test_a_delete_and_its_undo_ask_only_for_the_row_they_change(page, chain_url):
+    w = _world(chain_url, days=THREE_DAYS)
+    _save(chain_url, w, [{"account_id": w["Stripe"]}, {"account_id": w["Deutsche Bank"]}])
+    _open_weeks(page, chain_url)
+    for monday, label in ((W44, "W44"), (W43, "W43")):
+        expect(_confirm(_row(page, monday), f"Acme {label}")).to_be_enabled()
+    assert sorted(_weeks_asked(page, 0)) == [W43, W44]  # the saved row asked nothing
+    asked = len(page.wire.previews)
+    row = _row(page)
+    row.get_by_role("button", name="Delete the payout of Acme W45").click()
+    _wait_for(chain_url, lambda p: p == [], "the payout is deleted")
+    expect(_confirm(row)).to_be_enabled()  # W45 has no payout now: it asked for its own figures
+    assert _weeks_asked(page, asked) == [W45]
+    asked = len(page.wire.previews)
+    page.locator(".ribbon-action").click()
+    _wait_for(chain_url, lambda p: len(p) == 1, "the payout is back")
+    expect(row.get_by_test_id("pay-delete")).to_have_count(1)
+    assert _weeks_asked(page, asked) == []
+
+
+def test_a_block_that_changes_asks_again_for_its_week_only_and_its_figures_follow(page, chain_url):
+    w = _three_weeks_with_figures(page, chain_url)
+    expect(_amounts(_row(page, W44)).nth(0)).to_have_value("2029.5")
+    asked = len(page.wire.previews)
+    # W44's block, opened from its row in Weeks, gets a quarter of an hour more in the form of Days
+    _app(page, "d.daysWeeksSetAll(true);")
+    page.locator("tr.blk", has_text="2026-10-27").click()
+    page.wait_for_selector(".fl-card--editing")
+    page.locator(".fl-step[aria-label='Quarter hour more']").click()
+    page.locator(".fl-submit").click()
+    page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Block saved')")
+    blocks = httpx.get(f"{chain_url}/api/freelance/blocks").json()
+    billed = next(b["amount"] for b in blocks if b["date"] == "2026-10-27")
+    assert billed > 2029.5 and all(b["source_id"] == w["src"] for b in blocks)
+    page.evaluate("location.hash = '#weeks'")
+    page.wait_for_selector("[data-testid='days-freelance']")
+    expect(_amounts(_row(page, W44)).nth(0)).to_have_value(f"{billed:g}")  # not the old figure
+    expect(_confirm(_row(page, W44), "Acme W44")).to_be_enabled()
+    again = _weeks_asked(page, asked)
+    assert again and set(again) == {W44}, again
+    for monday in (W45, W43):
+        expect(_amounts(_row(page, monday)).nth(0)).to_have_value("2029.5")
+
+
+def test_an_account_that_changes_currency_makes_its_rows_ask_again(page, chain_url):
+    w = _three_weeks_with_figures(page, chain_url)
+    expect(_amounts(_row(page)).nth(1)).to_have_value("1817.73")
+    asked = len(page.wire.previews)
+    r = httpx.put(
+        f"{chain_url}/api/freelance/accounts/{w['Deutsche Bank']}", json={"currency": "USD"}
+    )
+    assert r.status_code == 200, r.text
+    _app(page, "d.loadAccounts();")
+    for monday in (
+        W45,
+        W44,
+        W43,
+    ):  # dollars into a dollar account: the same figure as the line before
+        expect(_amounts(_row(page, monday)).nth(1)).to_have_value("2029.5")
+    assert sorted(_weeks_asked(page, asked)) == [W43, W44, W45]
