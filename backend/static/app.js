@@ -402,6 +402,7 @@ function app() {
     taxYear: new Date().getFullYear(),
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
     _taxSaved: null,
+    _taxSeq: 0,           // the tax-year requests sent: only the newest one's answer is used
     calcEdit: null, calcDraft: '',   // the calculator field being typed in, and its text as typed
     calc: { mode: 'hourly', hourly: 60, daily: '', net: '', currency: 'EUR', fx_rate: '', fx_source: 'ECB', billable_days: 220, billable_mode: 'default', hours_per_day: 8, salary_annual: 0, gestoria_annual: 0, other_expenses: 0, tarifa_plana: false, inicio_actividad: false, set_aside_pct: 30, result: null, busy: false, _seq: 0 },
 
@@ -5080,12 +5081,12 @@ function app() {
       document.getElementById('settings-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
     // The first level: switching the group swaps the cards; the index follows.
-    setSettingsGroup(id, section = null) {
+    setSettingsGroup(id, section = null, load = true) {
       this.settingsFlush();
       this.settingsGroup = id;
       localStorage.setItem('k-settings-group', id);
       this.settingsActive = section || this.settingsSections(id)[0].id;
-      this.loadSettingsGroupData();
+      if (load) this.loadSettingsGroupData();
       this.$nextTick(() => {
         const root = document.querySelector('.settings-layout');
         if (root) this.initSettingsSpy(root);
@@ -6194,10 +6195,18 @@ function app() {
 
 
     // ---------- Settings → Taxes (per year) --------------------------------------
+    // An answer goes into the form only if it is of the newest request, and if the form of that same year was not
+    // typed in or saved while the answer was on its way: what was typed stays, and its own save follows (taxTouched,
+    // settingsFlush). Another year's answer always goes in: the switch saved the form before asking.
     async loadTaxYear(year) {
+      const seq = ++this._taxSeq;
+      const same = !!this.taxForm && this.taxYear === year;
+      const form = same ? JSON.stringify(this._taxBody()) : null, saved = this._taxSaved;
       this.taxYear = year;
       try {
         const t = await this.api('GET', `/api/freelance/tax-years/${year}`);
+        if (seq !== this._taxSeq) return;
+        if (same && (this.taxDirty() || JSON.stringify(this._taxBody()) !== form || this._taxSaved !== saved)) return;
         t.set_aside_pct = Math.round(t.set_aside_share * 1000) / 10;
         this.taxForm = t;
         this._taxSaved = JSON.stringify(this._taxBody());
@@ -6250,8 +6259,12 @@ function app() {
     },
     async dropTaxYear() {
       if (!confirm(`Drop ${this.taxYear}'s own values and use the previous year's again?`)) return;
-      try { await this.api('DELETE', `/api/freelance/tax-years/${this.taxYear}`); await this.loadTaxYear(this.taxYear); this._flStale = true; }
-      catch (e) { this.error = e.message; }
+      // behind any save of the form that is on its way (leaving a field saves it): the delete is the last word, and
+      // the answer that follows finds the form as it was saved
+      return this._queued('taxes', async () => {
+        try { await this.api('DELETE', `/api/freelance/tax-years/${this.taxYear}`); await this.loadTaxYear(this.taxYear); this._flStale = true; }
+        catch (e) { this.error = e.message; }
+      });
     },
 
     // =====================================================================
@@ -6375,7 +6388,7 @@ function app() {
     // The two shortcuts between the Calculator and the Freelance options: change an input,
     // then see what it does to a rate, a day, a year — and back.
     openFreelanceOptions(section = 'taxes') {
-      this.setSettingsGroup('freelance', section);
+      this.setSettingsGroup('freelance', section, false);  // go('settings') asks for the group's data: once is enough
       this.go('settings');
     },
     async openCalculator() {

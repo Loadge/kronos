@@ -715,6 +715,243 @@ class TestHeadsAndShortcuts:
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/freelance/tax-years/{YEAR}").json()["salary_annual"] == 55000
 
+    # A tax-year answer that lands after the salary was typed used to replace the form, and the
+    # typed salary was never saved. These tests hold the answers themselves, so the order is theirs
+    # and not the machine's.
+
+    @staticmethod
+    def _hold_tax_years(page, let_through: int) -> tuple[list, list]:
+        """Every GET of the tax year after the first `let_through` waits in `held`; `asked` has them
+        all."""
+        asked, held = [], []
+
+        def handler(route):
+            if route.request.method != "GET":
+                route.continue_()
+                return
+            asked.append(route.request.url)
+            if len(asked) > let_through:
+                held.append(route)
+            else:
+                route.continue_()
+
+        page.route(f"**/api/freelance/tax-years/{YEAR}", handler)
+        return asked, held
+
+    @staticmethod
+    def _open_options(page, opener=None) -> None:
+        """Freelance options, opened from the Freelance page (by its head button, or by `opener`),
+        with everything the page asks for on opening already asked: the settings came back and the
+        page has drawn since."""
+        opener = opener or page.locator(".page-head .head-btn", has_text="Freelance options")
+        with page.expect_response(
+            lambda r: r.url.endswith("/api/config") and r.request.method == "GET"
+        ) as config:
+            opener.click()
+        config.value.finished()
+        TestHeadsAndShortcuts._drawn(page)
+        page.wait_for_url("**/#settings", timeout=3000)
+
+    @staticmethod
+    def _drawn(page) -> None:
+        page.evaluate(
+            "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+        )
+
+    @staticmethod
+    def _let_go(page, held: list) -> None:
+        """The held answers land now, and the page has handled them."""
+        for route in list(held):
+            with page.expect_response(
+                lambda r: "/api/freelance/tax-years/" in r.url and r.request.method == "GET"
+            ) as answer:
+                route.continue_()
+            answer.value.finished()
+        held.clear()
+        TestHeadsAndShortcuts._drawn(page)
+
+    @staticmethod
+    def _calculator_has(page, base_url: str, salary: int, shown: str) -> None:
+        page.locator(".settings-head .head-btn", has_text="calculator").click()
+        page.wait_for_url("**/#freelance", timeout=3000)
+        page.wait_for_function(
+            "(v) => document.querySelector('[data-testid=fl-calc] input[aria-label=Salary]')"
+            "?.value === v",
+            arg=shown,
+            timeout=5000,
+        )
+        with httpx.Client(base_url=base_url) as c:
+            assert c.get(f"/api/freelance/tax-years/{YEAR}").json()["salary_annual"] == salary
+
+    @pytest.mark.usefixtures("es_numbers")
+    def test_a_second_tax_year_answer_that_lands_after_typing_does_not_wipe_it(
+        self, page, base_url
+    ):
+        _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        _, held = self._hold_tax_years(page, let_through=1)
+        self._open_options(page)
+        page.locator("#tax-salary").fill("55000")
+        self._let_go(
+            page, held
+        )  # a second answer, when the page asked for one, lands after the typing
+        assert page.locator("#tax-salary").input_value() == "55000"
+        self._calculator_has(page, base_url, 55000, "55.000")
+
+    @pytest.mark.usefixtures("es_numbers")
+    def test_on_a_second_visit_the_tax_year_answer_that_lands_after_typing_does_not_wipe_it(
+        self, page, base_url
+    ):
+        _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        self._open_options(page)
+        page.wait_for_selector("#tax-salary", timeout=3000)
+        page.locator(".settings-head .head-btn", has_text="calculator").click()
+        page.wait_for_url("**/#freelance", timeout=3000)
+        # the form is there from the first visit: now every answer waits until the salary is typed
+        _, held = self._hold_tax_years(page, let_through=0)
+        self._open_options(page)
+        page.locator("#tax-salary").fill("56000")
+        assert held, "the page did not ask for the tax year on opening the options"
+        self._let_go(page, held)
+        assert page.locator("#tax-salary").input_value() == "56000"
+        self._calculator_has(page, base_url, 56000, "56.000")
+
+    @pytest.mark.parametrize("way", ["the head button", "Add one", "set this year's"])
+    def test_opening_the_freelance_options_asks_for_the_tax_year_once(self, page, base_url, way):
+        """The three ways from the Freelance page to its options: the button of the head, "Add one"
+        (no source yet) and "set this year's" (the year runs on default inputs)."""
+        if way != "Add one":
+            _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        if way == "the head button":
+            page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+            opener, section = None, "taxes"
+        elif way == "Add one":
+            opener, section = page.locator(".fl-empty a", has_text="Add one"), "sources"
+        else:
+            opener, section = page.locator(".fl-disclaimer a", has_text="set this year's"), "taxes"
+        if opener is not None:
+            opener.wait_for(timeout=5000)
+        asked, _ = self._hold_tax_years(page, let_through=99)
+        self._open_options(page, opener)
+        page.wait_for_selector("#tax-salary", timeout=3000)
+        page.wait_for_load_state("networkidle")
+        assert len(asked) == 1, asked
+        # and it is the Freelance group, on the card the link is about
+        assert "Freelance" in page.locator(".settings-head h2").inner_text()
+        active = page.evaluate("Alpine.$data(document.querySelector('main')).settingsActive")
+        assert active == section
+
+    def test_an_older_tax_year_answer_never_replaces_the_year_that_was_asked_for_last(
+        self, page, base_url
+    ):
+        """The answer for this year is held, the selector goes to last year and its answer lands;
+        then this year's lands. The form stays last year's, and what is typed is saved under it."""
+        _source(base_url)
+        last = YEAR - 1
+        with httpx.Client(base_url=base_url) as c:
+            body = c.get(f"/api/freelance/tax-years/{last}").json()
+            body = {k: body[k] for k in ("tarifa_plana", "inicio_actividad", "set_aside_share")}
+            for year, salary, gestoria in ((last, 31000, 120), (YEAR, 41000, 77)):
+                body |= {"salary_annual": salary, "gestoria_annual": gestoria, "other_expenses": 0}
+                r = c.put(f"/api/freelance/tax-years/{year}", json={"year": year, **body})
+                assert r.status_code == 200, r.text
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        _, held = self._hold_tax_years(page, let_through=0)  # this year's answers wait
+        self._open_options(page)
+        assert held, "the page did not ask for this year on opening the options"
+        page.locator("#settings-taxes button[aria-label='Previous year']").click()
+        page.wait_for_function(
+            "() => document.getElementById('tax-salary')?.value === '31000'", timeout=5000
+        )
+        self._let_go(page, held)
+        year = "Alpine.$data(document.querySelector('main')).taxYear"
+        assert page.evaluate(year) == last
+        assert page.locator("#tax-salary").input_value() == "31000"
+        assert page.locator("#tax-gestoria").input_value() == "120"
+        with page.expect_response(
+            lambda r: "/api/freelance/tax-years/" in r.url and r.request.method == "PUT"
+        ) as put:
+            page.locator("#tax-salary").fill("32000")
+            page.locator("#tax-salary").press("Tab")  # leaving the field saves it
+        assert put.value.url.endswith(f"/api/freelance/tax-years/{last}")
+        put.value.finished()
+        with httpx.Client(base_url=base_url) as c:
+            saved = c.get(f"/api/freelance/tax-years/{last}").json()
+            assert (saved["salary_annual"], saved["gestoria_annual"]) == (32000, 120)
+            this = c.get(f"/api/freelance/tax-years/{YEAR}").json()
+            assert (this["salary_annual"], this["gestoria_annual"]) == (41000, 77)
+
+    def test_dropping_a_year_s_own_values_waits_for_the_save_that_is_on_its_way(
+        self, page, base_url
+    ):
+        _source(base_url)
+        with httpx.Client(base_url=base_url) as c:
+            body = c.get(f"/api/freelance/tax-years/{YEAR}").json()
+            assert body["is_default"]
+            body = {k: body[k] for k in ("tarifa_plana", "inicio_actividad", "set_aside_share")}
+            body |= {"salary_annual": 41000, "gestoria_annual": 0, "other_expenses": 0}
+            r = c.put(f"/api/freelance/tax-years/{YEAR}", json={"year": YEAR, **body})
+            assert r.status_code == 200, r.text
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        self._open_options(page)
+        page.wait_for_function("() => document.getElementById('tax-salary')?.value === '41000'")
+        held, sent = [], []
+
+        def handler(route):
+            sent.append(route.request.method)
+            if route.request.method == "PUT":
+                held.append(route)  # the save of the typed salary waits
+            else:
+                route.continue_()
+
+        page.route(f"**/api/freelance/tax-years/{YEAR}", handler)
+        page.once("dialog", lambda d: d.accept())
+        page.locator("#tax-salary").fill("58000")
+        page.locator(
+            "#settings-taxes .tax-drop"
+        ).click()  # leaving the field saves it: the PUT is held
+        self._drawn(page)
+        assert sent == ["PUT"], sent  # the delete is not sent ahead of the save
+        with page.expect_response(
+            lambda r: "/api/freelance/tax-years/" in r.url and r.request.method == "GET"
+        ) as answer:
+            held[0].continue_()
+        answer.value.finished()
+        page.wait_for_function(
+            "() => document.getElementById('tax-salary')?.value === '0'", timeout=5000
+        )
+        assert sent == ["PUT", "DELETE", "GET"], sent
+        with httpx.Client(base_url=base_url) as c:
+            assert c.get(f"/api/freelance/tax-years/{YEAR}").json()["is_default"]
+
+    def test_switching_the_tax_year_with_a_typed_salary_saves_it_and_shows_the_other_year(
+        self, page, base_url
+    ):
+        _source(base_url)
+        page.goto(f"{base_url}/#freelance")
+        page.wait_for_selector("[data-testid='fl-calc']", timeout=5000)
+        self._open_options(page)
+        page.locator("#tax-salary").fill("57000")
+        with httpx.Client(base_url=base_url) as c:
+            body = c.get(f"/api/freelance/tax-years/{YEAR - 1}").json()
+            body = {k: body[k] for k in ("tarifa_plana", "inicio_actividad", "set_aside_share")}
+            body |= {"salary_annual": 31000, "gestoria_annual": 0, "other_expenses": 0}
+            r = c.put(f"/api/freelance/tax-years/{YEAR - 1}", json={"year": YEAR - 1, **body})
+            assert r.status_code == 200, r.text
+        page.locator("#settings-taxes button[aria-label='Previous year']").click()
+        page.wait_for_function(
+            "() => document.getElementById('tax-salary')?.value === '31000'", timeout=5000
+        )
+        with httpx.Client(base_url=base_url) as c:
+            assert c.get(f"/api/freelance/tax-years/{YEAR}").json()["salary_annual"] == 57000
+            assert c.get(f"/api/freelance/tax-years/{YEAR - 1}").json()["salary_annual"] == 31000
+
 
 # ── the shared page rules on Freelance and Plan ─────────────────────
 

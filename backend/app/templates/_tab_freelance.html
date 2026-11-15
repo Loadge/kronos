@@ -19,7 +19,7 @@
   <template x-if="!hasFreelance()">
     <div class="fl-empty">
       <p class="fl-empty-bolt" aria-hidden="true">⚡</p>
-      <p>No income sources yet. <a @click.prevent="setSettingsGroup('freelance', 'sources'); go('settings')" href="#settings">Add one</a>.</p>
+      <p>No income sources yet. <a @click.prevent="openFreelanceOptions('sources')" href="#settings">Add one</a>.</p>
     </div>
   </template>
 
@@ -141,7 +141,7 @@
         <p class="muted fl-disclaimer">
           <template x-if="flSummary.tax_inputs.salary_annual > 0"><span>On top of a <span x-text="fmtMoney(flSummary.tax_inputs.salary_annual)"></span> salary · </span></template>
           <template x-if="flSummary.tax_inputs.inherited_from"><span>inputs from <span x-text="flSummary.tax_inputs.inherited_from"></span> · </span></template>
-          <template x-if="flSummary.tax_inputs.is_default"><span>default inputs — <a @click.prevent="setSettingsGroup('freelance', 'taxes'); go('settings')" href="#settings">set this year's</a> · </span></template>
+          <template x-if="flSummary.tax_inputs.is_default"><span>default inputs — <a @click.prevent="openFreelanceOptions('taxes')" href="#settings">set this year's</a> · </span></template>
           <template x-if="isSpain()"><span x-text="flSummary.projection.figures.fiscal_year + ' rules, ' + flSummary.projection.figures.region"></span></template>
           <template x-if="!isSpain()"><span>a share of every payment set aside, no brackets</span></template> · estimate: check with an adviser
         </p>
