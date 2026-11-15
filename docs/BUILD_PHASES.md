@@ -51,34 +51,16 @@ it for the history of a decision, not by default). This file keeps only open and
 | 55 | The edges of a web app: link previews, icons, manifest, 404 page, offline banner, security headers | `c06e1d7`, `0b91450` |
 | 56 | Notes on v55: short tooltips, tabs renamed Days, Weeks and Year, payouts from Days, compact calculator, the logo as a mini dial | `bce7201`, `4d1c828` |
 | 57 | Sent and arrived: two lines on a payout, FX renamed DIFF. Superseded by Phase 58 | `1303288`, `f356a6d` |
+| 58 | The chain of accounts: a payout goes through 1 to 4 accounts, set per source by dragging them into boxes; Confirm saves it and ends in the seal | `d50f1d6`, `25c3bea`, `84f6ba2` |
 
 ---
 
 ## Open phases
 
 Suggested order (2026-11-04; 31, 32, 33, 34 and 35 built, 34 and 35 confirmed and archived):
-37 to 57 archived (57 superseded by 58); 58 next; 28 after it (Anselmo logs through the
+37 to 58 archived (57 superseded by 58); 28 next (Anselmo logs through the
 CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass) in slices, each one a
 weekend; 30 only if logging from the phone outside the LAN turns out to be common.
-
-### Phase 58 — The chain of accounts (planned 2026-11-09, mockup first)
-
-**Why.** A payout can travel through several accounts before it is really his: a client pays into Stripe, and Stripe later transfers to Deutsche Bank. Other people will only ever use one account.
-
-**Decided in an interview with Miguel.** Each freelance project has a chain of 1 to 4 accounts, assigned by dragging accounts into dashed slots beside its name. Each account fills in the next one until a number is typed, and a typed number stays fixed. The final figure is the last account's. "As billed", bare currencies and the "Paid from" and "Paid into" selectors go away. A payout is saved only with a confirm button, which ends in a stamp from Kronos. Accounts, income sources and day templates can be reordered with a dotted handle.
-
-The full specification, with its acceptance criteria and accepted risks, is in `.agents/changes/backlog/cadena-de-cuentas-payout/03-specification.md`.
-
-**Progress** (built on branch `phase-58`, landed on `master` as one commit on 2026-11-15, v58).
-
-- Step 1, the mockup: validated by Miguel on 2026-11-11. His choices are written into the specification.
-- Step 2, data and migration: built on 2026-11-11. Migration 0013 only adds: the payout keeps its columns as the figures of the last account, and the chain is stored beside them. It is proven on databases written by the real code of v51, v56 and v57 (`tests/fixtures/eras`), where every row that existed stays the same and the app answers what the old version answered.
-- Step 3, the API: built on 2026-11-11. A payout is read and written as a chain (`legs`), a source carries its usual chain, backup version 5 carries both, and restoring an older backup builds the chains the migration builds. The request shape the current screens use is still accepted, and it never creates an account: a payout it saves with a side that has no account has no chain yet.
-- Step 4, the handle: built on 2026-11-12. Day templates, income sources and accounts are put in order with a dotted handle in Settings, by mouse, finger or arrow keys, and every list and picker follows that order. Archived accounts have no handle and stay below. A source's colour now goes by its id, so moving it does not repaint it. Tried with a finger in Android Chrome on the emulator. Left for step 5: on a narrow screen the handle pushes the "Paid into", "Paid from" and "Use" selects onto one more line; those selects go away there.
-- Step 5, the boxes: built on 2026-11-12. In Settings each income source shows four boxes with the accounts its payouts usually go through. A box is filled from a list (click, tap or keyboard) or by dragging an account by its name onto it: the mouse drags at once, a finger after holding 300 ms. The X empties a box and each change is saved at once. The "Paid into", "Paid from" and "Use" selects are gone. Two things differ from the mockup. A source row has two lines (the name, then the boxes under it with the buttons at the end), because the real row has buttons the mockup did not and the boxes did not fit beside the name. And choosing the account a box already holds changes nothing; in the mockup it dropped the next account. Tried with a finger in Android Chrome on the emulator.
-- Step 6, the payout cell: built on 2026-11-12. The server works out a row without saving it (`POST /api/freelance/payouts/preview`, through the save's own code), and the cell in Weeks and in "Payouts waiting" is one line per account of the chain, with the amount, an X that clears it and the account. A typed amount stays and the lines after it follow. Nothing is saved while typing: Confirm saves the row with the amounts it shows, and Delete removes a saved payout and offers Undo. The old cell and its saving as you type are gone, and the page no longer sends the old request shape. What is typed and not confirmed is kept in the browser, so a reload keeps it and a second tab shows it; an arrow beside Confirm discards it. Confirm is an outline on a row nobody touched and solid once something changed, and a saved row shows "paid out" where Confirm was, on each source's line. Four things to know. Below 769 px a week line has the shape it has on a phone, and at 400 px or less the Gap and the DIFF chip sit under the cell, not beside it. Opening Weeks asks the server for one preview per row with no payout, four at a time. A payout saved the old way shows one line with no account until one is chosen. And the button of "Payouts waiting" keeps the look it had.
-- Step 7, the seal and the cleanup: built on 2026-11-15. The demo data has two accounts, the chains of its sources and payouts saved as chains. Migration 0014 gives a chain to every payout that had none, makes each payout's account the last one of its chain and drops the old columns (`sent_*`, the two default accounts of a source, `role`); a payout is now written with its chain and nothing else, and the backup is version 6 (older files still restore). A Confirm in Weeks drops the seal of Kronos where the button was, the coins fly from it once and it becomes the "paid out" badge; "Payouts waiting" keeps its coins without a seal. When a Confirm gives a source its first account, the ribbon says so. The DIFF chip no longer shows for a difference under 0.05 %. The migration was run on a copy of PROD's data (two payouts on 2026-11-14) and of INT's: every figure is what it was. What changes for a payout that had no account is its account: it is now "USD account", made by the migration, to be renamed in Settings.
-- Not done: Miguel's validation on INT, and PROD, which is his to press (download a backup first: the migration drops columns). Known and left as they are: opening Weeks asks the server for one preview per row with no payout; the page scrolls sideways between 1024 and 1279 px with two weeks open, and an open week's block header paints over the stuck column header (both the same on `master`).
 
 ### Phase 36 — Tactile Kronos (idea, written 2026-11-02 at the end of the 34–35 review)
 

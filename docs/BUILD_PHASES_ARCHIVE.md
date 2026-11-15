@@ -1087,6 +1087,45 @@ spoken name differs from their visible text.
 
 **Commits.** `1303288`, `f356a6d`
 
+## Phase 58 — The chain of accounts
+
+**Why.** A payout can travel through several accounts before it is really his: a client pays into Stripe, and Stripe later transfers to Deutsche Bank. Other people will only ever use one account. Miguel validated it on INT on 2026-11-15, with PROD still his to press.
+
+**Decisions (Miguel, interview of 2026-11-09 and mockup of 2026-11-11).**
+- Each income source has a chain of 1 to 4 accounts. In Options the accounts are dragged by their name into four dashed boxes beside the source, or picked from a list that a click, a tap or a key opens. A chain has no holes and no account twice, and an X empties a box.
+- A payout has one line per account of its chain. The first comes filled with what was billed, and each next one is worked out from the one before, at the rate of the week's Sunday. A typed number stays fixed and the lines after it follow. The X clears a number, never the payout.
+- The final figure is the last account's: income, euros per hour and totals come from it. The red gap is the first account minus what was billed. DIFF is what was billed, at the day's rate, against the last account.
+- A payout is saved by Confirm, the one exception to saving as you type. What is typed and not confirmed stays in the browser until Confirm or the arrow that discards it. Confirm ends in the seal of Kronos and its coins, once.
+- "As billed", bare currencies, the "Use" roles and the "Paid from" and "Paid into" selects are gone.
+- Accounts, income sources and day templates are put in order with a dotted handle, and every list and picker follows that order.
+- Two accepted risks. A source with no chain offers one line with a select. And confirming it puts that account in the source's first box, with a notice ("Stripe is now the first account of Northwind").
+
+**Decided while building.** These differ from the mockup or were not in it.
+- A source row in Options has two lines (the name, then the boxes with the buttons at the end), because the real row has buttons the mockup did not.
+- Choosing the account a box already holds changes nothing. In the mockup it dropped the next account.
+- Below 769 px a week line has the shape it has on a phone. At 400 px or less the Gap and the DIFF chip sit under the cell, not beside it.
+- "Payouts waiting" keeps its own button and its coins, with no seal, because the week leaves the list when it is confirmed.
+- The DIFF chip does not show for a difference under 0.05% of what was billed (the mockup's rule), so a payout confirmed as billed has no "DIFF 0.0%".
+- A row whose figures the server could not work out says "no answer" and asks once more, by itself.
+- The seal is 2.7rem, as in the mockup, and rests up to 2 px over its row.
+
+**Data.** Migration 0013 only adds: the chain of each payout, the chain of each source and the hand-made order. Migration 0014 gives a chain to any payout still without one, makes each payout's account the last one of its chain and drops the old columns (`sent_*`, the two default accounts of a source, `role`). Neither writes a figure of a payout. A payout that had no account now sits in an account the migration made for its currency ("USD account"), to be renamed. The backup is version 6, and a file of any older version restores to what migrating that database gives.
+
+**How it was proven.** `tests/fixtures/eras` holds databases written by the real code of v51, v56 and v57, with what each version answered: every payout answers the same after both migrations. They are never to be regenerated with newer code. The same proof ran on a copy of PROD's data (two payouts) and of INT's on 2026-11-14: every figure, total and block is what it was.
+
+**Rejected.**
+- Dropping the payout's own account column. It stays, as the last account of the chain, because every total reads it.
+- Letting 0014 rebuild an empty chain from the old default accounts. 0013 had already turned them into chains, so an empty one is a chain somebody emptied, and a restore of that database left it empty too.
+- Keeping the old request shape. It lived through the build so the screens kept working between steps, and went with step 7.
+
+**Known limits.**
+- Opening Weeks asks the server for one preview per row with no payout, four at a time, and again after each save.
+- SQLite cannot run 0014 as one transaction. Each step looks before it acts, so a run that is cut is finished by the next one. Download a backup before pressing PROD.
+- The rate is still the one of the week's Sunday.
+- Not from this phase and left as they are: the page scrolls sideways between 1024 and 1279 px with two weeks open, and an open week's block header paints over the stuck column header.
+
+**Commits.** `d50f1d6`, `25c3bea`, `84f6ba2`
+
 ## Archiving a phase
 When Miguel confirms a phase is live: replace its block in `BUILD_PHASES.md` with one row in the
 "Done" table there, and add a summary here in the same docs commit (what was decided, what shipped,
