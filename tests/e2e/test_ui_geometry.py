@@ -780,6 +780,7 @@ def test_a_carried_name_adds_no_sideways_scroll(page, base_url, orderable, width
     slot.scroll_into_view_if_needed()
     b = slot.bounding_box()
     page.mouse.move(b["x"] + b["width"] / 2, b["y"] + b["height"] / 2, steps=8)
+    page.wait_for_selector(".slot.over", timeout=5000)  # the box lights on the page's next redraw
     assert page.locator(".slot.over").count() == 1
     ghost = page.locator(".acct-ghost").bounding_box()
     assert ghost["width"] <= width, ghost
