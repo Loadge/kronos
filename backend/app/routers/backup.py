@@ -3,9 +3,9 @@
 GET  /api/backup   → download a self-contained JSON snapshot
 POST /api/restore  → wipe current entries and reimport from snapshot
 
-The backup format is intentionally simple (version 4):
+The backup format is intentionally simple (version 6):
 {
-  "version": 4,
+  "version": 6,
   "exported_at": "<ISO-8601 UTC>",
   "settings": { "daily_target_hours": 8.0, "cumulative_start_date": "2025-01-01" },
   "entries": [
@@ -25,11 +25,28 @@ The backup format is intentionally simple (version 4):
   "freelance_payouts": [ { "source_id": 1, "week_start": "2026-03-02", "amount": 900.0, ... } ]
 }
 
-Accounts (where a payout landed, each with a currency, with their ids), the source's default
-account and, on a payout, its account, where its rate came from and the day it is of ride in the
-same version 4 as optional keys: a file without them restores no accounts and leaves the current
-ones alone. So do an account's role, a source's "Paid from" and, on a payout, what was sent (amount,
-currency, account): a file without them restores as before, every payout "as billed".
+Version 6 drops what the chains replaced: no account ``role``, no source ``default_account_id`` /
+``default_from_account_id``, no payout ``sent_amount`` / ``sent_currency`` / ``from_account_id``.
+A file of an older version still restores and may hold them: the role is read and ignored, a
+source's defaults become its chain when the file has none for it, and a payout's sent side and
+arrival become its legs when the file has none for it, by the rule the migration that dropped
+those columns used. A payout's account is always its last leg's.
+Accounts (where a payout landed, each with a currency, with their ids) and, on a payout, its
+account, where its rate came from and the day it is of ride in version 4 as optional keys: a file
+without them restores no accounts and leaves the current ones alone.
+Version 5 adds the chain of accounts and the hand-made order, and removes nothing (the older keys
+stay): every account and every income source carries its ``position``; a source its ``chain``,
+the account ids it is usually paid through, in order; a payout its ``legs``, a list of
+``{account_id, amount, fixed}`` from the first account to the last, the last being what the payout
+is worth (its amount and its account's currency are the payout's own). A restore takes them as the
+file says and refuses with a 422 naming the payout's week or the source's name a leg or a chain
+that names an unknown account, that has more than four accounts or one twice, or a last leg that
+is not the payout's amount and currency. A file without them (versions 1 to 4, or a payout without
+``legs`` or with an empty list) is given them by the rule the migration used: a payout's legs from
+its account, its sent side and its amount (making a "USD account" for a side that has none), a
+source's chain from "Paid from" then "Paid into" (once if the same, an archived account left out),
+the positions in the order shown before (the default first, then by id). So a restore never leaves
+a payout without legs.
 Version 4 adds the freelance payouts: what a source paid for an ISO week, in the source's
 currency, with the exchange rate it was saved with; they reference the sources' ids like the
 blocks do, and a file of an older version restores none (they are data, so they are wiped).
@@ -60,7 +77,9 @@ from app.models import (  # Break imported for explicit pre-delete
     FreelancePayout,
     FreelanceTaxYear,
     IncomeSource,
+    PayoutLeg,
     Plan,
+    SourceAccount,
     WorkEntry,
 )
 from app.schemas import (
@@ -68,9 +87,10 @@ from app.schemas import (
     SUPPORTED_BACKUP_VERSIONS,
     ConfigOut,
     DailyTargetRow,
+    FreelancePayoutBackup,
     RestoreIn,
 )
-from app.services import countries, numbers
+from app.services import chains, countries, numbers
 from app.services.computations import DailyTargetSchedule
 from app.services.settings import (
     PROFILE_EMPLOYER,
@@ -96,6 +116,53 @@ from app.services.settings import (
 from app.services.views import entry_from_body
 
 router = APIRouter(prefix="/api", tags=["backup"])
+
+
+def _refuse(message: str) -> HTTPException:
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, message)
+
+
+def _positions(rows: list[tuple[int, bool, int | None]]) -> dict[int, int]:
+    """id -> position for a list of (id, is_default, position in the file). A file that gives
+    every row its position is taken as it says; otherwise the rows are numbered from 0 in the
+    order they were shown before positions existed: the default first, then by id."""
+    if all(position is not None for _, _, position in rows):
+        return {row_id: position for row_id, _, position in rows}
+    ordered = sorted(rows, key=lambda r: (not r[1], r[0]))
+    return {row_id: i for i, (row_id, _, _) in enumerate(ordered)}
+
+
+def _check_legs(
+    p: FreelancePayoutBackup,
+    account_info: dict[int, tuple[str, bool]],
+    known_accounts: set[int],
+) -> None:
+    """422, naming the payout's week, unless its legs (when it has any) are a chain: at most four
+    known accounts, none twice, the last one being the payout's own amount and currency."""
+    if not p.legs:
+        return
+    week = p.week_start.isoformat()
+    if len(p.legs) > chains.MAX_LEGS:
+        raise _refuse(f"freelance payout for week {week} has more than {chains.MAX_LEGS} legs")
+    ids = [leg.account_id for leg in p.legs]
+    for account_id in ids:
+        if account_id not in known_accounts:
+            raise _refuse(
+                f"freelance payout for week {week} references unknown account {account_id}"
+            )
+    if len(set(ids)) != len(ids):
+        raise _refuse(f"freelance payout for week {week} has the same account twice in its chain")
+    last = p.legs[-1]
+    if abs(last.amount - p.amount) > 1e-9:
+        raise _refuse(
+            f"freelance payout for week {week}: its last leg is {last.amount} "
+            f"but the payout is {p.amount}"
+        )
+    if account_info[last.account_id][0] != p.currency:
+        raise _refuse(
+            f"freelance payout for week {week}: its last leg is in "
+            f"{account_info[last.account_id][0]} but the payout is in {p.currency}"
+        )
 
 
 @router.get("/backup")
@@ -154,10 +221,10 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "name": a.name,
             "currency": a.currency,
             "kind": a.kind,
-            "role": a.role,
             "is_default": bool(a.is_default),
             "archived": bool(a.archived),
             "created_at": a.created_at.isoformat(),
+            "position": a.position,
         }
         for a in session.scalars(select(Account).order_by(Account.id))
     ]
@@ -169,8 +236,8 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "currency": s.currency,
             "is_default": bool(s.is_default),
             "archived": bool(s.archived),
-            "default_account_id": s.default_account_id,
-            "default_from_account_id": s.default_from_account_id,
+            "position": s.position,
+            "chain": [link.account_id for link in s.chain],
         }
         for s in session.scalars(select(IncomeSource).order_by(IncomeSource.id))
     ]
@@ -201,9 +268,10 @@ def download_backup(session: Session = Depends(get_session)) -> Response:
             "account_id": p.account_id,
             "rate_source": p.rate_source,
             "rate_date": None if p.rate_date is None else p.rate_date.isoformat(),
-            "sent_amount": p.sent_amount,
-            "sent_currency": p.sent_currency,
-            "from_account_id": p.from_account_id,
+            "legs": [
+                {"account_id": leg.account_id, "amount": leg.amount, "fixed": bool(leg.fixed)}
+                for leg in p.legs
+            ],
         }
         for p in session.scalars(
             select(FreelancePayout).order_by(FreelancePayout.week_start, FreelancePayout.id)
@@ -268,6 +336,8 @@ def restore_backup(
     session.execute(delete(WorkEntry))
     session.execute(delete(Plan))
     session.execute(delete(FreelanceBlock))
+    # The legs go before their payouts, for the same reason as the breaks above.
+    session.execute(delete(PayoutLeg))
     session.execute(delete(FreelancePayout))
     # Sources and tax years are settings-like, but a file with freelance data replaces
     # them (its blocks reference its sources' ids); a file without leaves them alone.
@@ -280,6 +350,7 @@ def restore_backup(
     )
     if has_freelance:
         session.execute(delete(FreelanceTaxYear))
+        session.execute(delete(SourceAccount))
         session.execute(delete(IncomeSource))
     if payload.accounts:
         session.execute(delete(Account))
@@ -308,6 +379,42 @@ def restore_backup(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"source {s.name!r} references unknown account {s.default_from_account_id}",
             )
+    # What each account is, to check a chain against: the file's accounts, or (a file without
+    # any) the ones the database keeps.
+    if payload.accounts:
+        account_info = {a.id: (a.currency, a.archived) for a in payload.accounts}
+    else:
+        account_info = {
+            i: (currency, bool(archived))
+            for i, currency, archived in session.execute(
+                select(Account.id, Account.currency, Account.archived)
+            )
+        }
+    usable = {i for i, (_, archived) in account_info.items() if not archived}
+    source_chains: dict[int, list[int]] = {}
+    for s in payload.income_sources:
+        if s.chain is None:  # an older file: "Paid from", then "Paid into"
+            source_chains[s.id] = chains.chain_from_defaults(
+                s.default_from_account_id, s.default_account_id, usable
+            )
+            continue
+        if len(s.chain) > chains.MAX_LEGS:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"source {s.name!r} has more than {chains.MAX_LEGS} accounts in its chain",
+            )
+        if len(set(s.chain)) != len(s.chain):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"source {s.name!r} has the same account twice in its chain",
+            )
+        for account_id in s.chain:
+            if account_id not in known_accounts:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    f"source {s.name!r} references unknown account {account_id}",
+                )
+        source_chains[s.id] = list(s.chain)
     for b in payload.freelance_blocks:
         if b.source_id not in known_sources:
             raise HTTPException(
@@ -333,6 +440,13 @@ def restore_backup(
                 f"freelance payout for week {p.week_start.isoformat()} "
                 f"references unknown account {p.from_account_id}",
             )
+        _check_legs(p, account_info, known_accounts)
+    # Positions as the file says; a file without them keeps the order shown before: the default
+    # first, then by id.
+    account_positions = _positions([(a.id, a.is_default, a.position) for a in payload.accounts])
+    source_positions = _positions(
+        [(s.id, s.is_default, s.position) for s in payload.income_sources]
+    )
     for a in payload.accounts:
         session.add(
             Account(
@@ -340,9 +454,9 @@ def restore_backup(
                 name=a.name,
                 currency=a.currency,
                 kind=a.kind,
-                role=a.role,
                 is_default=a.is_default,
                 archived=a.archived,
+                position=account_positions[a.id],
                 **({} if a.created_at is None else {"created_at": a.created_at}),
             )
         )
@@ -356,8 +470,11 @@ def restore_backup(
                 currency=s.currency,
                 is_default=s.is_default,
                 archived=s.archived,
-                default_account_id=s.default_account_id,
-                default_from_account_id=s.default_from_account_id,
+                position=source_positions[s.id],
+                chain=[
+                    SourceAccount(position=i, account_id=account_id)
+                    for i, account_id in enumerate(source_chains[s.id])
+                ],
             )
         )
     session.flush()
@@ -375,23 +492,36 @@ def restore_backup(
                 fx_rate=b.fx_rate,
             )
         )
+    restored: list[tuple[FreelancePayout, FreelancePayoutBackup]] = []
     for p in payload.freelance_payouts:
-        session.add(
-            FreelancePayout(
-                source_id=p.source_id,
-                week_start=p.week_start,
-                amount=p.amount,
-                currency=p.currency,
-                fx_rate=p.fx_rate,
-                note=p.note,
-                account_id=p.account_id,
-                rate_source=p.rate_source,
-                rate_date=p.rate_date,
-                sent_amount=p.sent_amount,
-                sent_currency=p.sent_currency,
-                from_account_id=p.from_account_id,
-            )
+        payout = FreelancePayout(
+            source_id=p.source_id,
+            week_start=p.week_start,
+            amount=p.amount,
+            currency=p.currency,
+            fx_rate=p.fx_rate,
+            note=p.note,
+            account_id=p.account_id,
+            rate_source=p.rate_source,
+            rate_date=p.rate_date,
         )
+        payout.legs.extend(
+            PayoutLeg(position=i, account_id=leg.account_id, amount=leg.amount, fixed=leg.fixed)
+            for i, leg in enumerate(p.legs or [])
+        )
+        session.add(payout)
+        restored.append((payout, p))
+    session.flush()
+    # A payout the file gives no legs (an older file, or none written) gets them from what the
+    # file says of its arrival and its sent side, in the order the file lists them: a restore
+    # never leaves a payout without a chain. The payout's account is its last leg's.
+    for payout, p in restored:
+        if p.legs:
+            payout.account_id = p.legs[-1].account_id
+        else:
+            chains.legs_from_sides(
+                session, payout, p.sent_amount, p.sent_currency, p.from_account_id
+            )
     for t in payload.freelance_tax_years:
         session.add(
             FreelanceTaxYear(

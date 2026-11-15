@@ -1,4 +1,4 @@
-{% from "_pay_cell.html" import pay_cell %}
+{% from "_pay_cell.html" import pay_cell, pay_tail %}
 {#- The bezel: a tick per week over the table, in both modes. daysBezel() runs once per render; the strip is
     one tab stop and the chip's two buttons keep the old expand/collapse test ids. It hides itself when no
     week has data in view (or, in Employee, while the table is not sorted by date). -#}
@@ -167,39 +167,45 @@
       <template x-if="!daysFlRows().length">
         <p class="muted" x-text="daysSources.length ? 'No freelance blocks here.' : 'No source selected.'"></p>
       </template>
-      {#- The cells of one source's line: Hours, Estimate, Payout, Gap, € / h. A one-source week draws
-          them on its own line (`one`), a week with several sources draws them once per source. Both
-          loop with `l`, so the cells exist in one place only. -#}
+      {#- The cells of one source's line: Hours, Estimate, Payout, Gap, € / h, and the end of the row (Confirm, or the
+          tag and Delete). A one-source week draws them on its own line (`one`), a week with several sources draws
+          them once per source. Both loop with `l`, so the cells exist in one place only. They are the grid items of
+          the line (`.wk-cells` is `display: contents`); the Gap is level with the first account line and the DIFF
+          chip with the last one. -#}
       {% macro wk_cells(one) %}
-      <span class="wk-h metric" data-l="Hours" x-text="l.hours > 0 ? fmtHours(l.hours) : '0h'"></span>
-      <span class="wk-est metric" data-l="Estimate"{% if one %} :title="fmtMoney(r.eur)"{% endif %} x-text="l.hours > 0 ? fmtMoney(l.estimate, l.currency, Number.isInteger(l.estimate) ? 0 : 2) : '—'"></span>
-      <span class="wk-pay" data-l="Payout" :class="accounts.length ? 'two' : ''" @click.stop>
-        {{ pay_cell("l.source.id", "r.week", "l.source.name + ' ' + r.id") }}
-      </span>
-      <template x-if="l.gap !== null">
-        <span class="wk-gap metric" data-l="Gap" :class="l.gapUnknown ? '' : (l.gap >= 0 ? 'surplus' : 'deficit')" :title="l.gapTitle"><b x-text="l.gapUnknown ? '—' : payGapLabel(l.gap, l.gapCur)"></b></span>
-      </template>
-      <template x-if="l.gap !== null">
-        <span class="wk-eph metric" data-l="€ / h" x-text="l.eph === null ? 'no rate' : fmtMoney(l.eph)"></span>
-      </template>
-      {#- the DIFF chip sits on line 2's height, under the gap -#}
-      <template x-if="l.payout && l.payout.account_id != null && fxHasCost(l.payout)">
-        <span class="wk-chip">
-          <button type="button" class="fx-chip" data-testid="fx-chip" :aria-label="'Difference from billed, ' + l.source.name + ' ' + r.id"
-            :aria-describedby="fxTip.open && fxTip.id === l.payout.id ? 'fx-tip' : null"
-            @mouseenter="fxTipOpen(l.payout, $el)" @mouseleave="fxTipClose()"
-            @focus="fxTipOpen(l.payout, $el)" @blur="fxTipClose()"
-            @click="fxTipClick(l.payout, $el)" x-text="fxChipText(l.payout)">DIFF</button>
-        </span>
-      </template>
-      <template x-if="l.gap === null">
-        <span class="wk-gap wide quiet" x-text="l.noHours ? 'payout with no hours' : (l.payout ? '' : (r.awaiting ? 'awaiting payout' : ''))"></span>
+      <template x-for="c in [payRow(l.source.id, r.week)]" :key="'row'">
+        <div class="wk-cells">
+          <span class="wk-h metric" data-l="Hours" x-text="l.hours > 0 ? fmtHours(l.hours) : '0h'"></span>
+          <span class="wk-est metric" data-l="Estimate"{% if one %} :title="fmtMoney(r.eur)"{% endif %} x-text="l.hours > 0 ? fmtMoney(l.estimate, l.currency, Number.isInteger(l.estimate) ? 0 : 2) : '—'"></span>
+          <span class="wk-pay" data-l="Payout" @click.stop>
+            {{ pay_cell() }}
+          </span>
+          <template x-if="c.gap !== null">
+            <span class="wk-gap metric" data-l="Gap"><b :class="c.gapCls" title="First account minus billed" x-text="c.gapText"></b></span>
+          </template>
+          <template x-if="c.chip">
+            <span class="wk-chip" :style="'--k:' + c.chipAt">
+              <button type="button" class="fx-chip" data-testid="fx-chip" :aria-label="'Difference from billed, ' + c.label"
+                :aria-describedby="fxTip.open && fxTip.id === c.chip.id ? 'fx-tip' : null"
+                @mouseenter="fxTipOpen(c.chip, $el)" @mouseleave="fxTipClose()"
+                @focus="fxTipOpen(c.chip, $el)" @blur="fxTipClose()"
+                @click="fxTipClick(c.chip, $el)" x-text="fxChipText(c.chip)">DIFF</button>
+            </span>
+          </template>
+          <template x-if="c.showEph">
+            <span class="wk-eph metric" data-l="€ / h" x-text="c.ephText"></span>
+          </template>
+          <template x-if="c.gap === null && !c.chip && !c.showEph && (c.noHours || (!c.p && !c.draft && r.awaiting))">
+            <span class="wk-gap wide quiet" x-text="c.noHours ? 'payout with no hours' : 'awaiting payout'"></span>
+          </template>
+          {% if one %}{{ pay_tail("r.tag") }}{% else %}{{ pay_tail("'paid out'") }}{% endif %}
+        </div>
       </template>
       {% endmacro %}
       {{ bezel() }}
       <template x-if="daysFlRows().length">
         <div class="table-wrap days-wrap">
-          <table class="days-table days-table--fl" :class="accounts.length ? 'has-accts' : null">
+          <table class="days-table days-table--fl">
             <thead>
               <tr>
                 <th colspan="11" class="wk-colhead">
@@ -228,7 +234,7 @@
                   <tr class="wk-row" :id="'wk-' + r.week" :class="[r.current ? 'cur' : '', r.open ? 'open' : '', r.week === daysFlashWeek ? 'week-flash' : '']" :data-week="r.id">
                     <td colspan="11">
                       <div class="wk-line wk-main" data-testid="wk-main" @click="daysWeekToggle(r.week)"
-                        :class="[r.lines.length === 1 && r.lines[0].payout ? 'has-pay' : '', r.lines.length === 1 && accounts.length ? 'two' : '']"
+                        :class="r.lines.length === 1 && r.lines[0].payout ? 'has-pay' : ''"
                         :style="r.lines.length === 1 ? '--src:' + sourceColor(r.lines[0].source.id) : null"
                         :title="r.lines.length === 1 ? r.lines[0].source.name : null"
                         :data-source="r.lines.length === 1 ? r.lines[0].source.name : null">
@@ -253,10 +259,11 @@
                         <template x-if="r.lines.length > 1">
                           <span class="wk-pay wk-sum metric fl-money" data-l="Payout" :class="r.tag === 'paid out' ? 'is-paid' : ''" x-text="fmtMoney(r.eur)"></span>
                         </template>
-                        <span class="wk-tail">
-                          <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
-                          <span class="wk-status" :class="payStatusCls(r.week)" x-text="payStatus(r.week)" aria-live="polite"></span>
-                        </span>
+                        <template x-if="r.lines.length > 1">
+                          <span class="wk-tail">
+                            <span class="wk-tag" :class="r.tag === 'estimated' ? 'est' : 'paid'" x-text="r.tag"></span>
+                          </span>
+                        </template>
                       </div>
                     </td>
                   </tr>
@@ -265,7 +272,7 @@
                   <tr class="wk-lines" :class="r.open && r.blocks.length ? 'has-blocks' : ''">
                     <td colspan="11">
                       <template x-for="l in r.lines" :key="l.key">
-                        <div class="wk-line" :class="[l.payout ? 'has-pay' : '', accounts.length ? 'two' : '']" :style="'--src:' + sourceColor(l.source.id)" :data-source="l.source.name">
+                        <div class="wk-line" :class="l.payout ? 'has-pay' : ''" :style="'--src:' + sourceColor(l.source.id)" :data-source="l.source.name">
                           <span class="wk-src"><span class="fl-dot" aria-hidden="true"></span><span x-text="l.source.name"></span></span>
                           {{ wk_cells(false) }}
                         </div>

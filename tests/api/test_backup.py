@@ -48,7 +48,7 @@ class TestDownloadBackup:
         r = client.get("/api/backup")
         assert r.status_code == 200
         body = r.json()
-        assert body["version"] == 4  # `fraction`, freelance and payouts ride along
+        assert body["version"] == 6  # `fraction`, freelance, payouts and chains ride along
         assert "exported_at" in body
         assert body["entries"] == []
         assert "settings" in body
@@ -239,9 +239,16 @@ class TestPayoutsInTheBackup:
         src = client.post(
             "/api/freelance/sources", json={"name": "Acme", "hourly_rate": 60, "currency": "EUR"}
         ).json()["id"]
+        account = client.post(
+            "/api/freelance/accounts", json={"name": "Main bank", "currency": "EUR"}
+        ).json()["id"]
         r = client.post(
             "/api/freelance/payouts",
-            json={"source_id": src, "week_start": "2026-03-02", "amount": 800},
+            json={
+                "source_id": src,
+                "week_start": "2026-03-02",
+                "legs": [{"account_id": account, "amount": 800}],
+            },
         )
         assert r.status_code == 201
         return src

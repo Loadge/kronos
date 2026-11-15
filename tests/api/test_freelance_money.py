@@ -11,6 +11,8 @@ from __future__ import annotations
 import app.services.fx as fx
 import pytest
 
+from tests.api.payout_setup import post
+
 
 @pytest.fixture(autouse=True)
 def _no_ecb(monkeypatch):
@@ -35,12 +37,7 @@ def _block(client, day, source, hours, fx_rate=None) -> dict:
 
 
 def _payout(client, monday, source, amount, fx_rate=None) -> dict:
-    body = {"source_id": source, "week_start": monday, "amount": amount}
-    if fx_rate is not None:
-        body["fx_rate"] = fx_rate
-    r = client.post("/api/freelance/payouts", json=body)
-    assert r.status_code == 201, r.text
-    return r.json()
+    return post(client, source, monday, amount, fx_rate=fx_rate)
 
 
 @pytest.fixture

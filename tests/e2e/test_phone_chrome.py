@@ -728,7 +728,15 @@ def test_the_dashboard_fits_with_real_freelance_figures(phone, base_url, width):
             day = (monday + datetime.timedelta(days=n)).isoformat()
             body = {"date": day, "source_id": src, "hours": 10.25}
             assert c.post("/api/freelance/blocks", json=body).status_code == 201
-        pay = {"source_id": src, "week_start": monday.isoformat(), "amount": 12345.67}
+        bank = (
+            next((a for a in c.get("/api/freelance/accounts").json() if a["name"] == "Bank"), None)
+            or c.post("/api/freelance/accounts", json={"name": "Bank", "currency": "EUR"}).json()
+        )
+        pay = {
+            "source_id": src,
+            "week_start": monday.isoformat(),
+            "legs": [{"account_id": bank["id"], "amount": 12345.67}],
+        }
         assert c.post("/api/freelance/payouts", json=pay).status_code == 201
     try:
         page = phone(width, 800)

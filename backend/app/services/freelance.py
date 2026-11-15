@@ -330,6 +330,13 @@ class Billed:
     effective_rate: float | None  # source units per euro actually obtained
 
 
+def week_amount(blocks: list[FreelanceBlock], default_currency: str) -> tuple[float, str]:
+    """What the blocks of a week bill, to the cent, and the currency it is in (the blocks',
+    else `default_currency`, the source's)."""
+    cur = blocks[0].currency if blocks else default_currency
+    return currencies.quantize(sum(b.amount for b in blocks), cur), cur
+
+
 def billed_for(p: FreelancePayout, blocks: list[FreelanceBlock]) -> Billed:
     """The week's estimate of `blocks` against payout `p`.
 
@@ -337,8 +344,7 @@ def billed_for(p: FreelancePayout, blocks: list[FreelanceBlock]) -> Billed:
     cost: `fx_cost_eur` and `effective_rate` are None, and `eur` is the blocks' own estimate.
     Only a payout that changed currency looks the ECB up, for the source currency on `rate_date`.
     """
-    cur = blocks[0].currency if blocks else p.source.currency
-    amount = currencies.quantize(sum(b.amount for b in blocks), cur)
+    amount, cur = week_amount(blocks, p.source.currency)
     ests = [b.amount_eur for b in blocks]
     estimate_eur = None if any(e is None for e in ests) else money(sum(money(e) for e in ests))
     got = p.amount_eur
@@ -365,33 +371,18 @@ def billed_for(p: FreelancePayout, blocks: list[FreelanceBlock]) -> Billed:
     )
 
 
-def sent_gap(p: FreelancePayout, billed: Billed) -> float | None:
-    """What was sent minus what was billed, in the billed currency, for a payout that records
-    what was sent; the sent amount is converted at the rate of the payout's day when its currency
-    differs. None for a payout "as billed", or when the day has no rate (no gap, not a guess)."""
-    if p.sent_amount is None or not p.sent_currency:
-        return None
-    if p.sent_currency == billed.currency:
-        sent = p.sent_amount
-    else:
-        day = p.rate_date or (p.week_start + timedelta(days=6))
-        rate = currencies.cross_rate(p.sent_currency, billed.currency, day)
-        if rate is None:
-            return None
-        sent = p.sent_amount * rate
-    sent = currencies.quantize(sent, billed.currency)
-    return currencies.quantize(sent - billed.amount, billed.currency)
-
-
 def default_source(session: Session) -> IncomeSource | None:
-    """The default source, else the first live one, else None."""
+    """The default source, else the first live one by position, else None."""
     live = list(
         session.scalars(
             select(IncomeSource)
             .where(IncomeSource.archived.is_(False))
-            .order_by(IncomeSource.is_default.desc(), IncomeSource.id)
+            .order_by(IncomeSource.position, IncomeSource.id)
         )
     )
+    for source in live:
+        if source.is_default:
+            return source
     return live[0] if live else None
 
 

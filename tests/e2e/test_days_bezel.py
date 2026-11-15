@@ -97,7 +97,23 @@ def _block(base_url: str, source: int, monday: str, hours: float, offset: int = 
 
 def _payout(base_url: str, source: int, monday: str, amount: float) -> None:
     with httpx.Client(base_url=base_url) as c:
-        body = {"source_id": source, "week_start": monday, "amount": amount}
+        currency = next(
+            s["currency"] for s in c.get("/api/freelance/sources").json() if s["id"] == source
+        )
+        account = (
+            next(
+                (a for a in c.get("/api/freelance/accounts").json() if a["currency"] == currency),
+                None,
+            )
+            or c.post(
+                "/api/freelance/accounts", json={"name": f"Bank {currency}", "currency": currency}
+            ).json()
+        )
+        body = {
+            "source_id": source,
+            "week_start": monday,
+            "legs": [{"account_id": account["id"], "amount": amount}],
+        }
         r = c.post("/api/freelance/payouts", json=body)
         assert r.status_code == 201, r.text
 

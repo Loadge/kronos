@@ -14,6 +14,8 @@ import io
 import app.services.fx as fx
 import pytest
 
+from tests.api.payout_setup import post
+
 FX = 1.1172  # USD per EUR
 
 SHEET = "/timesheet/freelance?from=2026-10-01&to=2026-11-30&notes=1&sign=1&today=2026-11-02"
@@ -52,10 +54,8 @@ def _block(client, **body):
     return r.json()
 
 
-def _payout(client, **body):
-    r = client.post("/api/freelance/payouts", json=body)
-    assert r.status_code == 201, r.text
-    return r.json()
+def _payout(client, source_id, week_start, amount, **extra):
+    return post(client, source_id, week_start, amount, **extra)
 
 
 def _data(client):
@@ -154,9 +154,18 @@ class TestPayoutsCsv:
             "billed_amount",
             "billed_eur",
             "fx_cost_eur",
-            "sent_amount",
-            "sent_currency",
-            "from_account",
+            "account_1",
+            "amount_1",
+            "currency_1",
+            "account_2",
+            "amount_2",
+            "currency_2",
+            "account_3",
+            "amount_3",
+            "currency_3",
+            "account_4",
+            "amount_4",
+            "currency_4",
         ]
         # $300.00 / 1.1172 = 268.53; its week held 2.5 h x $95 = $237.50 = 212.59 EUR
         assert rows[1] == [
@@ -172,15 +181,16 @@ class TestPayoutsCsv:
             "1",
             "2.50",
             "a, b",
-            "",
+            "Paid in USD",
             "manual",
             "2026-11-01",
             "237.50",
             "212.59",
             "",
-            "",
-            "",
-            "",
+            "Paid in USD",
+            "300.00",
+            "USD",
+            *[""] * 9,  # one account, so one leg
         ]
         assert len(rows) == 2
 
@@ -206,9 +216,11 @@ class TestSeedPayouts:
             assert client.post("/api/data/seed").status_code == 200
             payouts = client.get("/api/freelance/payouts").json()
             assert 3 <= len(payouts) <= 4
-            by_cur = {p["currency"]: [] for p in payouts}
+            # A payout is in its last account's currency (the bank's euros): what it paid over or
+            # under is the gap between its first leg and the estimate, in the billed currency.
+            by_cur = {p["gap_currency"]: [] for p in payouts}
             for p in payouts:
-                by_cur[p["currency"]].append(round(p["amount"] - p["estimate_amount"], 2))
+                by_cur[p["gap_currency"]].append(p["gap"])
             assert max(by_cur["USD"]) > 0 and min(by_cur["EUR"]) < 0
         blocks = client.get("/api/freelance/blocks").json()
         today = date.today()

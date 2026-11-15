@@ -104,7 +104,15 @@ def _seed(base_url: str, *, far: bool = False, note: str = LONG_NOTE) -> None:
                 "/api/freelance/blocks", json={"date": date, "source_id": sid, "hours": hours}
             )
             assert r.status_code == 201, r.text
-        payout = {"source_id": sid, "week_start": "2026-10-26", "amount": 100}
+        bank = (
+            next((a for a in c.get("/api/freelance/accounts").json() if a["name"] == "Bank"), None)
+            or c.post("/api/freelance/accounts", json={"name": "Bank", "currency": "EUR"}).json()
+        )
+        payout = {
+            "source_id": sid,
+            "week_start": "2026-10-26",
+            "legs": [{"account_id": bank["id"], "amount": 100}],
+        }
         r = c.post("/api/freelance/payouts", json=payout)
         assert r.status_code == 201, r.text
 

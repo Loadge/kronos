@@ -3870,27 +3870,25 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .quiet { color: var(--k-muted); font-style: italic; font-size: 0.78rem; }
 .wk-status { font-size: 0.68rem; line-height: 1.1; color: var(--k-muted); text-align: center; white-space: nowrap; }
 .wk-status.is-saved { color: var(--k-surplus); }
-.wk-status.is-invalid, .wk-status.is-error { color: var(--k-deficit); }
+.wk-status.is-invalid, .wk-status.is-error, .wk-status.is-noanswer { color: var(--k-deficit); }
 .wk-line { --src: var(--k-coin); font-size: 0.84rem; border-bottom: 1px solid color-mix(in srgb, var(--k-border) 60%, transparent); }
 .wk-src { grid-area: head; display: flex; align-items: center; gap: 0.45rem; min-width: 0; padding-left: 1.4rem; }
 .wk-src.wk-name1 { display: none; grid-area: src; }
 .wk-line.has-pay .wk-est { color: var(--k-muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--k-muted) 50%, transparent); }
-.wk-pay { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; cursor: default; }
-.wk-pay .cur, .wk-pay .cur-from { color: var(--k-muted); }
-.wk-line.has-pay .wk-pay .cur { color: var(--paid); }
+/* a line is --pl tall; every column of a row starts at the first line, so the Gap and the DIFF chip can be level with a line */
+.wk-line { align-items: start; --pl: 2rem; }
+.wk-pay { cursor: default; min-width: 0; }
+.wk-sum { line-height: var(--pl); }
+.wk-line .wk-h, .wk-line .wk-est, .wk-line .wk-eph, .wk-line .wk-gap { line-height: var(--pl); }
+.wk-line .wk-head, .wk-line .wk-src, .wk-line .wk-tail { min-height: var(--pl); }
+.wk-line .wk-head, .wk-line .wk-src { align-self: start; }
 .wk-conv { color: var(--paid); }
-.wk-pay .payin, .wk-pay .paysent { font-size: 0.84rem; width: 4.6rem; text-align: right; margin: 0; padding: 0.15rem 0.3rem; height: auto; border: none; border-bottom: 1px dashed var(--k-border-strong); border-radius: 0; background: transparent; box-shadow: none; }
-.wk-pay .payin:not(:placeholder-shown) { border-bottom-style: solid; color: var(--paid); font-weight: 600; }
-.wk-pay .payin::placeholder { color: var(--k-muted); font-style: italic; }
-.wk-fx { font-size: 0.76rem; color: var(--k-muted); display: inline-flex; align-items: baseline; gap: 0.3rem; }
-.wk-fx .pen { border: none; background: transparent; color: var(--k-brass); cursor: pointer; padding: 0 0.15rem; font-size: 0.85rem; width: auto; margin: 0; }
-.wk-fx .fxin { width: 4.8rem; margin: 0; padding: 0.1rem 0.3rem; height: auto; font-size: 0.76rem; text-align: right; }
 /* the current week has no room for two tags on one line: the month row still says what it splits */
 @media (min-width: 1280px) and (max-width: 1535px) { .wk-now ~ .wk-split { display: none; } }
 /* a USD payout's rate and euro amount need the 16.5rem of the single line: under 1280px, two lines */
 @media (max-width: 1279px) {
   .wk-cols, .wk-line {
-    grid-template-columns: 3.6rem 5.2rem minmax(0, 1fr) 5.2rem 4.6rem;
+    grid-template-columns: 3.6rem 5.2rem minmax(0, 1fr) 6.6rem 4.6rem; /* the Gap's column holds the DIFF chip */
     grid-template-areas: "head head head tail tail" "h est pay gap eph";
     row-gap: 0.1rem;
   }
@@ -3912,7 +3910,7 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
   .wk-src { padding-left: 0.9rem; }
   .wk-src.wk-name1 { display: flex; grid-area: src; align-items: center; gap: 0.45rem; padding-left: 1.4rem; margin-top: 0.1rem; }
   .wk-tail { align-items: flex-end; gap: 0.15rem; }
-  .wk-line:not(.wk-main) { grid-template-areas: "head head head" "h est eph" "pay pay gap"; }
+  .wk-line:not(.wk-main) { grid-template-areas: "head head tail" "h est eph" "pay pay gap"; }
   .wk-h, .wk-est, .wk-eph, .wk-gap, .wk-pay { margin-top: 0.4rem; }
   .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
   .wk-gap.wide { grid-area: gap; align-items: flex-start; }
@@ -5591,8 +5589,6 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 .acct-star:active { transform: scale(0.94); }
 .acct-star.on { color: var(--k-brass); border-color: var(--k-brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 18%, transparent); }
 .acct-star.on svg { fill: currentColor; transform: rotate(72deg); }
-.src-paid { display: flex; align-items: center; gap: 0.4rem; margin: 0; }
-.src-paid select { margin: 0; width: auto; min-width: 9rem; height: auto; min-height: 1.75rem; padding-block: 0.15rem; font-size: 0.8rem; }
 .acct-picker { position: relative; flex: 0 1 15rem; min-width: 11rem; }
 .acct-picker input { width: 100%; }
 .src-form-row .acct-picker input[type=text] { flex: none; }
@@ -5607,18 +5603,48 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 .acct-curlist li.none { cursor: default; }
 .acct-curlist li[aria-selected="true"] b::after { content: " •"; }
 
-/* the payout: where it lands, what it is worth, what the exchange cost */
-.wk-pay .payacct, .wk-pay .payfrom {
-  margin: 0; width: auto; max-width: 8rem; height: auto; min-height: 1.5rem; padding: 0.1rem 1.3rem 0.1rem 0.35rem;
-  font-size: 0.74rem; background-position: center right 0.35rem; background-size: 0.75rem auto; border-radius: 4px;
+/* the payout cell (_pay_cell.html): one line per account of the chain, each --pl tall: the account's mark, the amount
+   with its X inside the box, the account. Under the last line, an account not in euros has its euro value. */
+.payc { display: flex; flex-direction: column; min-width: 0; --pl: 2rem; }
+.payc-l { display: flex; align-items: center; gap: 0.4rem; height: var(--pl); min-width: 0; }
+/* the marks get one width, so the amounts line up in any font ($ and € differ on Linux); a code ("GBP") needs more */
+.payc .cur { flex: 0 0 1.1em; text-align: center; color: var(--k-muted); }
+.payc.wide-mark .cur { flex-basis: 3em; }
+.amt-box { position: relative; flex: 0 0 6.4rem; display: flex; align-items: center; min-width: 0; }
+.payc .payin {
+  width: 100%; height: 1.75rem; margin: 0; padding: 0 1.55rem 0 0.3rem; font-size: 0.84rem; line-height: 1.2; text-align: right;
+  background: transparent; border: none; border-bottom: 1px solid var(--k-border-strong); border-radius: 0; box-shadow: none;
+  color: var(--k-text); font-weight: 600; transition: border-color var(--k-transition-fast), color var(--k-transition-fast);
 }
-.wk-fx .worth { display: inline-flex; align-items: baseline; gap: 0.25rem; margin: 0; font-size: 0.74rem; color: var(--k-muted); }
+.payc .payin:focus { border-bottom-color: var(--k-brass); }
+.payc .payin::placeholder { color: var(--k-muted); font-style: italic; font-weight: 400; }
+.payc .payin:disabled { opacity: 1; cursor: default; }
+/* an amount that was not typed is only a suggestion */
+.payc .payin.is-sug { color: var(--k-muted); font-weight: 400; border-bottom-style: dashed; }
+.payc .payin.bad { border-bottom-color: var(--k-deficit); color: var(--k-deficit); }
+.wk-line.has-pay .payin:not(.is-sug):not(.bad) { color: var(--paid); }
+.clr {
+  position: absolute; right: 0; top: 50%; width: 1.5rem; height: 1.75rem; margin: -0.875rem 0 0; padding: 0; background: transparent; border: none;
+  border-radius: 4px; color: var(--k-muted); font-size: 0.95rem; line-height: 1; cursor: pointer;
+  transition: color var(--k-transition-fast), transform var(--k-transition-fast), opacity var(--k-transition-fast);
+}
+.clr:hover:not(:disabled), .clr:focus-visible { color: var(--k-deficit); transform: scale(1.2); }
+.clr:active:not(:disabled) { transform: scale(0.9); }
+.clr:disabled { opacity: 0.22; cursor: default; }
+.payc .payacct {
+  flex: 1 1 6rem; min-width: 0; max-width: 11rem; width: auto; height: 1.75rem; margin: 0; padding: 0 1.3rem 0 0.35rem; font-size: 0.8rem; line-height: 1.2;
+  background-position: center right 0.35rem; background-size: 0.75rem auto; border-radius: 4px; text-overflow: ellipsis;
+}
+.payc .payadd { flex: 1 1 6rem; min-width: 0; }
+.wk-fx { font-size: 0.76rem; color: var(--k-muted); display: flex; align-items: center; gap: 0.3rem 0.45rem; flex-wrap: wrap; min-height: 1.6rem; padding-left: 1.5em; }
+.wk-fx .worth { display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; font-size: 0.74rem; color: var(--k-muted); }
 .wk-fx .worthin { width: 4.8rem; margin: 0; padding: 0.1rem 0.3rem; height: auto; min-height: 1.5rem; font-size: 0.76rem; text-align: right; }
-.wk-fx .pen-link {
+.wk-fx .worthin.bad { border-color: var(--k-deficit); color: var(--k-deficit); }
+.pen-link, .pay-del {
   display: inline-flex; align-items: center; min-height: 1.5rem; margin: 0; padding: 0 0.15rem; width: auto; border: none; background: transparent;
   color: var(--k-brass); font-size: 0.72rem; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 0.2em;
 }
-.wk-fx .pen-link:hover { text-decoration-style: solid; }
+.pen-link:hover, .pay-del:hover { text-decoration-style: solid; }
 .fx-chip {
   display: inline-flex; align-items: center; justify-content: center; margin: 0; width: auto; min-width: 1.75rem; height: 1.5rem; padding: 0 0.45rem;
   border: 1px solid var(--k-brass); border-radius: 999px; background: transparent; color: var(--k-brass);
@@ -5628,42 +5654,97 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 }
 .fx-chip:hover, .fx-chip:focus-visible { background: color-mix(in srgb, var(--k-brass) 16%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 22%, transparent); transform: translateY(-1px); }
 .fx-chip:active { transform: scale(0.95); }
-/* The payout cell, from _pay_cell.html: line 1 what was sent, line 2 what arrived, line 3 the euro value. Without
-   accounts there is one line, and the lines dissolve into the old flex row. */
-.payc { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
-.payc-l { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
-.wk-pay:not(.two) .payc, .wk-pay:not(.two) .payc-l { display: contents; }
-.wk-pay.two { display: block; align-self: start; --pl: 2rem; }
-.wk-pay.two .payc { gap: 0; }
-.wk-pay.two .payc-l { height: var(--pl); }
-/* the marks get one width, so the two amounts line up in any font ($ and € differ on Linux); a code ("GBP") needs more */
-.wk-pay.two .cur, .wk-pay.two .cur-from, .fl-wait-form .cur, .fl-wait-form .cur-from { flex: 0 0 1.1em; text-align: center; }
-.payc.wide-mark .cur, .payc.wide-mark .cur-from { flex-basis: 3em; }
-.wk-pay.two .payin, .wk-pay.two .paysent { width: 5.6rem; flex: none; }
-.wk-pay.two .payacct, .wk-pay.two .payfrom { width: 8.6rem; max-width: 8.6rem; flex: none; }
-.wk-pay.two .wk-fx { padding-left: 0.2rem; flex-wrap: wrap; }
-.wk-pay .paysent { border-bottom-style: solid; color: var(--k-text); }
-.wk-pay .payin.is-sug, .wk-pay .paysent.is-sug, .fl-wait-form .payin.is-sug, .fl-wait-form .paysent.is-sug { color: var(--k-muted); font-weight: 400; border-bottom-style: dashed; }
-.wk-chip { grid-area: chip; justify-self: end; display: flex; align-items: center; min-width: 0; }
-.wk-line.two {
-  --pl: 2rem; grid-template-rows: var(--pl) var(--pl) auto;
-  grid-template-areas: "head h est pay gap eph tail" ". . . pay chip . tail" ". . . pay . . .";
+/* the chip sits in the Gap's column, level with the last line (the line under the gap when there is only one) */
+.wk-chip { grid-area: gap; justify-self: end; align-self: start; display: flex; align-items: center; min-width: 0; margin-top: calc(var(--k, 1) * var(--pl) + (var(--pl) - 1.5rem) / 2); }
+.wk-gap b { font-weight: 700; }
+/* the end of a row: Confirm, or the tag, and Delete, under the first line */
+.tail-top { display: flex; align-items: center; justify-content: center; gap: 0.3rem; min-height: var(--pl); }
+/* Confirm is solid (brass, with the small coin) once something changed, and an outline (`calm`) while nobody touched the row */
+.pay-confirm {
+  display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; width: auto; height: 1.8rem; padding: 0 0.7rem 0 0.3rem; border: 1px solid var(--k-brass);
+  border-radius: 999px; background: var(--k-brass); color: var(--k-bg); font-size: 0.78rem; font-weight: 700; line-height: 1; white-space: nowrap; cursor: pointer;
+  animation: pay-pop 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background var(--k-transition-fast), color var(--k-transition-fast), transform var(--k-transition-fast), opacity var(--k-transition-fast), box-shadow var(--k-transition-fast);
 }
-@media (max-width: 1279px) {
-  .wk-line.two { grid-template-rows: auto var(--pl) var(--pl) auto; grid-template-areas: "head head head tail tail" "h est pay gap eph" ". . pay chip ." ". . pay . ."; }
+.pay-confirm i { width: 1.2rem; height: 1.2rem; flex: none; border-radius: 50%; background: radial-gradient(circle at 34% 28%, var(--k-text), var(--k-coin) 45%, var(--k-metal-edge)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--k-metal-void) 45%, transparent); transition: transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.pay-confirm:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 25%, transparent); }
+.pay-confirm:hover:not(:disabled) i { transform: rotate(-20deg) translateY(-2px); }
+.pay-confirm:active:not(:disabled) { transform: scale(0.94); }
+.pay-confirm.calm { padding: 0 0.85rem; background: transparent; color: var(--k-brass); }
+.pay-confirm.calm i { display: none; }
+.pay-confirm.calm:hover:not(:disabled) { background: color-mix(in srgb, var(--k-brass) 16%, transparent); }
+.pay-confirm:disabled { opacity: 0.4; cursor: default; }
+/* the arrow that discards the changes of a row: a round outline, a quarter back on hover */
+.pay-undo {
+  flex: none; width: 1.6rem; height: 1.6rem; margin: 0; padding: 0; border-radius: 50%; background: transparent; border: 1px solid var(--k-border-strong);
+  color: var(--k-muted); font-size: 0.85rem; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  transition: color var(--k-transition-fast), border-color var(--k-transition-fast), transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-@media (max-width: 600px) {
-  .wk-line.two { grid-template-rows: auto auto auto calc(var(--pl) + 0.9rem) var(--pl) auto; grid-template-areas: "head head tail" "src src src" "h est eph" "pay pay gap" "pay pay chip" "pay pay ."; }
-  .wk-line.two:not(.wk-main) { grid-template-rows: auto auto calc(var(--pl) + 0.9rem) var(--pl) auto; grid-template-areas: "head head head" "h est eph" "pay pay gap" "pay pay chip" "pay pay ."; }
-  .wk-line.two .wk-pay, .wk-line.two .wk-gap, .wk-line.two .wk-chip { margin-top: 0; }
-  .wk-line.two .wk-h, .wk-line.two .wk-est, .wk-line.two .wk-eph { margin-bottom: 0.4rem; }
-  /* the labels of the Payout and Gap cells are one 0.9rem line, so line 1 and the gap's figure share a height */
-  .wk-line.two .wk-pay::before, .wk-line.two .wk-gap::before { display: block; height: 0.9rem; line-height: 0.9rem; }
-  .wk-line.two .wk-gap { height: calc(var(--pl) + 0.9rem); }
-  .wk-line.two .wk-gap b { display: flex; align-items: center; height: var(--pl); }
-  .wk-line.two .wk-chip { justify-self: start; }
-  .wk-pay.two .payin, .wk-pay.two .paysent { width: 5rem; }
-  .wk-pay.two .payacct, .wk-pay.two .payfrom { width: 7.6rem; max-width: 7.6rem; }
+.pay-undo:hover, .pay-undo:focus-visible { color: var(--k-text); border-color: var(--k-text); transform: rotate(-90deg); }
+@keyframes pay-pop { from { transform: scale(0.7); opacity: 0; } }
+/* A confirmed payout: the seal of Kronos falls where Confirm was, rings and thuds as it lands, and leaves; the badge inks
+   in after it. The tail hides its badge and Delete meanwhile (`stamping`); the seal takes no clicks. */
+.tail-top { position: relative; }
+.wk-tail.stamping .wk-tag, .wk-tail.stamping .pay-del { visibility: hidden; }
+.seal {
+  position: absolute; left: 50%; top: 50%; width: 2.7rem; height: 2.7rem; margin: -1.35rem 0 0 -1.35rem; border-radius: 50%;
+  display: grid; place-items: center; z-index: 3; pointer-events: none;
+  background: radial-gradient(circle at 34% 28%, color-mix(in srgb, var(--k-coin) 65%, var(--k-text)), var(--k-brass) 52%, var(--k-metal-edge) 100%);
+  box-shadow: inset 0 1px 1px color-mix(in srgb, var(--k-text) 55%, transparent), inset 0 -2px 3px color-mix(in srgb, var(--k-metal-void) 55%, transparent), 0 6px 14px color-mix(in srgb, var(--k-metal-void) 80%, transparent);
+  animation: seal-drop 460ms cubic-bezier(0.55, 0, 0.8, 0.3) both;
+}
+.seal img { width: 80%; height: 80%; border-radius: 50%; display: block; }
+.seal::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; border: 2px solid var(--k-brass); opacity: 0; }
+.seal.hit::after { animation: seal-ring 520ms ease-out; }
+.seal.out { animation: seal-out 260ms ease-in forwards; }
+.wk-line.thud { animation: seal-thud 300ms ease-out; }
+.wk-tag.ink { animation: tag-ink 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+/* it touches down at 70% (322 ms) so it has landed when the ring and the coins start at 360 ms, then settles */
+@keyframes seal-drop { 0% { transform: translateY(-54px) scale(2.4) rotate(-26deg); opacity: 0; } 40% { opacity: 1; } 70% { transform: translateY(0) scale(0.84) rotate(0); } 100% { transform: scale(1); } }
+@keyframes seal-out { to { transform: scale(0.3) rotate(50deg); opacity: 0; } }
+@keyframes seal-ring { 0% { transform: scale(0.8); opacity: 0.9; } 100% { transform: scale(2.1); opacity: 0; } }
+@keyframes seal-thud { 30% { transform: translateY(2px); } }
+@keyframes tag-ink { from { transform: scale(1.6) rotate(-8deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .seal { display: none; } .wk-line.thud, .wk-tag.ink { animation: none; } }
+/* From 641px to 1279px the block rows of an open week are wider than the wrap and it scrolls sideways: the week
+   lines stay as wide as the wrap and where they are, so Confirm, Delete, the Gap and the chip are always on screen */
+@media (min-width: 641px) and (max-width: 1279px) {
+  .days-wrap { container-type: inline-size; }
+  .days-table--fl tr.wk-row .wk-line, .days-table--fl tr.wk-lines .wk-line, .days-table--fl thead .wk-cols { position: sticky; left: 0; box-sizing: border-box; width: 100cqw; }
+}
+@media (prefers-reduced-motion: reduce) { .pay-confirm, .pay-confirm i, .pay-undo, .clr { animation: none; transition: none; } .pay-undo:hover, .pay-confirm:hover:not(:disabled) i { transform: none; } }
+/* Between 601px and 768px the wrap is too narrow for five fixed columns beside the cell (the account's select was
+   22px wide): a week line takes the shape it has on a phone, and the column header, which no longer stands over
+   columns, goes. The block rows keep what they have at that width. */
+@media (min-width: 601px) and (max-width: 768px) {
+  .days-table--fl thead { display: none; }
+  .wk-line { grid-template-columns: 1fr 1fr auto; grid-template-areas: "head head tail" "src src src" "h est eph" "pay pay gap"; row-gap: 0; padding: 0.4rem 0.3rem 0.55rem 0.5rem; }
+  .wk-src { padding-left: 0.9rem; }
+  .wk-src.wk-name1 { display: flex; grid-area: src; align-items: center; gap: 0.45rem; padding-left: 1.4rem; margin-top: 0.1rem; }
+  .wk-tail { align-items: flex-end; gap: 0.15rem; }
+  .wk-line:not(.wk-main) { grid-template-areas: "head head tail" "h est eph" "pay pay gap"; }
+  .wk-h, .wk-est, .wk-eph, .wk-gap, .wk-pay { margin-top: 0.4rem; }
+  .wk-h, .wk-est, .wk-eph, .wk-gap { display: flex; flex-direction: column; text-align: left; }
+  .wk-gap.wide { grid-area: gap; align-items: flex-start; }
+  .wk-line [data-l]::before { content: attr(data-l); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--k-muted); }
+}
+@media (max-width: 600px) { .amt-box { flex-basis: 5.6rem; } }
+@media (max-width: 768px) {
+  /* on a phone the Payout and Gap cells carry a label of one 0.9rem line, so the first account line and the gap's figure share a height */
+  .wk-line .wk-pay::before, .wk-line .wk-gap::before { display: block; height: 0.9rem; line-height: 0.9rem; }
+  .wk-line .wk-h, .wk-line .wk-est, .wk-line .wk-eph { line-height: 1.4; }
+  .wk-line .wk-gap { line-height: 1.4; }
+  .wk-line .wk-gap b { display: block; line-height: var(--pl); }
+  .wk-chip { justify-self: start; margin-top: calc(0.4rem + 0.9rem + var(--k, 1) * var(--pl) + (var(--pl) - 1.5rem) / 2); }
+  .payc .payacct { max-width: none; }
+  .wk-fx { padding-left: 0; }
+}
+/* On narrow phones (up to 400px) the cell, the Gap and the chip do not fit side by side and leave the account's
+   select 59px wide: the Gap and the chip take the row under the cell, and the select has the whole width */
+@media (max-width: 400px) {
+  .wk-line { grid-template-areas: "head head tail" "src src src" "h est eph" "pay pay pay" "gap gap gap"; }
+  .wk-line:not(.wk-main) { grid-template-areas: "head head tail" "h est eph" "pay pay pay" "gap gap gap"; }
+  .wk-chip { justify-self: end; margin-top: calc(0.4rem + 0.9rem + (var(--pl) - 1.5rem) / 2); }
 }
 /* Payouts waiting: the Freelance card of the page where days are logged. Selected chip: teal outline and text. */
 .fl-wait { margin-top: 0.7rem; padding-top: 0.6rem; border-top: 1px dashed var(--k-border); display: flex; flex-direction: column; gap: 0.5rem; }
@@ -5682,12 +5763,11 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
 @keyframes fl-wait-out { to { opacity: 0; transform: translateY(-6px) scale(0.8); } }
 .fl-wait-more { font-size: 0.74rem; color: var(--k-muted); text-decoration: underline dotted; text-underline-offset: 0.2em; padding: 0 0.3rem; }
 .fl-wait-more:hover { color: var(--k-text); }
-.fl-wait-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; margin: 0; animation: fl-wait-in 0.2s ease-out; }
+.fl-wait-form { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.5rem; margin: 0; animation: fl-wait-in 0.2s ease-out; }
 @keyframes fl-wait-in { from { opacity: 0; transform: translateY(3px); } }
-.fl-wait-form .cur { color: var(--paid); }
-.fl-wait-form .cur-from { color: var(--k-muted); }
-.fl-wait-form .payin, .fl-wait-form .paysent { width: 6rem; margin: 0; height: 2rem; padding: 0 0.5rem; font-size: 0.88rem; text-align: right; }
-.fl-wait-form .payacct, .fl-wait-form .payfrom { width: auto; max-width: 11rem; margin: 0; height: 2rem; padding-top: 0; padding-bottom: 0; font-size: 0.82rem; }
+.fl-wait-cell { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.3rem 0.9rem; --pl: 2.2rem; min-width: 0; width: 100%; }
+.fl-wait-cell .payc { flex: 0 1 22rem; }
+.fl-wait-end { display: flex; align-items: center; gap: 0.6rem; min-height: var(--pl); }
 button.fl-wait-save { width: auto; margin: 0; height: 2rem; padding: 0 1rem; border: 1px solid var(--paid); border-radius: 6px; background: var(--paid); color: var(--k-bg); font-weight: 600; cursor: pointer; transition: opacity var(--k-transition-fast), transform var(--k-transition-fast); }
 button.fl-wait-save:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
 button.fl-wait-save:active:not(:disabled) { transform: scale(0.97); }
@@ -5699,7 +5779,7 @@ button.fl-wait-save:disabled { opacity: 0.4; cursor: default; }
   color: var(--k-text); font-size: 0.78rem; line-height: 1.45; text-align: left; pointer-events: none; animation: q-pop 0.16s ease-out;
 }
 @media (min-width: 1280px) {
-  .days-table--fl.has-accts .wk-cols, .days-table--fl.has-accts .wk-line { grid-template-columns: minmax(12rem, 1fr) 3.2rem 5.2rem minmax(19.5rem, 1fr) 6.6rem 3.8rem 6.6rem; }
+  .days-table--fl .wk-cols, .days-table--fl .wk-line { grid-template-columns: minmax(15rem, 1fr) 3.2rem 5.2rem minmax(15rem, 1fr) 6.6rem 3.8rem 8.2rem; } /* the end holds Confirm and its arrow */
 }
 
 /* the Freelance tab: what the year lost to the exchange, and where the money landed */
@@ -5840,4 +5920,161 @@ button:active:not(:disabled), [role="button"]:active, [role="tab"]:active, summa
 @media (prefers-reduced-motion: reduce) {
   .net-banner, .nf-logo { animation: none; }
   .net-banner-retry, .nf-back { transition: none; }
+}
+
+/* ── The dotted handle: the lists of Settings the user puts in order by hand ───────────────────────────── */
+button.grip, .settings-card button.grip {
+  flex: none; width: 1.6rem; height: 2rem; margin: -0.6rem 0; padding: 0;  /* taller than a row's text: the margin keeps the row's height */
+  display: grid; place-items: center;
+  background: transparent; border: none; border-radius: 4px; box-shadow: none;
+  color: var(--k-muted); cursor: grab;
+  touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  transition: color var(--k-transition-fast), background-color var(--k-transition-fast);
+}
+.grip svg { display: block; pointer-events: none; }
+button.grip:hover, button.grip:focus-visible { color: var(--k-brass); background: color-mix(in srgb, var(--k-brass) 10%, transparent); }
+button.grip:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; }
+.grip-gap { flex: none; width: 1.6rem; height: 2rem; margin: -0.6rem 0; }
+.template-item { gap: 0.6rem; }
+.template-item .grip + div { flex: 1 1 auto; min-width: 0; }
+.sort-list { position: relative; }
+.sort-busy, .sort-busy * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+.sort-list.is-sorting > [data-sort-id]:not(.sorting) { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.sort-row.sorting {
+  position: relative; z-index: 4; background: var(--k-surface); border-radius: 6px; border-bottom-color: transparent;
+  margin-inline: -0.5rem; padding-inline: 0.5rem;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--k-metal-void) 85%, transparent), 0 0 0 1px var(--k-brass);
+  transition: box-shadow 150ms ease;
+}
+.sort-row.sorting .grip { color: var(--k-brass); }
+.sort-row.landed { animation: sort-landed 420ms ease-out; }
+@keyframes sort-landed { 0% { background: color-mix(in srgb, var(--k-brass) 18%, var(--k-surface)); transform: scale(1.01); } }
+@media (max-width: 720px) {
+  button.grip, .settings-card button.grip { width: 1.9rem; height: 2.4rem; margin: 0; }
+  .grip-gap { width: 1.9rem; height: 2.4rem; margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.grip, .sort-row.sorting { transition: none; }
+  .sort-list.is-sorting > [data-sort-id]:not(.sorting) { transition: none; }
+  .sort-row.landed { animation: none; }
+}
+
+/* ── The four boxes of accounts of an income source (Settings > Freelance) ─────────────────────────────── */
+/* Their place is their place in the chain; a list opens under a box to fill it, the X empties it. */
+/* role="group" brings Pico's button-group look (full width, a bottom margin, a focus ring): undone here */
+.settings-card .chain {
+  display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; position: relative; width: auto; min-width: 0; max-width: 100%;
+  margin: 0; border-radius: 0; box-shadow: none; vertical-align: baseline; transition: none;
+}
+/* A source row has one shape at every width. Line 1: the handle, the dot and the name block. Line 2, under the
+   name: the boxes, and the buttons at the right end when they fit beside them, else a line of their own. */
+.src-item--chain { display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: 0.75rem; row-gap: 0.5rem; align-items: center; }
+.src-item--chain > .src-main { min-width: 0; }
+.src-under { grid-column: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 0.75rem; min-width: 0; }
+.slot-cell { display: contents; }
+.chain .link { color: var(--k-border-strong); font-size: 0.8rem; user-select: none; }
+.slot {
+  display: inline-flex; align-items: stretch; height: 2rem; min-width: 2.6rem; max-width: 100%;
+  border: 1.5px dashed color-mix(in srgb, var(--k-muted) 55%, transparent); border-radius: 6px; color: var(--k-muted);
+  transition: border-color var(--k-transition-fast), background var(--k-transition-fast), transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--k-transition-fast);
+}
+.slot:hover { border-color: var(--k-muted); }
+.slot.filled {
+  max-width: min(100%, 12rem); border-style: solid; border-color: color-mix(in srgb, var(--k-brass) 45%, var(--k-border));
+  color: var(--k-text); background: color-mix(in srgb, var(--k-brass) 7%, transparent);
+}
+.settings-card .chain button {
+  margin: 0; width: auto; height: auto; min-height: 0; padding: 0; background: transparent; border: none; box-shadow: none;
+  color: inherit; font: inherit; font-size: 0.8rem; line-height: 1.2; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.settings-card .chain button:focus-visible { outline: 2px solid var(--k-brass); outline-offset: 1px; }
+.settings-card .chain .slot-main {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; flex: 0 1 auto; min-width: 2.4rem;
+  padding: 0 0.5rem; border-radius: 5px; overflow: hidden;
+}
+.slot.filled .slot-main { min-width: 0; padding-right: 0.2rem; font-weight: 600; justify-content: flex-start; }
+.slot.filled .slot-main svg { color: var(--k-brass); flex: none; }
+.slot-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-n { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 0.72rem; opacity: 0.7; }
+.settings-card .chain .slot-x {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 1.5rem; border-radius: 0 5px 5px 0;
+  color: var(--k-muted); font-size: 0.95rem; line-height: 1;
+  transition: color var(--k-transition-fast), background var(--k-transition-fast);
+}
+.settings-card .chain .slot-x:hover { color: var(--k-deficit); background: color-mix(in srgb, var(--k-deficit) 14%, transparent); }
+.slot.pop { animation: slot-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes slot-pop { 0% { transform: scale(0.8); } 60% { transform: scale(1.1); } 100% { transform: scale(1); } }
+.settings-card .chain .picker {
+  position: absolute; z-index: 6; left: 0; top: calc(100% + 4px); min-width: 11rem; max-width: min(16rem, calc(100vw - 3rem));
+  margin: 0; padding: 0.25rem; list-style: none; background: var(--k-bg); border: 1px solid var(--k-brass); border-radius: 6px;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--k-metal-void) 85%, transparent);
+  animation: chain-list-in 160ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.picker li { margin: 0; padding: 0; list-style: none; }
+.settings-card .chain .picker button {
+  display: flex; width: 100%; align-items: center; gap: 0.5rem; min-height: 2rem; padding: 0.4rem 0.55rem;
+  border-radius: 4px; font-size: 0.85rem; text-align: left;
+}
+.settings-card .chain .picker button svg { color: var(--k-brass); flex: none; }
+.settings-card .chain .picker button:hover, .settings-card .chain .picker button:focus-visible {
+  background: color-mix(in srgb, var(--k-brass) 14%, transparent);
+}
+.settings-card .chain .picker button:focus-visible { outline-offset: -2px; }
+.settings-card .chain .picker button[aria-selected="true"] { color: var(--k-brass); font-weight: 600; }
+.pk-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-cur { margin-left: auto; flex: none; color: var(--k-muted); font-size: 0.72rem; }
+.settings-card .chain .picker .rm { color: var(--k-deficit); border-top: 1px solid var(--k-border); border-radius: 0 0 4px 4px; }
+@keyframes chain-list-in { from { opacity: 0; transform: translateY(-4px) scale(0.96); } }
+@media (max-width: 720px) {
+  .src-item .chain { gap: 0.4rem; }
+  .slot { height: 2.4rem; }
+  .chain .link { display: none; }
+  .settings-card .chain .picker button { min-height: 2.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slot, .settings-card .chain .slot-x { transition: none; }
+  .slot.pop, .settings-card .chain .picker { animation: none; }
+}
+
+/* ── An account's name is carried into a box (Settings > Freelance) ────────────────────────────────────── */
+/* The name of a live account is a chip: the mouse drags it after a few pixels, a finger after holding it 300 ms
+   (so a swipe on a name still scrolls: no touch-action here). A small copy follows the pointer, the boxes breathe,
+   the one under the pointer is lit. The chip is not focusable: the list of a box is the way for a keyboard. */
+.acct-item .src-main { align-items: center; }
+.acct-who { display: inline-flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 100%; }
+.acct-chip {
+  min-height: 24px; padding: 0 0.5rem 0 0.45rem; margin-left: -0.45rem; border-radius: 6px;
+  outline: 1px solid transparent; outline-offset: -1px;
+  cursor: grab; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  transition: outline-color var(--k-transition-fast), transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), background var(--k-transition-fast);
+}
+.acct-chip:hover { outline: 1px dashed color-mix(in srgb, var(--k-brass) 50%, transparent); outline-offset: -1px; transform: translateY(-1px) rotate(-1deg); }
+.acct-chip.held { outline: 1px solid var(--k-brass); transform: scale(0.94); background: color-mix(in srgb, var(--k-brass) 14%, transparent); }
+.acct-chip.lifted { opacity: 0.35; }
+.acct-ghost {
+  position: fixed; z-index: 60; left: 0; top: 0; pointer-events: none; display: inline-flex; align-items: center; gap: 0.5rem;
+  max-width: min(20rem, calc(100vw - 2rem)); padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid var(--k-brass);
+  background: var(--k-surface); color: var(--k-text); font-size: 0.92rem; font-weight: 600; white-space: nowrap;
+  -webkit-user-select: none; user-select: none; will-change: transform;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--k-metal-void) 90%, transparent), 0 0 0 3px color-mix(in srgb, var(--k-brass) 20%, transparent);
+}
+.acct-ghost svg { color: var(--k-brass); flex: none; }
+.acct-ghost span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.acct-ghost.fly { transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease; }
+body.dragging-acct, body.dragging-acct * { cursor: grabbing !important; -webkit-user-select: none !important; user-select: none !important; }
+body.dragging-acct .slot { border-color: var(--k-brass); animation: slot-breathe 1.1s ease-in-out infinite; }
+body.dragging-acct .slot.over {
+  animation: none; transform: scale(1.1); border-style: solid; background: color-mix(in srgb, var(--k-brass) 22%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--k-brass) 28%, transparent);
+}
+@keyframes slot-breathe { 50% { background: color-mix(in srgb, var(--k-brass) 10%, transparent); } }
+@media (max-width: 720px) {
+  .acct-chip { min-height: 2.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acct-chip { transition: none; }
+  .acct-chip:hover, .acct-chip.held { transform: none; }
+  .acct-ghost, .acct-ghost.fly { transition: none; }
+  body.dragging-acct .slot { animation: none; }
+  body.dragging-acct .slot.over { transform: none; }
 }

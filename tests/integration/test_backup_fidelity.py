@@ -9,6 +9,8 @@ projection settings) is exercised, so a field added to the model but forgotten i
 
 from __future__ import annotations
 
+from tests.api.payout_setup import post as _payout
+
 
 def _populate(client):
     client.put(
@@ -88,21 +90,9 @@ def _populate(client):
         "/api/freelance/blocks",
         json={"date": "2026-03-07", "source_id": usd, "hours": 3, "fx_rate": 1.12},
     )
-    # Payouts: one USD with a hand-set rate and a note, one EUR.
-    client.post(
-        "/api/freelance/payouts",
-        json={
-            "source_id": usd,
-            "week_start": "2026-03-02",
-            "amount": 1200,
-            "fx_rate": 1.12,
-            "note": "March, week 1",
-        },
-    )
-    client.post(
-        "/api/freelance/payouts",
-        json={"source_id": eur, "week_start": "2026-03-09", "amount": 450.5},
-    )
+    # Payouts: one USD with a hand-set rate and a note, one EUR, each in an account of its currency.
+    _payout(client, usd, "2026-03-02", 1200, fx_rate=1.12, note="March, week 1")
+    _payout(client, eur, "2026-03-09", 450.5)
     client.put(f"/api/freelance/sources/{eur}", json={"archived": True})
     client.put(
         "/api/freelance/tax-years/2026",
@@ -194,7 +184,7 @@ class TestBackupRoundTripIsIdentity:
     def test_backup_restore_backup_is_identical(self, client):
         _populate(client)
         first = client.get("/api/backup").json()
-        assert first["version"] == 4
+        assert first["version"] == 6
         assert len(first["entries"]) == 4 and len(first["plans"]) == 3
         assert len(first["income_sources"]) == 2 and len(first["freelance_blocks"]) == 3
         assert len(first["freelance_tax_years"]) == 2
@@ -211,7 +201,15 @@ class TestBackupRoundTripIsIdentity:
 
         assert client.post("/api/restore", json=first).status_code == 200
         second = client.get("/api/backup").json()
+        assert [a["name"] for a in second["accounts"]] == ["Paid in USD", "Paid in EUR"]
+        assert [[leg["amount"] for leg in p["legs"]] for p in second["freelance_payouts"]] == [
+            [1200.0],
+            [450.5],
+        ]
         assert _strip(second) == _strip(first)
+        # and the file is a fixed point
+        assert client.post("/api/restore", json=second).status_code == 200
+        assert _strip(client.get("/api/backup").json()) == _strip(second)
         # The blocks found their sources again, with the rates they were saved with.
         blocks = client.get("/api/freelance/blocks").json()
         assert [(b["source_name"], b["rate"], b["currency"], b["fx_rate"]) for b in blocks] == [
@@ -233,8 +231,11 @@ class TestBackupRoundTripIsIdentity:
         _populate(client)
         first = client.get("/api/backup").json()
         client.post("/api/restore", json=first)
+        settled = client.get("/api/backup").json()
         client.post("/api/restore", json=first)
-        assert _strip(client.get("/api/backup").json()) == _strip(first)
+        assert _strip(client.get("/api/backup").json()) == _strip(settled)
+        client.post("/api/restore", json=settled)
+        assert _strip(client.get("/api/backup").json()) == _strip(settled)
         assert len(client.get("/api/entries").json()) == 4
 
     def test_every_documented_field_is_in_the_file(self, client):
@@ -281,8 +282,8 @@ class TestBackupRoundTripIsIdentity:
             "currency",
             "is_default",
             "archived",
-            "default_account_id",
-            "default_from_account_id",
+            "position",
+            "chain",
         }
         assert set(backup["freelance_blocks"][0]) == {
             "date",
@@ -305,9 +306,7 @@ class TestBackupRoundTripIsIdentity:
             "account_id",
             "rate_source",
             "rate_date",
-            "sent_amount",
-            "sent_currency",
-            "from_account_id",
+            "legs",
         }
         assert set(backup["freelance_tax_years"][0]) == {
             "year",
@@ -324,6 +323,7 @@ class TestBackupRoundTripIsIdentity:
         _populate(client)
         old = client.get("/api/backup").json()
         for key in (
+            "accounts",
             "income_sources",
             "freelance_blocks",
             "freelance_tax_years",
@@ -356,22 +356,19 @@ def _populate_accounts(client, monkeypatch):
             "hourly_rate": 95,
             "currency": "USD",
             "is_default": True,
-            "default_account_id": bank,
+            "chain": [bank],
         },
     ).json()["id"]
     client.post(
         "/api/freelance/blocks",
         json={"date": "2026-10-27", "source_id": usd, "hours": 4, "fx_rate": 1.1172},
     )
-    for week, body in (
-        ("2026-10-26", {"account_id": bank, "amount": 877.94, "paid_on": "2026-11-02"}),
-        ("2026-11-02", {"account_id": wallet, "amount": 0.01234567, "eur_amount": 700.5}),
-        ("2026-11-09", {"account_id": bank, "amount": 100.0, "note": "late"}),
+    for week, account, amount, extra in (
+        ("2026-10-26", bank, 877.94, {"paid_on": "2026-11-02"}),
+        ("2026-11-02", wallet, 0.01234567, {"eur_amount": 700.5}),
+        ("2026-11-09", bank, 100.0, {"note": "late"}),
     ):
-        r = client.post(
-            "/api/freelance/payouts", json={"source_id": usd, "week_start": week, **body}
-        )
-        assert r.status_code == 201, r.text
+        _payout(client, usd, week, amount, account_id=account, **extra)
     return bank, wallet
 
 
@@ -385,12 +382,12 @@ class TestAccountsSurviveTheRoundTrip:
             "name",
             "currency",
             "kind",
-            "role",
             "is_default",
             "archived",
             "created_at",
+            "position",
         }
-        assert first["income_sources"][0]["default_account_id"] == bank
+        assert first["income_sources"][0]["chain"] == [bank]
         p0, p1, p2 = first["freelance_payouts"]
         assert (p0["account_id"], p0["currency"], p0["rate_date"]) == (bank, "EUR", "2026-11-02")
         assert (p1["account_id"], p1["currency"], p1["rate_source"]) == (wallet, "BTC", "manual")
@@ -417,11 +414,12 @@ class TestAccountsSurviveTheRoundTrip:
         _populate(client)
         before = client.get("/api/freelance/payouts").json()
         old = client.get("/api/backup").json()
+        old["version"] = 3
         del old["accounts"]
         for s in old["income_sources"]:
-            del s["default_account_id"]
+            del s["chain"], s["position"]
         for p in old["freelance_payouts"]:
-            for k in ("account_id", "rate_source", "rate_date"):
+            for k in ("account_id", "rate_source", "rate_date", "legs"):
                 del p[k]
         client.post("/api/freelance/accounts", json={"name": "Kept", "currency": "EUR"})
         assert client.delete("/api/data").status_code == 200  # payouts gone; accounts stay
@@ -431,5 +429,16 @@ class TestAccountsSurviveTheRoundTrip:
         assert [(p["amount"], p["currency"], p["fx_rate"], p["amount_eur"]) for p in after] == [
             (p["amount"], p["currency"], p["fx_rate"], p["amount_eur"]) for p in before
         ]
-        assert all(p["account_id"] is None for p in after)
-        assert [a["name"] for a in client.get("/api/freelance/accounts").json()] == ["Kept"]
+        # the accounts that were there stay, and the payouts, which now get legs, take a made
+        # account each (the file has no accounts to put them in)
+        assert [(p["account_name"], p["currency"]) for p in after] == [
+            ("USD account", "USD"),
+            ("EUR account", "EUR"),
+        ]
+        assert [a["name"] for a in client.get("/api/freelance/accounts").json()] == [
+            "Paid in USD",
+            "Paid in EUR",
+            "Kept",
+            "USD account",
+            "EUR account",
+        ]

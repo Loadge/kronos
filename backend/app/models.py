@@ -8,6 +8,7 @@ from enum import StrEnum
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -142,6 +143,8 @@ class Template(Base):
     start_time: Mapped[str] = mapped_column(String(5), nullable=False)
     end_time: Mapped[str] = mapped_column(String(5), nullable=False)
     breaks: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+    # Where it stands in the list, set by hand with the handle (0 first).
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 # ---------- freelance ------------------------------------------------------
@@ -167,20 +170,13 @@ class Account(Base):
     archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )
-    # Which side of a payout it may be: "origin" sends, "destination" receives, "both" either.
-    role: Mapped[str] = mapped_column(
-        String(12), nullable=False, default="both", server_default="both"
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=lambda: datetime.now(UTC).replace(tzinfo=None)
     )
+    # Where it stands in the list and in every picker, set by hand with the handle (0 first).
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
-    payouts: Mapped[list[FreelancePayout]] = relationship(
-        back_populates="account", foreign_keys="FreelancePayout.account_id"
-    )
-    sent_payouts: Mapped[list[FreelancePayout]] = relationship(
-        back_populates="from_account", foreign_keys="FreelancePayout.from_account_id"
-    )
+    payouts: Mapped[list[FreelancePayout]] = relationship(back_populates="account")
 
 
 class IncomeSource(Base):
@@ -204,17 +200,42 @@ class IncomeSource(Base):
     archived: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="0"
     )
-    # The account the Payout form preselects for this source (None: none).
-    default_account_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
-    )
-    # The account it is usually paid from ("Paid from", beside "Paid into"; None: as billed).
-    default_from_account_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True
-    )
+    # Where it stands in the list and in every picker, set by hand with the handle (0 first).
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     blocks: Mapped[list[FreelanceBlock]] = relationship(back_populates="source")
     payouts: Mapped[list[FreelancePayout]] = relationship(back_populates="source")
+    # The accounts it is usually paid through, in order (none to four of them).
+    chain: Mapped[list[SourceAccount]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+        order_by="SourceAccount.position",
+    )
+
+
+class SourceAccount(Base):
+    """One account of the chain a source is usually paid through: ``position`` 0 is where the
+    money goes first, the last one is where it ends. A new payout of the source starts with this
+    chain; a saved payout keeps its own (``PayoutLeg``), whatever happens here afterwards."""
+
+    __tablename__ = "income_source_accounts"
+    __table_args__ = (
+        UniqueConstraint("source_id", "position", name="uq_income_source_accounts_position"),
+        UniqueConstraint("source_id", "account_id", name="uq_income_source_accounts_account"),
+        CheckConstraint("position BETWEEN 0 AND 3", name="ck_income_source_accounts_position"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("income_sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    account_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    source: Mapped[IncomeSource] = relationship(back_populates="chain")
+    account: Mapped[Account] = relationship()
 
 
 class FreelanceBlock(Base):
@@ -268,9 +289,12 @@ class FreelanceBlock(Base):
 class FreelancePayout(Base):
     """What one source actually paid for one ISO week.
 
-    ``week_start`` is the Monday. ``currency`` is the account's when the payout went into one,
-    else the source's (``account_id`` None: a row from before accounts, in the source's
-    currency). ``fx_rate`` is units of that currency per EUR on the day the money landed (None
+    The money goes through a chain of one to four accounts (``legs``). ``amount`` / ``currency`` /
+    ``fx_rate`` / ``rate_source`` / ``rate_date`` are the LAST account's: what the payout is
+    worth, the figures every total reads.
+
+    ``week_start`` is the Monday. ``account_id`` is the account of the last leg and ``currency``
+    that account's. ``fx_rate`` is units of that currency per EUR on the day the money landed (None
     for EUR, or when no rate was available), taken once and never fetched again; ``rate_source``
     says whose (ECB, CoinGecko, manual) and ``rate_date`` which day it is of. At most one payout
     per source and week.
@@ -295,20 +319,13 @@ class FreelancePayout(Base):
     )
     rate_source: Mapped[str | None] = mapped_column(String(12), nullable=True)
     rate_date: Mapped[date_ | None] = mapped_column(Date, nullable=True)
-    # What was SENT (``amount``/``currency``/``account_id`` are what ARRIVED). ``sent_amount``
-    # None means "as billed": a payout from before this was recorded, read as it always was.
-    sent_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
-    sent_currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    from_account_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True, index=True
-    )
 
     source: Mapped[IncomeSource] = relationship(back_populates="payouts", lazy="joined")
-    account: Mapped[Account | None] = relationship(
-        back_populates="payouts", lazy="joined", foreign_keys=[account_id]
-    )
-    from_account: Mapped[Account | None] = relationship(
-        back_populates="sent_payouts", lazy="joined", foreign_keys=[from_account_id]
+    account: Mapped[Account | None] = relationship(back_populates="payouts", lazy="joined")
+    legs: Mapped[list[PayoutLeg]] = relationship(
+        back_populates="payout",
+        cascade="all, delete-orphan",
+        order_by="PayoutLeg.position",
     )
 
     @property
@@ -320,6 +337,34 @@ class FreelancePayout(Base):
         if self.fx_rate:
             return self.amount / self.fx_rate
         return None
+
+
+class PayoutLeg(Base):
+    """One account a payout's money went through. ``position`` 0 is the first; the last one holds
+    what the payout is worth. ``amount`` is in the account's currency. ``fixed`` says it was typed
+    by hand; otherwise it was worked out from the account before it (the first one, from what was
+    billed) and follows it when that one is edited. An account is never twice in one chain."""
+
+    __tablename__ = "freelance_payout_legs"
+    __table_args__ = (
+        UniqueConstraint("payout_id", "position", name="uq_freelance_payout_legs_position"),
+        UniqueConstraint("payout_id", "account_id", name="uq_freelance_payout_legs_account"),
+        CheckConstraint("position BETWEEN 0 AND 3", name="ck_freelance_payout_legs_position"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    payout_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("freelance_payouts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    account_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    fixed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    payout: Mapped[FreelancePayout] = relationship(back_populates="legs")
+    account: Mapped[Account] = relationship(lazy="joined")
 
 
 class FreelanceTaxYear(Base):

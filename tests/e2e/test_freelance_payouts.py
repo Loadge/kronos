@@ -30,8 +30,12 @@ def _wk(monday: datetime.date) -> str:
 def _wipe(base_url: str) -> None:
     with httpx.Client(base_url=base_url) as c:
         c.delete("/api/data")
+        for p in c.get("/api/freelance/payouts").json():
+            c.delete(f"/api/freelance/payouts/{p['id']}")
         for s in c.get("/api/freelance/sources").json():
             c.delete(f"/api/freelance/sources/{s['id']}")
+        for a in c.get("/api/freelance/accounts").json():
+            c.delete(f"/api/freelance/accounts/{a['id']}")
 
 
 @pytest.fixture(autouse=True)
@@ -41,11 +45,26 @@ def _clean(base_url):
     _wipe(base_url)
 
 
-def _source(base_url: str, name="Local", rate=60, currency="EUR") -> int:
+def _account(base_url: str, currency: str) -> int:
+    """The account "Bank <currency>" of this test, made the first time it is asked for."""
     with httpx.Client(base_url=base_url) as c:
+        for a in c.get("/api/freelance/accounts").json():
+            if a["name"] == f"Bank {currency}":
+                return a["id"]
         r = c.post(
-            "/api/freelance/sources", json={"name": name, "hourly_rate": rate, "currency": currency}
+            "/api/freelance/accounts", json={"name": f"Bank {currency}", "currency": currency}
         )
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+
+def _source(base_url: str, name="Local", rate=60, currency="EUR", chain=False) -> int:
+    """`chain`: the source is paid through its currency's account, so its row has a line to type."""
+    body = {"name": name, "hourly_rate": rate, "currency": currency}
+    if chain:
+        body["chain"] = [_account(base_url, currency)]
+    with httpx.Client(base_url=base_url) as c:
+        r = c.post("/api/freelance/sources", json=body)
         assert r.status_code == 201, r.text
         return r.json()["id"]
 
@@ -57,7 +76,15 @@ def _block(base_url: str, **body) -> dict:
         return r.json()
 
 
-def _payout(base_url: str, **body) -> dict:
+def _payout(base_url: str, source_id, week_start, amount, currency="EUR", eur_amount=None) -> dict:
+    """A payout of one leg in the account of its currency, as a set-up (`eur_amount`: its worth)."""
+    body = {
+        "source_id": source_id,
+        "week_start": week_start,
+        "legs": [{"account_id": _account(base_url, currency), "amount": amount}],
+    }
+    if eur_amount is not None:
+        body["eur_amount"] = eur_amount
     with httpx.Client(base_url=base_url) as c:
         r = c.post("/api/freelance/payouts", json=body)
         assert r.status_code == 201, r.text
@@ -91,19 +118,35 @@ def _week_row(page, monday: datetime.date):
     return page.locator(f"tr.wk-row#wk-{monday.isoformat()}")
 
 
+def _field(page, monday: datetime.date):
+    """The amount of the one line of a one-source week."""
+    return _week_row(page, monday).get_by_test_id("pay-amount")
+
+
+def _confirm(page, monday: datetime.date, source="Local"):
+    return _week_row(page, monday).get_by_role(
+        "button", name=f"Confirm the payout of {source} {_wk(monday)}"
+    )
+
+
 class TestPayoutsInDays:
-    def test_typing_a_payout_saves_it_and_every_sum_follows(self, page, base_url):
-        src = _source(base_url, "Local", 60)
+    def test_confirming_a_payout_saves_it_and_every_sum_follows(self, page, base_url):
+        src = _source(base_url, "Local", 60, chain=True)
         _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=2)  # estimate EUR 120
         _open_days_freelance(page, base_url)
         row = _week_row(page, MONDAY)
-        assert "estimated" in row.inner_text().lower()
+        assert (
+            "paid out" not in row.inner_text().lower()
+        )  # a Confirm button stands where the tag will be
         total = page.locator("[data-testid='days-fl-total']")
         assert "€120.00" in total.inner_text()
 
-        # the current week starts open: its payout field is there
-        field = page.locator("input[aria-label='Payout Local " + _wk(MONDAY) + "']")
+        # the current week starts open: typing in its field saves nothing, Confirm does
+        field = _field(page, MONDAY)
         field.fill("150")
+        _confirm(page, MONDAY).wait_for()
+        assert _payouts(base_url) == []
+        _confirm(page, MONDAY).click()
         got = _wait_payouts(base_url, 1)
         assert got[0]["amount"] == 150 and got[0]["week_start"] == MONDAY.isoformat()
 
@@ -132,18 +175,24 @@ class TestPayoutsInDays:
             timeout=5000,
         )
 
-    def test_clearing_a_payout_deletes_it_and_undo_brings_it_back(self, page, base_url):
+    def test_deleting_a_payout_with_its_button_and_undo_brings_it_back(self, page, base_url):
         src = _source(base_url, "Local", 60)
         _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=2)
         _payout(base_url, source_id=src, week_start=MONDAY.isoformat(), amount=150)
         _open_days_freelance(page, base_url)
-        field = page.locator("input[aria-label='Payout Local " + _wk(MONDAY) + "']")
+        field = _field(page, MONDAY)
         assert field.input_value() == "150"
 
+        # emptying the field deletes nothing: only the Delete button does
         field.fill("")
+        assert len(_payouts(base_url)) == 1
+        field.fill("150")
+        _week_row(page, MONDAY).get_by_role(
+            "button", name=f"Delete the payout of Local {_wk(MONDAY)}"
+        ).click()
         _wait_payouts(base_url, 0)
         page.wait_for_selector(".save-ribbon.ribbon-show:has-text('Payout deleted')", timeout=3000)
-        assert "estimated" in _week_row(page, MONDAY).inner_text().lower()
+        assert _confirm(page, MONDAY).count() == 1  # a Confirm button stands where the tag was
         page.wait_for_function(
             "() => document.querySelector(\"[data-testid='days-fl-total']\").innerText"
             ".includes('€120.00')",
@@ -165,8 +214,9 @@ class TestPayoutsInDays:
         _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=src, hours=1)
         _open_days_freelance(page, base_url)
         now, old = _week_row(page, MONDAY), _week_row(page, LAST_MONDAY)
-        assert "estimated" in now.inner_text().lower() and "awaiting payout" not in now.inner_text()
-        assert "estimated" in old.inner_text().lower() and "awaiting payout" in old.inner_text()
+        # a one-source week has a Confirm button where its tag will be; an old one says it waits
+        assert _confirm(page, MONDAY).count() == 1 and "awaiting payout" not in now.inner_text()
+        assert _confirm(page, LAST_MONDAY).count() == 1 and "awaiting payout" in old.inner_text()
 
         # a closed week keeps its numbers and hides its days: only the current week shows them
         assert page.locator(".days-table--fl .day-row").count() == 1
@@ -193,29 +243,6 @@ class TestPayoutsInDays:
         # the source filter applies to the week too
         page.locator(".frow", has_text="Local").locator("input").uncheck()
         page.wait_for_function("() => !document.querySelector('tr.wk-row')", timeout=3000)
-
-    def test_a_usd_payout_shows_its_rate_and_the_pencil_saves_a_new_one(self, page, base_url):
-        src = _source(base_url, "Northwind", 60, "USD")
-        _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=1, fx_rate=1.2)  # $60
-        _payout(base_url, source_id=src, week_start=MONDAY.isoformat(), amount=100, fx_rate=1.25)
-        _open_days_freelance(page, base_url)
-        line = page.locator(".wk-line[data-source='Northwind']")
-        assert "@ 1.2500" in line.inner_text() and "= €80" in line.inner_text()
-        assert line.locator(".wk-gap").inner_text().strip() == "+$40"
-        assert "€80.00" in page.locator("[data-testid='days-fl-total']").inner_text()
-
-        line.locator(".pen").click()
-        box = line.locator(".fxin")
-        box.fill("1.6")
-        box.press("Enter")
-        end = time.monotonic() + 5
-        while time.monotonic() < end and _payouts(base_url)[0]["fx_rate"] != 1.6:
-            time.sleep(0.1)
-        assert _payouts(base_url)[0]["fx_rate"] == 1.6
-        page.wait_for_function(
-            "() => document.querySelector('.wk-line').innerText.includes('@ 1.6000')", timeout=3000
-        )
-        assert "€62.50" in page.locator("[data-testid='days-fl-total']").inner_text()
 
 
 class TestMonthsCountByDate:
@@ -257,7 +284,14 @@ class TestPayoutOnTheLogCard:
     def test_the_card_shows_the_weeks_payout_and_links_to_it(self, page, base_url):
         src = _source(base_url, "Northwind", 60, "USD")
         _block(base_url, date=MONDAY.isoformat(), source_id=src, hours=1, fx_rate=1.2)
-        _payout(base_url, source_id=src, week_start=MONDAY.isoformat(), amount=100, fx_rate=1.25)
+        _payout(
+            base_url,
+            source_id=src,
+            week_start=MONDAY.isoformat(),
+            amount=100,
+            currency="USD",
+            eur_amount=80,
+        )
         iso = MONDAY.isoformat()
         page.goto(f"{base_url}/#days")
         page.wait_for_selector(".log-cal-day:not(.log-cal-pad)", timeout=5000)
@@ -429,13 +463,18 @@ class TestPayoutSplitOnScreens:
         _open_days_freelance(page, base_url)
         page.wait_for_selector(".wk-tag", timeout=3000)
         tags = page.locator(".wk-tag")
-        assert tags.count() == 1  # one week, part paid out (Side is still an estimate)
-        assert tags.first.evaluate("e => getComputedStyle(e).color") == paid_token
-        assert colour(".wk-pay .payin:not(:placeholder-shown)") == paid_token
+        # the week's tag ("part paid out": Side is still an estimate) and Local's own badge
+        assert tags.count() == 2
+        for i in range(2):
+            assert tags.nth(i).evaluate("e => getComputedStyle(e).color") == paid_token
+        assert colour(".wk-line.has-pay .payin:not(.is-sug)") == paid_token
 
     def test_the_estimated_tag_keeps_its_muted_colour(self, page, base_url):
+        # a week of two sources keeps its tag (a one-source week shows Confirm there)
         src = _source(base_url, "Local", 60)
+        side = _source(base_url, "Side", 50)
         _block(base_url, date=TODAY.isoformat(), source_id=src, hours=2)
+        _block(base_url, date=TODAY.isoformat(), source_id=side, hours=1)
         _open_days_freelance(page, base_url)
         tag = page.locator(".wk-tag.est").first
         tag.wait_for(timeout=3000)
@@ -541,7 +580,7 @@ class TestWeekLine:
     """The week is one always-visible line; the arrow only shows or hides its days."""
 
     def test_a_collapsed_one_source_week_is_one_line_with_its_payout_field(self, page, base_url):
-        src = _source(base_url, "Local", 60)
+        src = _source(base_url, "Local", 60, chain=True)
         newer, older = _two_weeks_in_one_month()
         _block(base_url, date=_wednesday(newer), source_id=src, hours=2)
         _block(base_url, date=_wednesday(older), source_id=src, hours=3)
@@ -550,14 +589,16 @@ class TestWeekLine:
         assert _expanded(page, newer) == "false"
         assert page.locator(".days-table--fl .day-row").count() == 0
         assert page.locator(".days-table--fl .blk-head").count() == 0
-        field = page.locator(f"input[aria-label='Payout Local {_wk(newer)}']")
+        field = _field(page, newer)
         assert field.is_visible()
         sel = f"tr#wk-{newer.isoformat()}"
         ys = {
             "id": _centre(page, f"{sel} .wk-id"),
             "hours": _centre(page, f"{sel} .wk-h"),
             "field": _centre(page, f"{sel} .payin"),
-            "tag": _centre(page, f"{sel} .wk-tag"),
+            "confirm": _centre(
+                page, f"{sel} .pay-confirm"
+            ),  # Confirm is on the first line, the tag under it
         }
         assert max(ys.values()) - min(ys.values()) <= 4, ys
         assert "2h" in first.locator(".wk-h").inner_text()
@@ -570,17 +611,20 @@ class TestWeekLine:
         gap = second.bounding_box()["y"] - first.bounding_box()["y"]
         assert 0 < gap < 60, gap
 
-    def test_typing_a_payout_in_a_collapsed_week_saves_it_and_keeps_it_collapsed(
+    def test_confirming_a_payout_in_a_collapsed_week_saves_it_and_keeps_it_collapsed(
         self, page, base_url
     ):
-        src = _source(base_url, "Local", 60)
+        src = _source(base_url, "Local", 60, chain=True)
         _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=src, hours=2)
         _open_days_freelance(page, base_url)
-        field = page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']")
+        field = _field(page, LAST_MONDAY)
         # clicking the field is not clicking the line
         field.click()
         assert _expanded(page, LAST_MONDAY) == "false"
         field.fill("150")
+        assert _payouts(base_url) == []  # typing saves nothing
+        # clicking Confirm is not clicking the line either
+        _confirm(page, LAST_MONDAY).click()
         got = _wait_payouts(base_url, 1)
         assert got[0]["amount"] == 150 and got[0]["week_start"] == LAST_MONDAY.isoformat()
         page.wait_for_function(
@@ -588,10 +632,9 @@ class TestWeekLine:
             arg=LAST_MONDAY.isoformat(),
             timeout=3000,
         )
-        # the saved reload neither opened the week nor took the field's focus or draft
+        # the saved reload did not open the week and kept the field's text
         assert _expanded(page, LAST_MONDAY) == "false"
         assert page.locator(".days-table--fl .day-row").count() == 0
-        assert field.evaluate("e => e === document.activeElement")
         assert field.input_value() == "150"
         # the hours cell is part of the line: it toggles
         _week_row(page, LAST_MONDAY).locator(".wk-h").click()
@@ -674,11 +717,19 @@ class TestWeekLine:
     def test_a_paid_usd_week_is_one_line_from_1280px(self, page, base_url, width):
         usd = _source(base_url, "Northwind", 60, "USD")
         _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=16.25, fx_rate=1.1224)
-        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=2000, fx_rate=1.1224)
+        _payout(
+            base_url,
+            source_id=usd,
+            week_start=MONDAY.isoformat(),
+            amount=2000,
+            currency="USD",
+            eur_amount=1781.9,
+        )
         page.set_viewport_size({"width": width, "height": 900})
         _open_days_freelance(page, base_url)
         sel = f"tr#wk-{MONDAY.isoformat()}"
-        parts = (".wk-id", ".wk-h", ".payin", ".wk-fx", ".wk-conv", ".wk-gap", ".wk-eph", ".wk-tag")
+        # the euro value ("= €1,781.90") sits under the line, by design: it is not on the one line
+        parts = (".wk-id", ".wk-h", ".payin", ".wk-gap", ".wk-eph", ".wk-tag")
         ys = {p: _centre(page, f"{sel} {p}") for p in parts}
         assert max(ys.values()) - min(ys.values()) <= 6, ys
         assert page.evaluate("document.documentElement.scrollWidth") <= width
@@ -690,7 +741,14 @@ class TestWeekLine:
         _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=20.25, fx_rate=1.1224)
         tuesday = (MONDAY + datetime.timedelta(days=1)).isoformat()
         _block(base_url, date=tuesday, source_id=usd, hours=20, fx_rate=1.1224)
-        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=5000, fx_rate=1.1224)
+        _payout(
+            base_url,
+            source_id=usd,
+            week_start=MONDAY.isoformat(),
+            amount=5000,
+            currency="USD",
+            eur_amount=4454.74,
+        )
         page.set_viewport_size({"width": width, "height": 900})
         _open_days_freelance(page, base_url)
         cells = page.evaluate(
@@ -763,7 +821,14 @@ class TestWeekLine:
         _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=local, hours=1)
         _block(base_url, date=LAST_WEDNESDAY.isoformat(), source_id=side, hours=1)
         _block(base_url, date=MONDAY.isoformat(), source_id=usd, hours=16.25, fx_rate=1.1224)
-        _payout(base_url, source_id=usd, week_start=MONDAY.isoformat(), amount=2000, fx_rate=1.1224)
+        _payout(
+            base_url,
+            source_id=usd,
+            week_start=MONDAY.isoformat(),
+            amount=2000,
+            currency="USD",
+            eur_amount=1781.9,
+        )
         page.set_viewport_size({"width": width, "height": 900})
         _open_days_freelance(page, base_url)
         page.get_by_test_id("wk-expand-all" if expand else "wk-collapse-all").click()

@@ -53,8 +53,12 @@ READ_ODO = """(sel) => {
 def _wipe(base_url: str) -> None:
     with httpx.Client(base_url=base_url) as c:
         c.delete("/api/data")
+        for p in c.get("/api/freelance/payouts").json():
+            c.delete(f"/api/freelance/payouts/{p['id']}")
         for s in c.get("/api/freelance/sources").json():
             c.delete(f"/api/freelance/sources/{s['id']}")
+        for a in c.get("/api/freelance/accounts").json():
+            c.delete(f"/api/freelance/accounts/{a['id']}")
         # another module of the same worker may have left these moved
         r = c.put(
             "/api/config",
@@ -423,15 +427,27 @@ class TestSeal:
 
 
 def _payout_setup(base_url: str) -> int:
-    """One source at 60/h and two hours on last Wednesday: an estimate of 120."""
+    """One source at 60/h and two hours on last Wednesday: an estimate of 120. It is paid through
+    one euro account, so its row has a line to type in and a Confirm button to press."""
     with httpx.Client(base_url=base_url) as c:
+        bank = c.post("/api/freelance/accounts", json={"name": "Bank", "currency": "EUR"}).json()
         src = c.post(
-            "/api/freelance/sources", json={"name": "Local", "hourly_rate": 60, "currency": "EUR"}
+            "/api/freelance/sources",
+            json={"name": "Local", "hourly_rate": 60, "currency": "EUR", "chain": [bank["id"]]},
         ).json()["id"]
         wed = (LAST_MONDAY + datetime.timedelta(days=2)).isoformat()
         r = c.post("/api/freelance/blocks", json={"date": wed, "source_id": src, "hours": 2})
         assert r.status_code == 201, r.text
     return src
+
+
+def _payout_field(page):
+    """The amount of the one line of last week's row."""
+    return page.locator(f"tr.wk-row#wk-{LAST_MONDAY.isoformat()}").get_by_test_id("pay-amount")
+
+
+def _confirm_payout(page) -> None:
+    page.get_by_role("button", name=f"Confirm the payout of Local {_wk(LAST_MONDAY)}").click()
 
 
 def _open_days_freelance(page, base_url: str) -> None:
@@ -496,9 +512,10 @@ class TestCoins:
         _payout_setup(base_url)
         _open_days_freelance(page, base_url)
         page.evaluate(WATCH_COINS)
-        field = page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']")
+        field = _payout_field(page)
         field.scroll_into_view_if_needed()
         field.fill(typed)
+        _confirm_payout(page)
         page.wait_for_function(
             "(n) => window.__coins.added >= n && !document.querySelector('.coin-fly')",
             arg=coins,
@@ -519,8 +536,9 @@ class TestCoins:
         _payout_setup(base_url)
         _open_days_freelance(page, base_url)
         page.evaluate(WATCH_COINS)
-        field = page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']")
+        field = _payout_field(page)
         field.fill("4500")
+        _confirm_payout(page)
         page.wait_for_function(
             "() => window.__coins.added >= 40 && !document.querySelector('.coin-fly')",
             timeout=10000,
@@ -528,7 +546,8 @@ class TestCoins:
         assert len(set(page.evaluate("window.__coins.ups"))) > 10, page.evaluate(
             "window.__coins.ups"
         )
-        field.fill("40")
+        field.fill("40")  # a saved payout changed: its Confirm comes back
+        _confirm_payout(page)
         page.wait_for_function(
             "() => window.__coins.added >= 41 && !document.querySelector('.coin-fly')",
             timeout=10000,
@@ -537,7 +556,8 @@ class TestCoins:
     def test_the_selected_card_shows_the_payout_after_the_coins(self, page, base_url):
         _payout_setup(base_url)
         _open_days_freelance(page, base_url)
-        page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']").fill("150")
+        _payout_field(page).fill("150")
+        _confirm_payout(page)
         page.wait_for_function(
             "() => document.querySelector(\"[data-testid='days-fl-total']\")"
             ".innerText.includes('€150.00')",
@@ -864,7 +884,8 @@ class TestReducedMotion:
         _payout_setup(base_url)
         _open_days_freelance(page, base_url)
         page.evaluate(WATCH_COINS)
-        page.locator(f"input[aria-label='Payout Local {_wk(LAST_MONDAY)}']").fill("150")
+        _payout_field(page).fill("150")
+        _confirm_payout(page)
         page.wait_for_function(
             "() => document.querySelector(\"[data-testid='days-fl-total']\")"
             ".innerText.includes('€150.00')",

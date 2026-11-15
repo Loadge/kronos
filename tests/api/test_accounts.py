@@ -13,6 +13,9 @@ import app.services.fx as fx
 import pytest
 from app.services.clock import local_today
 
+from tests.api.payout_setup import body as _body
+from tests.api.payout_setup import post as _payout
+
 ECB_DAILY = """<?xml version="1.0" encoding="UTF-8"?>
 <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01"
                  xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
@@ -87,12 +90,6 @@ def _block(client, day, source, hours):
     r = client.post(
         "/api/freelance/blocks", json={"date": day, "source_id": source, "hours": hours}
     )
-    assert r.status_code == 201, r.text
-    return r.json()
-
-
-def _payout(client, **body):
-    r = client.post("/api/freelance/payouts", json=body)
     assert r.status_code == 201, r.text
     return r.json()
 
@@ -187,32 +184,30 @@ class TestAccountsApi:
         assert [x["payouts"] for x in client.get("/api/freelance/accounts").json()] == [1]
         assert len(client.get("/api/freelance/accounts").json()) == 1  # still there
 
-    def test_an_unused_account_is_deleted_and_leaves_no_default_behind(self, client):
+    def test_an_account_only_in_a_source_chain_is_deleted_and_leaves_no_chain_behind(self, client):
         a = _account(client)
-        usd = _source(client, default_account_id=a["id"])
-        assert client.get("/api/freelance/sources").json()[0]["default_account_id"] == a["id"]
-        # a source's default is a use, so the delete is refused until it is cleared
-        assert client.delete(f"/api/freelance/accounts/{a['id']}").status_code == 409
-        client.put(f"/api/freelance/sources/{usd}", json={"default_account_id": None})
+        usd = _source(client, chain=[a["id"]])
+        assert client.get("/api/freelance/sources").json()[0]["chain"] == [a["id"]]
+        # a chain is not a use: the account goes, and the source's chain closes up behind it
         assert client.delete(f"/api/freelance/accounts/{a['id']}").status_code == 204
         assert client.get("/api/freelance/accounts").json() == []
         (src,) = client.get("/api/freelance/sources").json()
-        assert src["id"] == usd and src["default_account_id"] is None
+        assert src["id"] == usd and src["chain"] == []
 
-    def test_a_source_default_account_must_exist_and_can_be_cleared(self, client):
+    def test_a_source_chain_must_exist_and_can_be_cleared(self, client):
         r = client.post(
             "/api/freelance/sources",
-            json={"name": "A", "hourly_rate": 1, "default_account_id": 77},
+            json={"name": "A", "hourly_rate": 1, "chain": [77]},
         )
         assert r.status_code == 422
         a = _account(client)
         s = _source(client)
-        r = client.put(f"/api/freelance/sources/{s}", json={"default_account_id": a["id"]})
-        assert r.json()["default_account_id"] == a["id"]
+        r = client.put(f"/api/freelance/sources/{s}", json={"chain": [a["id"]]})
+        assert r.json()["chain"] == [a["id"]]
         r = client.put(f"/api/freelance/sources/{s}", json={"name": "Renamed"})
-        assert r.json()["default_account_id"] == a["id"]  # left out: kept
-        r = client.put(f"/api/freelance/sources/{s}", json={"default_account_id": None})
-        assert r.json()["default_account_id"] is None
+        assert r.json()["chain"] == [a["id"]]  # left out: kept
+        r = client.put(f"/api/freelance/sources/{s}", json={"chain": []})
+        assert r.json()["chain"] == []
 
 
 class TestTheCase:
@@ -257,16 +252,26 @@ class TestTheCase:
         (by_source,) = s["by_source"]
         assert (by_source["currency"], by_source["amount"]) == ("USD", 980.83)  # 877.94 x 1.1172
 
-    def test_the_same_payout_with_no_account_still_reads_as_dollars(self, client):
+    def test_the_same_payout_in_a_dollar_account_still_reads_as_dollars(self, client):
+        """Replaces the payout with no account, which is no longer saved: the figures it gave
+        (785.84 in euros, no exchange cost, $877.94 by source) are the ones a dollar account
+        gives. What differs on purpose is `accounts`: the payout counts under its account."""
         usd = _source(client)
         _w44(client, usd)
         out = _payout(client, source_id=usd, week_start="2026-10-26", amount=877.94)
-        assert (out["currency"], out["account_id"], out["amount_eur"]) == ("USD", None, 785.84)
+        assert (out["currency"], out["account_name"], out["amount_eur"]) == (
+            "USD",
+            "Paid in USD",
+            785.84,
+        )
         assert out["fx_cost_eur"] is None and out["effective_rate"] is None
         assert (out["billed_amount"], out["billed_currency"]) == (1059.25, "USD")
         s = _summary(client)
         assert s["total"]["gross_eur"] == 785.84
-        assert s["fx_cost_eur"] == 0.0 and s["accounts"] == []
+        assert s["fx_cost_eur"] == 0.0
+        assert [(a["name"], a["amount"], a["amount_eur"], a["payouts"]) for a in s["accounts"]] == [
+            ("Paid in USD", 877.94, 785.84, 1)
+        ]
         assert s["by_source"][0]["amount"] == 877.94
 
     def test_a_dollar_account_for_a_dollar_source_has_no_exchange_cost(self, client):
@@ -351,13 +356,7 @@ class TestTheCase:
         )
         r = client.put(
             f"/api/freelance/payouts/{out['id']}",
-            json={
-                "source_id": usd,
-                "week_start": "2026-10-26",
-                "amount": 1100,
-                "account_id": a["id"],
-                "fx_rate": 1000 / 900,
-            },
+            json=_body(client, usd, "2026-10-26", 1100, account_id=a["id"]),
         )
         assert r.status_code == 200
         assert r.json()["amount_eur"] == 990.0
@@ -365,8 +364,7 @@ class TestTheCase:
     def test_the_account_is_checked(self, client):
         usd = _source(client)
         r = client.post(
-            "/api/freelance/payouts",
-            json={"source_id": usd, "week_start": "2026-10-26", "amount": 5, "account_id": 99},
+            "/api/freelance/payouts", json=_body(client, usd, "2026-10-26", 5, account_id=99)
         )
         assert r.status_code == 422
 
@@ -417,14 +415,15 @@ class TestCrypto:
         # typed by hand, it counts
         out = client.put(
             f"/api/freelance/payouts/{out['id']}",
-            json={
-                "source_id": usd,
-                "week_start": monday.isoformat(),
-                "amount": 0.01,
-                "account_id": wallet["id"],
-                "paid_on": on.isoformat(),
-                "eur_amount": 250.5,
-            },
+            json=_body(
+                client,
+                usd,
+                monday.isoformat(),
+                0.01,
+                account_id=wallet["id"],
+                paid_on=on.isoformat(),
+                eur_amount=250.5,
+            ),
         ).json()
         assert (out["amount_eur"], out["rate_source"]) == (250.5, "manual")
         assert calls == []

@@ -360,10 +360,12 @@ class ConfigIn(BaseModel):
     freelance_days_off: float | None = Field(default=None, ge=0, le=366)
 
 
-# 4: freelance payouts; 3: freelance (income sources, hour blocks, tax years);
+# 6: no account role, no default accounts of a source, no sent side of a payout: the chains say it;
+# 5: chains of accounts (legs, source chains, positions); 4: freelance payouts;
+# 3: freelance (income sources, hour blocks, tax years);
 # 2: entries carry `fraction`; 1: whole days only
-BACKUP_VERSION = 4
-SUPPORTED_BACKUP_VERSIONS = (1, 2, 3, 4)
+BACKUP_VERSION = 6
+SUPPORTED_BACKUP_VERSIONS = (1, 2, 3, 4, 5, 6)
 
 
 class PlanIn(BaseModel):
@@ -575,6 +577,13 @@ class TemplateOut(BaseModel):
     start_time: str
     end_time: str
     breaks: list[TemplateBreakOut]
+    position: int  # where it stands in the list, 0 first
+
+
+class OrderIn(BaseModel):
+    """The wanted order of a list: every id of it, each once."""
+
+    ids: list[int]
 
 
 # ---------- freelance -------------------------------------------------------
@@ -582,8 +591,6 @@ class TemplateOut(BaseModel):
 Currency = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(CURRENCY_CODES) + r")$")]
 ACCOUNT_KINDS = ("bank", "wallet", "cash", "other")
 AccountKind = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(ACCOUNT_KINDS) + r")$")]
-ACCOUNT_ROLES = ("origin", "destination", "both")  # sends / receives / either
-AccountRole = Annotated[str, StringConstraints(pattern=r"^(" + "|".join(ACCOUNT_ROLES) + r")$")]
 
 
 def _clean_account_name(value: str) -> str:
@@ -599,7 +606,6 @@ class AccountIn(BaseModel):
     name: str
     currency: Currency
     kind: AccountKind = "bank"
-    role: AccountRole = "both"
     is_default: bool = False
     archived: bool = False
 
@@ -610,7 +616,6 @@ class AccountUpdate(BaseModel):
     name: str | None = None
     currency: Currency | None = None
     kind: AccountKind | None = None
-    role: AccountRole | None = None
     is_default: bool | None = None
     archived: bool | None = None
 
@@ -625,11 +630,11 @@ class AccountOut(BaseModel):
     name: str
     currency: str
     kind: str
-    role: str  # origin, destination or both
     is_default: bool
     archived: bool
     created_at: datetime_
-    payouts: int  # how many payouts used it, on either side (one in use is archived, not deleted)
+    payouts: int  # how many payouts have it in their legs (one in use is archived, not deleted)
+    position: int  # where it stands in the list, 0 first
 
 
 class AccountBackup(AccountIn):
@@ -637,6 +642,7 @@ class AccountBackup(AccountIn):
 
     id: int
     created_at: datetime_ | None = None
+    position: int | None = None  # version 5; a file without it takes the order shown today
 
 
 class IncomeSourceIn(BaseModel):
@@ -647,8 +653,7 @@ class IncomeSourceIn(BaseModel):
     currency: Currency = "EUR"
     is_default: bool = False
     archived: bool = False
-    default_account_id: int | None = None
-    default_from_account_id: int | None = None
+    chain: list[int] | None = None  # account ids in order, 0 to 4; the accounts it is paid through
 
 
 class IncomeSourceUpdate(BaseModel):
@@ -657,8 +662,7 @@ class IncomeSourceUpdate(BaseModel):
     currency: Currency | None = None
     is_default: bool | None = None
     archived: bool | None = None
-    default_account_id: int | None = None  # null clears it; leave it out to keep it
-    default_from_account_id: int | None = None  # same
+    chain: list[int] | None = None  # leave it out to keep it; [] empties it
 
 
 class IncomeSourceOut(BaseModel):
@@ -668,9 +672,9 @@ class IncomeSourceOut(BaseModel):
     currency: str
     is_default: bool
     archived: bool
-    default_account_id: int | None
-    default_from_account_id: int | None
+    chain: list[int]  # the account ids it is usually paid through, in order
     blocks: int  # how many blocks bill to it (a source with blocks is archived, not deleted)
+    position: int  # where it stands in the list, 0 first
 
 
 class IncomeSourceBackup(BaseModel):
@@ -682,8 +686,13 @@ class IncomeSourceBackup(BaseModel):
     currency: Currency = "EUR"
     is_default: bool = False
     archived: bool = False
+    # Read from a file of version 5 or older, which says the usual accounts here; never written.
     default_account_id: int | None = None
     default_from_account_id: int | None = None
+    position: int | None = None  # version 5; a file without it takes the order shown today
+    chain: list[int] | None = (
+        None  # version 5 and later: account ids in order; absent: built from the defaults
+    )
 
 
 class _BlockDuration(BaseModel):
@@ -781,29 +790,48 @@ def _must_be_monday(value: date_) -> date_:
     return value
 
 
+class PayoutLegIn(BaseModel):
+    """One account of a payout's chain. Without ``amount`` it is worked out (the first leg from
+    what the week billed, any other from the leg before it) and stored not fixed; with one it is
+    stored as given, ``fixed`` (true unless the client says otherwise) being the client's word
+    that the number was typed rather than a suggestion it showed."""
+
+    account_id: int
+    amount: float | None = Field(default=None, gt=0)
+    fixed: bool | None = None
+
+    @model_validator(mode="after")
+    def _fixed_needs_an_amount(self):
+        if self.amount is None and self.fixed:
+            raise ValueError("a fixed leg needs its amount")
+        return self
+
+
+class PayoutLegOut(BaseModel):
+    position: int
+    account_id: int
+    account_name: str
+    currency: str  # the account's
+    amount: float
+    fixed: bool  # typed by hand; otherwise worked out from the leg before it
+
+
 class FreelancePayoutIn(BaseModel):
     """Body for POST / PUT /api/freelance/payouts: what a source paid for one week.
 
-    ``amount`` is in the account's currency when ``account_id`` is given, else in the source's.
-    ``paid_on`` is the day the money landed (default: the week's Sunday); its rate is the ECB's
-    or CoinGecko's of that day. ``eur_amount`` is what it was worth in euros, typed by hand:
-    it beats any rate. ``fx_rate`` (units per EUR) is the older way to give a rate by hand;
-    on a EUR payout it is ignored.
+    ``legs`` (1 to 4 accounts, in order, none twice) is the chain the money went through; the last
+    one is what the payout is worth. ``paid_on`` is the day the money landed (default: the week's
+    Sunday); its rate is the ECB's or CoinGecko's of that day. ``eur_amount`` is what it was
+    worth in euros, typed by hand: it beats any rate. A field this model does not know is
+    ignored, never stored.
     """
 
     source_id: int
     week_start: date_
-    amount: float = Field(..., gt=0)
-    fx_rate: float | None = Field(default=None, gt=0)
     note: str | None = None
-    account_id: int | None = None
     paid_on: date_ | None = None
     eur_amount: float | None = Field(default=None, gt=0)
-    # What was sent. All three left out: "as billed". With ``from_account_id`` the currency is
-    # the account's; without it, ``sent_currency`` (a bare currency) or else the source's.
-    sent_amount: float | None = Field(default=None, gt=0)
-    sent_currency: Currency | None = None
-    from_account_id: int | None = None
+    legs: list[PayoutLegIn]
 
     _monday = field_validator("week_start")(_must_be_monday)
 
@@ -831,11 +859,40 @@ class FreelancePayoutOut(BaseModel):
     billed_eur: float | None  # that estimate at the ECB rate of rate_date
     fx_cost_eur: float | None  # billed_eur - amount_eur: the difference from billed
     effective_rate: float | None  # source units per EUR actually obtained
-    sent_amount: float | None  # as stored; None: a payout "as billed"
-    sent_currency: str | None
-    from_account_id: int | None
-    from_account_name: str | None
-    sent_gap: float | None  # sent - billed, in the billed currency; None without sent or a rate
+    legs: list[PayoutLegOut]  # the chain the money went through; the last is what it is worth
+    gap: float | None  # first leg - billed, in `gap_currency`; None without blocks or a rate
+    gap_currency: str  # the billed currency
+
+
+class FreelancePayoutPreviewIn(FreelancePayoutIn):
+    """Body for POST /api/freelance/payouts/preview: the body of a save, and optionally the saved
+    payout it would change (``payout_id``)."""
+
+    payout_id: int | None = None
+
+
+class PayoutLegPreview(PayoutLegOut):
+    """A leg as a preview answers it: one that cannot be worked out has no amount and says why."""
+
+    amount: float | None
+    problem: str | None = None
+
+
+class FreelancePayoutPreview(FreelancePayoutOut):
+    """What a save of the same body would answer, worked out without saving anything. The figures
+    that need the last leg's amount are None while it has none."""
+
+    id: int | None
+    amount: float | None
+    legs: list[PayoutLegPreview]
+
+
+class PayoutLegBackup(BaseModel):
+    """One leg of a payout's chain as the backup carries it, in order."""
+
+    account_id: int
+    amount: float = Field(..., gt=0)
+    fixed: bool = True
 
 
 class FreelancePayoutBackup(BaseModel):
@@ -848,9 +905,12 @@ class FreelancePayoutBackup(BaseModel):
     account_id: int | None = None
     rate_source: str | None = None
     rate_date: date_ | None = None
+    # Read from a file of version 5 or older, which says what was sent here; never written.
     sent_amount: float | None = Field(default=None, gt=0)
     sent_currency: Currency | None = None
     from_account_id: int | None = None
+    # Version 5 and later. Absent or empty: the legs are built from the fields above.
+    legs: list[PayoutLegBackup] | None = None
 
     _monday = field_validator("week_start")(_must_be_monday)
 

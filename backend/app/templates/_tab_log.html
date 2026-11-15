@@ -497,7 +497,7 @@
         </form>
 
         <!-- Payouts waiting: the weeks that are over, have blocks and no payout. A chip per week (per source when the
-             week has several), then the amount, the account and Save: the same path as the Weeks page. -->
+             week has several), then the payout cell and Confirm: the same cell and path as the Weeks page. -->
         <template x-if="payWaitList().length">
           <div class="fl-wait" data-testid="pay-wait">
             <div class="fl-wait-head">
@@ -516,9 +516,20 @@
             </div>
             <template x-for="sel in [payWaitSelected()].filter(Boolean)" :key="sel.key">
               <form class="fl-wait-form" @submit.prevent="payWaitSave($el.querySelector('.fl-wait-save'))">
-                {{ pay_cell("sel.source_id", "sel.week", "sel.src.name + ' ' + weekId(sel.week)", true) }}
-                <button type="submit" class="fl-wait-save" data-testid="pay-wait-save" :disabled="payWait.busy">Save</button>
-                <span class="wk-status" :class="payStatusCls(sel.week)" x-text="payStatus(sel.week)" aria-live="polite"></span>
+                <template x-for="c in [payRow(sel.source_id, sel.week)]" :key="'row'">
+                  <div class="fl-wait-cell">
+                    {{ pay_cell() }}
+                    <div class="fl-wait-end">
+                      <button type="submit" class="fl-wait-save" data-testid="pay-wait-save" :disabled="payWait.busy || !c.canConfirm"
+                        :aria-label="'Confirm the payout of ' + c.label">Confirm</button>
+                      <template x-if="c.draft">
+                        <button type="button" class="pay-undo" data-testid="pay-discard" :aria-label="'Discard the changes to ' + c.label" title="Discard changes"
+                          @click="payDiscard(c.sid, c.week)">↺</button>
+                      </template>
+                      <span class="wk-status" :class="c.status ? 'is-' + c.status : ''" x-text="payStatus(c.sid, c.week)" aria-live="polite"></span>
+                    </div>
+                  </div>
+                </template>
               </form>
             </template>
           </div>

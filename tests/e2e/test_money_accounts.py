@@ -68,6 +68,8 @@ ECB = """<?xml version="1.0" encoding="UTF-8"?>
 </gesmes:Envelope>
 """
 EXPECTED_STORY = "€70.19 less than billed"
+# the first account's 877.94 euros are 980.83 dollars at 1.1172 (877.94 * 1.1172), against the $1,059.25 billed
+GAP_W44 = "-$78.42"
 
 
 class _Stub(BaseHTTPRequestHandler):
@@ -263,14 +265,16 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert row.locator(".acct-cur").inner_text().strip() == "EUR"
     assert "Add the bank accounts" not in card.inner_text()
 
-    # 2. the source is paid into it
-    paid_into = page.get_by_label("Paid into, Acme")
-    assert "As billed (USD)" in paid_into.inner_text()
-    paid_into.select_option(label="Deutsche Bank")
-    page.wait_for_function(
-        "() => Alpine.$data(document.querySelector('main')).sources[0].default_account_id != null"
+    # 2. the source is paid through it (its chain, set in Settings: here by the API)
+    bank = next(
+        a
+        for a in httpx.get(f"{money_url}/api/freelance/accounts").json()
+        if a["name"] == "Deutsche Bank"
     )
-    assert httpx.get(f"{money_url}/api/freelance/sources").json()[0]["default_account_id"] > 0
+    r = httpx.put(f"{money_url}/api/freelance/sources/{src}", json={"chain": [bank["id"]]})
+    assert r.status_code == 200, r.text
+    assert httpx.get(f"{money_url}/api/freelance/sources").json()[0]["chain"] == [bank["id"]]
+    page.reload()
 
     # 3. W44 in Days > Freelance: the field's mark follows the account, not the source
     _open_days_freelance(page, money_url)
@@ -278,8 +282,11 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert line.locator(".cur").inner_text().strip() == "€"
     assert line.locator("select.payacct option:checked").inner_text() == "Deutsche Bank"
 
-    # 4. he types what landed
-    line.get_by_label("Payout Acme W44").fill("877.94")
+    # 4. he types what landed, and confirms it: nothing is saved before the button
+    line.get_by_label("Deutsche Bank amount, Acme W44", exact=True).fill("877.94")
+    expect(line.get_by_test_id("fx-chip")).to_be_visible()  # the preview already says what it costs
+    assert _payouts(money_url) == []
+    line.get_by_role("button", name="Confirm the payout of Acme W44").click()
     got = _wait_for(money_url, lambda p: len(p) == 1, "the payout is saved")[0]
     assert got["amount"] == 877.94 and got["currency"] == "EUR"
     assert got["account_name"] == "Deutsche Bank"
@@ -290,16 +297,16 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert (
         line.locator(".wk-conv").count() == 0
     )  # euros arrived: line 2 says it, there is no line 3
-    assert line.get_by_label("Payout Acme W44").input_value() == "877.94"
+    assert line.get_by_label("Deutsche Bank amount, Acme W44", exact=True).input_value() == "877.94"
     assert line.locator(".cur").inner_text().strip() == "€"
     # the struck-through estimate stays as it was
     est = line.locator(".wk-est")
     assert est.inner_text().strip() == "$1,059.25"
     assert est.evaluate("e => getComputedStyle(e).textDecorationLine") == "line-through"
-    # the gap is received minus billed in euros, and says so
-    gap = line.locator(".wk-gap")
-    assert gap.inner_text().strip() == "-€70.19"
-    assert gap.get_attribute("title") == "Received minus billed, in euros"
+    # the gap is the first account minus billed, in the billed currency, and says so
+    gap = line.locator(".wk-gap b")
+    assert gap.inner_text().strip() == GAP_W44
+    assert gap.get_attribute("title") == "First account minus billed"
 
     # 5. the DIFF chip tells the story: hover, focus and tap
     chip = line.get_by_test_id("fx-chip")
@@ -330,72 +337,6 @@ def test_miguels_case_by_hand_in_the_ui(page, money_url):
     assert "Deutsche Bank" in landed.inner_text() and "€877.94" in landed.inner_text()
 
 
-# ── a payout from before accounts reads as it always did ──────────────────────
-
-
-def test_a_payout_with_no_account_shows_todays_text(page, money_url):
-    src = _usd_source(money_url)
-    _w44_block(money_url, src)
-    payout = _post(money_url, "/api/freelance/payouts", source_id=src, week_start=W44, amount=1000)
-    assert payout["amount_eur"] == 895.09 and payout["fx_cost_eur"] is None
-
-    _open_days_freelance(page, money_url)
-    line = page.locator(f"tr.wk-row#wk-{W44} .wk-line.wk-main")
-    assert line.locator(".cur").inner_text().strip() == "$"
-    assert line.get_by_label("Payout Acme W44").input_value() == "1000"
-    assert line.locator(".wk-fx").inner_text().replace("✎", "").split() == [
-        "@",
-        "1.1172",
-        "=",
-        "€895.09",
-    ]
-    assert line.locator(".wk-gap").inner_text().strip() == "-$59.25"
-    assert line.locator(".wk-gap").get_attribute("title") is None
-    assert line.get_by_test_id("fx-chip").count() == 0
-    assert page.locator("select.payacct").count() == 0  # no accounts: no select
-
-    # once an account exists the old payout is still "as billed": nothing about it moves
-    _post(
-        money_url, "/api/freelance/accounts", name="Deutsche Bank", currency="EUR", is_default=True
-    )
-    page.reload()  # the accounts are read when the page loads
-    _open_days_freelance(page, money_url)
-    line = page.locator(f"tr.wk-row#wk-{W44} .wk-line.wk-main")
-    assert line.locator("select.payacct option:checked").inner_text() == "As billed (USD)"
-    assert line.locator(".cur").inner_text().strip() == "$"
-    assert line.locator(".wk-gap").inner_text().strip() == "-$59.25"
-    assert line.get_by_test_id("fx-chip").count() == 0
-
-
-def test_a_dollar_payout_moved_to_the_euro_account_reads_what_arrived(page, money_url):
-    """Miguel's PROD as of v45: W44's 877.94 was saved before accounts, so Kronos reads dollars
-    (785.84 euros). He creates the euro account and points that payout at it: same number, now
-    euros."""
-    src = _usd_source(money_url)
-    _w44_block(money_url, src)
-    old = _post(money_url, "/api/freelance/payouts", source_id=src, week_start=W44, amount=877.94)
-    assert (old["currency"], old["amount_eur"]) == ("USD", 785.84)
-    _post(money_url, "/api/freelance/accounts", name="Deutsche Bank", currency="EUR")
-
-    _open_days_freelance(page, money_url)
-    line = page.locator(f"tr.wk-row#wk-{W44} .wk-line.wk-main")
-    assert line.locator("select.payacct option:checked").inner_text() == "As billed (USD)"
-    line.locator("select.payacct").select_option(label="Deutsche Bank")
-    got = _wait_for(
-        money_url, lambda p: p and p[0]["currency"] == "EUR", "the payout moves to the account"
-    )[0]
-    assert len(got and _payouts(money_url)) == 1  # the same payout, not a second one
-    assert (got["amount"], got["amount_eur"], got["account_name"]) == (
-        877.94,
-        877.94,
-        "Deutsche Bank",
-    )
-    assert (got["billed_eur"], got["fx_cost_eur"], got["effective_rate"]) == (948.13, 70.19, 1.2065)
-    expect(line.get_by_test_id("fx-chip")).to_be_visible()
-    assert line.locator(".wk-conv").count() == 0  # euros arrived: no line 3
-    assert line.locator(".cur").inner_text().strip() == "€"
-
-
 # ── no exchange, no FX chip ───────────────────────────────────────────────────
 
 
@@ -408,8 +349,7 @@ def test_a_same_currency_payout_has_no_fx_chip(page, money_url):
         "/api/freelance/payouts",
         source_id=src,
         week_start=W44,
-        amount=1000,
-        account_id=usd["id"],
+        legs=[{"account_id": usd["id"], "amount": 1000}],
     )
     assert payout["currency"] == "USD" and payout["fx_cost_eur"] is None
     _open_days_freelance(page, money_url)
@@ -418,7 +358,9 @@ def test_a_same_currency_payout_has_no_fx_chip(page, money_url):
     assert line.locator(".cur").inner_text().strip() == "$"
     expect(line.locator(".wk-conv")).to_have_text("= €895.09")
     assert line.get_by_test_id("fx-chip").count() == 0
-    assert line.locator(".wk-gap").get_attribute("title") is None
+    assert (
+        line.locator(".wk-gap b").inner_text().strip() == "-$59.25"
+    )  # 1000 against the $1,059.25 billed
 
 
 # ── an account's currency is locked once payouts went into it ─────────────────
@@ -442,8 +384,7 @@ def test_the_currency_of_a_used_account_is_locked(page, money_url):
         "/api/freelance/payouts",
         source_id=src,
         week_start=W44,
-        amount=877.94,
-        account_id=acct["id"],
+        legs=[{"account_id": acct["id"], "amount": 877.94}],
     )
     _open_settings_freelance(page, money_url)
     page.reload()
@@ -484,7 +425,7 @@ def test_an_old_coin_payout_asks_for_worth_and_sends_it(page, money_url, stub):
     wallet = _post(
         money_url, "/api/freelance/accounts", name="Cold wallet", currency="BTC", kind="wallet"
     )
-    httpx.put(f"{money_url}/api/freelance/sources/{src}", json={"default_account_id": wallet["id"]})
+    httpx.put(f"{money_url}/api/freelance/sources/{src}", json={"chain": [wallet["id"]]})
 
     sent: list[dict] = []
     page.on(
@@ -499,33 +440,33 @@ def test_an_old_coin_payout_asks_for_worth_and_sends_it(page, money_url, stub):
     line = page.locator(f"tr.wk-row#wk-{OLD_MONDAY} .wk-line.wk-main")
     line.scroll_into_view_if_needed()
     assert line.locator(".cur").inner_text().strip() == "₿"
-    line.get_by_label("Payout Local W40").fill("0.0105")
-    got = _wait_for(money_url, lambda p: len(p) == 1, "the BTC payout is saved")[0]
-    assert got["currency"] == "BTC" and got["amount"] == 0.0105 and got["amount_eur"] is None
-    assert not any("/coins/" in u for u in requests), requests  # a year old: no request is made
-
+    # no price for the day: the line says so, and its amount is typed by hand
+    amount = line.get_by_test_id("pay-amount")
+    expect(amount).to_have_attribute("title", "no rate for that day")
+    amount.fill("0.0105")
     # no rate: a second field asks for the euros
     worth = line.get_by_label("Worth in euros, Local W40")
     expect(worth).to_be_visible()
     assert "worth €" in line.locator(".worth").inner_text()
+    assert _payouts(money_url) == []  # nothing is saved by typing
     worth.fill("650")
-    worth.press("Enter")
-    got = _wait_for(
-        money_url, lambda p: p and p[0]["amount_eur"] is not None, "the worth is saved"
-    )[0]
+    expect(line.get_by_test_id("pay-conv")).to_have_text("= €650.00")
+    assert _payouts(money_url) == []
+    line.get_by_role("button", name="Confirm the payout of Local W40").click()
+    got = _wait_for(money_url, lambda p: len(p) == 1, "the BTC payout is saved")[0]
+    assert got["currency"] == "BTC" and got["amount"] == 0.0105
+    assert not any("/coins/" in u for u in requests), requests  # a year old: no request is made
     assert got["amount_eur"] == 650.0 and got["rate_source"] == "manual" and got["amount"] == 0.0105
-    puts = [json.loads(s["b"]) for s in sent if s["m"] == "PUT"]
-    assert puts and puts[-1]["eur_amount"] == 650 and puts[-1]["account_id"] == wallet["id"]
+    posts = [json.loads(s["b"]) for s in sent if s["m"] == "POST"]
+    assert posts and posts[-1]["eur_amount"] == 650
+    assert posts[-1]["legs"] == [{"account_id": wallet["id"], "amount": 0.0105, "fixed": True}]
 
     page.wait_for_function(
         "(w) => document.querySelector('#wk-' + w + ' .wk-conv')?.textContent.includes('= €650.00')",
         arg=OLD_MONDAY,
     )
-    assert line.get_by_label("Payout Local W40").input_value() == "0.0105"
-    expect(worth).to_have_count(0)
-    # the value can be set by hand again later, from a small link
-    line.get_by_role("button", name="Set the € value of Local W40").click()
-    expect(line.get_by_label("Worth in euros, Local W40")).to_be_focused()
+    assert line.get_by_test_id("pay-amount").input_value() == "0.0105"
+    expect(line.get_by_label("Worth in euros, Local W40")).to_have_value("650")  # saved as typed
 
     # the Freelance tab of 2025 lists the coin as the wallet received it
     _app(page, "d.flYear = 2025; d.go('freelance');")
@@ -630,8 +571,7 @@ def test_the_new_controls_are_drawn_properly(browser, money_url, width):
         "/api/freelance/payouts",
         source_id=src,
         week_start=W44,
-        amount=877.94,
-        account_id=acct["id"],
+        legs=[{"account_id": acct["id"], "amount": 877.94}],
     )
     _post(money_url, "/api/freelance/accounts", name="Cold wallet", currency="BTC", kind="wallet")
     ctx = browser.new_context(viewport={"width": width, "height": 900}, locale="en-GB")
@@ -647,11 +587,7 @@ def test_the_new_controls_are_drawn_properly(browser, money_url, width):
             """
             - img "wallet"
             - strong: Cold wallet
-            - text: BTC Use
-            - combobox "Use, Cold wallet":
-              - option "Paid from"
-              - option "Paid into"
-              - option "Both" [selected]
+            - text: BTC
             - button "Make Cold wallet the default account" [pressed=false]
             - button "Edit Cold wallet"
             - button "Archive Cold wallet"

@@ -9,6 +9,7 @@ labels sit next to their values, and three tabs have new names and addresses (Da
 from __future__ import annotations
 
 import datetime
+import re
 
 import httpx
 import pytest
@@ -57,6 +58,8 @@ def _wipe(base_url: str) -> None:
             c.delete(f"/api/freelance/payouts/{p['id']}")
         for s in c.get("/api/freelance/sources").json():
             c.delete(f"/api/freelance/sources/{s['id']}")
+        for a in c.get("/api/freelance/accounts").json():
+            c.delete(f"/api/freelance/accounts/{a['id']}")
 
 
 @pytest.fixture
@@ -69,11 +72,19 @@ def clean(base_url):
     )
 
 
-def _source(base_url, name="Local", rate=60, currency="EUR") -> int:
-    r = httpx.post(
-        f"{base_url}/api/freelance/sources",
-        json={"name": name, "hourly_rate": rate, "currency": currency},
-    )
+def _source(base_url, name="Local", rate=60, currency="EUR", chain=False) -> int:
+    """`chain` pays the source through one euro account (made here), as the Payouts waiting cell needs."""
+    body = {"name": name, "hourly_rate": rate, "currency": currency}
+    if chain:
+        accounts = httpx.get(f"{base_url}/api/freelance/accounts").json()
+        bank = (
+            next((a for a in accounts if a["name"] == "Bank"), None)
+            or httpx.post(
+                f"{base_url}/api/freelance/accounts", json={"name": "Bank", "currency": "EUR"}
+            ).json()
+        )
+        body["chain"] = [bank["id"]]
+    r = httpx.post(f"{base_url}/api/freelance/sources", json=body)
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
@@ -249,8 +260,7 @@ def _fx_page(page, money_url, amount):
         "/api/freelance/payouts",
         source_id=src,
         week_start=W44,
-        amount=amount,
-        account_id=eur["id"],
+        legs=[{"account_id": eur["id"], "amount": amount}],
     )
     _open_days_freelance(page, money_url)
     return page.get_by_test_id("fx-chip")
@@ -369,31 +379,33 @@ def test_no_waiting_row_without_weeks_waiting(page, base_url, clean):
 
 
 def test_saving_from_the_row_makes_the_same_payout_as_the_weeks_page(page, base_url, clean):
-    src = _source(base_url)
+    src = _source(base_url, chain=True)
     older = LAST_MONDAY - datetime.timedelta(days=7)
     _block(base_url, src, LAST_MONDAY + datetime.timedelta(days=1), hours=2)
     _block(base_url, src, older + datetime.timedelta(days=1), hours=2)
-    # the Weeks page: the older week, typed in its row
+    # the Weeks page: the older week, typed in its row and confirmed
     page.goto(f"{base_url}/#weeks")
     page.wait_for_selector(".page-head .hm-switch")
     _app(page, "d.daysYear = 'all';")
     page.locator(".page-head .hm-switch button").nth(1).click()
     page.wait_for_selector("[data-testid='days-freelance']")
-    page.locator(f"input[aria-label='Payout Local {_wk(older)}']").fill("150")
+    row = page.locator(f"tr.wk-row#wk-{older.isoformat()}")
+    row.get_by_test_id("pay-amount").fill("150")
+    row.get_by_role("button", name=f"Confirm the payout of Local {_wk(older)}").click()
     page.wait_for_function(
         "() => Alpine.$data(document.querySelector('main')).payouts.length === 1"
     )
-    # the waiting row: the newest week, typed and saved
+    # the waiting row: the newest week, typed and confirmed with its own button
     _open_days(page, base_url)
     assert [c["text"] for c in _chip_state(page)] == [_wk(LAST_MONDAY)]
-    page.get_by_test_id("pay-wait-amount").fill("150")
+    page.locator(".fl-wait-form").get_by_test_id("pay-amount").fill("150")
     page.get_by_test_id("pay-wait-save").click()
     page.wait_for_function(
         "() => Alpine.$data(document.querySelector('main')).payouts.length === 2"
     )
     got = {p["week_start"]: p for p in _payouts(base_url)}
     assert set(got) == {older.isoformat(), LAST_MONDAY.isoformat()}
-    skip = {"id", "week_start", "week_end", "created_at", "updated_at"}
+    skip = {"id", "week_start", "week_end", "rate_date", "created_at", "updated_at"}
     a, b = got[older.isoformat()], got[LAST_MONDAY.isoformat()]
     assert {k: v for k, v in a.items() if k not in skip} == {
         k: v for k, v in b.items() if k not in skip
@@ -404,7 +416,7 @@ def test_saving_from_the_row_makes_the_same_payout_as_the_weeks_page(page, base_
 
 
 def test_saving_removes_the_chip_and_selects_the_next(page, base_url, clean):
-    src = _source(base_url)
+    src = _source(base_url, chain=True)
     weeks = [LAST_MONDAY - datetime.timedelta(days=7 * i) for i in range(3)]
     for w in weeks:
         _block(base_url, src, w + datetime.timedelta(days=1))
@@ -412,24 +424,27 @@ def test_saving_removes_the_chip_and_selects_the_next(page, base_url, clean):
     # pick the middle one: saving it selects the one after it (the oldest), and the newest stays
     page.locator(f"{CHIPS}[data-week='{weeks[1].isoformat()}']").click()
     assert [c["on"] for c in _chip_state(page)] == [False, True, False]
-    page.get_by_test_id("pay-wait-amount").fill("99")
+    page.locator(".fl-wait-form").get_by_test_id("pay-amount").fill("99")
     page.get_by_test_id("pay-wait-save").click()
     page.wait_for_function(f"() => document.querySelectorAll('{CHIPS}').length === 2", timeout=6000)
     state = _chip_state(page)
     assert [c["text"] for c in state] == [_wk(weeks[0]), _wk(weeks[2])]
     assert [c["on"] for c in state] == [False, True]
     assert [p["week_start"] for p in _payouts(base_url)] == [weeks[1].isoformat()]
-    # the amount field is empty again for the week now picked
-    assert page.get_by_test_id("pay-wait-amount").input_value() == ""
+    # the field shows only what the week now picked would be (the 2 h billed, as a suggestion), not the 99 typed
+    field = page.locator(".fl-wait-form").get_by_test_id("pay-amount")
+    expect(field).to_have_value("120")
+    expect(field).to_have_class(re.compile(r"\bis-sug\b"))
 
 
-def test_an_invalid_amount_reads_as_on_the_weeks_page(page, base_url, clean):
-    src = _source(base_url)
+def test_an_invalid_amount_marks_the_field_and_leaves_confirm_off(page, base_url, clean):
+    src = _source(base_url, chain=True)
     _block(base_url, src, LAST_MONDAY + datetime.timedelta(days=1))
     _open_days(page, base_url)
-    page.get_by_test_id("pay-wait-amount").fill("abc")
-    page.get_by_test_id("pay-wait-save").click()
-    expect(page.locator(f"{WAIT} .wk-status")).to_have_text("check the value")
+    field = page.locator(".fl-wait-form").get_by_test_id("pay-amount")
+    field.fill("abc")
+    expect(field).to_have_class(re.compile(r"\bbad\b"))
+    expect(page.get_by_test_id("pay-wait-save")).to_be_disabled()
     assert _payouts(base_url) == []
     assert page.locator(CHIPS).count() == 1
 

@@ -12,7 +12,7 @@ For the exact frames of the GIF, serve it with KRONOS_NOW frozen on that day; th
 screenshot baselines (tests/e2e/test_ui_snapshots.py) use the same data and day.
 
 NEVER run this against your real data — it deletes all work entries, freelance
-blocks, payouts and income sources first.
+blocks, payouts, income sources and accounts first.
 Point KRONOS_DATA_DIR somewhere disposable:
 
     KRONOS_DATA_DIR=/tmp/kronos-demo python docs/demo/seed_demo.py
@@ -32,13 +32,16 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 from app.config import DATA_DIR  # noqa: E402
 from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402
+    Account,
     Break,
     DayType,
     FreelanceBlock,
     FreelancePayout,
     IncomeSource,
+    PayoutLeg,
     WorkEntry,
 )
+from seed import add_chain_payout, give_chains, make_sample_accounts  # noqa: E402
 
 RNG = random.Random(42)
 
@@ -182,6 +185,12 @@ FL_NOTES = {
 # The ECB's USD-per-EUR, fixed per month so the demo never calls the network.
 FX = {4: 1.09, 5: 1.08, 6: 1.09, 7: 1.10, 8: 1.09, 9: 1.08, 10: 1.07, 11: 1.07}
 PAYOUT_WEEK = date(2026, 10, 19)  # Monday; one payout, for Lumen Studio
+# Where each source is usually paid through, by account name (the accounts are backend/seed.py's).
+CHAINS = {
+    "Lumen Studio": ("Deutsche Bank",),
+    "Kestrel Labs": ("Stripe", "Deutsche Bank"),
+    "Pine & Quill": ("Deutsche Bank",),
+}
 
 
 def _minutes(start: str, end: str) -> int:
@@ -198,6 +207,10 @@ def build_freelance(session) -> tuple[int, int]:
         session.add(src)
         sources[name] = src
     session.flush()
+    # The two sample accounts (the table is empty here) and each source's usual chain.
+    accounts = make_sample_accounts(session)
+    assert accounts is not None
+    give_chains(session, sources, CHAINS, accounts)
 
     blocks: list[FreelanceBlock] = []
 
@@ -252,22 +265,20 @@ def build_freelance(session) -> tuple[int, int]:
     session.add_all(blocks)
 
     # One weekly payout: what Lumen Studio actually paid for the week of 19 Oct (the estimate,
-    # rounded to a whole euro).
+    # rounded to a whole euro), saved as the API saves it: one typed leg, into its usual account.
+    # It is a euro payout into a euro account, so no rate is involved.
     estimate = sum(
         b.amount
         for b in blocks
         if b.source_id == sources["Lumen Studio"].id
         and PAYOUT_WEEK <= b.date <= PAYOUT_WEEK + timedelta(days=6)
     )
-    session.add(
-        FreelancePayout(
-            source_id=sources["Lumen Studio"].id,
-            week_start=PAYOUT_WEEK,
-            amount=float(round(estimate)),
-            currency="EUR",
-            fx_rate=None,
-            note="invoice paid",
-        )
+    add_chain_payout(
+        session,
+        sources["Lumen Studio"],
+        PAYOUT_WEEK,
+        [(accounts["Deutsche Bank"], float(round(estimate)))],
+        note="invoice paid",
     )
     return len(sources), len(blocks)
 
@@ -282,8 +293,9 @@ def main() -> None:
     Base.metadata.create_all(engine)
 
     with SessionLocal() as session:
-        # Children first: payouts and blocks reference the sources.
-        for model in (FreelancePayout, FreelanceBlock, IncomeSource):
+        # Children first: legs, payouts and blocks reference the sources and the accounts (a
+        # source takes its chain with it).
+        for model in (PayoutLeg, FreelancePayout, FreelanceBlock, IncomeSource, Account):
             for existing in session.query(model).all():
                 session.delete(existing)
         for existing in session.query(WorkEntry).all():

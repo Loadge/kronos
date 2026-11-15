@@ -6,13 +6,17 @@ Usage:
     make seed                           # Makefile wrapper
 
 Drops existing work_entries + breaks rows and freelance blocks first, so it's idempotent.
-Preserves the `settings` table; creates two sample income sources only when there are none.
+Preserves the `settings` table; creates two sample income sources only when there are none, and
+with them two accounts (only when there are none), the chains of the sources and payouts saved as
+chains of legs.
 """
 
 from __future__ import annotations
 
 import random
 import sys
+import threading
+from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -23,6 +27,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.models import (  # noqa: E402
+    Account,
     Break,
     DayType,
     FreelanceBlock,
@@ -31,6 +36,9 @@ from app.models import (  # noqa: E402
     Plan,
     WorkEntry,
 )
+from app.routers.freelance import _settle_chain  # noqa: E402
+from app.schemas import FreelancePayoutIn, PayoutLegIn  # noqa: E402
+from app.services import chains, currencies, fx  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
@@ -187,6 +195,130 @@ SAMPLE_SOURCES = (
     ("Local consulting", 60.0, "EUR", False),
 )
 SAMPLE_FX = 1.1172  # USD per EUR (ECB, 2026-10-30)
+# The accounts that come with them: (name, currency, kind, default). Made only when there are none.
+SAMPLE_ACCOUNTS = (
+    ("Stripe", "USD", "wallet", False),
+    ("Deutsche Bank", "EUR", "bank", True),
+)
+# Where each sample source is usually paid through, by account name, in order.
+SAMPLE_CHAINS = {
+    "Northwind Labs": ("Stripe", "Deutsche Bank"),
+    "Local consulting": ("Deutsche Bank",),
+}
+
+
+def make_sample_accounts(session: Session) -> dict[str, Account] | None:
+    """The sample accounts by name: made when the table is empty, else found as they are.
+
+    None when they are not there (someone else's accounts): the sample then has no chains and no
+    payouts. Flushes, does not commit.
+    """
+    if not session.scalar(select(Account.id).limit(1)):
+        for name, currency, kind, is_default in SAMPLE_ACCOUNTS:
+            session.add(
+                Account(
+                    name=name,
+                    currency=currency,
+                    kind=kind,
+                    is_default=is_default,
+                    position=chains.next_position(session, Account),
+                )
+            )
+            session.flush()
+    live = {a.name: a for a in session.scalars(select(Account).where(Account.archived.is_(False)))}
+    found: dict[str, Account] = {}
+    for name, currency, _kind, _default in SAMPLE_ACCOUNTS:
+        account = live.get(name)
+        if account is None or account.currency != currency:
+            return None
+        found[name] = account
+    return found
+
+
+def give_chains(
+    session: Session,
+    sources: dict[str, IncomeSource],
+    wanted: dict[str, tuple[str, ...]],
+    accounts: dict[str, Account],
+) -> None:
+    """Set the usual chain (account names, in order) of each source in `wanted`, only when the
+    source has none yet: a chain someone set is left as it is."""
+    for name, account_names in wanted.items():
+        source = sources.get(name)
+        if source is not None and not source.chain:
+            chains.set_chain(session, source, [accounts[n].id for n in account_names])
+    session.flush()
+
+
+@contextmanager
+def sample_rates():
+    """For the span of the block the rate of the dollar is `SAMPLE_FX` on every day, so that the
+    app's own rules can work a leg out without asking the ECB. Anything but USD and EUR is still
+    refused: the seed never reaches the network.
+
+    One seed at a time holds the swap (a lock, with the function to put back read inside it), so
+    whatever the order of two seeds the original is back when both are done. Still true: a request
+    the server answers during that instant sees the sample rate; accepted, the seed has just
+    wiped every payout."""
+    with _SWAP:
+        real = currencies.rate_for
+        currencies.rate_for = _sample_rate_for(real)
+        try:
+            yield
+        finally:
+            currencies.rate_for = real
+
+
+_SWAP = threading.Lock()
+
+
+def _sample_rate_for(real):
+    def rate_for(currency: str, on: date) -> dict:
+        if currency == "USD":
+            return {
+                "available": True,
+                "per_eur": SAMPLE_FX,
+                "source": fx.SOURCE,
+                "date": on.isoformat(),
+                "stale": False,
+                "error": None,
+            }
+        if currency == "EUR":
+            return real(currency, on)
+        raise AssertionError(f"the seed has no rate for {currency}")
+
+    return rate_for
+
+
+def add_chain_payout(
+    session: Session,
+    source: IncomeSource,
+    week_start: date,
+    legs: list[tuple[Account, float | None]],
+    note: str | None = None,
+) -> FreelancePayout:
+    """A payout saved the way ``POST /api/freelance/payouts`` saves one: the same function settles
+    its legs (an amount is typed and fixed; none is worked out from the leg before it, at
+    `SAMPLE_FX`) and gives it the last leg's figures. Added to ``session`` and flushed."""
+    body = FreelancePayoutIn(
+        source_id=source.id,
+        week_start=week_start,
+        note=note,
+        legs=[PayoutLegIn(account_id=account.id, amount=amount) for account, amount in legs],
+    )
+    payout = FreelancePayout(
+        source_id=source.id,
+        week_start=week_start,
+        amount=0.0,
+        currency=source.currency,
+        fx_rate=None,
+        note=note,
+    )
+    with sample_rates():
+        _settle_chain(session, payout, source, body)
+    session.add(payout)
+    session.flush()
+    return payout
 
 
 def build_freelance(session: Session, today: date | None = None) -> list[FreelanceBlock]:
@@ -233,22 +365,33 @@ def build_freelance(session: Session, today: date | None = None) -> list[Freelan
         d += timedelta(days=1)
     session.add_all(blocks)
     session.flush()
-    # Payouts go with the sample sources only (just created, or still there from an earlier
-    # seed: the wipe takes the payouts with the blocks, so a re-seed puts them back).
-    # Anyone else's sources get blocks and no payouts.
+    # Accounts, chains and payouts go with the sample sources only (just created, or still there
+    # from an earlier seed: the wipe takes the payouts and their legs with the blocks, so a
+    # re-seed puts them back, and the accounts and chains are still there). Anyone else's
+    # sources get blocks and nothing more.
     by_name = {s.name: s for s in sources}
     if set(by_name) == {name for name, *_ in SAMPLE_SOURCES}:
-        _add_sample_payouts(session, [by_name[name] for name, *_ in SAMPLE_SOURCES], blocks, today)
+        accounts = make_sample_accounts(session)
+        if accounts is not None:
+            give_chains(session, by_name, SAMPLE_CHAINS, accounts)
+            _add_sample_payouts(
+                session, [by_name[name] for name, *_ in SAMPLE_SOURCES], blocks, today
+            )
     return blocks
 
 
 def _add_sample_payouts(
     session: Session, sources: list[IncomeSource], blocks: list[FreelanceBlock], today: date
 ) -> None:
-    """A few payouts over the sample weeks: the dollar client pays one week above its estimate
-    and one exactly, the euro one pays a week below. The latest finished week stays unpaid, so
-    "awaiting payout" has something to show. Invented amounts."""
+    """A few payouts over the sample weeks, each saved as a chain of legs through its source's
+    chain: the dollar client pays one week above its estimate and one exactly, the euro one pays
+    a week below. The first leg is the estimate plus the difference, typed; the next ones are
+    worked out from the leg before. The latest finished week stays unpaid, so "awaiting payout"
+    has something to show. Invented amounts. A source whose chain is not the sample one (someone
+    changed it) gets no payouts."""
     usd, eur = sources[0], sources[1]
+    if any(tuple(c.account.name for c in s.chain) != SAMPLE_CHAINS[s.name] for s in (usd, eur)):
+        return
     weeks: dict[tuple[int, date], float] = {}
     for b in blocks:
         monday = b.date - timedelta(days=b.date.weekday())
@@ -265,15 +408,14 @@ def _add_sample_payouts(
         if len(candidates) <= nth:
             continue
         monday = candidates[nth]
-        session.add(
-            FreelancePayout(
-                source_id=src.id,
-                week_start=monday,
-                amount=round(weeks[(src.id, monday)] + delta, 2),
-                currency=src.currency,
-                fx_rate=SAMPLE_FX if src.currency == "USD" else None,
-                note="sample payout" if delta else None,
-            )
+        amount = round(weeks[(src.id, monday)] + delta, 2)
+        first, *rest = (c.account for c in src.chain)
+        add_chain_payout(
+            session,
+            src,
+            monday,
+            [(first, amount), *((account, None) for account in rest)],
+            note="sample payout" if delta else None,
         )
     session.flush()
 

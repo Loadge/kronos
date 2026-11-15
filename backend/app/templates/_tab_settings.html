@@ -1,6 +1,11 @@
 <!-- ========================= SETTINGS ========================= -->
 <template x-if="tab==='settings'">
 <section aria-label="Settings" class="settings-layout" x-init="$nextTick(() => initSettingsSpy($el))">
+  <svg class="acct-sprite" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="grip" viewBox="0 0 10 16"><g fill="currentColor"><circle cx="2.5" cy="3" r="1.3"/><circle cx="7.5" cy="3" r="1.3"/><circle cx="2.5" cy="8" r="1.3"/><circle cx="7.5" cy="8" r="1.3"/><circle cx="2.5" cy="13" r="1.3"/><circle cx="7.5" cy="13" r="1.3"/></g></symbol>
+    </defs>
+  </svg>
 
   <header class="page-head settings-head">
     <div class="page-head-title"><h2>Settings <span class="page-sub" x-text="'· ' + settingsGroupLabel()"></span></h2></div>
@@ -267,8 +272,13 @@
       <template x-if="templates.length === 0">
         <p class="muted settings-empty">No templates yet. <a @click.prevent="go('log')" href="#days">Save one in Days</a></p>
       </template>
+      <div class="sort-list">
       <template x-for="t in templates" :key="t.id">
-        <div class="template-item">
+        <div class="template-item sort-row" :data-sort-id="t.id">
+          <button type="button" class="grip" :aria-label="'Reorder ' + t.name" title="Drag to reorder"
+                  @pointerdown="reorderStart($event, 'templates')" @keydown="reorderKey($event, 'templates')" @contextmenu.prevent>
+            <svg width="10" height="16" aria-hidden="true"><use href="#grip"></use></svg>
+          </button>
           <div>
             <strong x-text="t.name"></strong>
             <span class="muted" x-text="' · ' + t.start_time + '–' + t.end_time"></span>
@@ -279,16 +289,17 @@
           <button type="button" class="contrast outline compact" @click="deleteTemplate(t.id)">Delete</button>
         </div>
       </template>
+      </div>
     </div>
   </div>
   </template>
 
   <!-- ═══ Freelance ══════════════════════════════════════════════════════ -->
   <template x-if="settingsGroup === 'freelance'">
-  <div class="settings-cards">
+  <div class="settings-cards" x-init="chainPick = null">
 
     <!-- ── Income sources ────────────────────────────────────────────────── -->
-    <div class="settings-card" id="settings-sources">
+    <div class="settings-card" id="settings-sources" @pointerdown.window="chainOutside($event)">
       <div class="settings-card-head">
         <div>
           <h3>Income sources</h3>
@@ -298,8 +309,13 @@
       <template x-if="sources.length === 0">
         <p class="muted settings-empty">No sources yet. <a @click.prevent="$refs.srcName.focus()" href="#settings-sources">Add one</a>.</p>
       </template>
+      <div class="sort-list">
       <template x-for="s in sources" :key="s.id">
-        <div class="src-item" :class="s.archived ? 'is-archived' : ''" :style="'--src:' + sourceColor(s.id)">
+        <div class="src-item src-item--chain sort-row" :class="s.archived ? 'is-archived' : ''" :data-sort-id="s.id" :style="'--src:' + sourceColor(s.id)">
+          <button type="button" class="grip" :aria-label="'Reorder ' + s.name" title="Drag to reorder"
+                  @pointerdown="reorderStart($event, 'sources')" @keydown="reorderKey($event, 'sources')" @contextmenu.prevent>
+            <svg width="10" height="16" aria-hidden="true"><use href="#grip"></use></svg>
+          </button>
           <span class="fl-dot" aria-hidden="true"></span>
           <div class="src-main">
             <strong x-text="s.name"></strong>
@@ -308,26 +324,44 @@
             <template x-if="s.archived"><span class="src-tag">archived</span></template>
             <small class="muted" x-text="s.blocks + ' block' + (s.blocks !== 1 ? 's' : '')"></small>
           </div>
-          <template x-if="accounts.length">
-            <label class="src-paid"><span class="fl-lbl">Paid into</span>
-              <select :aria-label="'Paid into, ' + s.name" @change="srcSetAccount(s, $event.target.value)">
-                <option value="" :selected="s.default_account_id == null" x-text="'As billed (' + s.currency + ')'"></option>
-                <template x-for="a in accounts.filter(x => (!x.archived && x.role !== 'origin') || x.id === s.default_account_id)" :key="a.id">
-                  <option :value="a.id" :selected="a.id === s.default_account_id" x-text="a.name"></option>
+          <div class="src-under">
+          <div class="chain" role="group" :aria-label="'Accounts of ' + s.name + ', in order'">
+            <template x-for="i in chainIdx" :key="i">
+              <span class="slot-cell">
+                <template x-if="i > 0"><span class="link" aria-hidden="true">›</span></template>
+                <span class="slot" :class="[chainAcct(s, i) ? 'filled' : '', chainPopKey === s.id + ':' + i ? 'pop' : '']" :data-sid="s.id" :data-i="i">
+                  <button type="button" class="slot-main" aria-haspopup="listbox" :aria-expanded="chainIsOpen(s, i) ? 'true' : 'false'"
+                          :aria-label="chainLabel(s, i)" @click="chainToggle($event, s, i)">
+                    <template x-if="chainAcct(s, i)"><svg width="14" height="14" aria-hidden="true"><use :href="'#ac-' + chainAcct(s, i).kind"></use></svg></template>
+                    <template x-if="chainAcct(s, i)"><span class="slot-name" x-text="chainAcct(s, i).name"></span></template>
+                    <template x-if="!chainAcct(s, i)"><span class="slot-n" x-text="i + 1"></span></template>
+                  </button>
+                  <template x-if="chainAcct(s, i)">
+                    <button type="button" class="slot-x" :aria-label="'Remove ' + chainAcct(s, i).name + ' from ' + s.name" title="Remove" @click="chainRemove(s, i)">×</button>
+                  </template>
+                </span>
+              </span>
+            </template>
+            <template x-for="p in (chainPick && chainPick.sid === s.id ? [chainPick] : [])" :key="p.sid + ':' + p.i">
+              <ul class="picker" role="listbox" :aria-label="'Account ' + (p.i + 1) + ' of ' + s.name" @keydown="chainKey($event)">
+                <template x-for="a in activeAccounts()" :key="a.id">
+                  <li role="none">
+                    <button type="button" role="option" :aria-selected="a.id === (s.chain || [])[p.i] ? 'true' : 'false'" @click="chainChoose(s, p.i, a.id)">
+                      <svg width="15" height="15" aria-hidden="true"><use :href="'#ac-' + a.kind"></use></svg>
+                      <span class="pk-name" x-text="a.name"></span>
+                      <span class="metric pk-cur" x-text="a.currency"></span>
+                    </button>
+                  </li>
                 </template>
-              </select>
-            </label>
-          </template>
-          <template x-if="accounts.length">
-            <label class="src-paid"><span class="fl-lbl">Paid from</span>
-              <select :aria-label="'Paid from, ' + s.name" @change="srcSetFrom(s, $event.target.value)">
-                <option value="" :selected="s.default_from_account_id == null" x-text="'As billed (' + s.currency + ')'"></option>
-                <template x-for="a in accounts.filter(x => (!x.archived && x.role !== 'destination') || x.id === s.default_from_account_id)" :key="a.id">
-                  <option :value="a.id" :selected="a.id === s.default_from_account_id" x-text="a.name"></option>
+                <template x-if="chainAcct(s, p.i)">
+                  <li role="none"><button type="button" class="rm" role="option" aria-selected="false" @click="chainChoose(s, p.i, 'rm')">Remove</button></li>
                 </template>
-              </select>
-            </label>
-          </template>
+                <template x-if="activeAccounts().length === 0">
+                  <li role="none"><button type="button" role="option" aria-selected="false" @click="chainChoose(s, p.i, 'none')">Add an account first</button></li>
+                </template>
+              </ul>
+            </template>
+          </div>
           <div class="src-actions">
             <template x-if="!s.is_default && !s.archived">
               <button type="button" class="secondary outline compact" @click="srcSetDefault(s)">Make default</button>
@@ -340,8 +374,10 @@
               <button type="button" class="contrast outline compact" @click="srcDelete(s)">Delete</button>
             </template>
           </div>
+          </div>
         </div>
       </template>
+      </div>
       <form class="src-form" @submit.prevent="srcSave()">
         <span class="fl-lbl" x-text="srcForm.id ? 'Edit source' : 'Add a source'"></span>
         <div class="src-form-row">
@@ -379,24 +415,27 @@
       <template x-if="accounts.length === 0">
         <p class="muted settings-empty">Add the bank accounts or wallets your clients pay into. Without one, a payout is read in the currency you bill.</p>
       </template>
+      <div class="sort-list">
       <template x-for="a in acctRows()" :key="a.id">
-        <div class="src-item acct-item" :class="a.archived ? 'is-archived' : ''" :data-account="a.name">
-          <svg class="acct-kind" width="20" height="20" role="img" :aria-label="a.kind"><use :href="'#ac-' + a.kind"></use></svg>
+        <div class="src-item acct-item" :class="a.archived ? 'is-archived' : 'sort-row'" :data-sort-id="a.archived ? null : a.id" :data-account="a.name">
+          <template x-if="!a.archived">
+            <button type="button" class="grip" :aria-label="'Reorder ' + a.name" title="Drag to reorder"
+                  @pointerdown="reorderStart($event, 'accounts')" @keydown="reorderKey($event, 'accounts')" @contextmenu.prevent>
+            <svg width="10" height="16" aria-hidden="true"><use href="#grip"></use></svg>
+          </button>
+          </template>
+          <template x-if="a.archived"><span class="grip-gap" aria-hidden="true"></span></template>
           <div class="src-main">
-            <strong x-text="a.name"></strong>
+            <span class="acct-who" :class="a.archived ? '' : 'acct-chip'" :title="a.archived ? null : 'Drag into a box above'" @pointerdown="acctDragStart($event, a)">
+              <svg class="acct-kind" width="20" height="20" role="img" :aria-label="a.kind"><use :href="'#ac-' + a.kind"></use></svg>
+              <strong x-text="a.name"></strong>
+            </span>
             <span class="metric acct-cur" :title="a.payouts ? acctUsedBy(a) : null">
               <span x-text="a.currency"></span>
               <svg x-show="a.payouts > 0" class="acct-lock" width="12" height="12" aria-hidden="true"><use href="#ac-lock"></use></svg>
             </span>
             <template x-if="a.archived"><span class="src-tag">archived</span></template>
           </div>
-          <label class="src-paid"><span class="fl-lbl">Use</span>
-            <select :aria-label="'Use, ' + a.name" @change="acctSetRole(a, $event.target.value)">
-              <option value="origin" :selected="a.role === 'origin'">Paid from</option>
-              <option value="destination" :selected="a.role === 'destination'">Paid into</option>
-              <option value="both" :selected="a.role === 'both'">Both</option>
-            </select>
-          </label>
           <div class="src-actions">
             <template x-if="!a.archived">
               <button type="button" class="acct-star" :class="a.is_default ? 'on' : ''" @click="acctSetDefault(a)"
@@ -410,10 +449,11 @@
           </div>
         </div>
       </template>
+      </div>
       <form class="src-form" @submit.prevent="acctSave()">
         <span class="fl-lbl" x-text="acctForm.id ? 'Edit account' : 'Add an account'"></span>
         <div class="src-form-row">
-          <input type="text" x-model="acctForm.name" placeholder="Bank or wallet" maxlength="60" aria-label="Account name" required>
+          <input type="text" x-ref="acctName" x-model="acctForm.name" placeholder="Bank or wallet" maxlength="60" aria-label="Account name" required>
           <span class="acct-picker" @click.outside="curOpen = false; curQuery = ''" :title="acctLocked() ? acctUsedBy(accountById(acctForm.id)) : null">
             <input type="text" role="combobox" class="acct-curin" autocomplete="off" aria-label="Account currency" aria-autocomplete="list"
               aria-controls="acct-curlist" :aria-expanded="curOpen ? 'true' : 'false'" :disabled="acctLocked()"

@@ -112,6 +112,36 @@ const _planLine = { days: null, valueAt: null, y: null, todayIdx: -1, mode: '', 
 // moving the pointer never re-renders anything.
 const _bz = { paintTo: null, pending: false, start: '', crossed: false, last: 0, rove: '', waveTimer: 0 };
 
+// The payout cell's scratch space, out of Alpine's state: the preview each row wants (`want`: row key -> the signature
+// of the state it was last asked about), its timer and the one in flight, the four-at-a-time queue, and the field being
+// typed in (`editing`), which a redraw leaves alone.
+const _pay = { want: {}, timers: {}, live: {}, retried: {}, inflight: 0, queue: [], editing: '', sourcesOk: false, payoutsOk: false };
+
+// What was typed in a payout row and not confirmed is kept in the browser. What is read back is not trusted: only
+// drafts of the right shape come in here; the ones of a source or account that is gone are dropped once those are
+// loaded (_payDraftsCheck). Blocked storage is the same as none.
+const PAY_DRAFTS_KEY = 'k-pay-drafts';
+function payStoredDrafts() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(PAY_DRAFTS_KEY) || '{}'); } catch { return {}; }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const kept = {};
+  for (const [key, d] of Object.entries(raw)) {
+    if (!/^\d+\|\d{4}-\d{2}-\d{2}$/.test(key) || !d || typeof d !== 'object' || !Array.isArray(d.lines)) continue;
+    if (d.lines.length < 1 || d.lines.length > 4 || !(d.eur === null || typeof d.eur === 'string')) continue;
+    const fine = l => l && typeof l === 'object' && (l.acc === null || Number.isInteger(l.acc)) && (l.typed === null || typeof l.typed === 'string');
+    if (!d.lines.every(fine)) continue;
+    kept[key] = { lines: d.lines.map(l => ({ acc: l.acc, typed: l.typed })), eur: d.eur };
+  }
+  return kept;
+}
+const PAY_RETRY_WAIT = 2000;    // ms before the one more try after a preview that failed
+const PAY_PREVIEW_WAIT = 150;   // ms after the last key before a row asks for its preview
+const PAY_PREVIEW_MAX = 4;      // previews in flight at once
+// The seal of a confirmed payout, ms from the moment it is put in the row: it lands (ring, thud, coins), leaves, and is gone.
+const PAY_SEAL_HIT = 360, PAY_SEAL_OUT = 1050, PAY_SEAL_GONE = 1290;
+const PAY_SEAL_IMG = '/static/icon-96.png';   // the mark the page's header uses
+
 // The day ribbon (Log). Everything is minutes since midnight. The helpers are pure: they take the form as it
 // stands and answer with numbers, so the methods further down only draw and write. The scratch state of a
 // drag lives here, out of Alpine, as the bezel's does: moving the pointer re-renders only when a value snaps.
@@ -348,9 +378,8 @@ function app() {
     daysWeekOpen: {},     // Days > Freelance: week key (its Monday) -> days shown by hand; unset = only the current week shows its days
     daysWeekOpenQ: {},    // the same while the notes search has text (unset = open, so a hit is never hidden); emptied when the search clears
     daysWave: {},         // week key -> ms of delay, for the wave after the bezel's + or -: its ticks light and its rows fade in; emptied after
-    payDraft: {},         // `${source}|${week}` -> the payout text being typed, until it is saved
+    payDrafts: payStoredDrafts(),   // `${source}|${week}` -> { lines: [{ acc, typed }], eur }: what was changed in a row and is not confirmed yet
     payWait: { sel: '', leaving: [], busy: false },  // the "Payouts waiting" row: the chip picked, the chips on their way out
-    fxEditing: null,      // id of the payout whose exchange rate is being edited
     // the Log tab's block editor: `id` set while editing an existing block
     flForm: { id: null, source_id: null, by: 'hours', hours: 1, start_time: '18:00', end_time: '19:00', notes: '', rate: null, fx_rate: null },
     flBusy: false,
@@ -367,11 +396,8 @@ function app() {
     currencyList: [],     // GET /api/currencies, once
     acctForm: { id: null, name: '', currency: 'EUR', kind: 'bank' },   // Settings → Accounts editor
     curQuery: '', curOpen: false, curIdx: 0,   // the currency picker of that editor
-    paySent: {},          // `${source}|${week}` -> the sent amount being typed (line 1 of the payout cell)
-    payFrom: {},          // `${source}|${week}` -> line 1's choice before it is saved: '' (as billed), 'a:ID' or 'c:CODE'
-    payRateTick: 0,       // goes up when a rate asked for lands, so the cells that wait for it draw again
-    payAcct: {},          // `${source}|${week}` -> the account chosen for a payout before it is saved (null = as billed)
-    worthOpen: null,      // id of the payout whose "worth €" field is open by hand
+    payPrev: {},          // `${source}|${week}` -> { sig, ans, err }: the last preview the server answered for that row
+    worthOpen: null,      // key (`${source}|${week}`) of the row whose "worth €" field is open by hand
     fxTip: { open: false, pinned: false, id: null, text: '', style: '' },   // the FX chip's tooltip
     taxYear: new Date().getFullYear(),
     taxForm: null,        // Settings → Taxes: the year's inputs as loaded
@@ -439,6 +465,14 @@ function app() {
     async init() {
       // Kronos is dark only; a theme remembered by an older version is forgotten.
       try { localStorage.removeItem('k-theme'); } catch { /* storage may be blocked */ }
+
+      // Another tab of this browser changed the drafts: this one shows them (and does not write them back), so its
+      // next write does not lose them.
+      window.addEventListener('storage', e => {
+        if (e.key !== PAY_DRAFTS_KEY && e.key !== null) return;
+        this.payDrafts = payStoredDrafts();
+        this._payDraftsCheck(false);
+      });
 
       // Clearing the notes search puts every week back as it was before the search.
       this.$watch('notesQuery', q => { if (!q.trim()) this.daysWeekOpenQ = {}; });
@@ -531,6 +565,8 @@ function app() {
 
         eggKey(e);
       });
+
+      this._acctDragInit();
 
       // Live clock for the "Now" stamp pill — synced to the minute boundary
       const tickNow = () => { this.nowDisplay = this._nowHHMM(); };
@@ -1517,7 +1553,7 @@ function app() {
               : data.detail.map(d => `${d.loc?.join('.')}: ${d.msg}`).join('; ');
           }
         } catch { /* body wasn't JSON */ }
-        throw new Error(msg);
+        throw Object.assign(new Error(msg), { status: res.status });
       }
       if (res.status === 204) return null;
       return res.json();
@@ -3192,15 +3228,18 @@ function app() {
     async loadDays() {
       this.loading.days = true;
       try {
+        let payoutsRead = true;   // payouts that could not be read are not a base to judge a stored draft against
         const [entries, plans, blocks, payouts] = await Promise.all([
           this.api('GET', '/api/entries'), this.api('GET', '/api/plans'),
           this.api('GET', '/api/freelance/blocks').catch(() => this.blocks),
-          this.api('GET', '/api/freelance/payouts').catch(() => this.payouts),
+          this.api('GET', '/api/freelance/payouts').catch(() => { payoutsRead = false; return this.payouts; }),
         ]);
         this.entries = entries;
         this.plans = plans;
         this.blocks = blocks;
         this.payouts = payouts;
+        if (payoutsRead) _pay.payoutsOk = true;
+        this._payDraftsCheck();
       }
       catch (e) { this.error = e.message; }
       finally { this.loading.days = false; }
@@ -3626,16 +3665,9 @@ function app() {
           if (!mine.length && !p) continue;
           const minutes = p ? p.minutes : mine.reduce((t, b) => t + b.minutes, 0);
           const estimate = p ? p.estimate_amount : this._r2(mine.reduce((t, b) => t + b.amount, 0));
-          // A payout in another currency than the one billed has its gap in euros: received minus billed.
-          // A payout that records what was sent has its gap there: sent minus billed, in the billed currency (no rate: none).
-          const sentSide = !!p && p.sent_amount != null;
-          const swapped = !sentSide && !!p && p.billed_currency !== undefined && p.currency !== p.billed_currency;
-          const gapUnknown = sentSide ? p.sent_gap === null : swapped && (p.amount_eur === null || p.billed_eur === null);
-          let gap = null;
-          if (p && p.minutes > 0) gap = gapUnknown ? 0 : sentSide ? p.sent_gap : swapped ? this._r2(p.amount_eur - p.billed_eur) : this._r2(p.amount - p.estimate_amount);
+          // The gap, the DIFF chip and € / h of a line come from its payout cell (payRow), not from here.
           lines.push({ key: s.id, source: s, currency: s.currency, hours: this._r2(minutes / 60), estimate, payout: p,
-            gapCur: swapped ? 'EUR' : s.currency, gapUnknown, gapTitle: sentSide ? 'Sent minus billed' : swapped ? 'Received minus billed, in euros' : null,
-            noHours: !!p && p.blocks === 0, gap, eph: p && p.minutes > 0 && p.amount_eur !== null ? this._r2(p.amount_eur / (p.minutes / 60)) : null });
+            noHours: !!p && p.blocks === 0 });
         }
         const paid = lines.filter(l => l.payout).length;
         const money = this.flLines(w.blocks, { sources: on, from: w.key, to: sunday });
@@ -3685,150 +3717,244 @@ function app() {
       }
       return rows;
     },
-    // ---------- typing a payout (autosave like Settings) ------------------------------
-    payText(sourceId, weekStart, p) {
-      const k = this.payKey(sourceId, weekStart);
-      return k in this.payDraft ? this.payDraft[k] : (p ? this.fmtPlain(p.amount) : '');
-    },
-    // `auto` is false in the "Payouts waiting" form, which saves with its button.
-    payTyped(sourceId, weekStart, text, auto = true) {
-      const k = this.payKey(sourceId, weekStart);
-      clearTimeout(this._autosave['pay-' + k]);
-      if (this.accounts.length && String(text).trim() === '') {
-        if (!this.payoutOf(sourceId, weekStart)) {
-          // emptied before anything was saved: the suggestion comes back
-          const d = { ...this.payDraft }; delete d[k]; this.payDraft = d;
-          return;
-        }
-        // a saved payout: the suggestion for what was sent comes back and is saved (emptying line 1 is what deletes)
-        const s = this.payCell(sourceId, weekStart).arr.suggestion;
-        text = typeof s === 'number' && s > 0 ? this.fmtPlain(s) : '';
+    // ---------- the payout cell: one line per account of the chain ----------------------------------------
+    // A row (a source and a week) shows, in this order: its draft (what was changed and is not confirmed, kept in
+    // `payDrafts`), else its saved payout's legs, else the source's chain (live accounts), else one line with no
+    // account chosen. Nothing is saved while typing: the Confirm button saves the row. The figures (the suggested
+    // amounts, the gap, the DIFF chip, € / h) are the server's: a preview of the row as it stands, asked a moment
+    // after the last change and thrown away when the row has moved on since (payAsk and _payLanded).
+    _payNum(text) { const n = this.num(text); return n > 0 ? n : NaN; },
+    // The row as the server has it with nothing changed: its saved payout, else the source's chain.
+    _payBase(sourceId, weekStart) {
+      const p = this.payoutOf(sourceId, weekStart);
+      if (p) {
+        const typedEur = p.rate_source === 'manual' && p.currency !== 'EUR' && p.amount_eur !== null;
+        return {
+          lines: p.legs.map(l => ({ acc: l.account_id, typed: l.fixed ? this.fmtPlain(l.amount) : null })),
+          eur: typedEur ? this.fmtPlain(p.amount_eur) : null,
+        };
       }
-      this.payDraft = { ...this.payDraft, [k]: text };
-      if (auto) this._autosave['pay-' + k] = setTimeout(() => this._queued('payout', () => this._paySave(sourceId, weekStart)), 600);
+      const src = this.sourceById(sourceId);
+      const chain = ((src && src.chain) || []).filter(id => { const a = this.accountById(id); return a && !a.archived; });
+      return { lines: chain.length ? chain.map(id => ({ acc: id, typed: null })) : [{ acc: null, typed: null }], eur: null };
     },
-    paySentTyped(sourceId, weekStart, text, auto = true) {
-      const k = this.payKey(sourceId, weekStart);
-      clearTimeout(this._autosave['pay-' + k]);
-      if (String(text).trim() === '' && !this.payoutOf(sourceId, weekStart)) {  // emptied: the default comes back
-        const d = { ...this.paySent }; delete d[k]; this.paySent = d;
+    // What the row shows: { lines: [{ acc, typed }], eur } (typed is the text of a typed amount, null for a suggestion).
+    payWork(sourceId, weekStart) {
+      return this.payDrafts[this.payKey(sourceId, weekStart)] || this._payBase(sourceId, weekStart);
+    },
+    // Two states of a row are the same row when they have the same accounts and the same typed numbers.
+    _payNorm(w) {
+      const t = s => (s === null ? null : Number.isNaN(this._payNum(s)) ? 'x' + s : this._payNum(s));
+      return JSON.stringify({ l: w.lines.map(l => [l.acc, t(l.typed)]), e: t(w.eur) });
+    },
+    // Change a row. The draft is what the change leaves, and it is dropped as soon as it equals the row without it.
+    payEdit(sourceId, weekStart, mutate) {
+      const key = this.payKey(sourceId, weekStart);
+      const w = JSON.parse(JSON.stringify(this.payWork(sourceId, weekStart)));
+      mutate(w);
+      const last = w.lines[w.lines.length - 1];
+      const a = last && last.acc !== null ? this.accountById(last.acc) : null;
+      if (!a || a.currency === 'EUR') w.eur = null;   // a euro value only means something after an account in another currency
+      if (this._payNorm(w) === this._payNorm(this._payBase(sourceId, weekStart))) delete this.payDrafts[key];
+      else this.payDrafts[key] = w;
+      this._payStore();
+    },
+    // The drafts are written to the browser's storage whenever they change (the one place that writes them is
+    // here, with _payDrop and _payDraftsCheck).
+    _payStore() { try { localStorage.setItem(PAY_DRAFTS_KEY, JSON.stringify(this.payDrafts)); } catch { /* storage may be blocked */ } },
+    _payDrop(key) { delete this.payDrafts[key]; this._payStore(); },
+    // Once the sources, the accounts and the payouts are known: a draft of a source or an account that is gone is dropped,
+    // and so is one that equals its row without it. The stored value is rewritten without them.
+    _payDraftsCheck(write = true) {
+      if (!_pay.sourcesOk) return;
+      for (const key of Object.keys(this.payDrafts)) {
+        const [id, week] = key.split('|'), d = this.payDrafts[key];
+        let drop = !this.sourceById(Number(id)) || d.lines.some(l => l.acc !== null && !this.accountById(l.acc));
+        if (!drop && _pay.payoutsOk && this._payNorm(d) === this._payNorm(this._payBase(Number(id), week))) drop = true;
+        if (drop) delete this.payDrafts[key];
+      }
+      if (write) this._payStore();
+    },
+    // The arrow: the draft goes (and its stored copy), a "worth €" field opened by hand closes, and the first
+    // amount of the row has the focus.
+    payDiscard(sourceId, weekStart) {
+      const key = this.payKey(sourceId, weekStart);
+      _pay.editing = '';
+      this._payDrop(key);
+      if (this.worthOpen === key) this.worthOpen = null;
+      this.$nextTick(() => { const el = document.querySelector(`.payc[data-row="${key}"] .payin:not(:disabled)`); if (el) el.focus(); });
+    },
+    payType(sourceId, weekStart, i, text) {
+      _pay.editing = this.payKey(sourceId, weekStart) + ':' + i;
+      const t = text.trim();
+      this.payEdit(sourceId, weekStart, w => { w.lines[i].typed = t === '' ? null : t; });
+    },
+    payWorthType(sourceId, weekStart, text) {
+      _pay.editing = this.payKey(sourceId, weekStart) + ':e';
+      const t = text.trim();
+      this.payEdit(sourceId, weekStart, w => { w.eur = t === '' ? null : t; });
+    },
+    // The X: what was typed in the line is forgotten (it is a suggestion again) and the focus goes to the field.
+    payClear(sourceId, weekStart, i, ev) {
+      const input = ev.currentTarget.closest('.amt-box').querySelector('input');
+      _pay.editing = '';
+      this.payEdit(sourceId, weekStart, w => { w.lines[i].typed = null; });
+      // the field repaints itself (payPaint) now that it is not the one being typed in
+      this.$nextTick(() => { input.focus(); input.select(); });
+    },
+    // The select of a line. An account is in a row once: choosing the one another line has swaps the two lines.
+    payPick(sourceId, weekStart, i, value) {
+      const id = value === '' ? null : Number(value);
+      this.payEdit(sourceId, weekStart, w => {
+        const old = w.lines[i].acc, twin = id === null ? -1 : w.lines.findIndex((l, j) => j !== i && l.acc === id);
+        if (twin >= 0) w.lines[twin].acc = old;
+        w.lines[i].acc = id;
+      });
+    },
+    payWorthOpen(sourceId, weekStart) {
+      const key = this.payKey(sourceId, weekStart);
+      this.worthOpen = key;
+      this.$nextTick(() => { const el = document.querySelector(`.worthin[data-key="${key}"]`); if (el) el.focus(); });
+    },
+    // A field shows what the row says, except the one being typed in: a redraw never rewrites that. A field with
+    // the focus that was empty or wholly selected stays wholly selected, so what is typed next replaces the
+    // suggestion that just landed, and is not added to it.
+    payPaint(el, key, i, text) {
+      if (_pay.editing === key + ':' + i || el.value === text) return;
+      const whole = document.activeElement === el && el.selectionStart === 0 && el.selectionEnd === el.value.length;
+      el.value = text;
+      if (whole) el.select();
+    },
+    payBlur(el, sourceId, weekStart, i) {
+      _pay.editing = '';
+      const c = this.payRow(sourceId, weekStart);
+      const text = i === 'e' ? c.fx.text : (c.lines[i] ? c.lines[i].text : null);
+      if (text !== null && el.value !== text) el.value = text;
+    },
+    // Everything the cell of a row draws, from the row's state and the answer the server gave for it. The Weeks row
+    // and the "Payouts waiting" form read the same thing, so they cannot drift apart.
+    payRow(sourceId, weekStart) {
+      const src = this.sourceById(sourceId) || {};
+      const key = this.payKey(sourceId, weekStart);
+      const p = this.payoutOf(sourceId, weekStart);
+      const draft = key in this.payDrafts;
+      const w = this.payWork(sourceId, weekStart);
+      const label = `${src.name} ${this.weekId(weekStart)}`;
+      const n = w.lines.length;
+      const noLive = !this.accounts.some(a => !a.archived);
+      const lines = w.lines.map((l, i) => {
+        const a = l.acc !== null ? this.accountById(l.acc) : null;
+        const v = l.typed === null ? null : this._payNum(l.typed);
+        return { i, acc: l.acc, a, typed: l.typed, fixed: v !== null && !Number.isNaN(v), value: v, bad: v !== null && Number.isNaN(v) };
+      });
+      const last = lines[lines.length - 1];
+      const lastNonEur = !!last.a && last.a.currency !== 'EUR';
+      const eurTyped = w.eur !== null, eurValue = eurTyped ? this._payNum(w.eur) : null, eurBad = eurTyped && Number.isNaN(eurValue);
+      // a row can be asked about once every line has an account and nothing typed is bad
+      const ready = lines.every(l => l.a) && !lines.some(l => l.bad) && !eurBad;
+      const asks = draft || !p;   // a saved row nobody touched needs no preview: the payout is its answer
+      let body = null, sig = null;
+      if (ready) {
+        body = { source_id: sourceId, week_start: weekStart, legs: lines.map(l => ({ account_id: l.acc, amount: l.fixed ? l.value : null, fixed: l.fixed })) };
+        if (lastNonEur && eurTyped) body.eur_amount = eurValue;
+        if (p) body.payout_id = p.id;
+        sig = JSON.stringify(body);
+      }
+      const pv = this.payPrev[key];
+      let ans = null, fresh = false;
+      if (!asks) { ans = p; fresh = true; }
+      else if (pv) { ans = pv.ans; fresh = ready && pv.sig === sig && !pv.err; }
+      // the figures of an older answer still stand while a newer one is on its way, as long as they are of the same accounts
+      const ansLegs = ans && ans.legs ? ans.legs : [];
+      const usable = !!ans && (fresh || (ansLegs.length === n && lines.every((l, i) => ansLegs[i].account_id === l.acc)));
+      const shown = lines.map(l => {
+        const leg = usable && l.a && ansLegs[l.i] && ansLegs[l.i].account_id === l.acc ? ansLegs[l.i] : null;
+        const amount = l.fixed ? l.value : (leg && leg.amount !== null && leg.amount !== undefined ? leg.amount : null);
+        const problem = !l.fixed && !l.bad && leg && fresh && leg.amount === null ? (leg.problem || '') : '';
+        const holder = problem.startsWith('no rate') ? 'no rate' : problem.startsWith('nothing billed') ? 'nothing billed' : problem ? '—' : '';
+        const name = l.a ? l.a.name : '';
+        return {
+          ...l, amount, problem, holder, mark: l.a ? this.curMark(l.a.currency) : '',
+          text: l.typed !== null ? l.typed : (amount !== null ? this.fmtPlain(amount) : ''),
+          amountLabel: `${name || 'Payout'} amount, ${label}`,
+          clearLabel: `Clear ${name ? name + ' ' : ''}amount, ${label}`,
+          selectLabel: n > 1 ? `Account ${l.i + 1} of ${n}, ${label}` : `Account, ${label}`,
+          missing: !l.a && noLive,   // no account to choose from: the select is a link to Settings
+          options: (l.a ? [] : [{ value: '', label: 'Choose account', selected: true }]).concat(
+            this.accounts.filter(a => !a.archived || a.id === l.acc).map(a => ({ value: String(a.id), label: a.name, selected: a.id === l.acc }))),
+        };
+      });
+      const complete = ready && shown.every(l => l.amount !== null);
+      const touched = lines.some(l => l.fixed) || eurTyped;
+      const gap = usable && ans.gap !== null && ans.gap !== undefined && ans.gap !== 0 ? ans.gap : null;
+      const chip = usable && (!asks || touched) && ans.account_id !== null && this.fxHasCost(ans) && (!asks || complete)
+        && (!ans.billed_eur || Math.abs(ans.fx_cost_eur) / ans.billed_eur >= 0.0005)   // under 0.05 % of the bill there is nothing to say
+        ? { id: key, fx_cost_eur: ans.fx_cost_eur, billed_eur: ans.billed_eur } : null;
+      const showEph = usable && (!asks || draft || touched) && (!asks || complete) && ans.minutes > 0;
+      const status = this.settingsStatus['pay-' + key] || '';
+      const fx = { show: lastNonEur, open: false, text: '', conv: '', key, typed: eurTyped && !eurBad, value: eurValue, bad: eurBad };
+      if (lastNonEur) {
+        const known = usable && complete && ans.amount_eur !== null && ans.amount_eur !== undefined;
+        fx.open = this.worthOpen === key || eurTyped || (usable && complete && !known);
+        fx.text = eurTyped ? w.eur : (known ? this.fmtPlain(ans.amount_eur) : '');
+        fx.conv = known ? '= ' + this.fmtMoney(ans.amount_eur) : '';
+      }
+      return {
+        key, sid: sourceId, week: weekStart, label, p, draft, n, lines: shown, fx, chip, chipAt: n === 1 ? 1 : n - 1,
+        wide: shown.some(l => l.mark.length > 1),
+        gap, gapText: gap !== null ? this.payGapLabel(gap, ans.gap_currency) : '', gapCls: gap !== null && gap < 0 ? 'deficit' : 'surplus',
+        showEph, ephText: showEph ? (ans.amount_eur !== null && ans.amount_eur !== undefined ? this.fmtMoney(this._r2(ans.amount_eur / (ans.minutes / 60))) : 'no rate') : '',
+        noHours: !!p && !draft && p.blocks === 0,
+        confirm: asks, canConfirm: asks && complete && fresh && status !== 'busy', canDelete: !!p && !draft,
+        status, need: asks && ready, fresh, sig, body,
+      };
+    },
+    // The x-effect of a cell: ask the server what the row would be if it were saved, a moment after the last change.
+    payAsk(c) {
+      if (!c.need) { clearTimeout(_pay.timers[c.key]); delete _pay.timers[c.key]; delete _pay.want[c.key]; return; }
+      if (c.fresh) { _pay.want[c.key] = c.sig; return; }
+      if (_pay.want[c.key] === c.sig && (_pay.timers[c.key] || _pay.live[c.key] === c.sig)) return;   // already on its way
+      _pay.want[c.key] = c.sig;
+      clearTimeout(_pay.timers[c.key]);
+      _pay.timers[c.key] = setTimeout(() => { delete _pay.timers[c.key]; this._payFire(c.key, c.sig, c.body); }, PAY_PREVIEW_WAIT);
+    },
+    // No more than PAY_PREVIEW_MAX previews are in flight: the others wait here, the newest of a row replacing its older one.
+    _payFire(key, sig, body) {
+      if (_pay.inflight >= PAY_PREVIEW_MAX) {
+        _pay.queue = _pay.queue.filter(q => q.key !== key);
+        _pay.queue.push({ key, sig, body });
         return;
       }
-      this.paySent = { ...this.paySent, [k]: text };  // empty on a saved payout: _paySave deletes it
-      if (auto) this._autosave['pay-' + k] = setTimeout(() => this._queued('payout', () => this._paySave(sourceId, weekStart)), 600);
+      _pay.inflight++;
+      _pay.live[key] = sig;
+      this.api('POST', '/api/freelance/payouts/preview', body)
+        .then(ans => this._payLanded(key, sig, { ans }), e => this._payLanded(key, sig, { err: e.message || 'error', status: e.status || 0 }))
+        .finally(() => {
+          _pay.inflight--;
+          if (_pay.live[key] === sig) delete _pay.live[key];
+          while (_pay.inflight < PAY_PREVIEW_MAX && _pay.queue.length) {
+            const q = _pay.queue.shift();
+            if (_pay.want[q.key] === q.sig) this._payFire(q.key, q.sig, q.body);
+          }
+        });
     },
-
-    // ---------- the payout cell: what was sent (line 1) and what arrived (line 2) ----------
-    curDecimals(code) { const c = this.currencyList.find(x => x.code === code); return c ? c.decimals : (this.isCoin(code) ? 8 : 2); },
-    _roundTo(x, dec) { const f = 10 ** dec; return Math.round((x + Number.EPSILON) * f) / f; },
-    // Units of `to` per unit of `from` on a day: a number, null when there is none, undefined while it is being asked.
-    payRate(from, to, day) {
-      void this.payRateTick;  // a landed answer redraws whoever waits for it
-      if (from === to) return 1;
-      const key = `${from}>${to}@${day}`;
-      const known = (this._payRates ||= new Map());
-      if (known.has(key)) return known.get(key);
-      const asked = (this._payRatesAsked ||= new Set());
-      if (!asked.has(key)) {
-        asked.add(key);
-        this.api('GET', `/api/freelance/rate?from=${from}&to=${to}&on=${day}`)
-          .then(r => known.set(key, typeof r.rate === 'number' ? r.rate : null), () => known.set(key, null))
-          .finally(() => { this.payRateTick++; });
+    // An answer counts only if it is for the state the row is in now; an older one is thrown away.
+    _payLanded(key, sig, got) {
+      if (_pay.want[key] !== sig) return;
+      const before = this.payPrev[key], st = 'pay-' + key;
+      this.payPrev[key] = { sig, ans: got.ans || (before && before.ans) || null, err: got.err || '' };
+      if (!got.err) {
+        if (this.settingsStatus[st] === 'noanswer') this._setStatus(st, '');
+        return;
       }
-      return undefined;
-    },
-    // `amount` of `from` in `to` at the rate of the day: a number, or null/undefined as payRate.
-    _payConvert(amount, from, to, day) {
-      if (from === to) return amount;
-      const r = this.payRate(from, to, day);
-      return typeof r === 'number' ? this._roundTo(amount * r, this.curDecimals(to)) : r;
-    },
-    _payEstimate(sourceId, weekStart, p) {
-      if (p) return p.estimate_amount;
-      const total = this.blocks.filter(b => b.source_id === sourceId && this._mondayIso(new Date(b.date + 'T12:00:00')) === weekStart)
-        .reduce((t, b) => t + b.amount, 0);
-      return this._r2(total);
-    },
-    // Line 1's choice: the one picked, else the saved payout's, else the source's "Paid from", else as billed.
-    payFromSel(sourceId, weekStart, p) {
-      const k = this.payKey(sourceId, weekStart);
-      if (k in this.payFrom) return this.payFrom[k];
-      const src = this.sourceById(sourceId) || {};
-      if (p) {
-        if (p.from_account_id != null) return 'a:' + p.from_account_id;
-        return p.sent_amount != null && p.sent_currency !== src.currency ? 'c:' + p.sent_currency : '';
-      }
-      const a = this.accounts.find(x => x.id === src.default_from_account_id && !x.archived && x.role !== 'destination');
-      return a ? 'a:' + a.id : '';
-    },
-    payFromCurrency(sel, billedCur) {
-      if (sel.startsWith('a:')) { const a = this.accountById(Number(sel.slice(2))); return a ? a.currency : billedCur; }
-      return sel.startsWith('c:') ? sel.slice(2) : billedCur;
-    },
-    // Whether a saved payout still follows line 1: its arrived amount is the suggestion for its sent amount, to the cent.
-    _payFollowing(p, day) {
-      const s = p.sent_amount != null ? { amount: p.sent_amount, cur: p.sent_currency } : { amount: p.billed_amount, cur: p.billed_currency };
-      const v = this._payConvert(s.amount, s.cur, p.currency, day);
-      return typeof v === 'number' && Math.abs(v - p.amount) < 0.5 * 10 ** -this.curDecimals(p.currency) + 1e-9;
-    },
-    // Everything a payout cell draws, from the state and the saved payout; the Weeks row and the
-    // "Payouts waiting" form both read it, so they cannot drift apart.
-    payCell(sourceId, weekStart) {
-      const src = this.sourceById(sourceId) || {};
-      const p = this.payoutOf(sourceId, weekStart);
-      const k = this.payKey(sourceId, weekStart);
-      const billedCur = src.currency;
-      const two = this.accounts.length > 0;
-      const day = this._addDaysIso(weekStart, 6);
-      const arrId = this.payAccountId(sourceId, weekStart, p);
-      const arrCur = this.payCurrency(sourceId, weekStart, p, billedCur);
-      const arrOptions = this.accounts.filter(a => (!a.archived && a.role !== 'origin') || a.id === arrId)
-        .map(a => ({ value: String(a.id), label: a.name, selected: a.id === arrId }));
-      arrOptions.push({ value: '', label: `As billed (${billedCur})`, selected: arrId === null });
-      const cell = { two, p, src, arr: { mark: this.curMark(arrCur), options: arrOptions, sel: arrId, cur: arrCur, sug: false, text: '' }, sent: null };
-      if (!two) {
-        cell.arr.text = k in this.payDraft ? this.payDraft[k] : (p ? this.fmtPlain(p.amount) : '');
-        return cell;
-      }
-      // line 1
-      const sel = this.payFromSel(sourceId, weekStart, p);
-      const sentCur = this.payFromCurrency(sel, billedCur);
-      const savedSent = !!p && p.sent_amount != null;
-      let sentAmount = NaN, sentText = '', sentSug = false;
-      if (k in this.paySent) { sentText = this.paySent[k]; sentAmount = this.num(sentText); }
-      else if (savedSent) { sentAmount = p.sent_amount; sentText = this.fmtPlain(sentAmount); }
-      else {
-        const v = this._payConvert(this._payEstimate(sourceId, weekStart, p), billedCur, sentCur, day);
-        sentAmount = typeof v === 'number' && v > 0 ? v : NaN;
-        sentText = Number.isFinite(sentAmount) ? this.fmtPlain(sentAmount) : '';
-        sentSug = true;
-      }
-      const fromOptions = [{ value: '', label: `As billed (${billedCur})`, selected: sel === '' }];
-      for (const a of this.accounts) {
-        if ((!a.archived && a.role !== 'destination') || 'a:' + a.id === sel) fromOptions.push({ value: 'a:' + a.id, label: a.name, selected: 'a:' + a.id === sel });
-      }
-      const coins = this.currencyList.length ? this.currencyList : [{ code: 'EUR' }, { code: 'USD' }];
-      cell.sent = {
-        mark: this.curMark(sentCur), text: sentText, sug: sentSug, cur: sentCur, sel, amount: sentAmount,
-        options: fromOptions, currencies: coins.map(c => ({ value: 'c:' + c.code, label: c.code, selected: 'c:' + c.code === sel })),
-        fromId: sel.startsWith('a:') ? Number(sel.slice(2)) : null,
-        send: sel !== '' || k in this.paySent || savedSent,
-      };
-      // line 2: typed, else the suggestion while nothing saved (or the saved row still follows), else what was saved
-      const suggestion = Number.isFinite(sentAmount) && sentAmount > 0 ? this._payConvert(sentAmount, sentCur, arrCur, day) : null;
-      const text = v => (typeof v === 'number' && v > 0 ? this.fmtPlain(v) : '');
-      if (k in this.payDraft) cell.arr.text = this.payDraft[k];
-      else if (p && !this._payFollowing(p, day)) cell.arr.text = this.fmtPlain(p.amount);
-      else { cell.arr.text = text(suggestion); cell.arr.sug = !p; }
-      cell.arr.suggestion = suggestion;
-      return cell;
-    },
-    async payPickFrom(sourceId, weekStart, value, auto = true) {
-      const k = this.payKey(sourceId, weekStart);
-      this.payFrom = { ...this.payFrom, [k]: value };
-      if (!auto || !this.payoutOf(sourceId, weekStart)) return;  // nothing to save until an amount is typed
-      clearTimeout(this._autosave['pay-' + k]);
-      await this._queued('payout', () => this._paySave(sourceId, weekStart));
+      this._setStatus(st, 'noanswer');
+      // no loop: one more try, on its own, 2 s after a failure that was not a 4xx, and only once for a state of the row
+      if ((got.status >= 400 && got.status < 500) || _pay.retried[key] === sig) return;
+      _pay.retried[key] = sig;
+      setTimeout(() => {
+        const now = this.payPrev[key];
+        if (_pay.want[key] === sig && now && now.sig === sig && now.err) this.payPrev[key] = { ...now, sig: null, err: '' };
+      }, PAY_RETRY_WAIT);
     },
     async reloadFlData() {
       try {
@@ -3836,147 +3962,139 @@ function app() {
         this.blocks = blocks;
         this.payouts = payouts;
       } catch (e) { this.error = e.message; }
+      for (const k of Object.keys(this.payPrev)) this.payPrev[k] = { ...this.payPrev[k], sig: null };   // the weeks moved: every row asks again
       this._flStale = true;  // a block's effective money depends on its week's payout
     },
-    async _paySave(sourceId, weekStart, from = null, force = false) {
-      const k = this.payKey(sourceId, weekStart), st = 'wk-' + weekStart;
-      if (!force && ![this.payDraft, this.paySent, this.payFrom, this.payAcct].some(m => k in m)) return;
-      const existing = this.payoutOf(sourceId, weekStart);
-      const src = this.sourceById(sourceId);
-      const drop = () => { for (const name of ['payDraft', 'paySent', 'payFrom', 'payAcct']) { const m = { ...this[name] }; delete m[k]; this[name] = m; } };
-      const c = this.payCell(sourceId, weekStart);
-      const acct = this.payAccountId(sourceId, weekStart, existing);
-      const text = String(c.arr.text).trim();
-      // what deletes a saved payout: emptying what was sent, or the one amount when there are no accounts
-      const deleting = existing && (c.two ? k in this.paySent && String(this.paySent[k]).trim() === '' : k in this.payDraft && text === '');
-      if (deleting || text === '') {
-        if (deleting) {
-          this._setStatus(st, 'busy');
-          try {
-            await this.api('DELETE', `/api/freelance/payouts/${existing.id}`);
-            drop();
-            await this.reloadFlData();
-            this._setStatus(st, 'saved');
-            this.showToast(`Payout deleted — ${this.weekId(weekStart)} ${src ? src.name : ''}`.trim(), 'neutral', {
-              label: 'Undo',
-              run: async () => {
-                const body = { source_id: existing.source_id, week_start: existing.week_start, amount: existing.amount, note: existing.note };
-                if (existing.account_id != null) {
-                  // the account's currency and the value it had: typed by hand, or the rate of the day it was paid
-                  body.account_id = existing.account_id;
-                  if (existing.rate_source === 'manual' && existing.amount_eur !== null) body.eur_amount = existing.amount_eur;
-                  else if (existing.rate_date) body.paid_on = existing.rate_date;
-                } else if (existing.fx_rate) body.fx_rate = existing.fx_rate;
-                if (existing.sent_amount != null) {
-                  body.sent_amount = existing.sent_amount;
-                  if (existing.from_account_id != null) body.from_account_id = existing.from_account_id;
-                  else body.sent_currency = existing.sent_currency;
-                }
-                try { await this.api('POST', '/api/freelance/payouts', body); await this.reloadFlData(); this.showToast('Payout restored', 'neutral'); }
-                catch (e) { this.error = e.message; }
-              },
-            });
-          } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+    // Confirm: the row as it is shown is saved (every line with the amount in its field, `fixed` for a typed one). On
+    // success the draft is dropped and the payouts are read again; on failure the draft stays and the status says so.
+    async payConfirm(sourceId, weekStart, btn) {
+      const c = this.payRow(sourceId, weekStart);
+      if (!c.canConfirm) return;
+      const st = 'pay-' + c.key, existing = c.p;
+      const body = {
+        source_id: sourceId, week_start: weekStart, note: existing ? existing.note : null,
+        legs: c.lines.map(l => ({ account_id: l.acc, amount: l.amount, fixed: l.fixed })),
+      };
+      if (c.fx.show && c.fx.typed) body.eur_amount = c.fx.value;
+      const rect = btn ? btn.getBoundingClientRect() : null;   // the button is gone when the coins fly
+      const tail = btn && btn.closest ? btn.closest('.wk-tail') : null;   // only a row of Weeks has one: "Payouts waiting" gets no seal
+      const emptyChain = !((this.sourceById(sourceId) || {}).chain || []).length;
+      this._setStatus(st, 'busy');
+      return this._queued('payout', async () => {
+        try {
+          if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, body);
+          else await this.api('POST', '/api/freelance/payouts', body);
+          await this.reloadFlData();   // the draft goes once the saved payout is here: the fields never go blank in between
+          this._payDrop(c.key);
+          delete this.payPrev[c.key];
+          if (this.worthOpen === c.key) this.worthOpen = null;
+          this._setStatus(st, 'saved');
+          const mine = this.payoutOf(sourceId, weekStart);
+          // one coin per 100 euros that landed; the glint says the payout beat the week's estimate. In Weeks the seal
+          // drops them where it lands; anywhere else (or when there is no seal) they fly from the button. The seal starts
+          // here, before the sources are read again, so the badge never shows for a moment ahead of it.
+          if (mine && rect) {
+            const swapped = mine.currency !== mine.billed_currency;
+            const euros = mine.amount_eur ?? mine.amount;
+            const fly = (from) => this.payCoins({ getBoundingClientRect: from }, euros, swapped ? (mine.amount_eur ?? 0) > (mine.billed_eur ?? Infinity) : mine.amount > mine.estimate_amount);
+            if (!this._paySeal(tail, () => rect, fly)) fly(() => rect);
+          }
+          if (emptyChain) {   // the server gave the source the chain of a one-account payout: say so
+            await this.loadSources();
+            const src = this.sourceById(sourceId), first = src && src.chain && src.chain.length ? this.accountById(src.chain[0]) : null;
+            if (first) this.showToast(`${first.name} is now the first account of ${src.name}`, 'neutral');
+          }
+        } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+      });
+    },
+    // The seal of Kronos falls where Confirm was, drops the coins once, and gives way to the badge (the tail of
+    // the row shows it when `stamping` goes). It is decoration: it lives in the row's own tail (a node the rows'
+    // redraw does not own, so a later Confirm in another row cannot remove it), runs on its own timers, and a
+    // failure in it only costs the seal. Returns false when there is no seal (reduced motion, no row to put it in).
+    _paySeal(tail, restRect, fly) {
+      if (this._reduced() || !tail || !tail.isConnected) return false;
+      const top = tail.querySelector('.tail-top');
+      if (!top) return false;
+      let seal = null;
+      const line = tail.closest('.wk-line');
+      const finish = () => {
+        try { if (seal) seal.remove(); } catch { /* gone already */ }
+        tail.classList.remove('stamping');
+        if (line) line.classList.remove('thud');
+        const tag = tail.querySelector('.wk-tag');
+        if (tag) { tag.classList.remove('ink'); void tag.offsetWidth; tag.classList.add('ink'); setTimeout(() => tag.classList.remove('ink'), 600); }
+      };
+      try {
+        seal = document.createElement('span');
+        seal.className = 'seal';
+        seal.setAttribute('aria-hidden', 'true');
+        const img = document.createElement('img');
+        img.alt = '';
+        img.addEventListener('error', () => img.remove());
+        img.src = PAY_SEAL_IMG;
+        seal.appendChild(img);
+        tail.classList.add('stamping');
+        top.appendChild(seal);
+      } catch { finish(); return false; }
+      setTimeout(() => {
+        try {
+          seal.classList.add('hit');
+          if (line) line.classList.add('thud');
+          try { navigator.vibrate?.(18); } catch { /* a browser without vibration */ }
+          fly(() => (seal.isConnected ? seal.getBoundingClientRect() : restRect()));
+        } catch { /* decoration */ }
+      }, PAY_SEAL_HIT);
+      setTimeout(() => { try { seal.classList.add('out'); } catch { /* decoration */ } }, PAY_SEAL_OUT);
+      setTimeout(finish, PAY_SEAL_GONE);
+      return true;
+    },
+    // Delete a saved payout; the ribbon offers Undo, which saves it again with the same legs.
+    async payDelete(sourceId, weekStart) {
+      const p = this.payoutOf(sourceId, weekStart), key = this.payKey(sourceId, weekStart);
+      if (!p || key in this.payDrafts) return;
+      const st = 'pay-' + key, src = this.sourceById(sourceId);
+      this._setStatus(st, 'busy');
+      return this._queued('payout', async () => {
+        try {
+          await this.api('DELETE', `/api/freelance/payouts/${p.id}`);
+          delete this.payPrev[key];
+          await this.reloadFlData();
+          this._setStatus(st, 'saved');
+          this.showToast(`Payout deleted — ${this.weekId(weekStart)} ${src ? src.name : ''}`.trim(), 'neutral', { label: 'Undo', run: () => this.payUndelete(p) });
+        } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
+      });
+    },
+    async payUndelete(p) {
+      const last = p.legs[p.legs.length - 1];
+      const body = { source_id: p.source_id, week_start: p.week_start, note: p.note, legs: p.legs.map(l => ({ account_id: l.account_id, amount: l.amount, fixed: l.fixed })) };
+      // the euro value it had: typed by hand, or the rate of the day it was paid
+      if (p.rate_source === 'manual' && last.currency !== 'EUR' && p.amount_eur !== null) body.eur_amount = p.amount_eur;
+      else if (p.rate_date) body.paid_on = p.rate_date;
+      try {
+        await this.api('POST', '/api/freelance/payouts', body);
+        await this.reloadFlData();
+        this.showToast('Payout restored', 'neutral');
+      } catch (e) { this.error = e.message; }
+    },
+    payStatus(sourceId, weekStart) { return this.settingsStatusText('pay-' + this.payKey(sourceId, weekStart)); },
+    // "Add an account", where no account exists to choose: Settings > Freelance with the Accounts card in view.
+    async payAddAccount() {
+      this.settingsGroup = 'freelance';
+      try { localStorage.setItem('k-settings-group', 'freelance'); } catch { /* storage may be blocked */ }
+      await this.go('settings');
+      for (let tries = 0; tries < 60; tries++) {
+        const card = document.querySelector('[data-testid="accounts-card"]');
+        if (card) {
+          card.scrollIntoView({ block: 'start' });
+          if (this.$refs.acctName) this.$refs.acctName.focus({ preventScroll: true });
           return;
         }
-        // nothing to save and nothing asked for: let go. A sent side typed or chosen with no rate to turn it into
-        // the arrived amount waits for the user, with the status "invalid".
-        if (!existing && !force && !(k in this.paySent) && !(k in this.payFrom)) { drop(); this._setStatus(st, ''); return; }
-        this._setStatus(st, 'invalid');
-        return;
+        await new Promise(r => setTimeout(r, 50));
       }
-      const amount = this.num(text);
-      if (!(amount > 0)) { this._setStatus(st, 'invalid'); return; }
-      const body = { source_id: sourceId, week_start: weekStart, amount };
-      if (acct !== null) body.account_id = acct;
-      const sent = c.sent;
-      if (sent && sent.send) {
-        if (!(sent.amount > 0)) { this._setStatus(st, 'invalid'); return; }
-        body.sent_amount = sent.amount;
-        if (sent.fromId !== null) body.from_account_id = sent.fromId;
-        else if (sent.sel !== '') body.sent_currency = sent.cur;
-      }
-      const sameSent = !existing ? false : sent && sent.send
-        ? existing.sent_amount === body.sent_amount && (existing.from_account_id ?? null) === (body.from_account_id ?? null) && existing.sent_currency === sent.cur
-        : existing.sent_amount == null;
-      if (existing && existing.amount === amount && (existing.account_id ?? null) === acct && sameSent) { drop(); this._setStatus(st, ''); return; }
-      this._setStatus(st, 'busy');
-      try {
-        if (existing) await this.api('PUT', `/api/freelance/payouts/${existing.id}`, { ...body, account_id: acct, note: existing.note });
-        else await this.api('POST', '/api/freelance/payouts', body);
-        const live = document.activeElement;
-        const field = live && (live.classList.contains('payin') || live.classList.contains('paysent')) ? live : null;
-        const input = from || field || [...document.querySelectorAll('.payin')].find(x => x.getAttribute('aria-label') === `Payout ${src?.name} ${this.weekId(weekStart)}`);
-        drop();
-        await this.reloadFlData();
-        this._setStatus(st, 'saved');
-        const mine = this.payoutOf(sourceId, weekStart);
-        // one coin per 100 euros that landed; the glint says the payout beat the week's estimate
-        if (mine) {
-          const swapped = mine.currency !== mine.billed_currency;
-          const euros = mine.amount_eur ?? mine.amount;
-          this.payCoins(input, euros, swapped ? (mine.amount_eur ?? 0) > (mine.billed_eur ?? Infinity) : mine.amount > mine.estimate_amount);
-        }
-      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
-    },
-    payStatus(weekStart) { return this.settingsStatusText('wk-' + weekStart); },
-    payStatusCls(weekStart) { return this.settingsStatusCls('wk-' + weekStart); },
-    // The exchange rate of a USD payout: the pencil opens a small input.
-    fxEdit(p) { this.fxEditing = p.id; },
-    async fxSave(p, value) {
-      if (this.fxEditing !== p.id) return;
-      this.fxEditing = null;
-      const v = this.num(value);
-      if (!(v > 0) || v === p.fx_rate) return;
-      const st = 'wk-' + p.week_start;
-      this._setStatus(st, 'busy');
-      try {
-        await this.api('PUT', `/api/freelance/payouts/${p.id}`, { source_id: p.source_id, week_start: p.week_start, amount: p.amount, fx_rate: v, note: p.note });
-        await this.reloadFlData();
-        this._setStatus(st, 'saved');
-      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
     },
     // ---------- accounts in the payout row --------------------------------------------
     activeAccounts() { return this.accounts.filter(a => !a.archived); },
     accountById(id) { return this.accounts.find(a => a.id === id) || null; },
-    // The account a payout goes to: the one picked, else the payout's own (none for a payout from before
-    // accounts), else for a week with no payout the source's default account, else the default account.
-    // An account that only sends is never the default of a new payout.
-    payAccountId(sourceId, weekStart, p) {
-      const k = this.payKey(sourceId, weekStart);
-      if (k in this.payAcct) return this.payAcct[k];
-      if (p) return p.account_id ?? null;
-      const live = this.activeAccounts().filter(a => a.role !== 'origin');
-      const src = this.sourceById(sourceId);
-      const mine = src && live.find(a => a.id === src.default_account_id);
-      return (mine || live.find(a => a.is_default) || { id: null }).id;
-    },
-    payCurrency(sourceId, weekStart, p, billed) {
-      const id = this.payAccountId(sourceId, weekStart, p);
-      const a = id === null ? null : this.accountById(id);
-      return a ? a.currency : (p ? p.currency : billed);
-    },
-    async paySetAccount(sourceId, weekStart, value, p, auto = true) {
-      const k = this.payKey(sourceId, weekStart);
-      this.payAcct = { ...this.payAcct, [k]: value === '' ? null : Number(value) };
-      if (!p || !auto) return;  // nothing to save until an amount is typed
-      clearTimeout(this._autosave['pay-' + k]);
-      await this._queued('payout', () => this._paySave(sourceId, weekStart));
-    },
-    // "worth €": what a payout in another currency was worth in euros, typed when no rate can be had
-    // (or when the user wants their own). It is sent as `eur_amount`.
-    async worthSave(p, value) {
-      this.worthOpen = null;
-      const v = this.num(value);
-      if (!(v > 0) || v === p.amount_eur) return;
-      const st = 'wk-' + p.week_start;
-      this._setStatus(st, 'busy');
-      try {
-        await this.api('PUT', `/api/freelance/payouts/${p.id}`, { source_id: p.source_id, week_start: p.week_start, amount: p.amount, note: p.note, account_id: p.account_id, eur_amount: v });
-        await this.reloadFlData();
-        this._setStatus(st, 'saved');
-      } catch (e) { this.error = e.message; this._setStatus(st, 'error'); }
-    },
     // The DIFF chip: what the payout differs from what was billed, in plain words.
     fxHasCost(p) { return p.fx_cost_eur !== null && p.fx_cost_eur !== undefined; },
     // The chip says its conclusion: the share of the billed amount that is missing ("DIFF -99.7%") or extra ("DIFF +0.4%").
@@ -4053,7 +4171,7 @@ function app() {
       return list.find(w => w.key === this.payWait.sel) || list[0] || null;
     },
     payWaitPick(w) { this.payWait.sel = w.key; },
-    // Saving goes through the Weeks page's own path (_paySave: same account, same checks, same errors). On success
+    // Confirming goes through the Weeks page's own path (payConfirm: same legs, same checks, same errors). On success
     // the coins fly from the button, the chip leaves and the next week is picked.
     async payWaitSave(btn) {
       const w = this.payWaitSelected();
@@ -4062,8 +4180,8 @@ function app() {
       try {
         const live = this.payWaitList().filter(x => !x.leaving);
         const at = live.findIndex(x => x.key === w.key);
-        await this._queued('payout', () => this._paySave(w.source_id, w.week, btn, true));
-        if (!this.payoutOf(w.source_id, w.week)) return;  // invalid or refused: the status beside the button says so
+        await this.payConfirm(w.source_id, w.week, btn);
+        if (!this.payoutOf(w.source_id, w.week)) return;  // not ready or refused: the status beside the button says so
         const next = live[at + 1] || live[at - 1] || null;
         this.payWait.sel = next ? next.key : '';
         if (!this._reduced()) {
@@ -4908,7 +5026,7 @@ function app() {
       if (status === 'saved') this._autosave['fade-' + section] = setTimeout(() => { if (this.settingsStatus[section] === 'saved') this._setStatus(section, ''); }, 2200);
     },
     settingsStatusText(section) {
-      return { busy: '…', saved: 'saved ✓', invalid: 'check the value', error: 'not saved' }[this.settingsStatus[section]] || '';
+      return { busy: '…', saved: 'saved ✓', invalid: 'check the value', error: 'not saved', noanswer: 'no answer' }[this.settingsStatus[section]] || '';
     },
     settingsStatusCls(section) { return this.settingsStatus[section] ? 'is-' + this.settingsStatus[section] : ''; },
     // Flush every pending autosave (leaving Settings, switching the group or a tax year).
@@ -5337,17 +5455,20 @@ function app() {
     liveSources() { return this.sources.filter(s => !s.archived); },
     defaultSource() { return this.liveSources().find(s => s.is_default) || this.liveSources()[0] || null; },
     sourceById(id) { return this.sources.find(s => s.id === id) || null; },
-    // A stable colour per source from a small palette, by position — nothing to store.
+    // A stable colour per source from a small palette, by the rank of its id — nothing to store. The colour
+    // belongs to the source: putting the list in another order (Settings) repaints nothing.
     SRC_COLORS: ['var(--k-brass)', 'var(--k-ink)', 'var(--k-flex)', 'var(--k-sick)', 'var(--k-surplus)', 'var(--k-deficit)'],
     sourceColor(id) {
-      const i = this.sources.findIndex(s => s.id === id);
-      return this.SRC_COLORS[(i < 0 ? 0 : i) % this.SRC_COLORS.length];
+      const i = this.sources.some(s => s.id === id) ? this.sources.filter(s => s.id < id).length : 0;
+      return this.SRC_COLORS[i % this.SRC_COLORS.length];
     },
     async loadSources() {
       await Promise.all([
-        (async () => { try { this.sources = await this.api('GET', '/api/freelance/sources'); } catch { /* keep what we had */ } })(),
+        (async () => { try { this.sources = await this.api('GET', '/api/freelance/sources'); return true; } catch { return false; /* keep what we had */ } })(),
         this.loadAccounts(),
-      ]);
+      ]).then(([sourcesOk, accountsOk]) => {
+        if (sourcesOk && accountsOk) { _pay.sourcesOk = true; this._payDraftsCheck(); }
+      });
       if (this.flForm.source_id == null || !this.sourceById(this.flForm.source_id)) this.flForm.source_id = this.defaultSource()?.id ?? null;
     },
 
@@ -5598,25 +5719,15 @@ function app() {
         if (body.currency === 'USD') this.loadFx();
       } catch (e) { this.error = e.message; }
     },
-    async srcSetFrom(s, value) {
-      try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { default_from_account_id: value === '' ? null : Number(value) }); await this.loadSources(); }
-      catch (e) { this.error = e.message; await this.loadSources(); }
-    },
-    async acctSetRole(a, role) {
-      try { await this.api('PUT', `/api/freelance/accounts/${a.id}`, { role }); await this.loadAccounts(); }
-      catch (e) { this.error = e.message; await this.loadAccounts(); }
-    },
-    async srcSetAccount(s, value) {
-      try { await this.api('PUT', `/api/freelance/sources/${s.id}`, { default_account_id: value === '' ? null : Number(value) }); await this.loadSources(); }
-      catch (e) { this.error = e.message; await this.loadSources(); }
-    },
 
     // ---------- Settings → Accounts ----------------------------------------------
     async loadAccounts() {
-      try { this.accounts = await this.api('GET', '/api/freelance/accounts'); } catch { /* keep what we had */ }
+      let ok = true;
+      try { this.accounts = await this.api('GET', '/api/freelance/accounts'); } catch { ok = false; /* keep what we had */ }
       if (!this.currencyList.length) {
         try { this.currencyList = await this.api('GET', '/api/currencies'); } catch { /* the picker falls back to EUR and USD */ }
       }
+      return ok;
     },
     acctKinds: ['bank', 'wallet', 'cash', 'other'],
     acctUsedBy(a) { return a && a.payouts ? `Used by ${a.payouts} payout${a.payouts !== 1 ? 's' : ''}` : ''; },
@@ -5644,10 +5755,26 @@ function app() {
       catch (e) { this.error = e.message; }
     },
     async acctArchive(a, archived) {
-      try { await this.api('PUT', `/api/freelance/accounts/${a.id}`, { archived }); await this.loadAccounts(); await this.loadSources(); }
-      catch (e) { this.error = e.message; }
+      // the boxes that hold it, as they are now: the server empties them, Undo puts them back
+      const held = archived ? this.sources.filter(s => (s.chain || []).includes(a.id)).map(s => ({ id: s.id, chain: [...s.chain] })) : [];
+      try {
+        await this.api('PUT', `/api/freelance/accounts/${a.id}`, { archived });
+        await this.loadAccounts(); await this.loadSources();
+        if (held.length) this.showToast(`${a.name} archived. Saved payouts keep it`, 'neutral', { label: 'Undo', run: () => this.acctArchiveUndo(a, held) });
+      } catch (e) { this.error = e.message; }
     },
-    // Active accounts first (the default leading, as the API sends them), then the archived ones, dimmed.
+    async acctArchiveUndo(a, held) {
+      try {
+        await this.api('PUT', `/api/freelance/accounts/${a.id}`, { archived: false });
+        for (const h of held) {
+          if (!this.sourceById(h.id)) continue;
+          await this._queued('chain-' + h.id, () => this.api('PUT', `/api/freelance/sources/${h.id}`, { chain: h.chain }));
+        }
+        await this.loadAccounts(); await this.loadSources();
+        this.showToast(`${a.name} restored`, 'neutral');
+      } catch (e) { this.error = e.message; }
+    },
+    // Live accounts first, in the order the user set, then the archived ones, dimmed.
     acctRows() { return [...this.accounts.filter(a => !a.archived), ...this.accounts.filter(a => a.archived)]; },
     // The currency picker: fiat first by code with its name, then the coins; typing filters.
     curOptions() {
@@ -5679,6 +5806,377 @@ function app() {
       try { await this.api('DELETE', `/api/freelance/sources/${s.id}`); await this.loadSources(); this._flStale = true; }
       catch (e) { this.error = e.message; }
     },
+
+    // ---------- Settings → Sources: the four boxes of accounts a source's payouts usually go through ----------
+    // The chain is the source's `chain` (account ids in order, 0 to 4, none twice). A box is filled from a
+    // list that opens on a click, a tap or a key; a change shows at once and is saved with one PUT, one
+    // after the other per source. chainSet and chainClear are the two moves; the lists call them, and so
+    // can anything that puts an account in a box.
+    chainIdx: [0, 1, 2, 3],
+    chainPick: null,        // { sid, i } of the box whose list is open: only one at a time
+    chainPopKey: '',        // 'sid:i' of the box that has just been filled
+    chainAcct(s, i) {
+      const id = (s.chain || [])[i];
+      return id == null ? null : this.accountById(id);
+    },
+    chainLabel(s, i) {
+      const a = this.chainAcct(s, i);
+      return a ? `Account ${i + 1} of ${s.name}: ${a.name}. Change` : `Account ${i + 1} of ${s.name}: empty. Choose`;
+    },
+    chainIsOpen(s, i) { return !!this.chainPick && this.chainPick.sid === s.id && this.chainPick.i === i; },
+    // The chain after putting `id` in box `i`: it appears once (so it moves), a taken box is replaced,
+    // an empty one appends (no holes: it lands in the first empty place), and the rest keep their order.
+    chainNext(chain, i, id) {
+      const next = chain.slice(), p = next.indexOf(id);
+      if (p === i) return { chain: next, at: i };   // already there: nothing to do
+      if (p >= 0) { next.splice(p, 1); if (p < i) i--; }
+      if (i < next.length) next[i] = id; else { next.push(id); i = next.length - 1; }
+      return { chain: next.slice(0, 4), at: i };
+    },
+    chainBox(sid, i) { return document.querySelector(`.slot[data-sid="${sid}"][data-i="${i}"] .slot-main`); },
+    chainFocus(sid, i) { this.$nextTick(() => { const b = this.chainBox(sid, i); if (b) b.focus(); }); },
+    chainPop(sid, i) {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const key = `${sid}:${i}`;
+      this.chainPopKey = '';
+      this.$nextTick(() => {
+        this.chainPopKey = key;
+        setTimeout(() => { if (this.chainPopKey === key) this.chainPopKey = ''; }, 400);
+      });
+    },
+    // Show the new chain, say it, and save it. A failed save puts the old boxes back and shows the banner.
+    chainApply(s, next, said, pop = -1) {
+      const id = s.id, before = [...(s.chain || [])];
+      s.chain = next;
+      this._say(said);
+      if (pop >= 0) this.chainPop(id, pop);
+      if (JSON.stringify(before) === JSON.stringify(next)) return Promise.resolve();
+      return this._queued('chain-' + id, async () => {
+        try { await this.api('PUT', `/api/freelance/sources/${id}`, { chain: [...(this.sourceById(id) || s).chain] }); }
+        catch (e) { (this.sourceById(id) || s).chain = before; this.error = e.message; }
+      });
+    },
+    // Put the account in box `i`; answers the place it landed in, or -1 if it is not a live account.
+    chainSet(s, i, accountId) {
+      const a = this.accountById(accountId);
+      if (!a || a.archived) return -1;
+      const { chain, at } = this.chainNext(s.chain || [], i, accountId);
+      this.chainApply(s, chain, `${a.name} is account ${at + 1} of ${s.name}`, at);
+      return at;
+    },
+    // Take the account of box `i` out; the ones after it move one place left.
+    chainClear(s, i) {
+      const a = this.chainAcct(s, i);
+      if (!a) return false;
+      this.chainApply(s, s.chain.filter((_, k) => k !== i), `${a.name} removed from ${s.name}`);
+      return true;
+    },
+    chainRemove(s, i) {
+      this.chainClose(false);
+      if (this.chainClear(s, i)) this.chainFocus(s.id, i);
+    },
+    // The list under a box is kept inside its card.
+    chainPlace(chainEl, i) {
+      const ul = chainEl.querySelector('.picker'), slot = chainEl.querySelector(`.slot[data-i="${i}"]`);
+      if (!ul || !slot) return;
+      const card = (chainEl.closest('.settings-card') || document.body).getBoundingClientRect();
+      const c = chainEl.getBoundingClientRect(), r = slot.getBoundingClientRect(), w = ul.offsetWidth;
+      const left = Math.max(card.left + 4, Math.min(r.left, card.right - w - 4));
+      ul.style.left = (left - c.left) + 'px';
+      ul.style.top = (r.bottom - c.top + 4) + 'px';
+    },
+    chainToggle(e, s, i) {
+      if (this.chainIsOpen(s, i)) { this.chainClose(true); return; }
+      const chainEl = e.currentTarget.closest('.chain');
+      this.chainPick = { sid: s.id, i };
+      // the options are drawn a moment after the list itself: wait for them, then place the list and go in
+      const enter = (tries = 0) => {
+        const ul = chainEl.querySelector('.picker');
+        const items = ul ? [...ul.querySelectorAll('[role="option"]')] : [];
+        if (!items.length) { if (tries < 30 && this.chainPick) requestAnimationFrame(() => enter(tries + 1)); return; }
+        this.chainPlace(chainEl, i);
+        (items.find(b => b.getAttribute('aria-selected') === 'true') || items[0]).focus();
+      };
+      this.$nextTick(() => enter());
+    },
+    chainClose(refocus = false) {
+      const p = this.chainPick;
+      if (!p) return;
+      this.chainPick = null;
+      if (refocus) { const b = this.chainBox(p.sid, p.i); if (b) b.focus(); }
+    },
+    chainOutside(e) {
+      if (this.chainPick && !e.target.closest('.picker, .slot-main')) this.chainClose(false);
+    },
+    // Keys inside the open list: arrows move (wrapping), Home and End jump, Escape gives the focus back, Tab leaves.
+    chainKey(e) {
+      const items = [...e.currentTarget.querySelectorAll('[role="option"]')], k = items.indexOf(document.activeElement);
+      const go = n => { e.preventDefault(); items[(n + items.length) % items.length].focus(); };
+      if (e.key === 'ArrowDown') go(k + 1);
+      else if (e.key === 'ArrowUp') go(k < 0 ? items.length - 1 : k - 1);
+      else if (e.key === 'Home') go(0);
+      else if (e.key === 'End') go(items.length - 1);
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.chainClose(true); }
+      else if (e.key === 'Tab') this.chainClose(true);   // the focus is back on the box and Tab goes on from there
+    },
+    // An option of the list was chosen: an account, "Remove", or "Add an account first".
+    chainChoose(s, i, what) {
+      if (what === 'none') { this.chainClose(false); if (this.$refs.acctName) this.$refs.acctName.focus(); return; }
+      if (what === 'rm') { this.chainRemove(s, i); return; }
+      this.chainClose(false);
+      const at = this.chainSet(s, i, what);
+      if (at >= 0) this.chainFocus(s.id, at);
+    },
+
+    // ---------- Settings → Accounts: an account's name is carried into a box of an income source ----------
+    // The mouse (and a pen) begins to carry after 5px; a finger after holding 300 ms without moving more
+    // than 10px, so that a swipe on a name still scrolls the page. A small copy of the name follows the
+    // pointer, every box shows it can take it, the one under the pointer is lit, and the drop is
+    // chainSet: the same move as choosing the account in the box's list. Anywhere else nothing happens.
+    _carrying: false,       // an account is being carried: the page may not scroll under a finger
+    _carryClick: false,     // a drop has just happened: the click that follows must not reach the box
+    _acctPress: false,      // a name is pressed (waiting to begin, or carried)
+    // Registered once, when the app starts. A touchmove listener added during the gesture is too late on
+    // Android, and a passive one cannot say no.
+    _acctDragInit() {
+      document.addEventListener('touchmove', e => { if (this._carrying && e.cancelable) e.preventDefault(); }, { passive: false });
+      document.addEventListener('contextmenu', e => { if (this._carrying || e.target.closest?.('.acct-chip')) e.preventDefault(); });
+      document.addEventListener('click', e => { if (this._carryClick) { e.preventDefault(); e.stopPropagation(); } }, true);
+    },
+    acctDragStart(e, a) {
+      if (a.archived || e.button > 0 || this._acctPress) return;
+      const chip = e.currentTarget, pointerId = e.pointerId, id = a.id;
+      const finger = e.pointerType === 'touch', sx = e.clientX, sy = e.clientY;
+      const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const buzz = ms => { try { navigator.vibrate?.(ms); } catch { /* not allowed here */ } };
+      let started = false, timer = 0, raf = 0, ghost = null, over = null, x = sx, y = sy;
+      this._acctPress = true;
+      if (!finger) e.preventDefault();   // no text selected, no native drag
+      // the box under the pointer is the one that is lit
+      const hover = () => {
+        const el = document.elementFromPoint(x, y), slot = el ? el.closest('.slot') : null;
+        if (slot === over) return;
+        if (over) over.classList.remove('over');
+        over = slot;
+        if (over) { over.classList.add('over'); if (finger) buzz(6); }
+      };
+      const pos = () => {
+        const lift = finger ? 18 : 6;   // above a finger, so that it does not hide the copy
+        ghost.style.transform = `translate(${x - ghost.offsetWidth / 2}px, ${y - ghost.offsetHeight - lift}px)${calm() ? '' : ' rotate(-3deg) scale(1.05)'}`;
+      };
+      // near the top or bottom edge of the window the page scrolls by itself, but not while a box is under the pointer
+      const edge = () => {
+        const near = 72, vh = window.innerHeight;
+        let v = 0;
+        if (y < near) v = -Math.ceil((near - y) / 5);
+        else if (y > vh - near) v = Math.ceil((y - (vh - near)) / 5);
+        if (v && !over) { window.scrollBy(0, Math.max(-16, Math.min(16, v))); hover(); }
+        raf = requestAnimationFrame(edge);
+      };
+      const key = ev => {
+        if (ev.key !== 'Escape') return;
+        ev.preventDefault(); ev.stopImmediatePropagation();
+        cleanup(); finish(null);
+      };
+      const begin = () => {
+        started = true; this._carrying = true;
+        this.chainClose(false);
+        if (finger) buzz(12);
+        chip.classList.remove('held'); chip.classList.add('lifted');
+        document.body.classList.add('dragging-acct');
+        ghost = document.createElement('div');
+        ghost.className = 'acct-ghost';
+        // the icon is drawn again from the symbol the name's icon uses (a clone would carry Alpine's bindings)
+        const symbol = chip.querySelector('use')?.getAttribute('href');
+        if (symbol) {
+          const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), use = document.createElementNS(ns, 'use');
+          svg.setAttribute('width', '20'); svg.setAttribute('height', '20'); svg.setAttribute('aria-hidden', 'true');
+          use.setAttribute('href', symbol); svg.appendChild(use); ghost.appendChild(svg);
+        }
+        const label = document.createElement('span');
+        label.textContent = a.name;
+        ghost.appendChild(label);
+        ghost.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(ghost);
+        window.addEventListener('keydown', key, true);
+        pos(); hover();
+        raf = requestAnimationFrame(edge);
+      };
+      // the press is over: stop listening (the copy may still be on its way)
+      const cleanup = () => {
+        clearTimeout(timer);
+        chip.classList.remove('held');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', cancel);
+        this._acctPress = false;
+      };
+      // the drag is over: the copy flies to `target` (a box) or back to the name, and goes
+      const finish = target => {
+        this._carrying = false;
+        cancelAnimationFrame(raf);
+        window.removeEventListener('keydown', key, true);
+        document.body.classList.remove('dragging-acct');
+        if (over) over.classList.remove('over');
+        over = null;
+        const g = ghost, to = (target || chip).getBoundingClientRect();
+        const gone = () => { g.remove(); chip.classList.remove('lifted'); };
+        if (calm()) { gone(); return; }
+        g.classList.add('fly');
+        g.style.transform = `translate(${to.left}px, ${to.top}px) scale(${target ? 0.9 : 1})`;
+        g.style.opacity = target ? '0.2' : '0';
+        setTimeout(gone, 230);
+      };
+      const move = ev => {
+        if (ev.pointerId !== pointerId) return;
+        x = ev.clientX; y = ev.clientY;
+        if (!started) {
+          const d = Math.hypot(x - sx, y - sy);
+          if (finger) { if (d > 10) cleanup(); return; }   // the finger moved first: it is a scroll, not a drag
+          if (d < 5) return;
+          begin();
+        }
+        pos(); hover();
+      };
+      const up = ev => {
+        if (ev.pointerId !== pointerId) return;
+        cleanup();
+        if (!started) return;
+        this._carryClick = true;
+        setTimeout(() => { this._carryClick = false; }, 0);
+        const slot = over, s = slot ? this.sourceById(Number(slot.dataset.sid)) : null;
+        if (s) { finish(slot); this.chainSet(s, Number(slot.dataset.i), id); }
+        else finish(null);
+      };
+      const cancel = ev => {
+        if (ev.pointerId !== pointerId) return;
+        cleanup();
+        if (started) finish(null);
+      };
+      if (finger) { chip.classList.add('held'); timer = setTimeout(begin, 300); }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      window.addEventListener('pointercancel', cancel);
+    },
+
+    // ---------- Settings: the dotted handle that puts a list in the order the user wants ----------------
+    // Day templates, income sources and accounts. The row is grabbed at once, by mouse or finger, and
+    // follows the pointer; its neighbours step aside with CSS transforms. Nothing moves in the DOM and
+    // the array is not touched until the drop: moving the node under a pointer ends its stream of
+    // events. The arrow keys do the same one place at a time. The lists arrive ordered by the server and
+    // are reordered in place, so every picker that iterates them follows.
+    reorderLive: '',
+    _reordering: false,
+    // What each list is: the rows that can move, how to put them back, and where the order is saved.
+    // Accounts: only the live ones move; the archived ones stay below, in their own order.
+    _reorderKinds() {
+      return {
+        templates: { url: '/api/templates/order', rows: () => this.templates, put: rows => { this.templates = rows; } },
+        sources: { url: '/api/freelance/sources/order', rows: () => this.sources, put: rows => { this.sources = rows; } },
+        accounts: {
+          url: '/api/freelance/accounts/order',
+          rows: () => this.accounts.filter(a => !a.archived),
+          put: rows => { this.accounts = [...rows, ...this.accounts.filter(a => a.archived)]; },
+        },
+      };
+    },
+    // A polite live region says where the row landed; emptied first so the same words are read again.
+    reorderSay(name, place, total) { this._say(`${name}, ${place} of ${total}`); },
+    // The one live region (the handle and the boxes of Settings use it): emptied first so the same words are read again.
+    _say(text) {
+      this.reorderLive = '';
+      setTimeout(() => { this.reorderLive = text; }, 30);
+    },
+    // Move the row at `from` to `to`, show it at once, save the order; a failed save puts the old one back.
+    async reorderCommit(kind, from, to, list) {
+      const k = this._reorderKinds()[kind], before = this[kind];
+      const rows = [...k.rows()];
+      const [moved] = rows.splice(from, 1);
+      rows.splice(to, 0, moved);
+      k.put(rows);
+      this.reorderSay(moved.name, to + 1, rows.length);
+      this.$nextTick(() => {
+        const row = list.querySelector(`:scope > [data-sort-id="${moved.id}"]`);
+        if (!row) return;
+        row.classList.add('landed');
+        setTimeout(() => row.classList.remove('landed'), 600);
+      });
+      // one save after the other: two PUTs in flight could land in the wrong order
+      await this._queued('order-' + kind, async () => {
+        try { await this.api('PUT', k.url, { ids: this[kind].map(x => x.id) }); }
+        catch (e) { this[kind] = before; this.error = e.message; }
+      });
+    },
+    reorderStart(e, kind) {
+      if (e.button > 0 || this._reordering) return;
+      e.preventDefault();
+      const item = e.currentTarget.closest('[data-sort-id]'), list = item.parentElement;
+      const items = [...list.querySelectorAll(':scope > [data-sort-id]')];
+      const from = items.indexOf(item), rects = items.map(el => el.getBoundingClientRect());
+      const h = rects[from].height, page0 = e.clientY + window.scrollY;
+      const min = rects[0].top - rects[from].top - 8, max = rects[items.length - 1].bottom - rects[from].bottom + 8;
+      const root = document.documentElement;
+      let to = from, y = e.clientY, raf = 0;
+      this._reordering = true;
+      item.classList.add('sorting');
+      list.classList.add('is-sorting');
+      root.classList.add('sort-busy');
+      const update = () => {
+        const d = Math.max(min, Math.min(max, y + window.scrollY - page0));
+        // the leading edge decides, so a row taller than its neighbours can still pass them
+        const top = rects[from].top + d, bottom = top + h;
+        item.style.transform = `translateY(${d}px)`;
+        to = from;
+        items.forEach((el, i) => {
+          if (i === from) return;
+          const mid = rects[i].top + rects[i].height / 2;
+          let shift = 0;
+          if (i < from && top < mid) { shift = h; to = Math.min(to, i); }
+          else if (i > from && bottom > mid) { shift = -h; to = Math.max(to, i); }
+          el.style.transform = shift ? `translateY(${shift}px)` : '';
+        });
+      };
+      // near the top or bottom edge of the window the page scrolls by itself
+      const autoScroll = () => {
+        const edge = 72, vh = window.innerHeight;
+        let v = 0;
+        if (y < edge) v = -Math.ceil((edge - y) / 5);
+        else if (y > vh - edge) v = Math.ceil((y - (vh - edge)) / 5);
+        if (v) { window.scrollBy(0, Math.max(-16, Math.min(16, v))); update(); }
+        raf = requestAnimationFrame(autoScroll);
+      };
+      const move = ev => { y = ev.clientY; update(); };
+      const end = ev => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', end);
+        window.removeEventListener('pointercancel', end);
+        root.classList.remove('sort-busy');
+        items.forEach(el => { el.style.transform = ''; });
+        item.classList.remove('sorting');
+        list.classList.remove('is-sorting');
+        this._reordering = false;
+        // a cancelled pointer (the browser took the gesture) drops nothing; a drop where it started sends nothing
+        if (ev.type === 'pointerup' && to !== from) this.reorderCommit(kind, from, to, list);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end);
+      window.addEventListener('pointercancel', end);
+      raf = requestAnimationFrame(autoScroll);
+      update();
+    },
+    reorderKey(e, kind) {
+      const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+      if (!d || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      e.preventDefault();
+      const item = e.currentTarget.closest('[data-sort-id]'), list = item.parentElement, id = Number(item.dataset.sortId);
+      const i = this._reorderKinds()[kind].rows().findIndex(x => x.id === id), j = i + d;
+      if (i < 0 || j < 0 || j >= this._reorderKinds()[kind].rows().length) return;
+      this.reorderCommit(kind, i, j, list);
+      // the redraw moves the node and the focus with it: give it back to this row's handle
+      this.$nextTick(() => { const g = list.querySelector(`:scope > [data-sort-id="${id}"] .grip`); if (g) g.focus(); });
+    },
+
 
     // ---------- Settings → Taxes (per year) --------------------------------------
     async loadTaxYear(year) {

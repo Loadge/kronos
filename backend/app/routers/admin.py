@@ -13,7 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.models import DayType, FreelanceBlock, FreelancePayout, Plan, WorkEntry
+from app.models import DayType, FreelanceBlock, FreelancePayout, PayoutLeg, Plan, WorkEntry
 
 router = APIRouter(tags=["admin"])
 
@@ -31,6 +31,7 @@ def wipe_all_data(session: Session = Depends(get_session)) -> dict[str, int]:
     result = session.execute(delete(WorkEntry))
     plans = session.execute(delete(Plan))
     blocks = session.execute(delete(FreelanceBlock))
+    session.execute(delete(PayoutLeg))  # the legs first: never rely on the database's cascade
     session.execute(delete(FreelancePayout))
     session.commit()
     return {
@@ -56,6 +57,7 @@ def seed_data(session: Session = Depends(get_session)) -> dict[str, int]:
     # Wipe first so re-seeding doesn't hit duplicate-PK errors.
     session.execute(delete(WorkEntry))
     session.execute(delete(Plan))
+    session.execute(delete(PayoutLeg))
     session.execute(delete(FreelancePayout))
     session.execute(delete(FreelanceBlock))
     session.flush()
