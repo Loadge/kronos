@@ -3924,8 +3924,8 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .days-table--fl tr.wk-lines.has-blocks td { position: relative; }
 .days-table--fl tr.blk td:first-child::before, .days-table--fl tr.blk-head th:first-child::before, .days-table--fl tr.wk-lines.has-blocks td::before { content: ""; position: absolute; left: 1rem; top: 0; bottom: -1px; border-left: 1px solid var(--k-border-strong); pointer-events: none; }
 .days-table--fl tr.blk-last td:first-child::before { bottom: 50%; }
-/* the header of the block columns, under the line of an open week */
-.days-table tr.blk-head th { position: relative; background: transparent; padding: 0.3rem 0.6rem; font-size: 0.7rem; box-shadow: inset 0 -1px 0 var(--k-border); }
+/* the header of the block columns, under the line of an open week; no level of its own, so the column header that sticks stays on top */
+.days-table tr.blk-head th { position: relative; z-index: auto; background: transparent; padding: 0.3rem 0.6rem; font-size: 0.7rem; box-shadow: inset 0 -1px 0 var(--k-border); }
 .fl-payout { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.2rem 0.5rem; font-size: 0.86rem; --src: var(--k-coin); }
 .fl-payout-txt { flex: 1; min-width: 0; }
 .fl-payout-txt .fl-money { color: var(--paid); }
@@ -5738,6 +5738,10 @@ html.yd-lock, html.yd-lock body { overflow: hidden; }
   .wk-chip { justify-self: start; margin-top: calc(0.4rem + 0.9rem + var(--k, 1) * var(--pl) + (var(--pl) - 1.5rem) / 2); }
   .payc .payacct { max-width: none; }
   .wk-fx { padding-left: 0; }
+  /* the lines of a week with several sources start right of the rail that runs down them when the week is open,
+     so it never crosses a name, a label or a field */
+  .days-table--fl tr.wk-lines .wk-line { padding-left: 1.4rem; }
+  .days-table--fl tr.wk-lines .wk-src { padding-left: 0; }
 }
 /* On narrow phones (up to 400px) the cell, the Gap and the chip do not fit side by side and leave the account's
    select 59px wide: the Gap and the chip take the row under the cell, and the select has the whole width */

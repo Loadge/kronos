@@ -896,6 +896,19 @@ CELL_AUDIT = """
       if (!inside || Math.abs(a[edge] - b[edge]) > 8) bad.push(['header off its column', sel, Math.round(a[edge] - b[edge])]);
     }
   }
+  // the rail of an open week with several sources runs down the left of its lines: no name, label or field sits on it
+  for (const td of document.querySelectorAll('.days-table--fl tr.wk-lines.has-blocks > td')) {
+    const rail = getComputedStyle(td, '::before');
+    if (rail.content === 'none' || rail.display === 'none') continue;
+    const x = box(td).left + parseFloat(rail.left);
+    for (const el of td.querySelectorAll('.wk-src > *, .wk-h, .wk-est, .wk-eph, .wk-gap, .payc')) {
+      if (!seen(el)) continue;
+      // a figure is measured by its text (a column is wider than its number), a name and the cell by their box
+      const rg = document.createRange(); rg.selectNodeContents(el);
+      const rects = el.matches('.wk-src > *, .payc') ? [box(el)] : [...rg.getClientRects()].filter(r => r.width > 0);
+      if (rects.some(r => r.left < x + 2 && r.right > x - 1)) bad.push(['rail crosses', el.closest('.wk-line').dataset.source, el.className]);
+    }
+  }
   if (document.documentElement.scrollWidth > window.innerWidth + 1) bad.push(['h-scroll', document.documentElement.scrollWidth - window.innerWidth]);
   return [bad, counts.sort()];
 }
@@ -1023,6 +1036,8 @@ def test_the_payout_cell_fits_at_every_width(page, chain_url, cells, width, heig
     assert not bad, "\n".join(map(str, bad))
     assert counts == [1, 1, 2, 2, 4, 4], counts  # every kind of row was measured
     assert page.locator(".pay-undo").count() >= 2 and page.locator(".wk-tag.paid").count() >= 2
+    if open_week:  # the week of two sources is open, so its rail was measured against its lines
+        assert page.locator(".days-table--fl tr.wk-lines.has-blocks .wk-line").count() >= 2
 
 
 @pytest.mark.parametrize("width,height", [(1280, 900), (601, 800)])
@@ -1083,6 +1098,86 @@ def test_the_audit_sees_a_narrow_select_a_chip_on_it_and_a_header_off_its_column
         assert name in {p[0] for p in _cell_problems(page)[0]}, name
         tag.evaluate("el => el.remove()")
     assert not (found := _cell_problems(page)[0]), "\n".join(map(str, found))
+
+
+@pytest.mark.parametrize("width,height", [(700, 800), (375, 800)])
+def test_the_audit_sees_a_rail_through_the_labels(page, chain_url, cells, width, height):
+    """A positive control for the rail of an open week with several sources: with its lines starting where
+    they used to (left of the rail), the audit names the labels and the cell the rail runs through."""
+    _open_cells(page, chain_url, width, height, open_week=True)
+    assert not (found := _cell_problems(page)[0]), "\n".join(map(str, found))
+    old = page.add_style_tag(
+        content=".days-table--fl tr.wk-lines .wk-line { padding-left: 0.5rem !important; }"
+    )
+    crossed = [p for p in _cell_problems(page)[0] if p[0] == "rail crosses"]
+    assert {p[1] for p in crossed} == {"Cell Fx", "Cell Duo"}, crossed
+    assert any("payc" in p[2] for p in crossed) and any("wk-h" in p[2] for p in crossed), crossed
+    old.evaluate("el => el.remove()")
+    assert not (found := _cell_problems(page)[0]), "\n".join(map(str, found))
+
+
+# ── the header of a week's blocks under the column header that sticks ───────────────────────────────
+# Scrolled until a block header is right where the column header is stuck, the column header is the one on top:
+# the element at the middle of each of its labels is its own.
+
+BLOCK_HEAD_UNDER = """
+() => {
+  const strip = document.querySelector('.bz').getBoundingClientRect().height;
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  for (const h of document.querySelectorAll('.days-table--fl tr.blk-head')) {
+    const y = Math.round(window.scrollY + h.getBoundingClientRect().top - strip);
+    if (y > 0 && y <= max) { h.dataset.under = '1'; window.scrollTo(0, y); return true; }
+  }
+  return false;
+}
+"""
+
+BLOCK_HEAD_IS_UNDER = """
+() => {
+  const h = document.querySelector('tr.blk-head[data-under]'), th = document.querySelector('.days-table--fl thead th');
+  return Math.abs(h.getBoundingClientRect().top - th.getBoundingClientRect().top) < 3;
+}
+"""
+
+COLUMN_HEAD_AUDIT = """
+() => {
+  const bad = [];
+  let n = 0;
+  for (const label of document.querySelectorAll('.days-table--fl thead .wk-cols span')) {
+    const r = label.getBoundingClientRect();
+    if (!r.width) continue;
+    n++;
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (!top || !top.closest('thead')) bad.push(['column header covered', label.className, top ? top.tagName + ' of ' + top.parentElement.className : 'nothing']);
+  }
+  return [bad, n];
+}
+"""
+
+
+def _block_head_under_the_column_head(page, chain_url, cells):
+    _open_cells(page, chain_url, 1280, 600, open_week=True)
+    assert page.evaluate(BLOCK_HEAD_UNDER), (
+        "no block header can be scrolled under the column header"
+    )
+    page.wait_for_function(BLOCK_HEAD_IS_UNDER, timeout=5000)
+
+
+def test_a_block_header_stays_under_the_stuck_column_header(page, chain_url, cells):
+    _block_head_under_the_column_head(page, chain_url, cells)
+    bad, measured = page.evaluate(COLUMN_HEAD_AUDIT)
+    assert not bad, "\n".join(map(str, bad))
+    assert measured == 5, measured  # Hours, Estimate, Payout, Gap, € / h
+
+
+def test_the_column_header_audit_can_fail(page, chain_url, cells):
+    """A positive control: with the block header back on the level of the column header, it is on top."""
+    _block_head_under_the_column_head(page, chain_url, cells)
+    assert not (found := page.evaluate(COLUMN_HEAD_AUDIT)[0]), "\n".join(map(str, found))
+    old = page.add_style_tag(content=".days-table tr.blk-head th { z-index: 1 !important; }")
+    assert "column header covered" in {p[0] for p in page.evaluate(COLUMN_HEAD_AUDIT)[0]}
+    old.evaluate("el => el.remove()")
+    assert not (found := page.evaluate(COLUMN_HEAD_AUDIT)[0]), "\n".join(map(str, found))
 
 
 # ── the seal of a confirmed payout, at the moment it has landed ───────────────────────────────────────
