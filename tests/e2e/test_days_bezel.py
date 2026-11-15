@@ -42,6 +42,9 @@ def _wipe(base_url: str) -> None:
         c.delete("/api/data")
         for s in c.get("/api/freelance/sources").json():
             c.delete(f"/api/freelance/sources/{s['id']}")
+        # the account a payout is set up with: left behind, another module of this worker finds it
+        for a in c.get("/api/freelance/accounts").json():
+            c.delete(f"/api/freelance/accounts/{a['id']}")
 
 
 @pytest.fixture(autouse=True)

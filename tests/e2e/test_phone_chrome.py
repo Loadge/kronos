@@ -749,3 +749,5 @@ def test_the_dashboard_fits_with_real_freelance_figures(phone, base_url, width):
             c.delete("/api/data")
             for s in c.get("/api/freelance/sources").json():
                 c.delete(f"/api/freelance/sources/{s['id']}")
+            for a in c.get("/api/freelance/accounts").json():
+                c.delete(f"/api/freelance/accounts/{a['id']}")

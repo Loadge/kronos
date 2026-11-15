@@ -436,6 +436,12 @@ def _seed_orderable(c: httpx.Client) -> None:
 @pytest.fixture
 def orderable(base_url):
     with httpx.Client(base_url=base_url) as c:
+        # the lists start empty: an account or a template another module of this worker left behind
+        # would be one more row than the audits count
+        c.delete("/api/data")
+        for kind in ("/api/freelance/sources", "/api/freelance/accounts", "/api/templates"):
+            for row in c.get(kind).json():
+                c.delete(f"{kind}/{row['id']}")
         _seed_orderable(c)
     yield
     with httpx.Client(base_url=base_url) as c:
