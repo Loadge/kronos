@@ -18,7 +18,7 @@ import time
 import httpx
 import pytest
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, stays
 
 pytestmark = pytest.mark.e2e
 
@@ -175,7 +175,7 @@ class TestStayInLog:
             " d.saveEntry(); d.saveEntry(); }"
         )
         page.wait_for_selector(".save-ribbon.ribbon-show", timeout=5000)
-        page.wait_for_timeout(800)
+        stays(page, 800, "a second POST of the same entry")
         assert len(posts) == 1
         assert page.locator(".error-banner").is_visible() is False
 
@@ -217,7 +217,7 @@ class TestUpdatePill:
         body = seen.value.json()
         meta = page.locator("meta[name='kronos-build']").get_attribute("content")
         assert body["build"] == meta
-        page.wait_for_timeout(300)
+        stays(page, 300, "the update pill showing for the same build")
         assert not _pill(page).is_visible()
 
     def test_a_newer_build_is_found_when_the_connection_comes_back(self, page, base_url):
@@ -241,7 +241,7 @@ class TestUpdatePill:
         assert page.evaluate("window.__beforeReload") is None
         with page.expect_response("**/api/version"):
             _become_visible(page)
-        page.wait_for_timeout(300)
+        stays(page, 300, "the update pill coming back after the reload")
         assert not _pill(page).is_visible()
 
     def test_nothing_shows_while_offline(self, page, base_url):
@@ -251,7 +251,7 @@ class TestUpdatePill:
         page.context.set_offline(True)
         try:
             _become_visible(page)
-            page.wait_for_timeout(800)
+            stays(page, 800, "the update pill or an error showing while offline")
             assert not _pill(page).is_visible()
             assert not page.locator(".error-banner").is_visible()
         finally:
@@ -263,7 +263,7 @@ class TestUpdatePill:
         page.route("**/api/version", lambda route: route.fulfill(status=500, body="boom"))
         with page.expect_response("**/api/version"):
             _become_visible(page)
-        page.wait_for_timeout(300)
+        stays(page, 300, "the update pill or an error showing for a failing endpoint")
         assert not _pill(page).is_visible()
         assert not page.locator(".error-banner").is_visible()
 
@@ -273,6 +273,6 @@ class TestUpdatePill:
         _announce_newer_build(page)
         _become_visible(page)
         _pill(page).wait_for(state="visible", timeout=5000)
-        page.wait_for_timeout(2000)
+        stays(page, 2000, "the page reloading by itself")
         assert page.evaluate("window.__stillHere") == "yes"
         assert _pill(page).is_visible()

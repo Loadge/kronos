@@ -17,7 +17,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import settled, steady
+from .conftest import pace, settled, stays, steady
 
 pytestmark = pytest.mark.e2e
 
@@ -355,7 +355,7 @@ class TestPressing:
         y = page.evaluate("window.scrollY")
         assert y > 300
         _tick(page, mid).click()
-        page.wait_for_timeout(700)
+        stays(page, 700, "the page scrolling when a week is closed")
         assert _tick(page, mid).get_attribute("aria-pressed") == "false"
         assert page.locator(f"#day-row-{_day(mid, 4)}").count() == 0
         assert page.evaluate("window.scrollY") == y
@@ -379,7 +379,7 @@ class TestPressing:
         _scroll_stopped(page)
         y = page.evaluate("window.scrollY")
         _tick(page, mid).click()
-        page.wait_for_timeout(700)
+        stays(page, 700, "the page scrolling when a week is closed")
         assert _state(page, f"daysWeekOpen['{mid}']") is False
         assert page.evaluate("window.scrollY") == y
 
@@ -405,7 +405,7 @@ class TestDragging:
             _state(page, f"daysWeekOpen.hasOwnProperty('{W33}')") is False
         )  # the empty slot was never written
         # a drag across several ticks does not jump
-        page.wait_for_timeout(800)
+        stays(page, 800, "the page jumping after a drag across several ticks")
         assert page.evaluate("window.scrollY") == y
 
     def test_a_drag_from_an_open_tick_closes(self, page, base_url):
@@ -470,7 +470,7 @@ class TestAHandOnTheStrip:
         self._finger(cdp, "touchStart", x, y)
         for step in range(1, 13):
             self._finger(cdp, "touchMove", x, y - step * 20)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
         page.wait_for_function("() => window.scrollY > 100", timeout=5000)
         assert page.evaluate("window.scrollY") > 100  # the page did scroll
@@ -499,7 +499,7 @@ class TestAHandOnTheStrip:
         self._finger(cdp, "touchStart", x0, y)
         for step in range(1, 11):
             self._finger(cdp, "touchMove", x0 + (x1 - x0) * step / 10, y)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
         expect(_tick(page, "2026-08-24")).to_have_attribute("aria-pressed", "true")
         for m in (W32, W33, W34, "2026-08-24"):
@@ -798,7 +798,7 @@ class TestWhenItShows:
         page.clock.set_fixed_time(FIXED_NOW)
         page.goto(f"{base_url}/#weeks")
         page.wait_for_selector("text=No entries yet", timeout=5000)
-        page.wait_for_timeout(300)
+        stays(page, 300, "a strip appearing with no entries")
         assert page.locator(".bz").count() == 0
 
     def test_freelance_without_rows_has_no_strip(self, page, base_url):

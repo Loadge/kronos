@@ -15,7 +15,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import wait_until
+from .conftest import pace, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -266,7 +266,7 @@ def test_c_a_finger_drags_by_the_handle_and_scrolls_by_the_name(base_url, seeded
     ]
     for ty in path:
         _touch(cdp, "touchMove", x, ty)
-        page.wait_for_timeout(16)  # the gesture's own pace: a finger is not instantaneous
+        pace(page, 16)  # the gesture's own pace: a finger is not instantaneous
     assert page.locator(LISTS[kind]["list"] + " > .sorting").count() == 1
     assert page.evaluate("window.scrollY") == scroll0
     _touch(cdp, "touchEnd")
@@ -283,7 +283,7 @@ def test_c_a_finger_drags_by_the_handle_and_scrolls_by_the_name(base_url, seeded
     _touch(cdp, "touchStart", nx, ny)
     for i in range(1, 11):
         _touch(cdp, "touchMove", nx, ny + i * 18)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     _touch(cdp, "touchEnd")
     page.wait_for_function("y => window.scrollY < y", arg=before, timeout=5000)
     assert page.locator(LISTS[kind]["list"] + " > .sorting").count() == 0

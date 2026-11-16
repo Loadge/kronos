@@ -18,7 +18,7 @@ import json
 import httpx
 import pytest
 
-from .conftest import day_opened
+from .conftest import day_opened, stays
 
 pytestmark = pytest.mark.e2e
 
@@ -892,7 +892,7 @@ class TestReducedMotion:
             ".innerText.includes('€150.00')",
             timeout=8000,
         )
-        page.wait_for_timeout(400)
+        stays(page, 400, "coins flying")
         got = page.evaluate("window.__coins")
         assert got["added"] == 0 and got["bumps"] == 0, got
 

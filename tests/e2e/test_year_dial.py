@@ -28,7 +28,8 @@ import httpx
 import pytest
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from .conftest import HASH_OF, wait_until
+from .conftest import HASH_OF, pace, settled, stays, wait_until
+from .conftest import hold as hold_still  # `_drag` has a `hold` of its own
 
 pytestmark = pytest.mark.e2e
 
@@ -299,9 +300,9 @@ def _drag(page, a0: float, a1: float, *, steps: int = 30, gap: int = 8, hold: in
     page.mouse.down()
     for k in range(1, steps + 1):
         page.mouse.move(*_at(g, a0 + (a1 - a0) * k / steps))
-        page.wait_for_timeout(gap)
+        pace(page, gap)
     if hold:
-        page.wait_for_timeout(hold)
+        hold_still(page, hold)
     page.mouse.up()
 
 
@@ -368,7 +369,7 @@ def test_y_typed_in_a_field_does_not_open_it(page, base_url):
     field.click()
     field.press("k")
     assert field.input_value() == "k"
-    page.wait_for_timeout(300)
+    stays(page, 300, "the dial opening from a key typed in a field")
     assert page.locator("#yd").count() == 0
     # the control: out of the field, the same key opens it
     field.press("Escape")
@@ -399,7 +400,7 @@ def test_a_key_of_the_app_does_nothing_while_it_is_open(page, base_url):
     _open_dial(page)
     for key in ("p", "l", "d", "s", ".", "y", "a", "f"):
         page.keyboard.press(key)
-    page.wait_for_timeout(200)
+    stays(page, 200, "a key of the app acting behind the open dial")
     state = page.evaluate(
         """() => { const d = Alpine.$data(document.querySelector('main'));
           return { tab: d.tab, palette: d.palette.open,
@@ -421,7 +422,7 @@ def test_tab_stays_inside_and_the_page_behind_does_not_scroll(page, base_url):
     page.mouse.move(640, 250)
     page.mouse.wheel(0, 600)
     page.keyboard.press("Space")
-    page.wait_for_timeout(200)
+    stays(page, 200, "the page behind the dial scrolling")
     assert page.evaluate("window.scrollY") == 0
     assert page.evaluate("getComputedStyle(document.documentElement).overflow") == "hidden"
     page.keyboard.press("Escape")
@@ -635,10 +636,10 @@ def test_a_wheel_notch_is_one_day(page, base_url):
     page.mouse.move(g["x"], g["y"])
     page.mouse.wheel(0, 100)
     _wait_day(page, "2026-11-05")
-    page.wait_for_timeout(300)
+    pace(page, 300)
     page.mouse.wheel(0, -100)
     _wait_day(page, TODAY)
-    page.wait_for_timeout(300)
+    pace(page, 300)
     page.mouse.wheel(0, -100)
     _wait_day(page, "2026-11-03")
 
@@ -716,7 +717,7 @@ def test_a_press_on_the_band_turns_the_ring_to_the_day_pressed(page, base_url):
     page.keyboard.press("Home")
     _wait_day(page, TODAY)
     page.mouse.click(g["x"], g["y"] - 60)
-    page.wait_for_timeout(300)
+    stays(page, 300, "the ring turning after a press on the day it shows")
     assert _day(page) == TODAY
 
 
@@ -913,16 +914,16 @@ def test_with_reduced_motion_it_opens_on_today_at_once_and_a_release_does_not_co
     assert _day(page) == today
     assert _steps(page) == pytest.approx(_index_of(today), abs=0.01)
     _drag(page, 0, 40, steps=20, gap=8, hold=0)
-    page.wait_for_timeout(100)
+    _settle(page)  # the release has landed
     landed = _day(page)
-    page.wait_for_timeout(800)
+    stays(page, 800, "the ring coasting under reduced motion")
     assert _day(page) == landed
     assert _back(page, today) == 41
     assert abs(_steps(page) - round(_steps(page))) < 0.01
     # no jiggle, and a second hand that holds still
     assert not page.locator(".yd-index").evaluate("e => e.classList.contains('tick')")
     sec = page.locator("[data-yd=sec]").evaluate("e => e.style.transform")
-    page.wait_for_timeout(1300)
+    stays(page, 1300, "the second hand moving under reduced motion")
     assert page.locator("[data-yd=sec]").evaluate("e => e.style.transform") == sec
 
 
@@ -953,7 +954,6 @@ def test_when_closed_no_frame_and_no_timer_of_the_dial_keeps_running(page, base_
     page.add_init_script(WATCH)
     _open_app(page, base_url, calm=False, fixed=False)  # a fixed clock replaces the timers
     _open_dial(page)
-    page.wait_for_timeout(500)
     # the control: while it is open it does ask for frames, and keeps a timer for the seconds
     page.evaluate("window.__dialRaf = 0")
     page.wait_for_function("() => window.__dialRaf > 5", timeout=5000)
@@ -961,9 +961,9 @@ def test_when_closed_no_frame_and_no_timer_of_the_dial_keeps_running(page, base_
     assert page.evaluate("window.__dialTimers.size") == 1
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
-    page.wait_for_timeout(100)
+    settled(page)
     page.evaluate("window.__dialRaf = 0")
-    page.wait_for_timeout(500)
+    stays(page, 500, "a frame or a timer of the closed dial")
     assert page.evaluate("window.__dialRaf") == 0
     assert page.evaluate("window.__dialTimers.size") == 0
 
@@ -1039,8 +1039,8 @@ def test_a_real_finger_turns_the_ring(page, base_url):
     finger("touchStart", *_at(g, 0))
     for k in range(1, 31):
         finger("touchMove", *_at(g, 90 * k / 30))
-        page.wait_for_timeout(12)
-    page.wait_for_timeout(160)
+        pace(page, 12)
+    hold_still(page, 160)
     finger("touchEnd")
     _settle(page)
     assert _back(page) in (91, 92), _day(page)
@@ -1136,7 +1136,7 @@ def test_the_crown_glows_once_each_time_the_ring_leaves_today_and_not_while_it_w
     assert once == 1
     page.wait_for_function(f"() => {names}.length === 0", timeout=4000)  # one pulse, not a loop
     page.keyboard.press("ArrowLeft")  # still away: no second pulse
-    page.wait_for_timeout(300)
+    stays(page, 300, "a second pulse of the crown")
     assert page.evaluate(names) == []
     assert page.locator(LABEL).is_visible()
     page.locator(LABEL).click()

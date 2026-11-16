@@ -16,7 +16,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import settled, wait_until
+from .conftest import pace, settled, stays, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -539,7 +539,7 @@ class TestTheFlag:
         _drag(page, "15:00", "17:00")  # now the 8 hours are done: the flag is new
         page.wait_for_function("window.__wave >= 1", timeout=5000)
         _drag(page, "17:00", "18:00")  # it moves along; it does not wave again
-        page.wait_for_timeout(300)
+        stays(page, 300, "the flag waving a second time")
         assert page.evaluate("window.__wave") == 1
 
 
@@ -669,7 +669,7 @@ class TestAHand:
         self._finger(cdp, "touchStart", x, y)
         for step in range(1, 13):
             self._finger(cdp, "touchMove", x + step, y - step * 20)  # a hand drifts a little
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
         page.wait_for_function("y => window.scrollY > y + 100", arg=scroll, timeout=5000)
         assert page.evaluate("window.scrollY") > scroll + 100  # the page did scroll
@@ -684,9 +684,9 @@ class TestAHand:
         self._finger(cdp, "touchStart", x, y)
         for dx in (2, 5, 3, 5, 1):
             self._finger(cdp, "touchMove", x + dx, y)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(200)
+        stays(page, 200, "the day changing under a wobbling finger")
         assert _form(page) == before
 
     def test_a_finger_that_only_just_wakes_the_drag_does_not_make_the_day_jump(
@@ -699,9 +699,9 @@ class TestAHand:
         before = _form(page)
         self._finger(cdp, "touchStart", x, y)
         self._finger(cdp, "touchMove", x + 14, y)  # past the 6px it waits, in one go
-        page.wait_for_timeout(50)
+        pace(page, 50)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(200)
+        stays(page, 200, "the day jumping when the drag only just woke")
         assert _form(page) == before
 
     def test_a_sideways_finger_on_the_body_moves_the_day(self, page, base_url):
@@ -711,7 +711,7 @@ class TestAHand:
         self._finger(cdp, "touchStart", x0, y)
         for step in range(1, 11):
             self._finger(cdp, "touchMove", x0 + (x1 - x0) * step / 10, y)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
         wait_until(
             page, lambda: _form(page)["start"] > "09:00", lambda: f"the day moved: {_form(page)}"
@@ -728,7 +728,7 @@ class TestAHand:
         self._finger(cdp, "touchStart", x0, y)
         for step in range(1, 11):
             self._finger(cdp, "touchMove", x0 + (x1 - x0) * step / 10, y)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         assert "18:00" in _tip_text(page)
         self._finger(cdp, "touchEnd")
         wait_until(
@@ -744,7 +744,7 @@ class TestAHand:
         self._finger(cdp, "touchStart", x0, y)
         for step in range(1, 7):
             self._finger(cdp, "touchMove", x0 + step * 4, y)
-            page.wait_for_timeout(16)
+            pace(page, 16)
         self._finger(cdp, "touchEnd")
         wait_until(
             page, lambda: _form(page)["end"] > "17:00", lambda: f"a later end: {_form(page)}"
@@ -1016,7 +1016,7 @@ class TestMotion:
     def test_nothing_moves_on_load(self, page, base_url):
         _open(page, base_url, reduced=False)
         _day(page, breaks=[LUNCH])
-        page.wait_for_timeout(100)
+        stays(page, 100, "an animation of the ribbon starting on load")
         running = page.evaluate(
             "() => document.getAnimations()"
             ".filter(a => (a.animationName || '').startsWith('dr-')).length"
@@ -1144,8 +1144,8 @@ def test_a_drag_leaves_no_error_in_the_console(page, base_url):
     page.mouse.down()
     page.mouse.move(x + 107, y, steps=12)
     page.mouse.up()
-    page.wait_for_timeout(300)
+    stays(page, 300, "a console error after the drag")
     page.goto(f"{base_url}/#dashboard")
     page.wait_for_selector("section[aria-label='Days']", state="detached", timeout=5000)
-    page.wait_for_timeout(500)
+    stays(page, 500, "a console error after leaving the page")
     assert errors == []

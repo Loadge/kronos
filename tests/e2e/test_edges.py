@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
-from .conftest import HASH_OF, settled, wait_until
+from .conftest import HASH_OF, settled, stays, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -71,7 +71,7 @@ def test_no_screen_breaks_the_content_security_policy(csp_page, base_url, freela
             ),
             timeout=5000,
         )
-        page.wait_for_timeout(250)
+        stays(page, 250, "a policy violation being reported")
         assert not _violations(page), (tab, _violations(page))
 
     # Settings: every group of its navigation
@@ -80,7 +80,7 @@ def test_no_screen_breaks_the_content_security_policy(csp_page, base_url, freela
     groups = page.locator(".settings-group-btn")
     for i in range(groups.count()):
         groups.nth(i).click()
-        page.wait_for_timeout(150)
+        stays(page, 150, "a policy violation being reported")
         assert not _violations(page), ("settings group", i, _violations(page))
 
     # the command palette and the year dial
@@ -92,7 +92,7 @@ def test_no_screen_breaks_the_content_security_policy(csp_page, base_url, freela
     page.keyboard.press("Escape")
     page.keyboard.press("k")
     page.wait_for_selector("#yd [data-yd=stage]", timeout=8000)
-    page.wait_for_timeout(300)
+    stays(page, 300, "a policy violation being reported")
     assert not _violations(page), ("dial", _violations(page))
     page.keyboard.press("Escape")
 
@@ -155,7 +155,7 @@ def test_going_offline_shows_the_banner_and_coming_back_hides_it(page, base_url)
     banner = page.locator(BANNER).bounding_box()
     assert banner["y"] >= header["y"] + header["height"] - 1
     ARTIFACTS.mkdir(exist_ok=True)
-    page.wait_for_timeout(500)  # let it settle in
+    settled(page)  # let it settle in
     page.screenshot(path=str(ARTIFACTS / "p55-offline-1280.png"))
 
     page.context.set_offline(False)
@@ -275,7 +275,7 @@ def test_a_wrong_address_shows_the_page_and_the_button_goes_home(page, base_url,
     assert page.locator(".nf-logo").is_visible()
     assert page.locator(".nf-line").is_visible()
     ARTIFACTS.mkdir(exist_ok=True)
-    page.wait_for_timeout(1800)  # the logo's swing is over
+    settled(page)  # the logo's swing is over
     page.screenshot(path=str(ARTIFACTS / f"p55-404-{width}.png"))
 
     back = page.get_by_role("button", name="Back to Kronos")

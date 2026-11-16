@@ -16,7 +16,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import wait_until
+from .conftest import hold, pace, stays, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -513,7 +513,7 @@ def test_f_a_swipe_on_a_name_scrolls_the_page_and_drags_nothing(base_url, phone)
     _touch(cdp, "touchStart", x, y)
     for i in range(1, 11):
         _touch(cdp, "touchMove", x, y - i * 18)
-        page.wait_for_timeout(16)  # the gesture's own pace: a finger is not instantaneous
+        pace(page, 16)  # the gesture's own pace: a finger is not instantaneous
     _touch(cdp, "touchEnd")
     page.wait_for_function("y => window.scrollY > y", arg=before, timeout=5000)
     _calm(page)
@@ -531,15 +531,15 @@ def test_f_a_hold_of_150_ms_and_then_a_move_is_a_scroll_too(base_url, phone):
     _touch(cdp, "touchStart", x, y)
     # the name shows it is held while it waits (looked at at once: the 300 ms are already running)
     expect(_chip(page, B)).to_have_class(re.compile(r"\bheld\b"))
-    page.wait_for_timeout(QUICK)
+    hold(page, QUICK)
     _touch(cdp, "touchMove", x, y - 20)  # one move of 20px: well before the 300 ms are up
     expect(_chip(page, B)).not_to_have_class(re.compile(r"\bheld\b"))
     # the 300 ms pass with the finger down: still nothing
-    page.wait_for_timeout(HOLD)
+    hold(page, HOLD)
     assert _spied(page)["ghosts"] == 0
     for i in range(5, 14):  # and the finger goes on: the page follows it
         _touch(cdp, "touchMove", x, y - i * 5)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     _touch(cdp, "touchEnd")
     page.wait_for_function("y => window.scrollY > y", arg=before, timeout=5000)
     _calm(page)
@@ -557,7 +557,7 @@ def test_f_a_hold_of_350_ms_carries_the_name_and_the_page_does_not_scroll(base_u
     target = _slot(page, S2, 1)
     tx, ty = _centre(target)
     assert 100 < ty < 560, f"the box is not on the screen with the name: {ty}"
-    page.wait_for_timeout(HOLD)  # the hold is the behaviour under test
+    hold(page, HOLD)  # the hold is the behaviour under test
     expect(_ghosts(page)).to_have_count(1)
     expect(_chip(page, C)).to_have_class(re.compile(r"\blifted\b"))
     assert _ghosts(page).inner_text().strip() == C
@@ -565,7 +565,7 @@ def test_f_a_hold_of_350_ms_carries_the_name_and_the_page_does_not_scroll(base_u
     # the finger moves down and sideways, then up: the page stays
     for dx, dy in ((10, 20), (20, 40), (20, -30), (0, -60)):
         _touch(cdp, "touchMove", x + dx, y + dy)
-        page.wait_for_timeout(40)
+        pace(page, 40)
     assert _scroll_y(page) == s0
     # the copy is above the finger
     g = _ghosts(page).bounding_box()
@@ -573,7 +573,7 @@ def test_f_a_hold_of_350_ms_carries_the_name_and_the_page_does_not_scroll(base_u
     # onto the box, in small steps
     for i in range(1, 13):
         _touch(cdp, "touchMove", x + (tx - x) * i / 12, y - 60 + (ty - y + 60) * i / 12)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     expect(_lit(page)).to_have_count(1)
     assert _lit(page).get_attribute("data-sid") == str(ids[S2])
     assert _scroll_y(page) == s0
@@ -603,10 +603,10 @@ def test_f_a_sideways_slide_of_more_than_10px_is_not_a_hold_and_one_of_4px_is(ba
     x, y = _bring(page, _chip(page, B), 500)
     _touch(cdp, "touchStart", x, y)
     expect(_chip(page, B)).to_have_class(re.compile(r"\bheld\b"))
-    page.wait_for_timeout(QUICK)
+    hold(page, QUICK)
     _touch(cdp, "touchMove", x + 20, y)  # one move of 20px to the side, same y
     expect(_chip(page, B)).not_to_have_class(re.compile(r"\bheld\b"))
-    page.wait_for_timeout(450 - QUICK)  # the hold's own time is the behaviour under test
+    hold(page, 450 - QUICK)  # the hold's own time is the behaviour under test
     assert _spied(page)["ghosts"] == 0
     expect(_ghosts(page)).to_have_count(0)
     _touch(cdp, "touchEnd")
@@ -616,9 +616,9 @@ def test_f_a_sideways_slide_of_more_than_10px_is_not_a_hold_and_one_of_4px_is(ba
     # the control: 4px to the side is still a hold, and it carries
     x, y = _centre(_chip(page, B))
     _touch(cdp, "touchStart", x, y)
-    page.wait_for_timeout(QUICK)
+    hold(page, QUICK)
     _touch(cdp, "touchMove", x + 4, y)
-    page.wait_for_timeout(HOLD - QUICK)
+    hold(page, HOLD - QUICK)
     expect(_ghosts(page)).to_have_count(1)
     _touch(cdp, "touchEnd")
     _calm(page)
@@ -636,18 +636,20 @@ def test_g_near_the_edge_the_page_scrolls_by_itself_and_holds_still_over_a_box(b
     sx, _ = _centre(_slot(page, S2, 1))
     x, y = _hold(page, cdp, A, 150)
     assert _centre(_slot(page, S2, 1))[1] < 0, "the box should start above the screen"
-    page.wait_for_timeout(HOLD)
+    hold(page, HOLD)
     expect(_ghosts(page)).to_have_count(1)
     s0 = _scroll_y(page)
     # along the line of the boxes' first column, up to the top edge
     for i in range(1, 11):
         _touch(cdp, "touchMove", x + (sx - x) * i / 10, y + (36 - y) * i / 10)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     # nothing is under the finger yet: the page scrolls up by itself, and then a box comes under it
     page.wait_for_function("y => window.scrollY < y", arg=s0, timeout=5000)
     page.wait_for_selector(".slot.over", timeout=8000)
     s1 = _scroll_y(page)
-    page.wait_for_timeout(300)  # time for the page to move, if it were going to
+    stays(
+        page, 300, "the page scrolling on while a box is under the finger"
+    )  # time for the page to move, if it were going to
     s2 = _scroll_y(page)
     assert s1 == s2, (s1, s2)
     expect(_lit(page)).to_have_count(1)
@@ -669,12 +671,12 @@ def test_h_a_cancelled_pointer_drops_nothing_and_the_page_scrolls_again(base_url
     _open(page, base_url, size=(375, 800))
     puts = _watch_puts(page)
     x, y = _hold(page, cdp, C, 600)
-    page.wait_for_timeout(HOLD)
+    hold(page, HOLD)
     expect(_ghosts(page)).to_have_count(1)
     tx, ty = _centre(_slot(page, S2, 1))
     for i in range(1, 9):
         _touch(cdp, "touchMove", x + (tx - x) * i / 8, y + (ty - y) * i / 8)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     expect(_lit(page)).to_have_count(1)
     _touch(cdp, "touchCancel")
     _calm(page)
@@ -687,7 +689,7 @@ def test_h_a_cancelled_pointer_drops_nothing_and_the_page_scrolls_again(base_url
     _touch(cdp, "touchStart", x, y)
     for i in range(1, 11):
         _touch(cdp, "touchMove", x, y - i * 18)
-        page.wait_for_timeout(16)
+        pace(page, 16)
     _touch(cdp, "touchEnd")
     page.wait_for_function("y => window.scrollY > y", arg=before, timeout=5000)
     assert _api_chain(base_url, ids, S1) == []

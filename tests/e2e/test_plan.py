@@ -15,6 +15,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import stays
+
 pytestmark = pytest.mark.e2e
 
 
@@ -240,7 +242,7 @@ class TestOpenInLog:
         _open_plan(page, base_url, mon)
         page.once("dialog", lambda d: d.dismiss())
         page.locator(".plan-table tr").first.locator(".plan-delete").click()
-        page.wait_for_timeout(400)
+        stays(page, 400, "the entry being deleted after the confirm was cancelled")
         with httpx.Client(base_url=base_url) as c:
             assert c.get(f"/api/entries/{mon}").status_code == 200
 

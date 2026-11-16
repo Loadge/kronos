@@ -18,6 +18,7 @@ from playwright.sync_api import expect
 from .conftest import (
     HASH_OF,  # noqa: F401  (the address of each tab id)
     settled,
+    stays,
 )
 
 # The FX chip tests need a server with its own ECB: those fixtures belong to the money module.
@@ -588,7 +589,7 @@ def test_k_opens_the_year_dial_and_l_and_a_no_longer_go_anywhere(page, base_url)
     page.wait_for_selector(".hero-num")
     page.keyboard.press("l")
     page.keyboard.press("a")
-    page.wait_for_timeout(200)
+    stays(page, 200, "the keys l and a going anywhere")
     assert page.evaluate("location.hash") == "#dashboard"
     page.keyboard.press("k")
     page.wait_for_selector("#yd", state="visible")

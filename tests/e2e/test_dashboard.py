@@ -10,6 +10,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from .conftest import stays
+
 pytestmark = pytest.mark.e2e
 
 
@@ -109,7 +111,7 @@ class TestDashboardMetrics:
 
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
-        page.wait_for_timeout(1000)
+        stays(page, 1000, "a JavaScript error on the Year tab")
         assert errors == [], f"JS errors on analytics tab: {errors}"
 
 

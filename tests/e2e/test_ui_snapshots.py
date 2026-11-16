@@ -59,7 +59,7 @@ def test_screen_matches_its_baseline(browser, demo_url, assert_snapshot, tab, si
         page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
         page.evaluate("document.fonts.ready")
-        page.wait_for_timeout(800)  # the charts settle
+        page.wait_for_timeout(800)  # espera-fija: the charts settle; baselines were made with it
         picture = page.screenshot(
             full_page=tab not in FIRST_SCREEN_ONLY,
             animations="disabled",

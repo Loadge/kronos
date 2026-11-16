@@ -17,7 +17,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import day_opened, settled, wait_until
+from .conftest import day_opened, settled, stays, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -220,7 +220,7 @@ class TestNotesCollapse:
         _notes(page).fill("keep")
         page.keyboard.press("Escape")  # blurs the field; text in it keeps it open
         page.locator(".log-form-card .card-title h3").click()
-        page.wait_for_timeout(300)
+        stays(page, 300, "the note field collapsing while it holds text")
         assert _notes(page).is_visible() and _notes(page).input_value() == "keep"
 
     def test_clearing_the_text_does_not_collapse_it_while_typing(self, page, base_url):
@@ -228,7 +228,7 @@ class TestNotesCollapse:
         _add_note_button(page).click()
         _notes(page).fill("abc")
         _notes(page).fill("")
-        page.wait_for_timeout(300)
+        stays(page, 300, "the note field collapsing while it is being typed in")
         assert _notes(page).is_visible() and _is_focused(page, _notes(page))
 
     def test_collapsing_on_the_way_to_the_button_does_not_lose_the_click(self, page, base_url):
@@ -280,7 +280,7 @@ class TestRail:
         assert page.evaluate("document.documentElement.scrollWidth") <= 360
         _add_note_button(page).click()
         _notes(page).fill("a long note " * 20)
-        page.wait_for_timeout(300)
+        settled(page)
         assert page.evaluate("document.documentElement.scrollWidth") <= 360
         card = page.locator(".log-form-card").bounding_box()
         assert card["x"] + card["width"] <= 360

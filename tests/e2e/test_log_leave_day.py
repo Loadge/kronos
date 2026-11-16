@@ -10,7 +10,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from .conftest import wait_until
+from .conftest import day_opened, settled, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -102,9 +102,9 @@ class TestLeaveDay:
     def test_click_on_an_empty_day_starts_a_fresh_entry(self, page, base_url):
         _edit_14(page, base_url)
         assert _state(page)["notes"] == "note of the 14th"
-        _day(page, D16).click()
+        # the page asks for the day's entry; there is none, so the day stays a new one
+        day_opened(page, D16, _day(page, D16).click)
         page.wait_for_function(f"() => {DATA}.form.date === '{D16}'", timeout=5000)
-        page.wait_for_timeout(300)
         st = _state(page)
         assert st["editing"] is None
         assert st["date"] == D16
@@ -192,8 +192,10 @@ class TestLeaveDay:
         assert len(held) == 1
         _day(page, D17).click()
         _wait_editing(page, D17)
-        held[0].continue_()
-        page.wait_for_timeout(500)
+        with page.expect_response(f"**/api/entries/{D15}", timeout=5000) as late:
+            held[0].continue_()
+        late.value.finished()  # the late answer has arrived whole
+        settled(page)  # and the page has had its turn with it
         st = _state(page)
         assert st["editing"] == D17
         assert st["date"] == D17

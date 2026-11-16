@@ -8,6 +8,8 @@ import time
 import httpx
 import pytest
 
+from .conftest import stays
+
 pytestmark = pytest.mark.e2e
 
 
@@ -117,7 +119,7 @@ class TestPicker:
         # picker stays, the 'to' input is flagged invalid.
         pages_before = len(context.pages)
         page.locator("button", has_text="Open timesheet").click()
-        page.wait_for_timeout(400)
+        stays(page, 400, "a sheet opening for an invalid range")
         assert len(context.pages) == pages_before
         assert page.locator(".pdf-modal").count() == 1
         to_input = page.locator(".pdf-custom input").nth(1)
@@ -178,7 +180,7 @@ class TestPage:
             "el => { el.value = '2026-07-15';"
             " el.dispatchEvent(new Event('change', { bubbles: true })); }"
         )
-        page.wait_for_timeout(400)
+        stays(page, 400, "a request for an invalid date")
         assert "to=2026-09-30" in page.url
         assert page.locator("#ts-to").evaluate("el => el.checkValidity()") is False
 

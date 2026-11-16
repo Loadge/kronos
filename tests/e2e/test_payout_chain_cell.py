@@ -32,7 +32,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import wait_until
+from .conftest import stays, wait_until
 from .test_money_accounts import BACKEND_DIR, _app, _find_free_port, _wait_for_server
 
 pytestmark = pytest.mark.e2e
@@ -987,7 +987,7 @@ def test_a_preview_the_server_refuses_says_no_answer_and_is_not_asked_again(page
     expect(_confirm(row)).to_be_disabled()
     assert len(page.wire.previews) == 1
     # nothing arrives to wait for when nothing is asked: a fixed wait is the only way to see that it stays so
-    page.wait_for_timeout(3000)
+    stays(page, 3000, "a refused preview being asked again")
     assert len(page.wire.previews) == 1
     expect(row.locator(".wk-status")).to_have_text("no answer")
 
@@ -1053,7 +1053,7 @@ def test_no_more_than_four_previews_are_in_flight_and_every_row_gets_its_figures
     wait_until(page, lambda: len(held) >= 4, lambda: f"four previews in flight; {len(held)} are")
     assert len(held) == 4
     # a fifth request that must not come cannot be waited for: give it time to (wrongly) arrive
-    page.wait_for_timeout(1000)
+    stays(page, 1000, "a fifth preview in flight")
     assert len(held) == 4 and flight["peak"] == 4
     rows = [_row(page, m) for m in mondays]
 
@@ -1159,7 +1159,7 @@ def test_a_preview_that_always_fails_is_asked_twice_and_no_more(page, chain_url)
     )
     assert len(page.wire.previews) == 2  # the first, and the one retry 2 s later
     # nothing arrives to wait for when nothing is asked: a fixed wait is the only way to see that it stays so
-    page.wait_for_timeout(5000)
+    stays(page, 5000, "a third request for a preview that always fails")
     assert len(page.wire.previews) == 2
     expect(row.locator(".wk-status")).to_have_text("no answer")
     expect(_confirm(row)).to_be_disabled()
@@ -1955,7 +1955,7 @@ def _three_weeks_with_figures(page, base: str, **world) -> dict:
 def _weeks_asked(page, since: int) -> list[str]:
     """The weeks of the previews sent after the first `since`, once the page has gone quiet."""
     page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(700)  # espera-fija: a request that must not come cannot be awaited
+    stays(page, 700, "a request that must not come")
     return [body["week_start"] for body in page.wire.previews[since:]]
 
 

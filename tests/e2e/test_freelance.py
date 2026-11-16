@@ -15,7 +15,7 @@ import re
 import httpx
 import pytest
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, pace
 
 pytestmark = pytest.mark.e2e
 
@@ -625,7 +625,7 @@ class TestAnalyticsPin:
         ys = []
         for _ in range(30):
             page.mouse.wheel(0, 40)
-            page.wait_for_timeout(60)
+            pace(page, 60)
             ys.append(page.evaluate("window.scrollY"))
         assert all(b >= a for a, b in zip(ys, ys[1:], strict=False)), ys
         assert ys[-1] > 400

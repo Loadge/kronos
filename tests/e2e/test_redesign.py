@@ -13,6 +13,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import stays
+
 pytestmark = pytest.mark.e2e
 
 
@@ -85,7 +87,7 @@ class TestNavigation:
         page.wait_for_selector(".hero-num", timeout=5000)
         page.keyboard.press("l")
         page.keyboard.press("a")
-        page.wait_for_timeout(300)
+        stays(page, 300, "the keys l and a going anywhere")
         assert page.url.endswith("#dashboard")
         page.keyboard.press("s")
         page.wait_for_url("**/#settings", timeout=3000)

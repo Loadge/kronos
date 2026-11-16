@@ -18,7 +18,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import wait_until
+from .conftest import stays, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -185,7 +185,7 @@ class TestJump:
         page.wait_for_selector("#eweek-2026-11-02", state="attached", timeout=5000)
 
         # checked after the Days tab's own scroll to today has run and settled
-        page.wait_for_timeout(1500)
+        stays(page, 1500, "the tab's own scroll to today taking the week off the screen")
         assert _in_viewport(page, "#eweek-2026-11-02 .week-sep")
         state = page.evaluate(
             "() => { const d = Alpine.$data(document.querySelector('main'));"

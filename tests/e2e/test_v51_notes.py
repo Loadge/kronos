@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import HASH_OF, settled
+from .conftest import HASH_OF, settled, stays
 
 pytestmark = pytest.mark.e2e
 
@@ -101,7 +101,7 @@ def test_reduced_motion_does_not_wind_the_logo(page, base_url):
     page.emulate_media(reduced_motion="reduce")
     page.goto(f"{base_url}/#dashboard")
     page.locator(".brand-btn").hover()
-    page.wait_for_timeout(200)
+    stays(page, 200, "the logo winding under reduced motion")
     img = ".brand-btn .brand-logo"
     assert page.evaluate(f"document.querySelector('{img}').getAnimations().length") == 0
 
@@ -144,7 +144,9 @@ def test_closing_it_keeps_it_closed_for_good(page, base_url):
     assert page.evaluate(KEY) == "1"
     page.reload()
     page.wait_for_selector(".brand-btn", state="attached")
-    page.wait_for_timeout(2000)  # past the 1.2 s it takes to appear
+    stays(
+        page, 2000, "the callout showing again after it was closed"
+    )  # past the 1.2 s it takes to appear
     assert not _shown(page)
     assert page.evaluate(KEY) == "1"
 
@@ -153,7 +155,7 @@ def test_with_the_key_set_it_never_shows(page, base_url):
     page.goto(f"{base_url}/#dashboard")  # the suite's own context has the key
     page.wait_for_selector(".brand-btn", state="attached")
     assert page.evaluate(KEY) == "1"
-    page.wait_for_timeout(2000)
+    stays(page, 2000, "the callout showing with the key set")
     assert not _shown(page)
     # not in the page at all: a hidden copy would still match a test's `text=Log`
     assert page.locator(HINT).count() == 0
@@ -193,7 +195,7 @@ def test_opening_the_dial_first_means_it_never_shows(page, base_url):
     assert page.evaluate(KEY) == "1"  # written by opening, not by the callout
     page.keyboard.press("Escape")
     page.wait_for_selector("#yd", state="detached")
-    page.wait_for_timeout(2000)
+    stays(page, 2000, "the callout showing after the dial was opened")
     assert not _shown(page)
 
 
@@ -219,7 +221,7 @@ def test_without_storage_nothing_is_shown(page, base_url):
     )
     page.goto(f"{base_url}/#dashboard")
     page.wait_for_selector(".brand-btn", state="attached")
-    page.wait_for_timeout(2000)
+    stays(page, 2000, "the callout showing without storage")
     assert not _shown(page)
 
 
@@ -339,6 +341,6 @@ def test_the_app_starts_once(page, base_url):
     seen = []
     page.on("request", lambda r: seen.append(r.url.split("?")[0]) if "/api/" in r.url else None)
     page.goto(f"{base_url}/#dashboard", wait_until="networkidle")
-    page.wait_for_timeout(500)
+    stays(page, 500, "a second start of the app")
     for path in ("/api/dashboard", "/api/config", "/api/entries", "/api/version"):
         assert sum(u.endswith(path) for u in seen) == 1, (path, seen)

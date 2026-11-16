@@ -19,7 +19,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import HASH_OF, settled
+from .conftest import HASH_OF, settled, stays
 
 pytestmark = pytest.mark.e2e
 
@@ -210,7 +210,8 @@ CLEAR = """() => {
 def test_the_last_element_of_a_page_scrolls_clear_of_the_bar_and_the_dock(phone, base_url, tab):
     page = phone(375, 700)
     _open(page, base_url, tab)
-    page.wait_for_timeout(500)  # a page that loads its data grows while it does
+    page.wait_for_load_state("networkidle")  # a page that loads its data grows while it does
+    settled(page)
     _until(page, CLEAR, f"the end of {tab} is under the bar")
     assert page.evaluate("document.documentElement.scrollWidth") <= 375
     assert page.evaluate("getComputedStyle(document.body).overflow") != "hidden"  # no scroll lock
@@ -232,7 +233,7 @@ def test_a_time_field_leaves_the_bar_and_the_dock_in_place(phone, base_url):
     target.scroll_into_view_if_needed()
     target.tap()
     assert page.evaluate("el => document.activeElement === el", target.element_handle())
-    page.wait_for_timeout(350)
+    stays(page, 350, "the bar or the dock leaving while the field has the focus")
     expect(page.locator(".tabs")).to_be_visible()
     expect(page.locator(".log-col-rail")).to_be_visible()
 
@@ -362,11 +363,11 @@ def test_the_ink_finds_the_freelance_tab_when_it_appears(phone, base_url):
 def test_a_page_fades_in_on_a_tab_change_and_not_on_load(phone, base_url):
     page = phone(375, 800)
     _open(page, base_url, "dashboard")
-    page.wait_for_timeout(600)
+    stays(page, 600, "the page fading in on load")
     assert "page-in" not in page.evaluate("window.__fx")
     _go(page, "Weeks", True)
     page.wait_for_function("() => window.__fx.includes('page-in')", timeout=6000)
-    page.wait_for_timeout(500)
+    stays(page, 500, "a second fade of the same page")
     assert page.evaluate("window.__fx.filter(n => n === 'page-in').length") == 1
     assert page.evaluate("document.querySelector('main > section').getAnimations().length") == 0
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import HASH_OF, settled
+from .conftest import HASH_OF, settled, stays
 
 pytestmark = pytest.mark.e2e
 
@@ -156,7 +156,7 @@ class TestEscapeGoesHome:
         page.goto(f"{base_url}/#dashboard")
         page.wait_for_selector(".hero-num", timeout=5000)
         page.keyboard.press("Escape")
-        page.wait_for_timeout(300)
+        stays(page, 300, "Escape leaving the Dashboard")
         assert page.url.endswith("#dashboard")
 
     def test_escape_leaves_a_field_first(self, page, base_url):
@@ -165,7 +165,7 @@ class TestEscapeGoesHome:
         search = page.locator(".notes-search")
         search.click()
         page.keyboard.press("Escape")
-        page.wait_for_timeout(300)
+        stays(page, 300, "the first Escape leaving the page")
         assert page.url.endswith("#weeks")  # first Escape only leaves the field
         assert page.evaluate("() => document.activeElement === document.body")
         page.keyboard.press("Escape")
