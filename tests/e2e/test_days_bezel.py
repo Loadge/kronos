@@ -15,8 +15,9 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
-from .conftest import settled
+from .conftest import settled, steady
 
 pytestmark = pytest.mark.e2e
 
@@ -197,6 +198,11 @@ def _wait_flash(page, monday: str) -> None:
     )
 
 
+def _scroll_stopped(page) -> None:
+    """The jump to a week scrolls the page smoothly: wait until it has arrived."""
+    steady(page, "window.scrollY", "the scroll of the page")
+
+
 def _centre(page, monday: str) -> tuple[float, float]:
     b = _tick(page, monday).bounding_box()
     return b["x"] + b["width"] / 2, b["y"] + b["height"] / 2
@@ -273,7 +279,9 @@ class TestSlotsAndHeights:
         )
         # W45 is the current week, open by default and paid out: teal. W41 opened by hand: brass.
         _tick(page, W41).click()
-        page.wait_for_timeout(500)
+        expect(_tick(page, W41).locator(".bz-bar")).to_have_css(
+            "background-color", _colour(page, "var(--k-brass)")
+        )
         assert _bar_colour(page, W45) == _colour(page, "var(--paid)")
         assert _bar_colour(page, W41) == _colour(page, "var(--k-brass)")
         # a closed week is quiet, whatever its tag
@@ -331,7 +339,7 @@ class TestPressing:
             arg=oldest,
             timeout=5000,
         )
-        page.wait_for_timeout(500)
+        _scroll_stopped(page)
         assert _visible_under_strip(page, oldest)
         assert _tick(page, oldest).get_attribute("aria-pressed") == "true"
         assert page.locator(f"#day-row-{_day(oldest, 4)}").count() == 1
@@ -343,7 +351,7 @@ class TestPressing:
         mid = W32
         _tick(page, mid).click()
         _wait_flash(page, mid)
-        page.wait_for_timeout(1000)
+        _scroll_stopped(page)
         y = page.evaluate("window.scrollY")
         assert y > 300
         _tick(page, mid).click()
@@ -362,13 +370,13 @@ class TestPressing:
         assert not _visible_under_strip(page, oldest)
         _tick(page, oldest).click()
         _wait_flash(page, oldest)
-        page.wait_for_timeout(1000)
+        _scroll_stopped(page)
         assert _visible_under_strip(page, oldest)
         assert _state(page, f"daysWeekOpen['{oldest}']") is True
         mid = W32  # high enough to be centred: near the end, closing shortens the page
         _tick(page, mid).click()
         _wait_flash(page, mid)
-        page.wait_for_timeout(1000)
+        _scroll_stopped(page)
         y = page.evaluate("window.scrollY")
         _tick(page, mid).click()
         page.wait_for_timeout(700)
@@ -415,7 +423,7 @@ class TestDragging:
         _week(base_url, W44)
         _open_days(page, base_url)
         _tick(page, W44).click()
-        page.wait_for_timeout(300)
+        expect(_tick(page, W44)).to_have_attribute("aria-pressed", "true")
         _drag(page, [W34, "2026-08-24"])
         assert _tick(page, W44).get_attribute("aria-pressed") == "true"
         assert _tick(page, W32).get_attribute("aria-pressed") == "false"
@@ -449,7 +457,7 @@ class TestAHandOnTheStrip:
         page.mouse.move(x0, y + 200, steps=4)  # well under the strip, over the table
         page.mouse.move(x1, y + 200, steps=25)
         page.mouse.up()
-        page.wait_for_timeout(200)
+        expect(_tick(page, W34)).to_have_attribute("aria-pressed", "true")
         for m in (W32, W33, W34):
             assert _tick(page, m).get_attribute("aria-pressed") == "true", m
 
@@ -464,7 +472,7 @@ class TestAHandOnTheStrip:
             self._finger(cdp, "touchMove", x, y - step * 20)
             page.wait_for_timeout(16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(400)
+        page.wait_for_function("() => window.scrollY > 100", timeout=5000)
         assert page.evaluate("window.scrollY") > 100  # the page did scroll
         assert _count(page) == before
         assert _tick(page, W32).get_attribute("aria-pressed") == "false"
@@ -478,7 +486,8 @@ class TestAHandOnTheStrip:
         self._finger(cdp, "touchEnd")
         _wait_flash(page, W32)
         assert _tick(page, W32).get_attribute("aria-pressed") == "true"
-        page.wait_for_timeout(300)  # a finger has no hover: nothing would ever take a tooltip away
+        # a finger has no hover: nothing would ever take a tooltip away
+        expect(page.locator(".bz-tip")).to_have_css("opacity", "0")
         assert float(page.locator(".bz-tip").evaluate("e => getComputedStyle(e).opacity")) == 0
 
     def test_a_sideways_finger_paints(self, page, base_url):
@@ -492,7 +501,7 @@ class TestAHandOnTheStrip:
             self._finger(cdp, "touchMove", x0 + (x1 - x0) * step / 10, y)
             page.wait_for_timeout(16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(300)
+        expect(_tick(page, "2026-08-24")).to_have_attribute("aria-pressed", "true")
         for m in (W32, W33, W34, "2026-08-24"):
             assert _tick(page, m).get_attribute("aria-pressed") == "true", m
 
@@ -519,7 +528,7 @@ class TestAHandOnTheStrip:
         _open_days(page, base_url)
         _tick(page, W32).click()
         page.mouse.move(5, 400)
-        page.wait_for_timeout(300)
+        expect(page.locator(".bz-tip")).to_have_css("opacity", "0")
         assert float(page.locator(".bz-tip").evaluate("e => getComputedStyle(e).opacity")) == 0
 
     def test_a_row_of_the_table_carries_no_stray_style(self, page, base_url):
@@ -571,7 +580,8 @@ class TestTheChip:
         self._three(base_url)
         _open_days(page, base_url)
         page.get_by_test_id("wk-expand-all").click()
-        page.wait_for_timeout(500)
+        expect(page.get_by_test_id("wk-expand-all")).to_have_attribute("aria-disabled", "true")
+        settled(page, ".bz")  # its fade
         opacity = page.get_by_test_id("wk-expand-all").evaluate("e => getComputedStyle(e).opacity")
         assert float(opacity) < 0.6
         assert (
@@ -641,7 +651,11 @@ class TestTheChip:
         assert list(wave.values()) == sorted(wave.values())  # left to right
         assert seen["rows"] > 0
         assert seen["glint"] == 1
-        page.wait_for_timeout(1700)
+        page.wait_for_function(
+            "() => Object.keys(Alpine.$data(document.querySelector('main')).daysWave).length === 0"
+            " && !document.querySelector('tbody.row-in')",
+            timeout=5000,
+        )
         assert _state(page, "daysWave") == {}
         assert page.locator("tbody.row-in").count() == 0
 
@@ -721,7 +735,7 @@ class TestNotesSearch:
         _week(base_url, W44, notes="alpha review")
         _open_days(page, base_url)
         _tick(page, W43).click()  # open by hand: W43 open, W44 and W41 closed
-        page.wait_for_timeout(300)
+        expect(page.locator(".bz-count")).to_have_text("1 of 3 open")
         assert _count(page) == "1 of 3 open"
 
         page.locator(".notes-search").fill("alpha")
@@ -856,7 +870,7 @@ class TestSticky:
         _open_days(page, base_url)
         _tick(page, "2026-01-05").click()
         _wait_flash(page, "2026-01-05")
-        page.wait_for_timeout(1200)
+        _scroll_stopped(page)
         assert _visible_under_strip(page, "2026-01-05")
 
 
@@ -868,13 +882,15 @@ class TestTooltip:
         _open_days(page, base_url)
         tip = page.locator(".bz-tip")
         _tick(page, W32).hover()
-        page.wait_for_timeout(300)
+        expect(tip).to_have_text("W32 · Aug 3 – 9 · +1.50h")
+        expect(tip).to_have_css("opacity", "1")
         assert tip.inner_text() == "W32 · Aug 3 – 9 · +1.50h"
         assert float(tip.evaluate("e => getComputedStyle(e).opacity")) == 1
         strip = page.locator(".bz-strip").bounding_box()
         for monday in (FIRST_2026, LAST_2026):
             _tick(page, monday).hover()
-            page.wait_for_timeout(300)
+            expect(tip).to_have_text(_tick(page, monday).get_attribute("aria-label"))
+            expect(tip).to_have_css("opacity", "1")
             box = tip.bounding_box()
             assert box["x"] >= strip["x"] - 0.5, (monday, box, strip)
             assert box["x"] + box["width"] <= strip["x"] + strip["width"] + 0.5, (monday, box)
@@ -884,7 +900,7 @@ class TestTooltip:
             )
             assert page.evaluate("document.documentElement.scrollWidth") <= 1280
         page.mouse.move(5, 400)
-        page.wait_for_timeout(300)
+        expect(tip).to_have_css("opacity", "0")
         assert float(tip.evaluate("e => getComputedStyle(e).opacity")) == 0
 
     def test_freelance_the_text_and_it_stays_inside_the_strip(self, page, base_url):
@@ -896,12 +912,13 @@ class TestTooltip:
         _open_days(page, base_url, freelance=True)
         tip = page.locator(".bz-tip")
         _tick(page, W45).hover()
-        page.wait_for_timeout(300)
+        expect(tip).to_have_text("W45 · Nov 2 – 8 · €1,789.07")
         assert tip.inner_text() == "W45 · Nov 2 – 8 · €1,789.07"
         assert _tick(page, W45).get_attribute("aria-label") == "W45 · Nov 2 – 8 · €1,789.07"
         strip = page.locator(".bz-strip").bounding_box()
         _tick(page, LAST_2026).hover()
-        page.wait_for_timeout(300)
+        expect(tip).to_have_text(_tick(page, LAST_2026).get_attribute("aria-label"))
+        expect(tip).to_have_css("opacity", "1")
         box = tip.bounding_box()
         assert box["x"] + box["width"] <= strip["x"] + strip["width"] + 0.5, box
         assert page.evaluate("document.documentElement.scrollWidth") <= 1280
@@ -910,7 +927,8 @@ class TestTooltip:
         _week(base_url, W32, "19:30")
         _open_days(page, base_url)
         _tick(page, W32).focus()
-        page.wait_for_timeout(300)
+        expect(page.locator(".bz-tip")).to_have_text("W32 · Aug 3 – 9 · +1.50h")
+        expect(page.locator(".bz-tip")).to_have_css("opacity", "1")
         assert page.locator(".bz-tip").inner_text() == "W32 · Aug 3 – 9 · +1.50h"
         assert float(page.locator(".bz-tip").evaluate("e => getComputedStyle(e).opacity")) == 1
 

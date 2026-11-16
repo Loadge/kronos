@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from .conftest import hold, pace, settled, stays, wait_until
+from .conftest import hold, pace, settled, stays, steady, wait_until
 
 PAGE = """<!doctype html><meta charset="utf-8">
 <style>
@@ -103,6 +103,24 @@ def test_settled_only_looks_under_its_root(blank):
 def test_settled_raises_when_its_root_is_not_in_the_page(blank):
     with pytest.raises(AssertionError, match="no #nowhere in the page"):
         settled(blank, "#nowhere", timeout=0.3)
+
+
+# ── steady ────────────────────────────────────────────────────────────────────
+
+
+def test_steady_returns_once_a_value_has_stopped_changing(blank):
+    blank.evaluate(
+        "() => { window.__n = 0; const t = setInterval(() => {"
+        " if (++window.__n >= 40) clearInterval(t); }, 25); }"  # a second of counting
+    )
+    steady(blank, "window.__n", "the counter")
+    assert blank.evaluate("window.__n") == 40
+
+
+def test_steady_raises_with_its_what_while_the_value_keeps_changing(blank):
+    blank.evaluate("() => { window.__n = 0; setInterval(() => { window.__n++; }, 5); }")
+    with pytest.raises(AssertionError, match=r"the counter never stopped changing in 0\.6s"):
+        steady(blank, "window.__n", "the counter", timeout=0.6)
 
 
 # ── the three fixed times ─────────────────────────────────────────────────────

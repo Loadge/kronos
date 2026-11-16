@@ -118,6 +118,24 @@ def settled(page, root: str = "body", timeout: float = 5.0) -> None:
             raise AssertionError(f"{root} never settled in {timeout:g}s: {', '.join(moving)}")
 
 
+def steady(page, expression: str, what: str, frames: int = 10, timeout: float = 5.0) -> None:
+    """Wait until a value of the page (a JS expression: `window.scrollY`) is the same for
+    `frames` frames in a row: a smooth scroll has arrived, a ring has stopped turning. Raises
+    with `what` when it never stops changing."""
+    page.evaluate("() => { window.__steady = { was: undefined, frames: 0 }; }")
+    try:
+        page.wait_for_function(
+            "(frames) => { const now = JSON.stringify(" + expression + "), s = window.__steady;"
+            " if (now !== s.was) { s.was = now; s.frames = 1; return false; }"
+            " return ++s.frames >= frames; }",
+            arg=frames,
+            polling="raf",
+            timeout=timeout * 1000,
+        )
+    except PlaywrightTimeoutError:
+        raise AssertionError(f"{what} never stopped changing in {timeout:g}s") from None
+
+
 def day_opened(page, iso: str, act) -> None:
     """Do `act` (a click on a day of the Days calendar, a call to `openDayInLog`) and wait for what
     the page does with that day: it asks the server for the entry, and opens it for editing when
