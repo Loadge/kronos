@@ -837,7 +837,10 @@ def test_the_ring_turns_once_on_hover_and_not_under_reduced_motion(page, base_ur
     assert got == ["ring-turn", 1100, 1], got
     # the keyboard's focus turns it too
     page.mouse.move(2, 600)
-    page.wait_for_timeout(1400)
+    page.wait_for_function(  # the turn it was on is over
+        "() => !document.querySelector('.brand-ring').getAnimations().length"
+        " && !document.querySelector('.dial-ring').getAnimations().length"
+    )
     page.keyboard.press("Tab")  # from the top of the page: the first stop is the logo
     page.wait_for_function(
         "() => document.activeElement.classList.contains('brand-btn')"
@@ -845,7 +848,10 @@ def test_the_ring_turns_once_on_hover_and_not_under_reduced_motion(page, base_ur
     )
     page.emulate_media(reduced_motion="reduce")
     page.mouse.move(2, 600)
-    page.wait_for_timeout(1400)
+    page.wait_for_function(  # the turn it was on is over
+        "() => !document.querySelector('.brand-ring').getAnimations().length"
+        " && !document.querySelector('.dial-ring').getAnimations().length"
+    )
     page.get_by_test_id("dial-tile").hover()
     assert page.evaluate("document.querySelector('.dial-ring').getAnimations().length") == 0
     page.locator(".brand-btn").hover()

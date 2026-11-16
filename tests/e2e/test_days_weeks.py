@@ -14,7 +14,7 @@ import datetime
 import httpx
 import pytest
 
-from .conftest import settled
+from .conftest import settled, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -217,7 +217,8 @@ class TestToggling:
         _week(base_url, W44)
         _open(page, base_url)
         _collapse_all(page)
-        page.wait_for_timeout(200)
+        page.wait_for_function("() => !document.querySelector('.days-table tr.day-row')")
+        settled(page)
         cells = [f"#eweek-{W43} {c}" for c in (".ws-net", ".ws-target", ".ws-delta", ".ws-sigma")]
         closed = [page.locator(c).bounding_box()["x"] for c in cells]
         page.locator(f"#eweek-{W44} .week-sep-btn").click()
@@ -372,7 +373,9 @@ class TestJumps:
         )
         assert _expanded(page, W44) == "true"
         assert page.locator(f"#day-row-{_day(W44, 4)}").count() == 1
-        page.wait_for_timeout(800)
+        wait_until(
+            page, lambda: _in_viewport(page, f"#eweek-{W44} .week-sep"), "the week line on screen"
+        )
         assert _in_viewport(page, f"#eweek-{W44} .week-sep")
         # the other week was not opened by the jump
         assert _expanded(page, W43) == "false"
@@ -397,7 +400,9 @@ class TestJumps:
             arg=W44,
             timeout=5000,
         )
-        page.wait_for_timeout(1200)
+        wait_until(
+            page, lambda: _in_viewport(page, f"#eweek-{W44} .week-sep"), "the week line on screen"
+        )
         assert _in_viewport(page, f"#eweek-{W44} .week-sep")
 
 
@@ -412,7 +417,11 @@ def test_nothing_scrolls_sideways_and_the_numbers_are_there(page, base_url, widt
     # a no-op when nothing is open (the control is aria-disabled): forced
     button = "wk-collapse-all" if state == "collapsed" else "wk-expand-all"
     page.get_by_test_id(button).click(force=True)
-    page.wait_for_timeout(300)
+    if state == "open":
+        page.wait_for_selector(".days-table tr.day-row", timeout=5000)
+    else:
+        page.wait_for_function("() => !document.querySelector('.days-table tr.day-row')")
+    settled(page)
     assert page.evaluate("document.documentElement.scrollWidth") <= width
     line = f"#eweek-{W44} tr.week-sep"
     for cls, text in [

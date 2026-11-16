@@ -16,7 +16,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import settled
+from .conftest import settled, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -671,7 +671,7 @@ class TestAHand:
             self._finger(cdp, "touchMove", x + step, y - step * 20)  # a hand drifts a little
             page.wait_for_timeout(16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(300)
+        page.wait_for_function("y => window.scrollY > y + 100", arg=scroll, timeout=5000)
         assert page.evaluate("window.scrollY") > scroll + 100  # the page did scroll
         assert _form(page) == before
         assert page.locator(".dr--drag").count() == 0
@@ -713,7 +713,9 @@ class TestAHand:
             self._finger(cdp, "touchMove", x0 + (x1 - x0) * step / 10, y)
             page.wait_for_timeout(16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(200)
+        wait_until(
+            page, lambda: _form(page)["start"] > "09:00", lambda: f"the day moved: {_form(page)}"
+        )
         got = _form(page)
         assert got["start"] > "09:00", got  # it moved, by what the finger travelled after its 6px
         assert _min(got["end"]) - _min(got["start"]) == 480, got  # and kept its length
@@ -729,7 +731,9 @@ class TestAHand:
             page.wait_for_timeout(16)
         assert "18:00" in _tip_text(page)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(200)
+        wait_until(
+            page, lambda: _form(page)["end"] == "18:00", lambda: f"the end at 18:00: {_form(page)}"
+        )
         assert _form(page)["end"] == "18:00"
         assert page.evaluate("window.scrollY") == scroll
 
@@ -742,7 +746,9 @@ class TestAHand:
             self._finger(cdp, "touchMove", x0 + step * 4, y)
             page.wait_for_timeout(16)
         self._finger(cdp, "touchEnd")
-        page.wait_for_timeout(200)
+        wait_until(
+            page, lambda: _form(page)["end"] > "17:00", lambda: f"a later end: {_form(page)}"
+        )
         assert _form(page)["end"] > "17:00"
         assert _form(page)["start"] == "09:00"
 

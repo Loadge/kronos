@@ -295,7 +295,8 @@ def test_plan_cards_are_one_row_of_equal_height_at_1280(planned):
 
 def test_plan_cards_stack_on_a_phone_and_keep_their_drawing(planned):
     planned.set_viewport_size({"width": 375, "height": 800})
-    planned.wait_for_timeout(300)
+    planned.wait_for_function("() => window.innerWidth === 375")
+    settled(planned)
     cards = planned.evaluate(CARDS)
     assert len(cards) == 3 and [c["viz"] for c in cards] == [False, True, True]
     assert planned.locator("[data-testid=plan-line] .pl-real").count() == 1

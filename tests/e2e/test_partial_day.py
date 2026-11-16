@@ -12,6 +12,7 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 from .conftest import settled
 
@@ -73,7 +74,7 @@ class TestLogFormSlider:
         times = page.locator("input[type='time']")
         times.nth(0).fill("09:00")
         times.nth(1).fill("14:00")
-        page.wait_for_timeout(200)
+        expect(page.locator(".impact-card")).to_contain_text("±0.00h")
         preview = page.locator(".impact-card").inner_text()
         assert "5h" in preview  # net 5h against a 5h target
         assert "±0.00h" in preview
@@ -85,7 +86,7 @@ class TestLogFormSlider:
         _set_slider(page, 2)
         page.wait_for_selector("input[type='time']", timeout=3000)
         _set_slider(page, 8)
-        page.wait_for_timeout(300)
+        expect(page.locator("input[type='time']:visible")).to_have_count(0)
         assert page.locator("input[type='time']:visible").count() == 0
         assert "Full day" in page.locator(".leave-slider-value").inner_text()
 

@@ -12,6 +12,7 @@ from datetime import date, timedelta
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 from .conftest import OPEN_ALL_WEEKS, settled
 
@@ -117,8 +118,8 @@ def test_the_note_search_still_highlights_on_a_phone(page, base_url, days):
     worked, _ = days
     _open_days(page, base_url, PHONE)
     page.fill("input.notes-search", "dentist")
-    page.wait_for_timeout(200)
     marked = page.locator(f"#day-row-{worked} td.day-sub mark")
+    expect(marked).to_have_count(1)
     assert marked.count() == 1
     assert marked.inner_text().lower() == "dentist"
 

@@ -17,7 +17,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import day_opened, settled
+from .conftest import day_opened, settled, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -132,7 +132,11 @@ class TestNotesAreOptional:
         settled(page)
         before = _notes(page).bounding_box()["height"]
         _notes(page).fill("\n".join(f"line {i}" for i in range(9)))
-        page.wait_for_timeout(100)
+        wait_until(
+            page,
+            lambda: _notes(page).bounding_box()["height"] > before + 60,
+            "the textarea growing with its nine lines",
+        )
         assert _notes(page).bounding_box()["height"] > before + 60
 
     def test_a_saved_note_comes_back_open_and_a_day_without_one_collapsed(self, page, base_url):

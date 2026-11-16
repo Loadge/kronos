@@ -7,8 +7,9 @@ updates the URL hash, and loads data for each section.
 from __future__ import annotations
 
 import pytest
+from playwright.sync_api import expect
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -120,7 +121,8 @@ class TestClickingATabLeavesNoCaret:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
         page.get_by_role("tab", name=name).click()
-        page.wait_for_timeout(200)
+        expect(page.get_by_role("tab", name=name)).to_have_attribute("aria-selected", "true")
+        settled(page)
         state = page.evaluate(
             """() => {
                 const s = window.getSelection(), a = document.activeElement;

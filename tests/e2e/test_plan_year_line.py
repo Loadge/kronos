@@ -15,6 +15,7 @@ import re
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 from .conftest import DEMO_NOW, HASH_OF, settled
 
@@ -133,7 +134,8 @@ def test_the_dec_31_label_never_covers_today(make_page, size):
     page = make_page(size)
     for mode in ("On target", "At my pace"):
         page.get_by_role("radio", name=mode).click()
-        page.wait_for_timeout(100)
+        expect(page.get_by_role("radio", name=mode)).to_be_checked()
+        settled(page)
         label, pip, line = page.evaluate(
             "() => ['[data-testid=plan-line-end-label]', '[data-testid=plan-line-today]', '.plan-year-card']"
             ".map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })"
@@ -191,7 +193,10 @@ def test_the_toggle_moves_the_dashed_tail_and_its_end_dot(make_page):
     assert a["mode"] == "on_target" and a["faint"] == 1
     assert abs(a["dot"] - a["tailEnd"]) <= 1.5, a
     page.get_by_role("radio", name="At my pace").click()
-    page.wait_for_timeout(200)
+    page.wait_for_function(
+        "() => document.querySelector('.pl-tail.is-chosen')?.dataset.mode === 'at_pace'"
+    )
+    settled(page)
     b = page.evaluate(read)
     assert b["mode"] == "at_pace" and abs(b["dot"] - b["tailEnd"]) <= 1.5, b
     assert abs(a["dot"] - b["dot"]) > 3, (a, b)  # the two assumptions end at different heights

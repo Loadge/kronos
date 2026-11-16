@@ -28,7 +28,7 @@ import httpx
 import pytest
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -437,10 +437,16 @@ def test_the_logo_is_a_real_button_that_turns_on_hover(page, base_url):
     page.emulate_media(reduced_motion="no-preference")
     before = page.locator(".brand-logo").bounding_box()
     logo.hover()
-    page.wait_for_timeout(700)
+    page.wait_for_function(
+        "() => getComputedStyle(document.querySelector('.brand-logo')).transform !== 'none'"
+    )
     assert page.locator(".brand-logo").evaluate("e => getComputedStyle(e).transform") != "none"
     page.mouse.move(5, 500)
-    page.wait_for_timeout(700)
+    wait_until(
+        page,
+        lambda: page.locator(".brand-logo").bounding_box() == before,
+        "the logo back where it was",
+    )
     assert page.locator(".brand-logo").bounding_box() == before
 
 
@@ -934,7 +940,11 @@ def test_with_motion_the_ring_winds_to_today_the_index_jiggles_and_the_second_ha
     page.wait_for_function("document.querySelector('.yd-index').classList.contains('tick')")
     seconds = "e => parseFloat(e.style.transform.slice(7))"
     one = page.locator("[data-yd=sec]").evaluate(seconds)
-    page.wait_for_timeout(1400)
+    page.wait_for_function(  # the hand moves on by itself, with the clock
+        "one => parseFloat(document.querySelector('[data-yd=sec]').style.transform.slice(7)) > one",
+        arg=one,
+        timeout=5000,
+    )
     assert page.locator("[data-yd=sec]").evaluate(seconds) > one
 
 
@@ -946,7 +956,7 @@ def test_when_closed_no_frame_and_no_timer_of_the_dial_keeps_running(page, base_
     page.wait_for_timeout(500)
     # the control: while it is open it does ask for frames, and keeps a timer for the seconds
     page.evaluate("window.__dialRaf = 0")
-    page.wait_for_timeout(300)
+    page.wait_for_function("() => window.__dialRaf > 5", timeout=5000)
     assert page.evaluate("window.__dialRaf") > 5
     assert page.evaluate("window.__dialTimers.size") == 1
     page.keyboard.press("Escape")

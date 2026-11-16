@@ -14,6 +14,9 @@ import time
 
 import httpx
 import pytest
+from playwright.sync_api import expect
+
+from .conftest import settled
 
 pytestmark = pytest.mark.e2e
 
@@ -832,7 +835,8 @@ class TestWeekLine:
         page.set_viewport_size({"width": width, "height": 900})
         _open_days_freelance(page, base_url)
         page.get_by_test_id("wk-expand-all" if expand else "wk-collapse-all").click()
-        page.wait_for_timeout(300)
+        expect(page.locator(".days-table--fl .day-row")).to_have_count(3 if expand else 0)
+        settled(page)
         assert page.evaluate("document.documentElement.scrollWidth") <= width
         assert page.locator(".days-table--fl .day-row").count() == (3 if expand else 0)
         # the numbers of a collapsed week are on screen at every width

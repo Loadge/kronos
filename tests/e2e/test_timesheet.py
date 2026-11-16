@@ -80,8 +80,8 @@ class TestPicker:
         _open_picker(page, base_url)
         page.locator(".pdf-modal .seg-toggle button", has_text="Compact").click()
         page.locator(".pdf-preset", has_text="This year").click()
-        page.locator("button", has_text="Open timesheet").click()
-        page.wait_for_timeout(300)
+        with page.expect_popup():  # the sheet opens in its own tab; the options are kept by then
+            page.locator("button", has_text="Open timesheet").click()
         page.locator(".pdf-btn").click()
         page.wait_for_selector(".pdf-modal", timeout=5000)
         assert "on" in page.locator(
@@ -92,8 +92,8 @@ class TestPicker:
     def test_theme_always_starts_light(self, page, base_url):
         _open_picker(page, base_url)
         page.locator(".pdf-modal .seg-toggle button", has_text="Dark").click()
-        page.locator("button", has_text="Open timesheet").click()
-        page.wait_for_timeout(300)
+        with page.expect_popup():  # the sheet opens in its own tab; the options are kept by then
+            page.locator("button", has_text="Open timesheet").click()
         page.locator(".pdf-btn").click()
         page.wait_for_selector(".pdf-modal", timeout=5000)
         assert "on" in page.locator(

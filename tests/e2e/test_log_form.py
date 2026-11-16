@@ -16,6 +16,7 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 from .conftest import OPEN_ALL_WEEKS
 
@@ -80,7 +81,7 @@ class TestLogFormRendering:
         _open_log_tab(page, base_url)
         page.select_option("select", "vacation")
         # Time fields should disappear (x-show / x-if)
-        page.wait_for_timeout(300)  # allow Alpine transition
+        expect(page.locator("input[type='time']:visible")).to_have_count(0)
         time_inputs = page.locator("input[type='time']:visible")
         assert time_inputs.count() == 0
 

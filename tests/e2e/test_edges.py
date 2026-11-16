@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
-from .conftest import HASH_OF, settled
+from .conftest import HASH_OF, settled, wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -127,7 +127,7 @@ def test_the_policy_check_can_fail(csp_page, base_url):
         "() => { const s = document.createElement('script'); s.textContent = 'window.__x = 1';"
         " document.head.append(s); }"
     )
-    page.wait_for_timeout(100)
+    wait_until(page, lambda: _violations(page), "the report of the inline script")
     assert _violations(page) and "script-src" in _violations(page)[0]
     assert page.evaluate("window.__x") is None
 
@@ -210,8 +210,9 @@ def test_try_again_asks_the_server_and_keeps_the_banner_while_it_is_gone(page, b
     page.evaluate("location.hash = 'plan'")
     page.wait_for_selector(BANNER, state="visible", timeout=5000)
 
-    page.get_by_role("button", name="Try again").click()
-    page.wait_for_timeout(400)
+    with page.expect_event("requestfailed", timeout=5000):  # it asks, and nobody is there
+        page.get_by_role("button", name="Try again").click()
+    settled(page)  # the page has taken the failure in
     assert _banner_visible(page)  # asked, and still nobody there
 
     page.unroute("**/api/**")

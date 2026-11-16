@@ -16,6 +16,9 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
+
+from .conftest import wait_until
 
 pytestmark = pytest.mark.e2e
 
@@ -206,7 +209,9 @@ class TestJump:
         page.locator(".log-cal-wk", has_text="53").click()
         page.wait_for_url("**/#weeks", timeout=5000)
         page.wait_for_selector("#eweek-2026-12-28", state="attached", timeout=5000)
-        page.wait_for_timeout(1500)
+        page.wait_for_function(
+            "() => Alpine.$data(document.querySelector('main')).daysYear === 'all'", timeout=5000
+        )
         year = page.evaluate("Alpine.$data(document.querySelector('main')).daysYear")
         assert year == "all"
         sep = page.locator("#eweek-2026-12-28 .week-sep").inner_text()
@@ -226,7 +231,9 @@ class TestJump:
         page.wait_for_selector("[data-testid='days-freelance']", timeout=5000)
         row = page.locator("tr.wk-row#wk-2026-11-09")
         row.wait_for(state="visible", timeout=5000)
-        page.wait_for_timeout(800)
+        wait_until(
+            page, lambda: _in_viewport(page, "tr.wk-row#wk-2026-11-09"), "the week row on screen"
+        )
         assert _in_viewport(page, "tr.wk-row#wk-2026-11-09")
         mode = page.evaluate("Alpine.$data(document.querySelector('main')).daysMode")
         assert mode == "freelance"
@@ -256,7 +263,7 @@ class TestWeekSeparators:
         page.wait_for_selector(".days-table", timeout=5000)
         assert page.locator(".days-table .week-sep").count() == 2
         page.locator(".days-table th.sortable", has_text="Net").click()
-        page.wait_for_timeout(200)
+        expect(page.locator(".days-table .week-sep")).to_have_count(0)
         assert page.locator(".days-table .week-sep").count() == 0
         assert page.locator(".days-table .month-sep").count() == 0
 

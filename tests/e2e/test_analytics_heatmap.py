@@ -18,6 +18,7 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 pytestmark = pytest.mark.e2e
 
@@ -86,8 +87,11 @@ class TestHeatmapWeekNumbers:
                 break
             arrow = "Previous year" if shown > YEAR else "Next year"
             page.locator(f".page-head button[aria-label='{arrow}']").click()
-            page.wait_for_timeout(100)
-        page.wait_for_timeout(200)  # Alpine re-render after the year switch
+            expect(page.locator(".page-head .year-step-v")).not_to_have_text(str(shown))
+        # Alpine draws the year again after the switch
+        expect(page.locator(".hm-week-label")).to_have_text(
+            [str(n) for n in _expected_week_numbers(YEAR)]
+        )
 
         labels = page.locator(".hm-week-label").all_inner_texts()
         assert labels == _expected_week_numbers(YEAR)
