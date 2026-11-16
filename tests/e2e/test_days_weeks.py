@@ -14,6 +14,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 FIXED_NOW = "2026-11-04T10:00:00"
@@ -69,7 +71,7 @@ def _open(page, base_url: str, size=(1280, 900)) -> None:
     page.clock.set_fixed_time(FIXED_NOW)
     page.goto(f"{base_url}/#weeks")
     page.wait_for_selector(".days-table tr.week-sep", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
 
 
 def _state(page, expr: str):

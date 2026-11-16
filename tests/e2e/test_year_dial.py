@@ -26,6 +26,7 @@ import math
 
 import httpx
 import pytest
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from .conftest import HASH_OF
 
@@ -246,15 +247,21 @@ def _steps(page) -> float:
 
 
 def _settle(page) -> None:
-    """Wait until the ring stops turning."""
-    last = None
-    for _ in range(60):
-        now = page.locator("[data-yd=rotor]").get_attribute("transform")
-        if now == last:
-            return
-        last = now
-        page.wait_for_timeout(150)
-    raise AssertionError("the ring never stopped")
+    """Wait until the ring stops turning: its rotation is the same for ten frames in a row."""
+    page.evaluate("() => { window.__ydStill = { was: null, frames: 0 }; }")
+    try:
+        page.wait_for_function(
+            """() => {
+              const now = document.querySelector('[data-yd=rotor]').getAttribute('transform');
+              const still = window.__ydStill;
+              if (now !== still.was) { still.was = now; still.frames = 0; return false; }
+              return ++still.frames >= 9;
+            }""",
+            polling="raf",
+            timeout=9000,
+        )
+    except PlaywrightTimeoutError:
+        raise AssertionError("the ring never stopped") from None
 
 
 def _days(page) -> int:

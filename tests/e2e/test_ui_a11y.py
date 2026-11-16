@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 
-from .conftest import DEMO_NOW, HASH_OF
+from .conftest import DEMO_NOW, HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -73,8 +73,7 @@ def _blocking(violations: list[dict]) -> list[str]:
 def _open(page, demo_url, tab):
     page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
     page.wait_for_selector("main .page-head", timeout=5000)
-    page.evaluate("document.fonts.ready")
-    page.wait_for_timeout(300)  # let the entry animations settle before measuring contrast
+    settled(page)  # the entry animations are over before contrast is measured
 
 
 @pytest.mark.parametrize("width,height", VIEWPORTS)

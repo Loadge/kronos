@@ -15,6 +15,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import wait_until
+
 pytestmark = pytest.mark.e2e
 
 MAIN = "Alpine.$data(document.querySelector('main'))"
@@ -105,10 +107,7 @@ def _wait_api(base_url: str, kind: str, want: list[str]) -> None:
 
 
 def _wait_puts(page, puts: list, n: int) -> None:
-    for _ in range(60):
-        if len(puts) >= n:
-            break
-        page.wait_for_timeout(100)  # also lets the page's events reach `puts`
+    wait_until(page, lambda: len(puts) >= n, lambda: f"{n} PUT(s); the page sent {puts}")
     assert len(puts) == n, puts
 
 

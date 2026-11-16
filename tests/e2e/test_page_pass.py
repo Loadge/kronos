@@ -17,7 +17,7 @@ import re
 import httpx
 import pytest
 
-from .conftest import DEMO_NOW, HASH_OF
+from .conftest import DEMO_NOW, HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -46,8 +46,7 @@ def make_page(browser, demo_url):
         page.clock.set_fixed_time(DEMO_NOW)
         page.goto(f"{demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
-        page.evaluate("document.fonts.ready")
-        page.wait_for_timeout(400)
+        settled(page)  # the fonts are in and the entry animations are over
         return page
 
     yield make

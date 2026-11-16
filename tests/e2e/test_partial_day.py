@@ -13,6 +13,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 
@@ -45,7 +47,10 @@ def _day_in_current_month(day: int) -> str:
 def _set_slider(page, hours: float) -> None:
     # `fill` sets the value and fires input/change, which x-model.number picks up.
     page.locator("input[type='range']").fill(str(hours))
-    page.wait_for_timeout(200)
+    page.wait_for_function(
+        "h => Alpine.$data(document.querySelector('main')).form.leave_hours === h", arg=hours
+    )
+    settled(page)
 
 
 class TestLogFormSlider:

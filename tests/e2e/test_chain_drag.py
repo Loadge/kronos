@@ -16,6 +16,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import wait_until
+
 pytestmark = pytest.mark.e2e
 
 MAIN = "Alpine.$data(document.querySelector('main'))"
@@ -91,11 +93,11 @@ def _api_chain(base_url: str, ids: dict[str, int], source: str) -> list[str]:
 
 def _wait_chain(page, base_url: str, ids: dict[str, int], source: str, want: list[str]) -> None:
     """Until the API's chain is `want`: the save is a request that may still be on its way."""
-    for _ in range(80):
-        if _api_chain(base_url, ids, source) == want:
-            return
-        page.wait_for_timeout(50)
-    assert _api_chain(base_url, ids, source) == want
+    wait_until(
+        page,
+        lambda: _api_chain(base_url, ids, source) == want,
+        lambda: f"the chain of {source} is {_api_chain(base_url, ids, source)}, not {want}",
+    )
 
 
 def _open(page, base_url: str, size=(1280, 1500)) -> None:
@@ -157,10 +159,7 @@ def _watch_orders(page) -> list[dict]:
 
 
 def _wait_puts(page, puts: list, n: int) -> None:
-    for _ in range(80):
-        if len(puts) >= n:
-            break
-        page.wait_for_timeout(50)  # also lets the page's events reach `puts`
+    wait_until(page, lambda: len(puts) >= n, lambda: f"{n} PUT(s); the page sent {puts}")
     assert len(puts) == n, puts
 
 
@@ -449,11 +448,12 @@ def test_e_pressing_the_handle_reorders_and_carries_nothing(page, base_url):
     assert page.evaluate("() => document.body.classList.contains('dragging-acct')") is False
     page.mouse.up()
     expect(page.locator(f"{CARD} .sort-list > .sorting")).to_have_count(0)
-    for _ in range(60):
-        got = [a["name"] for a in httpx.get(f"{base_url}/api/freelance/accounts").json()]
-        if got[0] == D:
-            break
-        page.wait_for_timeout(50)
+
+    def names():
+        return [a["name"] for a in httpx.get(f"{base_url}/api/freelance/accounts").json()]
+
+    wait_until(page, lambda: names()[0] == D, lambda: f"{D} first in the API; it has {names()}")
+    got = names()
     assert got == [D, A, B, C], got
     assert orders == [{"ids": [ids[D], ids[A], ids[B], ids[C]]}]
     assert _spied(page)["ghosts"] == 0

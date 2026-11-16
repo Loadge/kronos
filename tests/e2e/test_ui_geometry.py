@@ -13,7 +13,7 @@ from datetime import date, timedelta
 import httpx
 import pytest
 
-from .conftest import HASH_OF, OPEN_ALL_WEEKS
+from .conftest import HASH_OF, OPEN_ALL_WEEKS, settled
 from .test_payout_chain_cell import (  # noqa: F401  (a server with an ECB: a payout has a chip)
     _wipe,
     chain_url,
@@ -322,7 +322,6 @@ def test_a_bezel_count_that_wraps_is_reported(page, base_url, freelance):
     page.wait_for_timeout(300)
     assert not (found := _problems(page)), "\n".join(map(str, found))
     page.add_style_tag(content=".bz-count { white-space: normal; width: 3ch; overflow: hidden; }")
-    page.wait_for_timeout(100)
     assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
 
 
@@ -344,7 +343,6 @@ def test_a_day_ribbon_label_that_wraps_is_reported(page, base_url, width, height
     assert not (found := _problems(page)), "\n".join(map(str, found))
     page.mouse.up()
     page.add_style_tag(content=".dr-tick b { white-space: normal; width: 1ch; overflow: hidden; }")
-    page.wait_for_timeout(100)
     assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
 
 
@@ -456,7 +454,7 @@ def _open_settings_group(page, base_url, width, height, group):
     page.wait_for_selector("main .page-head", timeout=5000)
     page.evaluate(f"() => Alpine.$data(document.querySelector('main')).setSettingsGroup('{group}')")
     page.wait_for_selector(".grip", timeout=5000)
-    page.wait_for_timeout(400)  # the group's entry animation
+    settled(page)  # the group's entry animation
 
 
 def _expected_handles(base_url, group):
@@ -490,7 +488,6 @@ def _handle_problems(page, width, expected):
     flat.evaluate("el => el.remove()")
     # what the names took before there was a handle: the same page with the handle taken out
     page.add_style_tag(content=".grip, .grip-gap { display: none !important; }")
-    page.wait_for_timeout(100)
     baseline = page.evaluate(MEASURE_HANDLES)
     before = baseline["names"]
     assert [n for n, _ in with_handle] == [n for n, _ in before]
@@ -529,7 +526,6 @@ def test_the_handle_audit_can_fail(page, base_url, orderable, width, height):
     page.add_style_tag(
         content="button.grip, .settings-card button.grip { width: 14px !important; }"
     )
-    page.wait_for_timeout(100)
     expected = _expected_handles(base_url, "freelance")
     assert {p[0] for p in _handle_problems(page, width, expected)} >= {"handle too small"}
 
@@ -670,7 +666,7 @@ def _open_list(page, source, n):
         n - 1
     ).locator(".slot-main").click()
     page.wait_for_selector("#settings-sources .picker [role=option]:focus", timeout=5000)
-    page.wait_for_timeout(250)  # the list's own entrance
+    settled(page, "#settings-sources")  # the list's own entrance
 
 
 @pytest.mark.parametrize("width,height", HANDLE_WIDTHS)
@@ -701,7 +697,6 @@ def test_the_box_audit_can_fail(page, base_url, boxes, width, height):
         content=".slot { height: 14px !important; } .slot-name { text-overflow: clip !important; max-width: 3ch !important; }"
         " .slot.filled { max-width: none !important; }"
     )
-    page.wait_for_timeout(100)
     kinds = {p[0] for p in _box_problems(page, width)}
     assert {"box too short", "name clipped"} <= kinds, kinds
 
@@ -1003,7 +998,7 @@ def _open_cells(page, url, width, height, open_week=False):
         field.first.get_by_test_id("pay-amount").first.fill("77")
     page.wait_for_function("() => document.querySelectorAll('.pay-undo').length >= 2")
     page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(300)  # the entry animations settle
+    settled(page)  # the entry animations
 
 
 def _cell_problems(page):

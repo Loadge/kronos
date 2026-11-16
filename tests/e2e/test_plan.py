@@ -13,6 +13,7 @@ import datetime
 
 import httpx
 import pytest
+from playwright.sync_api import expect
 
 pytestmark = pytest.mark.e2e
 
@@ -44,8 +45,12 @@ def _open_plan(page, base_url, target_iso: str):
     target = datetime.date.fromisoformat(target_iso)
     page.locator(".plan-mini").nth(target.month - 1).click()
     if target.year != datetime.date.today().year:
-        page.locator("button[aria-label='Next year']").click()
-        page.wait_for_timeout(300)
+        # the year's own projection has arrived and the strip shows that year
+        with page.expect_response(f"**/api/plans/projection?year={target.year}"):
+            page.locator("button[aria-label='Next year']").click()
+        expect(page.locator("nav[aria-label='Plan year'] .year-step-v")).to_have_text(
+            str(target.year)
+        )
         page.locator(".plan-mini").nth(target.month - 1).click()
     page.wait_for_selector(f"button.log-cal-day[aria-label='{target_iso}']", timeout=5000)
 

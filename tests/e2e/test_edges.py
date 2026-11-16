@@ -256,7 +256,8 @@ def test_the_dial_address_works_in_a_page_that_is_already_open(page, base_url):
     page.evaluate("location.hash = 'dial'")
     page.wait_for_selector("#yd [data-yd=stage]", timeout=8000)
     assert page.evaluate("location.hash") == "#weeks"
-    page.wait_for_timeout(400)  # its keys are bound once it has drawn
+    # its keys are bound once it has read its day and drawn
+    page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=5000)
     page.keyboard.press("Escape")
     page.wait_for_function("() => !document.getElementById('yd')", timeout=3000)
 

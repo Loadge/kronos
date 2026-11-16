@@ -15,6 +15,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import wait_until
+
 pytestmark = pytest.mark.e2e
 
 MAIN = "Alpine.$data(document.querySelector('main'))"
@@ -76,11 +78,11 @@ def _api_chain(base_url: str, ids: dict[str, int], source: str) -> list[str]:
 
 def _wait_chain(page, base_url: str, ids: dict[str, int], source: str, want: list[str]) -> None:
     """Until the API's chain is `want`: the save is a request that may still be on its way."""
-    for _ in range(80):
-        if _api_chain(base_url, ids, source) == want:
-            return
-        page.wait_for_timeout(50)
-    assert _api_chain(base_url, ids, source) == want
+    wait_until(
+        page,
+        lambda: _api_chain(base_url, ids, source) == want,
+        lambda: f"the chain of {source} is {_api_chain(base_url, ids, source)}, not {want}",
+    )
 
 
 def _open(page, base_url: str, size=(1280, 1000)) -> None:
@@ -133,10 +135,7 @@ def _watch_puts(page) -> list[dict]:
 
 
 def _wait_puts(page, puts: list, n: int) -> None:
-    for _ in range(80):
-        if len(puts) >= n:
-            break
-        page.wait_for_timeout(50)  # also lets the page's events reach `puts`
+    wait_until(page, lambda: len(puts) >= n, lambda: f"{n} PUT(s) of a chain; the page sent {puts}")
     assert len(puts) == n, puts
 
 
@@ -400,15 +399,14 @@ def test_f_a_failed_save_puts_the_boxes_back_and_shows_the_banner(page, base_url
     assert _api_chain(base_url, ids, S1) == [A, B]
     # the X, the same
     page.get_by_role("button", name=f"Remove {A} from {S1}").click()
-    for _ in range(80):
-        if len(refused) == 2:
-            break
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: len(refused) >= 2, lambda: f"the second refused PUT; got {refused}")
     assert len(refused) == 2
-    for _ in range(80):  # the answer of the refused request is still on its way
-        if _shown(page, S1) == [A, B, "3", "4"]:
-            break
-        page.wait_for_timeout(50)
+    # the answer of the refused request is still on its way
+    wait_until(
+        page,
+        lambda: _shown(page, S1) == [A, B, "3", "4"],
+        lambda: f"the boxes put back; they show {_shown(page, S1)}",
+    )
     assert _shown(page, S1) == [A, B, "3", "4"]
 
 

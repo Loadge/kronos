@@ -15,7 +15,10 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import HASH_OF  # noqa: F401  (the address of each tab id)
+from .conftest import (
+    HASH_OF,  # noqa: F401  (the address of each tab id)
+    settled,
+)
 
 # The FX chip tests need a server with its own ECB: those fixtures belong to the money module.
 from .test_money_accounts import (  # noqa: F401
@@ -463,7 +466,7 @@ def _open_calc(page, base_url, size):
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.goto(f"{base_url}/#freelance")
     page.wait_for_selector("[data-testid=fl-calc] .calc-p")
-    page.wait_for_timeout(300)
+    settled(page)
     return page.evaluate(CALC_ROWS)
 
 
@@ -887,6 +890,5 @@ def test_the_tile_pushes_the_hero_down_by_less_than_its_own_height(page, base_ur
     assert tile["y"] + tile["height"] <= 900  # in the first screen at 1280 x 900
     with_tile = page.locator(".hero-num").bounding_box()["y"]
     page.evaluate("document.querySelector('[data-testid=dial-tile]').style.display = 'none'")
-    page.wait_for_timeout(100)
     without = page.locator(".hero-num").bounding_box()["y"]
     assert 0 <= with_tile - without <= tile["height"], (with_tile, without, tile)

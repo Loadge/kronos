@@ -17,6 +17,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import day_opened, settled
+
 pytestmark = pytest.mark.e2e
 
 TODAY = datetime.date.today()
@@ -48,11 +50,16 @@ def _open_log(page, base_url: str, width: int = 1400, height: int = 900) -> None
 
 
 def _open_day(page, iso: str) -> None:
-    page.evaluate(f"Alpine.$data(document.querySelector('main')).openDayInLog('{iso}')")
+    day_opened(
+        page,
+        iso,
+        lambda: page.evaluate(
+            f"Alpine.$data(document.querySelector('main')).openDayInLog('{iso}')"
+        ),
+    )
     page.wait_for_function(
         "(iso) => Alpine.$data(document.querySelector('main')).form.date === iso", arg=iso
     )
-    page.wait_for_timeout(150)
 
 
 def _notes(page):
@@ -292,7 +299,7 @@ class TestResultFigure:
         times = page.locator(".log-form-card input[type='time']")
         times.nth(0).fill(start)
         times.nth(1).fill(end)
-        page.wait_for_timeout(500)  # the bar animates its width
+        settled(page)  # the bar animates its width
 
     @staticmethod
     def _figures(page) -> tuple[float, float]:

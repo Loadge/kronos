@@ -22,7 +22,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from .conftest import BACKEND_DIR, DEMO_NOW, HASH_OF, _find_free_port, _wait_for_server
+from .conftest import BACKEND_DIR, DEMO_NOW, HASH_OF, _find_free_port, _wait_for_server, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -56,8 +56,7 @@ def make_page(browser, demo_url):
         page.clock.set_fixed_time(DEMO_NOW)
         page.goto(f"{url or demo_url}/#{HASH_OF.get(tab, tab)}", wait_until="networkidle")
         page.wait_for_selector("main .page-head", timeout=5000)
-        page.evaluate("document.fonts.ready")
-        page.wait_for_timeout(300)
+        settled(page)  # the fonts are in and the entry animations are over
         return page
 
     yield make
@@ -375,7 +374,7 @@ def test_the_holidays_card_starts_on_the_country(make_page, put_config):
 def _hint(page):
     page.locator(".settings-group-btn", has_text="General").click()
     page.wait_for_selector("#settings-locale", timeout=5000)
-    page.wait_for_timeout(500)
+    settled(page)
     return page.locator("[data-testid=locale-hint]")
 
 

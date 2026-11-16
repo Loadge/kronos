@@ -32,6 +32,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import wait_until
 from .test_money_accounts import BACKEND_DIR, _app, _find_free_port, _wait_for_server
 
 pytestmark = pytest.mark.e2e
@@ -627,9 +628,7 @@ def test_a_late_preview_never_draws_over_a_newer_one(page, chain_url):
     first, second = _amounts(row).nth(0), _amounts(row).nth(1)
     expect(second).to_have_value("1817.73")
     first.fill("100")
-    end = time.monotonic() + 8
-    while not held and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: held, "the first preview was never asked")
     assert held, "the first preview was never asked"
     first.fill("200")
     expect(second).to_have_value("179.13")  # 200 / 1.1165, the second one's figures
@@ -661,9 +660,7 @@ def test_the_row_keeps_its_figures_while_the_saved_payout_is_read_back(page, cha
 
     page.route(re.compile(r"/api/freelance/payouts$"), handler)
     _confirm(row).click()
-    end = time.monotonic() + 8
-    while not held and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: held, "the payouts were never read again")
     assert held, "the payouts were never read again"
     assert (first.input_value(), second.input_value()) == ("999", "894.76")
     held[0].continue_()
@@ -688,9 +685,7 @@ def test_a_suggestion_that_lands_in_a_focused_field_is_typed_over_not_added_to(p
     _open_weeks(page, chain_url)
     row = _row(page)
     first, second = _amounts(row).nth(0), _amounts(row).nth(1)
-    end = time.monotonic() + 8
-    while not held and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: held, "the row never asked for its preview")
     assert held, "the row never asked for its preview"
     first.focus()  # an empty field with the caret in it
     assert first.input_value() == ""
@@ -1055,23 +1050,25 @@ def test_no_more_than_four_previews_are_in_flight_and_every_row_gets_its_figures
 
     page.route(PREVIEW, handler)
     _open_weeks(page, chain_url)
-    end = time.monotonic() + 8
-    while len(held) < 4 and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: len(held) >= 4, lambda: f"four previews in flight; {len(held)} are")
     assert len(held) == 4
     # a fifth request that must not come cannot be waited for: give it time to (wrongly) arrive
     page.wait_for_timeout(1000)
     assert len(held) == 4 and flight["peak"] == 4
     rows = [_row(page, m) for m in mondays]
-    end = time.monotonic() + 30
-    while time.monotonic() < end:
-        if held:
+
+    def every_row_has_its_figures():
+        while held:
             flight["now"] -= 1
             held.pop(0).continue_()
-        elif all(r.get_by_test_id("pay-amount").nth(1).input_value() for r in rows):
-            break
-        else:
-            page.wait_for_timeout(50)
+        return all(r.get_by_test_id("pay-amount").nth(1).input_value() for r in rows)
+
+    wait_until(
+        page,
+        every_row_has_its_figures,
+        "every row showing its figures once its answer is let go",
+        timeout=30,
+    )
     assert flight["peak"] <= 4
     for r in rows:
         expect(_amounts(r).nth(1)).not_to_have_value("")
@@ -1155,9 +1152,11 @@ def test_a_preview_that_always_fails_is_asked_twice_and_no_more(page, chain_url)
     _open_weeks(page, chain_url)
     row = _row(page)
     expect(row.locator(".wk-status")).to_have_text("no answer")
-    end = time.monotonic() + 8
-    while len(page.wire.previews) < 2 and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(
+        page,
+        lambda: len(page.wire.previews) >= 2,
+        lambda: f"the one retry of the preview; {len(page.wire.previews)} asked",
+    )
     assert len(page.wire.previews) == 2  # the first, and the one retry 2 s later
     # nothing arrives to wait for when nothing is asked: a fixed wait is the only way to see that it stays so
     page.wait_for_timeout(5000)
@@ -1893,9 +1892,7 @@ def test_the_seal_does_not_wait_for_the_sources_to_be_read_again(page, chain_url
     )
     armed["on"] = True
     _confirm(row).click()
-    end = time.monotonic() + 8
-    while not held and time.monotonic() < end:
-        page.wait_for_timeout(50)
+    wait_until(page, lambda: held, "the sources were never read again")
     assert held, "the sources were never read again"
     page.wait_for_function(
         "() => window.__early.sealed"

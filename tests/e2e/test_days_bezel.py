@@ -16,6 +16,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 FIXED_NOW = "2026-11-04T10:00:00"
@@ -128,7 +130,7 @@ def _open_days(page, base_url: str, size=(1280, 900), freelance: bool = False) -
     if freelance:
         page.get_by_role("radio", name="Freelance").click()
     page.wait_for_selector(".bz-strip", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
 
 
 def _state(page, expr: str):
@@ -137,7 +139,7 @@ def _state(page, expr: str):
 
 def _set(page, assignment: str) -> None:
     page.evaluate(f"() => {{ Alpine.$data(document.querySelector('main')).{assignment}; }}")
-    page.wait_for_timeout(250)
+    settled(page)  # Alpine has drawn it, and what it moved has stopped
 
 
 def _tick(page, monday: str):
@@ -207,7 +209,7 @@ def _drag(page, mondays: list[str]) -> None:
     page.mouse.down()
     page.mouse.move(x1, y, steps=25)
     page.mouse.up()
-    page.wait_for_timeout(200)
+    settled(page)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -819,7 +821,7 @@ class TestSticky:
         self._year(base_url)
         _open_days(page, base_url, (1280, 900), freelance=freelance)
         page.evaluate("window.scrollTo(0, 1500)")
-        page.wait_for_timeout(400)
+        page.wait_for_function("() => window.scrollY >= 1400", timeout=5000)
         assert page.evaluate("window.scrollY") >= 1400
         bz = page.locator(".bz").bounding_box()
         assert bz["y"] == pytest.approx(0, abs=0.5)
@@ -841,7 +843,7 @@ class TestSticky:
         self._year(base_url)
         _open_days(page, base_url, (900, 900), freelance=freelance)
         page.evaluate("window.scrollTo(0, 1500)")
-        page.wait_for_timeout(400)
+        page.wait_for_function("() => window.scrollY > 0", timeout=5000)
         assert page.locator(".bz").evaluate("e => getComputedStyle(e).position") != "sticky"
         assert page.locator(".bz").bounding_box()["y"] < 0  # scrolled away with the page
         assert (

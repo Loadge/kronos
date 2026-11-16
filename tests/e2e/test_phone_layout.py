@@ -13,7 +13,7 @@ from datetime import date, timedelta
 import httpx
 import pytest
 
-from .conftest import OPEN_ALL_WEEKS
+from .conftest import OPEN_ALL_WEEKS, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -68,7 +68,7 @@ def _open_days(page, base_url: str, size: dict) -> None:
     page.goto(f"{base_url}/#weeks")
     page.evaluate(OPEN_ALL_WEEKS)
     page.wait_for_selector("tr.day-row", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
 
 
 def _squash(text: str) -> str:

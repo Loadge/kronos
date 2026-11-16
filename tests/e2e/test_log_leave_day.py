@@ -10,6 +10,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from .conftest import wait_until
+
 pytestmark = pytest.mark.e2e
 
 D14, D15, D16, D17 = "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17"
@@ -186,10 +188,7 @@ class TestLeaveDay:
         _edit_14(page, base_url)
         page.route(f"**/api/entries/{D15}", hold_15)
         _day(page, D15).click()
-        for _ in range(50):
-            if held:
-                break
-            page.wait_for_timeout(50)
+        wait_until(page, lambda: held, f"the page asking for the entry of {D15}")
         assert len(held) == 1
         _day(page, D17).click()
         _wait_editing(page, D17)

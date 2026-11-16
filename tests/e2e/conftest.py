@@ -31,6 +31,7 @@ from pathlib import Path
 import httpx
 import pytest
 from playwright.sync_api import Browser
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from pytest_playwright_visual_snapshot.plugin import SnapshotPaths
 
 # The address of each tab id: the page where days are logged is #days (id "log"), the weekly one
@@ -44,6 +45,112 @@ OPEN_ALL_WEEKS = (
     " for (let i = 0; i < 50 && !d.entries.length; i++) await new Promise(r => setTimeout(r, 100));"
     " d.daysWeeksSetAll(true); }"
 )
+
+# ── waiting ───────────────────────────────────────────────────────────────────
+#
+# A test waits for a state, never for a fixed time. What can be seen in the page is waited for with
+# `expect(...)` or `page.wait_for_function`; these helpers cover the rest. The few fixed times the
+# suite does need live here, one marked line each: the tick of a poll, the pace and the hold of a
+# gesture, and the time given to something that must NOT happen.
+
+# Ornaments of the app that loop for ever by design: the gear of an open Settings button, the bolt
+# of an empty Freelance page, the pulse of the current quarter. Nothing is measured on them.
+ORNAMENTS = ".settings-btn .gear, .fl-empty-bolt, .fl-q-station i"
+
+_MOVING = """([root, ornaments]) => {
+  const el = document.querySelector(root);
+  if (!el) return ['no ' + root + ' in the page'];
+  if (document.fonts.status !== 'loaded') return ['fonts are still loading'];
+  return el.getAnimations({ subtree: true })
+    .filter(a => a.playState === 'running' || a.pending)
+    .filter(a => !(a.effect && a.effect.target && a.effect.target.closest
+                   && a.effect.target.closest(ornaments)))
+    .map(a => {
+      const t = a.effect && a.effect.target;
+      const cls = t && t.getAttribute && t.getAttribute('class');
+      const dots = cls ? '.' + cls.trim().split(/\\s+/).join('.') : '';
+      const who = t ? t.tagName.toLowerCase() + dots : '?';
+      return (a.animationName || a.transitionProperty || 'animation') + ' on ' + who;
+    });
+}"""
+
+
+def wait_until(page, predicate, what, timeout: float = 8.0):
+    """Wait until `predicate()` is truthy and return what it gave. For a state that lives on the
+    test's side (a list a route handler fills, what the API answers); a state of the page is waited
+    for with `expect` or `page.wait_for_function` instead. Raises with `what` when it never comes
+    (a text, or a function that gives it, to say what there was at the end).
+    The tick is a Playwright call because route handlers and page events only run inside one."""
+    deadline = time.monotonic() + timeout
+    while True:
+        got = predicate()
+        if got:
+            return got
+        if time.monotonic() >= deadline:
+            said = what() if callable(what) else what
+            raise AssertionError(f"still not so after {timeout:g}s: {said}")
+        page.wait_for_timeout(50)  # espera-fija: the tick of a poll that waits for a state
+
+
+def settled(page, root: str = "body", timeout: float = 5.0) -> None:
+    """Wait until what is under `root` has stopped moving: the fonts are in, no animation or
+    transition is running on it, and two frames have been drawn since. Raises naming what still
+    moves; an animation that never ends is a failure, not something to wait out."""
+    deadline = time.monotonic() + timeout
+    arg = [root, ORNAMENTS]
+    while True:
+        try:
+            left = max(1, int((deadline - time.monotonic()) * 1000))
+            page.wait_for_function(f"a => ({_MOVING})(a).length === 0", arg=arg, timeout=left)
+        except PlaywrightTimeoutError:
+            moving = page.evaluate(_MOVING, arg)
+            raise AssertionError(
+                f"{root} never settled in {timeout:g}s: {', '.join(moving) or 'it moved again'}"
+            ) from None
+        page.evaluate(
+            "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+        )
+        # an animation that started during those two frames is not settled yet
+        if not page.evaluate(_MOVING, arg):
+            return
+        if time.monotonic() >= deadline:
+            moving = page.evaluate(_MOVING, arg)
+            raise AssertionError(f"{root} never settled in {timeout:g}s: {', '.join(moving)}")
+
+
+def day_opened(page, iso: str, act) -> None:
+    """Do `act` (a click on a day of the Days calendar, a call to `openDayInLog`) and wait for what
+    the page does with that day: it asks the server for the entry, and opens it for editing when
+    there is one. A free day stays a new entry: its answer (a 404) is all there is to wait for."""
+    with page.expect_response(
+        lambda r: r.request.method == "GET" and r.url.endswith(f"/api/entries/{iso}"),
+        timeout=5000,
+    ) as probe:
+        act()
+    if probe.value.status == 200:
+        page.wait_for_function(
+            "iso => Alpine.$data(document.querySelector('main')).editingDate === iso",
+            arg=iso,
+            timeout=5000,
+        )
+
+
+def pace(page, ms: float) -> None:
+    """The time between two moves of a finger or a wheel: a gesture is not instantaneous."""
+    page.wait_for_timeout(ms)  # espera-fija: the pace of a gesture is what the page reads
+
+
+def hold(page, ms: float) -> None:
+    """A finger or a pointer kept down, or still, for `ms`: the duration is what is under test."""
+    page.wait_for_timeout(ms)  # espera-fija: the length of a hold is the behaviour under test
+
+
+def stays(page, ms: float, why: str) -> None:
+    """Give the page `ms` to do what it must NOT do; the caller asserts right after that it did
+    not. Only for a negative: something that does happen is waited for by its own state."""
+    assert why, "say what must not happen"
+    page.wait_for_timeout(ms)  # espera-fija: what must not happen can only be given time
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 

@@ -13,6 +13,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 
@@ -51,7 +53,7 @@ def _seed(base_url: str, entries: list[dict]) -> None:
 def _open(page, base_url: str) -> None:
     page.goto(f"{base_url}/#year")
     page.wait_for_selector(".an-chart", timeout=10000)
-    page.wait_for_timeout(200)
+    settled(page)
 
 
 YEAR = datetime.date.today().year
@@ -95,7 +97,6 @@ class TestZoom:
         before = page.locator(".an-range").inner_text()
         # the page head sits above the year now: bring the chart fully into view first
         page.locator(".an-chart").evaluate("el => el.scrollIntoView({block: 'center'})")
-        page.wait_for_timeout(100)
         box = page.locator(".an-chart").bounding_box()
         page.mouse.move(box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.5)
         page.mouse.wheel(0, -200)

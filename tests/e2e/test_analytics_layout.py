@@ -15,6 +15,8 @@ import datetime
 import httpx
 import pytest
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 EXPECTED_ORDER = [
@@ -152,7 +154,7 @@ class TestBalanceRow:
         page.goto(f"{base_url}/#year")
         page.wait_for_selector(".an-panel .weekday-cell", timeout=10000)
         page.wait_for_selector("[data-testid=an-freelance], .an-ledger-rows", timeout=10000)
-        page.wait_for_timeout(300)
+        settled(page)
 
     def test_panels_end_where_the_ledger_ends(self, page, base_url):
         _seed_year(base_url, freelance=True)

@@ -18,6 +18,8 @@ import json
 import httpx
 import pytest
 
+from .conftest import day_opened
+
 pytestmark = pytest.mark.e2e
 
 TODAY = datetime.date.today()
@@ -154,10 +156,9 @@ def _pick(page, iso: str) -> None:
     page.evaluate(
         f"([y, m]) => {{ const a = {MAIN}; a.calYear = y; a.calMonth = m; }}", [d.year, d.month - 1]
     )
-    page.locator(f"button.log-cal-day[aria-label='{iso}']").click()
-    page.wait_for_function(f"d => {MAIN}.form.date === d", arg=iso)
     # an existing day opens for editing; a free one stays a new entry
-    page.wait_for_timeout(150)
+    day_opened(page, iso, page.locator(f"button.log-cal-day[aria-label='{iso}']").click)
+    page.wait_for_function(f"d => {MAIN}.form.date === d", arg=iso)
 
 
 def _save_new_day(page, iso: str, start="08:00", end="17:00") -> None:
