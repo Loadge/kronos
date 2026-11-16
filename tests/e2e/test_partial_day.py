@@ -14,7 +14,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import settled
+from .conftest import OPEN_ALL_WEEKS, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -109,8 +109,10 @@ class TestSaveAndDisplay:
         page.wait_for_url("**/#weeks", timeout=5000)
 
         # Days table: pill carries the hours, net/target reflect the worked half. The week lines
-        # are always there; the day itself shows once the weeks are open.
-        page.get_by_test_id("wk-expand-all").click()
+        # are always there; the day itself shows once the weeks are open. Not through "Expand all":
+        # when the 20th falls in this week, its week is the only one and already open, so the
+        # button is disabled (one open of one).
+        page.evaluate(OPEN_ALL_WEEKS)
         row = page.locator(f"#day-row-{date_str}")
         row.wait_for(timeout=5000)
         page.wait_for_function(
