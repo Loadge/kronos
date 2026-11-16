@@ -63,7 +63,7 @@ large one, with 60, 61 and 62 as ideas behind it; 28 after it (Anselmo logs thro
 CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass) in slices, each one a
 weekend; 30 only if logging from the phone outside the LAN turns out to be common, and after 59.
 
-### Phase 63 — Weeks between 901 and 1279 px (idea, 2026-11-15, measure first)
+### Phase 63 — Weeks between 901 and 1279 px (planned 2026-11-15, measured, a choice to make)
 
 **Why.** With weeks open in Weeks > Freelance, the page scrolls sideways on a window between 1024 and 1279 px.
 It was seen while reviewing Phase 58 and it is older than it (52, 142 and 180 px of scroll on the commit before).
@@ -72,8 +72,22 @@ up to 900 px (`.days-wrap`), so from 901 px the page scrolls instead of the wrap
 see it, because it measures 1280 and 375 px, plus 1100 px with rows that are too short to overflow.
 
 **What.**
-- **Measure first** at 901, 950, 1024, 1100 and 1279 px, with two weeks open and real rows (start and end
-  times, a long note, a long source name). The code says 901 to 1023 px should overflow too; nobody has seen it.
+- **Measured 2026-11-16** on the sample data (`kctl up --seed`), with weeks open. One open week is enough, and
+  more of them change nothing:
+
+  | Window | The page scrolls sideways | The table is wider than its wrap by |
+  |---|---|---|
+  | 1280 px | 0 | 4 px |
+  | 1025 to 1279 px | 0 | 43 px (the page's margins take it) |
+  | 1024 px | 6 px | 43 px |
+  | 1023 px | 79 px | 241 px |
+  | 950 px | 116 px | 241 px |
+  | 901 px | 140 px | 241 px |
+  | 900 px | 0 (the wrap scrolls) | 241 px |
+
+  So the worst range is 901 to 1023 px, where the Note column is cut off at the right edge, and it had not been
+  reported. From 1024 to 1279 px the sample rows almost fit: the 52 to 180 px seen during Phase 58 came from longer
+  rows (a long note or a long source name), which the sample data does not have.
 - **Choose one of two**, with a mockup, because the choice shows:
   - The wrap scrolls up to 1279 px, as it already does up to 900 px. It takes three or four lines of CSS, and
     the column header stops sticking under the bezel in that range.
