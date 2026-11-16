@@ -141,7 +141,7 @@ def test_no_pico_blue_on_any_tab(make_page, tab, size):
     if tab == "days":
         page.get_by_test_id("wk-expand-all").click()
         page.wait_for_selector("tr.day-row", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     assert page.evaluate(FIND_BLUES, [list(b) for b in PICO_BLUES]) == []
 
 
@@ -446,7 +446,7 @@ def test_days_off_rows_read_at_4_5_to_1(make_page, size):
     page = make_page(size, "days")
     page.get_by_test_id("wk-expand-all").click()
     page.wait_for_selector("tr.day-row.non-work", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     rows = page.evaluate(CONTRAST)
     assert len(rows) >= 8, rows  # the demo has weekends, a holiday, vacation and sick days
     low = [r for r in rows if r[2] < 4.5]
@@ -777,7 +777,7 @@ LUM = """
 def test_settings_links_are_readable_and_the_current_one_has_a_brass_tick(make_page):
     page = make_page(DESKTOP, "settings")
     page.wait_for_selector(".settings-group-sections a", timeout=5000)
-    page.wait_for_timeout(600)  # the group's own entry animation
+    settled(page)  # the group's own entry animation
     links = page.locator(".settings-group.open .settings-group-sections a")
     n = links.count()
     assert n >= 5
@@ -861,7 +861,7 @@ def test_every_value_control_ends_on_the_cards_right_edge(make_page, group):
     page.wait_for_selector(".settings-card .srow-ctl", timeout=5000)
     if group == "Freelance":
         page.wait_for_selector("#tax-salary", timeout=5000)
-    page.wait_for_timeout(500)
+    settled(page)
     got = page.evaluate(RIGHT_EDGES)
     assert len(got) >= 5, got
     assert all(abs(gap) <= 2 for _, _, gap in got), got

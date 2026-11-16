@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -229,7 +229,7 @@ def test_the_callout_stays_on_the_screen_and_the_page_does_not_scroll_sideways(
 ):
     _fresh(page, base_url, size)
     page.wait_for_selector(HINT, state="visible", timeout=6000)
-    page.wait_for_timeout(600)  # the pop-in is over
+    settled(page)  # the pop-in is over
     got = page.evaluate(
         """() => { const r = document.querySelector('.dial-hint').getBoundingClientRect();
           return { left: r.left, right: r.right, bottom: r.bottom, w: innerWidth,

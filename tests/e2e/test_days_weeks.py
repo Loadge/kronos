@@ -222,7 +222,7 @@ class TestToggling:
         closed = [page.locator(c).bounding_box()["x"] for c in cells]
         page.locator(f"#eweek-{W44} .week-sep-btn").click()
         page.wait_for_selector(".days-table tr.day-row", timeout=3000)
-        page.wait_for_timeout(200)
+        settled(page)
         opened = [page.locator(c).bounding_box()["x"] for c in cells]
         assert all(abs(a - b) <= 2 for a, b in zip(closed, opened, strict=True)), (closed, opened)
 

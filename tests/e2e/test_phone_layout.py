@@ -173,7 +173,7 @@ def test_the_range_card_follows_the_chart_on_a_phone(page, base_url, days):
     page.set_viewport_size(PHONE)
     page.goto(f"{base_url}/#year")
     page.wait_for_selector(".an-ledger", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     brush = page.locator(".an-brush").bounding_box()
     ledger = page.locator(".an-ledger").bounding_box()
     weekday = page.locator("#an-weekday-h").bounding_box()

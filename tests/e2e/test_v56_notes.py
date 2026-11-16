@@ -637,7 +637,7 @@ def test_no_tooltip_or_help_is_a_paragraph(page, base_url, clean):
     for tab in ("dashboard", "plan", "days", "weeks", "year", "freelance", "settings"):
         page.goto(f"{base_url}/#{tab}")
         page.wait_for_selector("main .page-head")
-        page.wait_for_timeout(400)
+        settled(page)
         for _kind, text in page.evaluate(
             """() => [...document.querySelectorAll('[title], [data-tip]')].flatMap(e =>
               [['title', e.getAttribute('title')], ['tip', e.getAttribute('data-tip')]]).filter(x => x[1])"""

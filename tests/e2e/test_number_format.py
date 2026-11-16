@@ -441,7 +441,7 @@ def test_the_country_card_and_the_simple_module_fit_at_both_widths(make_page, pu
     page = make_page("settings", size=(width, 812))
     page.evaluate("() => Alpine.$data(document.querySelector('main')).setSettingsGroup('general')")
     page.wait_for_selector("#settings-locale", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     got = page.evaluate(
         """() => {
           const card = document.querySelector('#settings-locale').getBoundingClientRect();

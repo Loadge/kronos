@@ -172,7 +172,7 @@ def test_text_is_centred_and_on_one_line(page, base_url, tab, width, height):
         nav = page.locator(".settings-group-btn", has_text="Freelance")
         if nav.is_visible():
             nav.click()
-    page.wait_for_timeout(300)  # let the entry animations settle
+    settled(page)  # let the entry animations settle
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
@@ -186,7 +186,7 @@ def test_the_offline_banner_fits(page, base_url, width, height):
     page.context.set_offline(True)
     try:
         page.wait_for_selector(".net-banner", state="visible", timeout=3000)
-        page.wait_for_timeout(500)  # it slides in
+        settled(page)  # it slides in
         assert page.locator(".net-banner-retry").is_visible()
         assert not (found := _problems(page)), "\n".join(map(str, found))
     finally:
@@ -198,7 +198,7 @@ def test_the_page_for_a_wrong_address_fits(page, base_url, width, height):
     page.set_viewport_size({"width": width, "height": height})
     assert page.goto(f"{base_url}/nope").status == 404
     page.wait_for_selector(".nf-back", timeout=5000)
-    page.wait_for_timeout(1800)  # the logo's swing is over
+    settled(page)  # the logo's swing is over
     assert not (found := _problems(page)), "\n".join(map(str, found))
     # nothing scrolls: the page is one screen
     assert page.evaluate("document.documentElement.scrollHeight <= window.innerHeight + 1")
@@ -221,7 +221,7 @@ def test_days_freelance_fits_with_every_week_open(page, base_url, width, height,
         page.get_by_test_id("wk-collapse-all").click(force=True)
         page.wait_for_selector(".days-table--fl .wk-main", timeout=5000)
         assert not page.locator(".days-table--fl tr.blk").count()
-    page.wait_for_timeout(300)
+    settled(page)
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
@@ -243,7 +243,7 @@ def test_days_employee_fits_with_every_week_open_and_collapsed(
     else:
         page.get_by_test_id("wk-collapse-all").click(force=True)
         page.wait_for_function("() => !document.querySelector('.days-table tr.day-row')")
-    page.wait_for_timeout(300)
+    settled(page)
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
@@ -259,7 +259,7 @@ def test_labels_survive_larger_text(page, base_url, tab):
     page.evaluate("document.documentElement.style.fontSize = '115%'")
     if tab == "settings":
         page.locator(".settings-group-btn", has_text="Freelance").click()
-    page.wait_for_timeout(300)
+    settled(page)
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
 
@@ -282,7 +282,7 @@ def test_the_waiting_row_and_the_help_fit(page, base_url, width, height):
     page.wait_for_selector("[data-testid=pay-wait]", timeout=5000)
     page.locator(".log-form-card .q-chip").click()
     page.wait_for_selector(".q-tip", state="visible")
-    page.wait_for_timeout(300)
+    settled(page)
     assert page.locator("[data-testid=pay-wait-more]").inner_text().startswith("+")
     assert not (found := _problems(page)), "\n".join(map(str, found))
 
@@ -319,7 +319,7 @@ def test_a_bezel_count_that_wraps_is_reported(page, base_url, freelance):
     if freelance:
         page.get_by_role("radio", name="Freelance").click()
     page.wait_for_selector(".bz-count", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     assert not (found := _problems(page)), "\n".join(map(str, found))
     page.add_style_tag(content=".bz-count { white-space: normal; width: 3ch; overflow: hidden; }")
     assert {p[0] for p in _problems(page)} & {"wraps", "clipped"}
@@ -332,7 +332,7 @@ def test_a_day_ribbon_label_that_wraps_is_reported(page, base_url, width, height
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-tick b", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     assert page.locator(".dr-tick b").evaluate_all("l => l.filter(e => e.offsetParent).length") >= 4
     page.locator(".dr-grip--end").scroll_into_view_if_needed()
     box = page.locator(".dr-grip--end").bounding_box()
@@ -352,7 +352,7 @@ def test_the_phone_checks_can_fail(page, base_url):
     page.set_viewport_size({"width": 375, "height": 800})
     page.goto(f"{base_url}/#year")
     page.wait_for_selector("main .page-head", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     assert not (found := _problems(page)), "\n".join(map(str, found))
     page.evaluate(
         """() => {

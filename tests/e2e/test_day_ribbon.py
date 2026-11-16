@@ -16,6 +16,8 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
+from .conftest import settled
+
 pytestmark = pytest.mark.e2e
 
 FIXED_NOW = "2026-11-04T10:00:00"
@@ -1129,7 +1131,7 @@ def test_a_drag_leaves_no_error_in_the_console(page, base_url):
     page.wait_for_selector("section[aria-label='Days']", state="detached", timeout=5000)
     page.goto(f"{base_url}/#days")
     page.wait_for_selector(".dr-bar", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     grip = page.locator("[data-dr=end]").bounding_box()
     x, y = grip["x"] + grip["width"] / 2, grip["y"] + grip["height"] / 2
     page.mouse.move(x, y)

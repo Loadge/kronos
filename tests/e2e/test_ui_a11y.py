@@ -85,7 +85,7 @@ def test_no_new_accessibility_violations(demo_page, demo_url, tab, width, height
         # the week lines are always there; open them all so the scan still covers the day rows
         page.get_by_test_id("wk-expand-all").click()
         page.wait_for_selector("tr.day-row", timeout=5000)
-        page.wait_for_timeout(300)
+        settled(page)
     key = f"{tab}@{width}"
     found = _blocking(_scan(page))
     if UPDATE:
@@ -134,7 +134,7 @@ def test_the_open_year_dial_has_no_serious_violations(demo_page, demo_url, width
     _open(page, demo_url, "dashboard")
     page.locator(".brand-btn").click()
     page.wait_for_selector("#yd [data-yd=stage][data-day]:not([data-day=''])", timeout=5000)
-    page.wait_for_timeout(300)
+    settled(page)
     violations = Axe().run(page, context="#yd").response["violations"]
     assert _blocking(violations) == []
     # the control: the scan did look at the dial, and an unlabelled button in it would be found

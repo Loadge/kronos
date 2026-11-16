@@ -19,7 +19,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -742,7 +742,7 @@ def test_the_dashboard_fits_with_real_freelance_figures(phone, base_url, width):
         page = phone(width, 800)
         _open(page, base_url, "dashboard")
         page.wait_for_selector("[data-testid=freelance-card]", timeout=5000)
-        page.wait_for_timeout(500)
+        settled(page)
         assert page.evaluate("document.documentElement.scrollWidth") <= width
     finally:
         with httpx.Client(base_url=base_url) as c:

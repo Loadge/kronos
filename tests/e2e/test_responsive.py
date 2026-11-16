@@ -29,7 +29,7 @@ import datetime
 import httpx
 import pytest
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -108,7 +108,7 @@ class TestNoHorizontalOverflow:
         page.set_viewport_size({"width": width, "height": height})
         page.goto(f"{base_url}/#{HASH_OF.get(tab, tab)}")
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(150)  # let Alpine finish rendering (heatmap, grids)
+        settled(page)  # let Alpine finish rendering (heatmap, grids)
 
         assert _no_horizontal_overflow(page), (
             f"tab={tab} viewport={width}x{height} caused page-level horizontal overflow"

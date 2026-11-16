@@ -129,7 +129,7 @@ class TestNotesAreOptional:
         _open_log(page, base_url)
         _add_note_button(page).click()
         _notes(page).wait_for(state="visible", timeout=3000)
-        page.wait_for_timeout(400)
+        settled(page)
         before = _notes(page).bounding_box()["height"]
         _notes(page).fill("\n".join(f"line {i}" for i in range(9)))
         page.wait_for_timeout(100)

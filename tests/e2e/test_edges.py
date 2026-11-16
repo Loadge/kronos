@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
-from .conftest import HASH_OF
+from .conftest import HASH_OF, settled
 
 pytestmark = pytest.mark.e2e
 
@@ -168,7 +168,7 @@ def test_the_banner_on_a_phone_never_covers_the_tab_bar_or_the_log_dock(page, ba
     page.wait_for_selector(".log-col-rail", timeout=5000)
     page.context.set_offline(True)
     page.wait_for_selector(BANNER, state="visible", timeout=3000)
-    page.wait_for_timeout(500)
+    settled(page)
     banner = page.locator(BANNER).bounding_box()
     tabs = page.locator(".tabs").bounding_box()
     dock = page.locator(".log-col-rail").bounding_box()
