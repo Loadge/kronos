@@ -88,11 +88,16 @@ see it, because it measures 1280 and 375 px, plus 1100 px with rows that are too
   So the worst range is 901 to 1023 px, where the Note column is cut off at the right edge, and it had not been
   reported. From 1024 to 1279 px the sample rows almost fit: the 52 to 180 px seen during Phase 58 came from longer
   rows (a long note or a long source name), which the sample data does not have.
-- **Choose one of two**, with a mockup, because the choice shows:
-  - The wrap scrolls up to 1279 px, as it already does up to 900 px. It takes three or four lines of CSS, and
-    the column header stops sticking under the bezel in that range.
-  - The block rows get narrower in that range (hide Start and End, or let the note wrap), and the header keeps
-    sticking.
+- **Measured again 2026-11-17 with long rows** (a 28-character source name, 60 to 80-character notes): the page
+  scrolls sideways 239 px at 901, 178 px at 1023, 110 px at 1024, 72 px at 1100 and 22 px at 1200, and nothing at 1279.
+  The note already wraps; what does not fit is the eleven columns that never wrap.
+- **Choose one of two.** The mockup (`.artifacts/p63/mock/`, built from the real page frozen with those rows) shows
+  both between 901 and 1279 px:
+  - **A, the table scrolls** up to 1279 px, as it already does up to 900 px. One line of CSS; the page never scrolls
+    sideways, but the column headers scroll away with the table instead of sticking under the bezel.
+  - **B, narrower block rows**: Start and End go from 1024 to 1279 px, and Rate and Amount go too from 901 to 1023 px
+    (they stay in the block's form). Measured: the page never scrolls sideways, and the headers keep sticking. Hiding
+    only Start and End still leaves 46 to 107 px of scroll below 1024 px.
 - **The audit** gains those widths and the fatter rows, and its planted style is seen red at 1100 px.
 
 **Not in this phase.** Anything from 1280 px up, and the phone layout.

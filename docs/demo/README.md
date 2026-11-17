@@ -3,10 +3,7 @@
 The README GIF is produced from a scripted Playwright tour of a **throwaway,
 seeded** Kronos instance. Your real data is never involved.
 
-The current GIF was recorded at v45, so it still shows the tabs as Log, Days and
-Analytics (today they are Days, Weeks and Year). Before the tour runs again,
-`record_demo.mjs` needs those names updated: `tab('Log')` and `tab('Analytics')`
-no longer match a tab.
+The current GIF was recorded at v58, on 2026-11-17.
 
 Requires Node 20+, ffmpeg, and the project's Python dependencies.
 
@@ -61,9 +58,13 @@ no matter how slow the capture machine is. Edit the scene list in
 `record_demo.mjs` to change what the tour shows. The viewport is 1280 x 720
 (the header fits on one row and the Days tab has its three columns).
 
-The tour, in order (about 21 s), with the tabs under their names of today:
+The browser starts as a returning visitor: the milestone toast, the hint on the
+dial and the question about the number format are marked as seen, so none of them
+covers the page.
 
-1. **Dashboard**, the faint version label next to the title (`v45` in the
+The tour, in order (about 26 s):
+
+1. **Dashboard**, the faint version label next to the title (`v58` in the
    current GIF), then a scroll down to the end of the page.
 2. **Days**: the calendar with its Wk column; the October mini month, then the
    week number `41`.
@@ -75,7 +76,9 @@ The tour, in order (about 21 s), with the tabs under their names of today:
    calendar cell takes its colour.
 5. **Year**: the year at a glance, then a scroll down through every chart
    to the export buttons.
-6. **Freelance**: billed this year, per-source totals, paid out vs estimated,
+6. **Weeks > Freelance**: each week's payout with the account it goes into,
+   Confirm, and the weeks already paid out.
+7. **Freelance**: billed this year, per-source totals, paid out vs estimated,
    then a scroll down to the year to Dec 31, the tax split and the exports.
 
 ## 4. Assemble the GIF
@@ -89,4 +92,4 @@ ffmpeg -y -framerate 15 -i frames/f%05d.png -vf "fps=10,scale=800:-1:flags=lancz
 The scrolls change the whole frame, so they dominate the size and the palette
 size barely matters; width and frame rate do (900 px at 10 fps was 4.8 MB,
 800 px at 8 fps 3.5 MB, but the scrolls turn choppy). The current output is
-21.3 s, 213 frames, 800 x 450, 4.2 MB.
+25.6 s, 256 frames, 800 x 450, 4.7 MB.

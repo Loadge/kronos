@@ -23,14 +23,14 @@ import path from 'node:path';
 const URL = process.env.KRONOS_URL || 'http://127.0.0.1:8799';
 const OUT_DIR = path.resolve(process.env.OUT_DIR || './frames');
 const FPS = 15;
-// 1280 px: the header fits on one row with the Freelance tab, and the Log tab
+// 1280 px: the header fits on one row with the Freelance tab, and the Days tab
 // has its three columns (calendar, form, result rail).
 const VIEWPORT = { width: 1280, height: 720 };
 const NOW = '2026-11-04T10:12:00+01:00';
 
 // What the tour logs live: the day the seed leaves empty, and its week.
 const LOG_DAY = '2026-11-03';
-const JUMP_WEEK = '2026-10-05'; // the Monday of W41, opened from the Log calendar (October)
+const JUMP_WEEK = '2026-10-05'; // the Monday of W41, opened from the Days calendar (October)
 const NOTE = 'Release prep, then a hotfix';
 
 const CURSOR_SVG =
@@ -57,8 +57,13 @@ async function main() {
     locale: 'en-GB', // 24 h time fields
     timezoneId: 'Europe/Madrid',
   });
-  // The milestone toast ("365 days logged!") belongs to a first visit; this viewer has seen it.
-  await context.addInitScript(() => localStorage.setItem('k-milestone-seen', '100000'));
+  // The milestone toast ("365 days logged!"), the hint on the dial and the question about the
+  // number format belong to a first visit; this viewer has seen them.
+  await context.addInitScript(() => {
+    localStorage.setItem('k-milestone-seen', '100000');
+    localStorage.setItem('k-dial-hint', '1');
+    localStorage.setItem('k-locale-hint', '1');
+  });
   const page = await context.newPage();
   await page.clock.setFixedTime(new Date(NOW)); // the browser's "today" never moves
 
@@ -159,27 +164,27 @@ async function main() {
   /** The Alpine state of the page (to hold things the app times by the wall clock). */
   const app = (fn, arg) => page.evaluate(fn, arg);
 
-  const tab = (name) => page.locator('a[role="tab"]', { hasText: name }).first();
+  const tab = (name) => page.getByRole('tab', { name, exact: true }).first();
 
-  // -- Scene 1 -- Dashboard, with the faint "v38" next to the title -----------
+  // -- Scene 1 -- Dashboard, with the faint version label next to the title ------
   await setCursor(page, 292, 80); // resting by the version label
   await hold(0.5);
   await scrollToEnd(1.3, 0.4); // the rest of the Dashboard
 
-  // -- Scene 2 -- Log: the calendar with its week-number column ---------------
-  await scrollTopAndClick(tab('Log'), 0.7);
+  // -- Scene 2 -- Days: the calendar with its week-number column --------------
+  await scrollTopAndClick(tab('Days'), 0.7);
   await page.waitForTimeout(800);
   await scrollTo(190, 0.4); // strip out of the way: calendar, form and result rail in one view
   await hold(0.1);
 
-  // -- Scene 3 -- a week number -> Days > Employee, on that week's separator --
+  // -- Scene 3 -- a week number -> Weeks > Employee, on that week's separator -
   // The app jumps there by itself (instantly, under reduced motion) and flashes the week
   // for two seconds of wall clock. Both are replayed here frame by frame.
   await moveAndClick(page.locator('.plan-mini', { hasText: 'Oct' }), 0.4); // a full month
   await hold(0.2);
   const wk = page.locator('.log-cal-wk', { hasText: /^41$/ });
   await moveAndClick(wk, 0.5);
-  await page.waitForTimeout(1400); // the Days tab renders and the app's own jump settles
+  await page.waitForTimeout(1400); // the Weeks tab renders and the app's own jump settles
   const landedY = await page.evaluate(() => window.scrollY);
   await app(() => {
     const data = window.Alpine.$data(document.querySelector('main'));
@@ -213,8 +218,8 @@ async function main() {
     window.Alpine.$data(document.querySelector('main')).daysFlashWeek = '';
   });
 
-  // -- Scene 4 -- back in Log: a day, a note, the result rail, Create entry ---
-  await scrollTopAndClick(tab('Log'), 0.5);
+  // -- Scene 4 -- back in Days: a day, a note, the result rail, Create entry --
+  await scrollTopAndClick(tab('Days'), 0.5);
   await page.waitForTimeout(800);
   await scrollTo(190, 0.4);
   const month = await page.evaluate(() => {
@@ -222,7 +227,7 @@ async function main() {
     return `${d.calYear}-${d.calMonth}`;
   });
   if (month !== '2026-10') {
-    // the Log tab kept October on the calendar: back to November from the year strip
+    // the Days tab kept October on the calendar: back to November from the year strip
     await moveAndClick(page.locator('.plan-mini', { hasText: 'Nov' }), 0.4);
   }
   await moveAndClick(page.locator(`.log-cal-day[aria-label="${LOG_DAY}"]`), 0.5);
@@ -256,13 +261,25 @@ async function main() {
     window.Alpine.$data(document.querySelector('main')).toast.show = false;
   });
 
-  // -- Scene 5 -- Analytics: the year at a glance, the zoomable chart ---------
-  await scrollTopAndClick(tab('Analytics'), 0.6);
+  // -- Scene 5 -- Year: the year at a glance, then every chart ---------------
+  await scrollTopAndClick(tab('Year'), 0.6);
   await page.waitForTimeout(1500); // analytics fetches + charts settle
   await hold(0.7);
   await scrollToEnd(2.0, 0.5); // down through every chart
 
-  // -- Scene 6 -- Freelance: sources, blocks and a payout ---------------------
+  // -- Scene 6 -- Weeks > Freelance: each week's payout through its chain -----
+  await scrollTopAndClick(tab('Weeks'), 0.6);
+  await page.waitForTimeout(800);
+  const weeksOf = page.getByRole('radiogroup', { name: 'Weeks of' });
+  await moveAndClick(weeksOf.getByRole('radio', { name: /Freelance/ }), 0.5);
+  await page.locator('.days-table--fl tr.wk-row').first().waitFor();
+  await page.waitForLoadState('networkidle'); // every row's preview has answered
+  await hold(0.6);
+  const firstWeek = page.locator('.days-table--fl tr.wk-row').first();
+  await scrollTo((await firstWeek.boundingBox()).y + (await page.evaluate(() => window.scrollY)) - 260, 0.8);
+  await hold(1.6); // the chain of accounts, the amounts and Confirm
+
+  // -- Scene 7 -- Freelance: sources, blocks and a payout ---------------------
   await scrollTopAndClick(tab('Freelance'), 0.6);
   await page.waitForTimeout(1500);
   await hold(0.7);

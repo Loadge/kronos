@@ -10,7 +10,7 @@ Single-user. No auth. One SQLite file. Runs as a Docker container behind your ow
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![Tests](https://img.shields.io/badge/tests-pytest%20%2B%20Playwright-brightgreen.svg)](#tests)
 
-![Kronos dashboard and analytics](docs/demo.gif)
+![A tour of Kronos: Dashboard, Days, Weeks, Year and Freelance](docs/demo.gif)
 
 ---
 
