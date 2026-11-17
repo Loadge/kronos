@@ -3926,6 +3926,15 @@ tr.wk-row.open .wk-head .chev { transform: rotate(90deg); }
 .days-table--fl tr.blk-last td:first-child::before { bottom: 50%; }
 /* the header of the block columns, under the line of an open week; no level of its own, so the column header that sticks stays on top */
 .days-table tr.blk-head th { position: relative; z-index: auto; background: transparent; padding: 0.3rem 0.6rem; font-size: 0.7rem; box-shadow: inset 0 -1px 0 var(--k-border); }
+/* Between 901 and 1279px the wrap does not scroll (the column header sticks to the page), so the block
+   rows give up columns to fit: Start and End first, Rate and Amount too below 1024px. They stay in the
+   block's form. */
+@media (min-width: 901px) and (max-width: 1279px) {
+  .days-table--fl tr.blk > .blk-time, .days-table--fl tr.blk-head > .blk-time { display: none; }
+}
+@media (min-width: 901px) and (max-width: 1023px) {
+  .days-table--fl tr.blk > .blk-rate, .days-table--fl tr.blk-head > .blk-rate { display: none; }
+}
 .fl-payout { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.2rem 0.5rem; font-size: 0.86rem; --src: var(--k-coin); }
 .fl-payout-txt { flex: 1; min-width: 0; }
 .fl-payout-txt .fl-money { color: var(--paid); }

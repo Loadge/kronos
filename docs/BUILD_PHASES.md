@@ -63,7 +63,7 @@ large one, with 60, 61 and 62 as ideas behind it; 28 after it (Anselmo logs thro
 CLI Phase 32 delivered); 29 any time, and before next October; 36 (the tactile pass) in slices, each one a
 weekend; 30 only if logging from the phone outside the LAN turns out to be common, and after 59.
 
-### Phase 63 — Weeks between 901 and 1279 px (planned 2026-11-15, measured, a choice to make)
+### Phase 63 — Weeks between 901 and 1279 px (built 2026-11-17, option B, on INT)
 
 **Why.** With weeks open in Weeks > Freelance, the page scrolls sideways on a window between 1024 and 1279 px.
 It was seen while reviewing Phase 58 and it is older than it (52, 142 and 180 px of scroll on the commit before).
@@ -91,14 +91,18 @@ see it, because it measures 1280 and 375 px, plus 1100 px with rows that are too
 - **Measured again 2026-11-17 with long rows** (a 28-character source name, 60 to 80-character notes): the page
   scrolls sideways 239 px at 901, 178 px at 1023, 110 px at 1024, 72 px at 1100 and 22 px at 1200, and nothing at 1279.
   The note already wraps; what does not fit is the eleven columns that never wrap.
-- **Choose one of two.** The mockup (`.artifacts/p63/mock/`, built from the real page frozen with those rows) shows
+- **Miguel chose B on 2026-11-17.** The mockup (`.artifacts/p63/mock/`, built from the real page frozen with those rows) shows
   both between 901 and 1279 px:
   - **A, the table scrolls** up to 1279 px, as it already does up to 900 px. One line of CSS; the page never scrolls
     sideways, but the column headers scroll away with the table instead of sticking under the bezel.
   - **B, narrower block rows**: Start and End go from 1024 to 1279 px, and Rate and Amount go too from 901 to 1023 px
     (they stay in the block's form). Measured: the page never scrolls sideways, and the headers keep sticking. Hiding
     only Start and End still leaves 46 to 107 px of scroll below 1024 px.
-- **The audit** gains those widths and the fatter rows, and its planted style is seen red at 1100 px.
+- **Built.** The cells carry `.blk-time` (Start, End) and `.blk-rate` (Rate, Amount), and two media queries in
+  `styles.css` hide them. `test_ui_geometry.py` adds a source with a 28-character name and three blocks with long
+  notes, and measures 901, 950, 1023, 1024, 1100, 1200, 1279 and 1280 px: no sideways scroll, a wrap that does not
+  scroll, and exactly the columns each width gives up. Its positive control puts every column back and sees the page
+  scroll at 950 and 1100 px; with the CSS planted out, seven of the eight widths go red. Version 63.
 
 **Not in this phase.** Anything from 1280 px up, and the phone layout.
 

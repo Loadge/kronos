@@ -283,8 +283,8 @@
                 <template x-if="r.kind === 'bhead'">
                   <tr class="blk-head">
                     <th>Date</th><th><span class="visually-hidden">Day</span></th><th>Source</th>
-                    <th class="num">Start</th><th class="num">End</th><th class="num">Hours</th>
-                    <th class="num">Rate</th><th class="num">Amount</th><th class="num">€</th>
+                    <th class="num blk-time">Start</th><th class="num blk-time">End</th><th class="num">Hours</th>
+                    <th class="num blk-rate">Rate</th><th class="num blk-rate">Amount</th><th class="num">€</th>
                     <th class="notes-col">Note</th>
                     <th class="act-col"><span class="visually-hidden">Edit</span></th>
                   </tr>
@@ -294,11 +294,11 @@
                     <td class="metric" x-text="r.b.date"></td>
                     <td class="dow" x-text="r.dow"></td>
                     <td><span class="fl-dot" aria-hidden="true"></span> <span class="blk-src" :title="r.b.source_name" x-text="r.b.source_name"></span></td>
-                    <td class="num metric phone-hide" x-text="r.b.start_time || '—'"></td>
-                    <td class="num metric phone-hide" x-text="r.b.end_time || '—'"></td>
+                    <td class="num metric phone-hide blk-time" x-text="r.b.start_time || '—'"></td>
+                    <td class="num metric phone-hide blk-time" x-text="r.b.end_time || '—'"></td>
                     <td class="num metric" x-text="fmtHours(r.b.hours)"></td>
-                    <td class="num metric phone-hide" x-text="fmtMoney(r.b.rate, r.b.currency)"></td>
-                    <td class="num metric phone-hide" x-text="fmtMoney(r.b.amount, r.b.currency)"></td>
+                    <td class="num metric phone-hide blk-rate" x-text="fmtMoney(r.b.rate, r.b.currency)"></td>
+                    <td class="num metric phone-hide blk-rate" x-text="fmtMoney(r.b.amount, r.b.currency)"></td>
                     <td class="num metric" :class="r.b.amount_eur === null ? 'deficit' : (r.b.payout_id != null ? 'fl-est' : 'fl-money')" :title="r.b.payout_id != null ? 'estimate; the week\'s payout counts' : null" x-text="r.b.amount_eur === null ? 'no rate' : fmtMoney(r.b.amount_eur)"></td>
                     <td class="notes-col phone-hide" x-html="r.b.notes ? highlightNotes(r.b.notes, notesQuery) : ''"></td>
                     <td class="act-col phone-hide" @click.stop>

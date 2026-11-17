@@ -1176,6 +1176,88 @@ def test_the_column_header_audit_can_fail(page, chain_url, cells):
     assert not (found := page.evaluate(COLUMN_HEAD_AUDIT)[0]), "\n".join(map(str, found))
 
 
+# ── open weeks with long block rows, between 901 and 1279px ─────────────────────────────────
+# There the wrap does not scroll (the column header sticks to the page), so a block row that is wider than
+# the wrap scrolls the whole page. Long rows did, from 22px at 1200 to 239px at 901: the sample data's rows
+# were too short to show it. The block rows give up Start and End up to 1279px, and Rate and Amount too
+# below 1024px.
+
+FAT_SOURCE = "Northwind Labs Platform Team"
+FAT_NOTES = [
+    "Migration of the billing service to the new queue, plus review of the retry policy",
+    "Pairing on the payments webhook; fixed the idempotency key bug in the retries",
+    "Sprint planning and estimates for the reporting dashboard, with the data team",
+]
+FAT_WIDTHS = [901, 950, 1023, 1024, 1100, 1200, 1279, 1280]
+
+FAT_MEASURE = """() => {
+  const wrap = document.querySelector('.days-wrap');
+  const shown = sel => [...document.querySelectorAll(`.days-table--fl tr.blk > ${sel}, .days-table--fl tr.blk-head > ${sel}`)]
+    .some(el => el.getBoundingClientRect().width > 0);
+  return { hscroll: document.documentElement.scrollWidth - window.innerWidth,
+           wrapScrolls: getComputedStyle(wrap).overflowX !== 'visible',
+           time: shown('.blk-time'), rate: shown('.blk-rate') };
+}"""
+
+
+@pytest.fixture
+def fat_rows(chain_url, cells):
+    """One more source with a long name and three blocks with a start, an end and a long note, in one week."""
+    with httpx.Client(base_url=chain_url) as c:
+        stripe = next(
+            a["id"] for a in c.get("/api/freelance/accounts").json() if a["name"] == "Stripe"
+        )
+        r = c.post(
+            "/api/freelance/sources",
+            json={"name": FAT_SOURCE, "hourly_rate": 95, "currency": "USD", "chain": [stripe]},
+        )
+        assert r.status_code == 201, r.text
+        for k, note in enumerate(FAT_NOTES):
+            day = (date(2026, 10, 26) + timedelta(days=k)).isoformat()
+            body = {
+                "source_id": r.json()["id"],
+                "date": day,
+                "start_time": "18:30",
+                "end_time": "21:00",
+                "notes": note,
+            }
+            b = c.post("/api/freelance/blocks", json=body)
+            assert b.status_code == 201, b.text
+    yield
+
+
+def _open_fat(page, chain_url, width):
+    _open_cells(page, chain_url, width, 900, open_week=True)
+    rows = page.locator(".days-table--fl tr.blk", has_text=FAT_SOURCE)
+    assert rows.count() == 3, rows.count()  # the long rows are on the page, so they were measured
+    return page.evaluate(FAT_MEASURE)
+
+
+@pytest.mark.parametrize("width", FAT_WIDTHS)
+def test_long_block_rows_never_scroll_the_page(page, chain_url, cells, fat_rows, width):
+    m = _open_fat(page, chain_url, width)
+    assert m["hscroll"] <= 1, f"the page scrolls sideways by {m['hscroll']}px at {width}px"
+    assert not m["wrapScrolls"], (
+        "from 901px the column header sticks to the page, so the wrap must not scroll"
+    )
+    # what each width gives up, and nothing more
+    assert m["time"] == (width >= 1280), m
+    assert m["rate"] == (width >= 1024), m
+
+
+@pytest.mark.parametrize("width", [950, 1100])
+def test_the_long_row_audit_can_fail(page, chain_url, cells, fat_rows, width):
+    """A positive control: with every column back, the long rows scroll the page at both steps."""
+    assert _open_fat(page, chain_url, width)["hscroll"] <= 1
+    page.add_style_tag(
+        content=".days-table--fl tr.blk > td, .days-table--fl tr.blk-head > th { display: table-cell !important; }"
+        " .days-table--fl tr.blk > td.day-sub { display: none !important; }"
+    )
+    m = page.evaluate(FAT_MEASURE)
+    assert m["time"] and m["rate"], m
+    assert m["hscroll"] > 1, m
+
+
 # ── the seal of a confirmed payout, at the moment it has landed ───────────────────────────────────────
 # The seal is on the page for a second only, so the page measures it itself, in the callback that sees it get
 # `hit` (the same task as the class change, before anything moves): inside the window, inside its row, nothing
